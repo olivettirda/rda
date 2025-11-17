@@ -4,22 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>조사 양식 만들기</title>
-    <!-- 링크 미리보기 설정 -->
-    <meta property="og:title" content="조사 양식 만들기">
-    <meta property="og:description" content="품종 목록 생성과 생육조사 양식을 자동으로 만들어주는 도구">
-    <meta property="og:image" content="https://raw.githubusercontent.com/olivettirda/rda/main/logo.png">
-    <meta property="og:url" content="https://olivettirda.github.io/rda/생육조사_통합도구.html">
-    <meta property="og:type" content="website">
-    
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="조사 양식 만들기">
-    <meta name="twitter:description" content="품종 목록 생성과 생육조사 양식을 자동으로 만들어주는 도구">
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/olivettirda/rda/main/logo.png">
-    
-    <!-- 파비콘 설정 (브라우저 탭 아이콘, 바로가기 아이콘) -->
-    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/olivettirda/rda/main/logo.png">
-    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/olivettirda/rda/main/logo.png">
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * {
@@ -566,6 +550,14 @@
         <div class="header">
             <h1>🌾 조사 양식 만들기</h1>
             <p>품종 목록 생성과 생육조사 양식 생성을 한 곳에서</p>
+            <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="addToBookmark()" style="background: white; color: #667eea; border: 2px solid white; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; transition: all 0.3s;">
+                    ⭐ 북마크 추가
+                </button>
+                <button onclick="createShortcut()" style="background: rgba(255,255,255,0.2); color: white; border: 2px solid white; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; transition: all 0.3s;">
+                    🔗 바로가기 만들기
+                </button>
+            </div>
         </div>
 
         <!-- 모드 선택 -->
@@ -1761,6 +1753,71 @@
         }
 
         // ========== 공통 함수 ==========
+        
+        // 북마크 추가 기능
+        function addToBookmark() {
+            const pageTitle = document.title;
+            const pageUrl = window.location.href;
+            
+            try {
+                // 최신 브라우저
+                if (window.sidebar && window.sidebar.addPanel) {
+                    window.sidebar.addPanel(pageTitle, pageUrl, '');
+                } 
+                // IE
+                else if (window.external && ('AddFavorite' in window.external)) {
+                    window.external.AddFavorite(pageUrl, pageTitle);
+                } 
+                // 기타 브라우저
+                else {
+                    alert('북마크 추가 방법:\n\n' +
+                          'Windows: Ctrl + D\n' +
+                          'Mac: Cmd + D\n\n' +
+                          '를 눌러 북마크에 추가하세요!');
+                }
+            } catch (e) {
+                alert('북마크 추가 방법:\n\n' +
+                      'Windows: Ctrl + D\n' +
+                      'Mac: Cmd + D\n\n' +
+                      '를 눌러 북마크에 추가하세요!');
+            }
+        }
+        
+        // 바로가기 만들기 기능
+        function createShortcut() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isMobile = isIOS || isAndroid;
+            
+            if (isIOS) {
+                alert('📱 iPhone/iPad 바로가기 만들기:\n\n' +
+                      '1. 화면 하단 공유 버튼 (□↑) 탭\n' +
+                      '2. "홈 화면에 추가" 선택\n' +
+                      '3. "추가" 탭');
+            } else if (isAndroid) {
+                alert('📱 Android 바로가기 만들기:\n\n' +
+                      '1. 브라우저 메뉴 (⋮) 탭\n' +
+                      '2. "홈 화면에 추가" 선택\n' +
+                      '3. "추가" 탭');
+            } else {
+                // 데스크톱
+                const pageUrl = window.location.href;
+                const pageTitle = document.title;
+                
+                const shortcutContent = `[InternetShortcut]\nURL=${pageUrl}\nIconIndex=0`;
+                const blob = new Blob([shortcutContent], { type: 'text/plain' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${pageTitle}.url`;
+                link.click();
+                
+                setTimeout(() => {
+                    alert('💾 바로가기 파일이 다운로드되었습니다!\n\n' +
+                          '다운로드 폴더에서 바탕화면으로 옮겨주세요.');
+                }, 100);
+            }
+        }
+        
         function downloadFile(content, filename, mimeType) {
             const blob = new Blob([content], { type: mimeType });
             const link = document.createElement('a');
