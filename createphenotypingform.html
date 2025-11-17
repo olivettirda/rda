@@ -1348,50 +1348,108 @@
         }
 
         function generateTable() {
-            // 단위 변환 설정이 있는지 확인
-            const hasConversion = Object.keys(conversionSettings).some(key => conversionSettings[key]?.enabled);
-            
-            if (hasConversion) {
-                generateTableWithConversion();
-                return;
-            }
-            
             if (varieties.length === 0) {
                 alert('품종을 추가하세요.');
                 return;
             }
 
-            const surveyItems = getCurrentSurveyItems();
-            if (!surveyItems || surveyItems.length === 0) {
-                alert('조사 항목을 설정하세요.');
-                return;
-            }
-
-            const repeatCount = parseInt(document.getElementById('repeatCount').value);
-
-            tableData = [];
+            // 단위 변환 설정이 있는지 확인
+            const hasConversion = Object.keys(conversionSettings).some(key => conversionSettings[key]?.enabled);
             
-            // 헤더 생성
-            const headers = ['품종', '반복', ...surveyItems];
-            tableData.push(headers);
+            if (hasConversion) {
+                // 단위 변환이 있을 때
+                const surveyItems = getSurveyItemsWithConversion();
+                if (!surveyItems || surveyItems.length === 0) {
+                    alert('조사 항목을 설정하세요.');
+                    return;
+                }
 
-            // 데이터 행 생성
-            varieties.forEach((variety, varietyIdx) => {
-                for (let r = 1; r <= repeatCount; r++) {
-                    const row = [variety, r];
-                    surveyItems.forEach(() => row.push(''));
-                    tableData.push(row);
-                }
+                const repeatCount = parseInt(document.getElementById('repeatCount').value);
+                tableData = [];
                 
-                // 품종 간 구분선 추가 (마지막 품종 제외)
-                if (varietyIdx < varieties.length - 1) {
-                    tableData.push({ separator: true });
+                // 헤더 생성
+                const headers = ['품종', '반복', ...surveyItems];
+                tableData.push(headers);
+
+                // 데이터 행 생성 (실제 행 번호 추적)
+                let actualRowIndex = 2; // 엑셀에서 2번째 행부터 시작 (1번째는 헤더)
+                
+                varieties.forEach((variety, varietyIdx) => {
+                    for (let r = 1; r <= repeatCount; r++) {
+                        const row = [variety, r];
+                        
+                        surveyItems.forEach((item, idx) => {
+                            const originalItems = getCurrentSurveyItems();
+                            let isConversionResult = false;
+                            let inputColIdx = -1;
+                            
+                            // 이 항목이 변환 결과 열인지 확인
+                            for (let origItem of originalItems) {
+                                if (conversionSettings[origItem]?.enabled && item === origItem) {
+                                    isConversionResult = true;
+                                    const inputUnit = conversionSettings[origItem].inputUnit;
+                                    const inputColName = `${origItem.split('(')[0]}_입력(${inputUnit})`;
+                                    inputColIdx = surveyItems.indexOf(inputColName);
+                                    break;
+                                }
+                            }
+                            
+                            if (isConversionResult && inputColIdx >= 0) {
+                                // 정확한 열 문자와 행 번호로 수식 생성
+                                const inputColLetter = getExcelColumnLetter(2 + inputColIdx + 1); // 품종(A), 반복(B) 다음부터
+                                const origItem = originalItems.find(oi => 
+                                    conversionSettings[oi]?.enabled && item === oi
+                                );
+                                const multiplier = conversionSettings[origItem].multiplier;
+                                row.push({ formula: `=${inputColLetter}${actualRowIndex}/${multiplier}` });
+                            } else {
+                                row.push('');
+                            }
+                        });
+                        
+                        tableData.push(row);
+                        actualRowIndex++;
+                    }
+                    
+                    // 품종 간 구분선 추가 (마지막 품종 제외)
+                    if (varietyIdx < varieties.length - 1) {
+                        tableData.push({ separator: true });
+                    }
+                });
+            } else {
+                // 단위 변환이 없을 때
+                const surveyItems = getCurrentSurveyItems();
+                if (!surveyItems || surveyItems.length === 0) {
+                    alert('조사 항목을 설정하세요.');
+                    return;
                 }
-            });
+
+                const repeatCount = parseInt(document.getElementById('repeatCount').value);
+                tableData = [];
+                
+                // 헤더 생성
+                const headers = ['품종', '반복', ...surveyItems];
+                tableData.push(headers);
+
+                // 데이터 행 생성
+                varieties.forEach((variety, varietyIdx) => {
+                    for (let r = 1; r <= repeatCount; r++) {
+                        const row = [variety, r];
+                        surveyItems.forEach(() => row.push(''));
+                        tableData.push(row);
+                    }
+                    
+                    // 품종 간 구분선 추가 (마지막 품종 제외)
+                    if (varietyIdx < varieties.length - 1) {
+                        tableData.push({ separator: true });
+                    }
+                });
+            }
 
             displaySurveyTable();
             updateSurveyStats();
         }
+
 
         function getSurveyItemsWithConversion() {
             const items = getCurrentSurveyItems();
@@ -1409,77 +1467,6 @@
             });
             
             return result;
-        }
-
-        function generateTableWithConversion() {
-            if (varieties.length === 0) {
-                alert('품종을 추가하세요.');
-                return;
-            }
-
-            const surveyItems = getSurveyItemsWithConversion();
-            if (!surveyItems || surveyItems.length === 0) {
-                alert('조사 항목을 설정하세요.');
-                return;
-            }
-
-            const repeatCount = parseInt(document.getElementById('repeatCount').value);
-
-            tableData = [];
-            
-            // 헤더 생성
-            const headers = ['품종', '반복', ...surveyItems];
-            tableData.push(headers);
-
-            // 데이터 행 생성 (실제 행 번호 추적)
-            let actualRowIndex = 2; // 엑셀에서 2번째 행부터 시작 (1번째는 헤더)
-            
-            varieties.forEach((variety, varietyIdx) => {
-                for (let r = 1; r <= repeatCount; r++) {
-                    const row = [variety, r];
-                    
-                    surveyItems.forEach((item, idx) => {
-                        const originalItems = getCurrentSurveyItems();
-                        let isConversionResult = false;
-                        let inputColIdx = -1;
-                        
-                        // 이 항목이 변환 결과 열인지 확인
-                        for (let origItem of originalItems) {
-                            if (conversionSettings[origItem]?.enabled && item === origItem) {
-                                isConversionResult = true;
-                                const inputUnit = conversionSettings[origItem].inputUnit;
-                                const inputColName = `${origItem.split('(')[0]}_입력(${inputUnit})`;
-                                inputColIdx = surveyItems.indexOf(inputColName);
-                                break;
-                            }
-                        }
-                        
-                        if (isConversionResult && inputColIdx >= 0) {
-                            // 정확한 열 문자와 행 번호로 수식 생성
-                            const inputColLetter = getExcelColumnLetter(2 + inputColIdx + 1); // 품종(A), 반복(B) 다음부터
-                            const origItem = originalItems.find(oi => 
-                                conversionSettings[oi]?.enabled && item === oi
-                            );
-                            const multiplier = conversionSettings[origItem].multiplier;
-                            row.push({ formula: `=${inputColLetter}${actualRowIndex}/${multiplier}` });
-                        } else {
-                            row.push('');
-                        }
-                    });
-                    
-                    tableData.push(row);
-                    actualRowIndex++;
-                }
-                
-                // 품종 간 구분선 추가 (마지막 품종 제외)
-                if (varietyIdx < varieties.length - 1) {
-                    tableData.push({ separator: true });
-                    // separator는 실제 행이 아니므로 actualRowIndex 증가 안함
-                }
-            });
-
-            displaySurveyTable();
-            updateSurveyStats();
         }
 
         function displaySurveyTable() {
