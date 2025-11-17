@@ -134,7 +134,7 @@
 
         .intro-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
             margin-top: 15px;
         }
@@ -144,6 +144,7 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 0; /* 오버플로우 방지 */
         }
 
         .intro-card-title {
@@ -154,12 +155,14 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap; /* 긴 제목 줄바꿈 */
         }
 
         .intro-card-desc {
             font-size: 14px;
             color: #666;
             line-height: 1.6;
+            word-break: keep-all; /* 한글 단어 단위 줄바꿈 */
         }
 
         .intro-card-features {
@@ -171,6 +174,7 @@
         .intro-card-features li {
             margin-left: 20px;
             margin-top: 5px;
+            word-break: keep-all; /* 한글 단어 단위 줄바꿈 */
         }
 
         .main-content {
@@ -551,6 +555,32 @@
         }
 
         @media (max-width: 768px) {
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .intro-section {
+                padding: 15px;
+                margin: 15px 20px;
+            }
+            
+            .intro-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .intro-card {
+                padding: 15px;
+            }
+            
+            .intro-card-features ul {
+                padding-left: 0;
+            }
+            
             .mode-selector {
                 flex-direction: column;
                 gap: 10px;
@@ -570,6 +600,18 @@
 
             .input-group {
                 flex-direction: column;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .settings-panel {
+                padding: 15px;
+            }
+            
+            .preview-section {
+                padding: 15px;
             }
         }
     </style>
@@ -1801,7 +1843,8 @@
                 const pageUrl = window.location.href;
                 const pageTitle = document.title;
                 
-                const shortcutContent = `[InternetShortcut]\nURL=${pageUrl}\nIconIndex=0\nIconFile=https://raw.githubusercontent.com/olivettirda/rda/main/ssallogo.ico`;
+                // .url 파일 생성 (Windows는 보안상 웹 아이콘을 직접 불러오지 않음)
+                const shortcutContent = `[InternetShortcut]\nURL=${pageUrl}`;
                 const blob = new Blob([shortcutContent], { type: 'application/x-mswininet-url' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
@@ -1810,8 +1853,13 @@
                 
                 setTimeout(() => {
                     alert('💾 바로가기 파일이 다운로드되었습니다!\n\n' +
-                          '다운로드 폴더에서 바탕화면으로 옮겨주세요.\n' +
-                          '(아이콘이 자동으로 적용됩니다)');
+                          '📌 아이콘 적용 방법:\n' +
+                          '1. 바로가기 파일을 바탕화면으로 이동\n' +
+                          '2. 파일 우클릭 → 속성\n' +
+                          '3. "웹 문서" 탭에서 "아이콘 변경" 클릭\n' +
+                          '4. 다음 주소 입력 후 엔터:\n' +
+                          '   https://raw.githubusercontent.com/olivettirda/rda/main/ssallogo.ico\n\n' +
+                          '또는 브라우저 즐겨찾기를 사용하시면 아이콘이 자동 적용됩니다.');
                 }, 100);
             }
         }
