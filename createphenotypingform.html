@@ -524,6 +524,20 @@
                                 <option value="3105">폼텍 3105 (64mm × 39mm, 21칸)</option>
                             </select>
                         </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">세트수 (반복 횟수)</label>
+                            <input type="number" id="qrSetCount" value="1" min="1" max="10" placeholder="1">
+                            <small style="color: #666; font-size: 12px;">각 라벨을 몇 번 반복할지 설정</small>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">반복 방식</label>
+                            <select id="qrRepeatMode">
+                                <option value="sequential">연속 반복 (001, 001, 002, 002...)</option>
+                                <option value="batch">세트 반복 (001, 002... / 001, 002...)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div id="labelSpecInfo" class="alert alert-info">
@@ -1839,14 +1853,22 @@
                     <strong>📋 폼텍 3106 라벨 규격</strong><br>
                     • 라벨 크기: 64mm × 34mm<br>
                     • 배열: 3열 × 8행 (A4 한 장에 24개)<br>
-                    • 여백: 위/아래 12mm, 좌/우 5mm, 열 간격 2mm
+                    • 여백: 위/아래 12mm, 좌/우 5mm, 열 간격 2mm<br>
+                    <br>
+                    <strong>🔄 세트수 반복 기능</strong><br>
+                    • 연속 반복: 같은 라벨끼리 연속 출력 (001×3, 002×3...)<br>
+                    • 세트 반복: 모든 라벨 1회씩 출력 후 반복 (001,002,003 / 001,002,003...)
                 `;
             } else if (spec === '3105') {
                 info.innerHTML = `
                     <strong>📋 폼텍 3105 라벨 규격</strong><br>
                     • 라벨 크기: 64mm × 39mm<br>
                     • 배열: 3열 × 7행 (A4 한 장에 21개)<br>
-                    • 여백: 위/아래 12mm, 좌/우 5mm, 열 간격 2mm
+                    • 여백: 위/아래 12mm, 좌/우 5mm, 열 간격 2mm<br>
+                    <br>
+                    <strong>🔄 세트수 반복 기능</strong><br>
+                    • 연속 반복: 같은 라벨끼리 연속 출력 (001×3, 002×3...)<br>
+                    • 세트 반복: 모든 라벨 1회씩 출력 후 반복 (001,002,003 / 001,002,003...)
                 `;
             }
         }
@@ -2028,6 +2050,34 @@
                 alert('품종 데이터를 입력하거나 엑셀 파일을 업로드해주세요.');
                 return;
             }
+            
+            // 세트수 및 반복 방식 적용
+            const setCount = parseInt(document.getElementById('qrSetCount').value) || 1;
+            const repeatMode = document.getElementById('qrRepeatMode').value;
+            
+            if (setCount > 1) {
+                const originalData = [...qrLabelData];
+                qrLabelData = [];
+                
+                if (repeatMode === 'sequential') {
+                    // 연속 반복: 같은 번호끼리 연속으로
+                    // 예: 001, 001, 001, 002, 002, 002
+                    originalData.forEach(item => {
+                        for (let i = 0; i < setCount; i++) {
+                            qrLabelData.push({...item});
+                        }
+                    });
+                } else {
+                    // 세트 반복: 한 세트 다 하고 처음부터 반복
+                    // 예: 001, 002, 003, 001, 002, 003
+                    for (let i = 0; i < setCount; i++) {
+                        originalData.forEach(item => {
+                            qrLabelData.push({...item});
+                        });
+                    }
+                }
+            }
+            
             const spec = document.getElementById('labelSpec').value;
             const isLarge = spec === '3105';
             let html = '<div class="barcode-label-container">';
