@@ -1885,19 +1885,39 @@
         }
 
         function downloadLabelsExcel() {
-            if (varieties.length === 0) {
-                alert('다운로드할 라벨이 없습니다.');
-                return;
+            const labelType = document.getElementById('labelType').value;
+            
+            // QR 라벨인 경우
+            if (labelType === 'barcode' || labelType === 'qr') {
+                if (!qrLabelData || qrLabelData.length === 0) {
+                    alert('다운로드할 QR 라벨이 없습니다.');
+                    return;
+                }
+                const wb = XLSX.utils.book_new();
+                const data = [['시료번호', '시험번호', '품종 및 계통']];
+                qrLabelData.forEach(item => {
+                    data.push([item.sampleNumber, item.testNumber, item.variety]);
+                });
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, 'QR라벨');
+                XLSX.writeFile(wb, 'QR라벨_시료번호_' + getDateString() + '.xlsx');
+            } 
+            // 전시용 라벨인 경우
+            else {
+                if (varieties.length === 0) {
+                    alert('다운로드할 라벨이 없습니다.');
+                    return;
+                }
+                const wb = XLSX.utils.book_new();
+                const info1 = document.getElementById('displayInfo1').value;
+                const data = [['품종', '추가정보']];
+                varieties.forEach(v => {
+                    data.push([v.full, info1]);
+                });
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, '라벨');
+                XLSX.writeFile(wb, '라벨_' + getDateString() + '.xlsx');
             }
-            const wb = XLSX.utils.book_new();
-            const info1 = document.getElementById('displayInfo1').value;
-            const data = [['품종', '추가정보']];
-            varieties.forEach(v => {
-                data.push([v.full, info1]);
-            });
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            XLSX.utils.book_append_sheet(wb, ws, '라벨');
-            XLSX.writeFile(wb, '라벨_' + getDateString() + '.xlsx');
         }
 
         // ========== 유틸리티 함수 ==========
