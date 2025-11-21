@@ -472,23 +472,43 @@
                         </div>
                     </div>
 
-                    <div class="settings-grid">
-                        <div class="setting-item">
-                            <label class="setting-label">이름 (필수)</label>
-                            <textarea id="displayNames" rows="5" placeholder="한아름
-새일미
-삼광"></textarea>
-                        </div>
+                    <div class="form-group">
+                        <label>직접 입력</label>
+                        <div id="displayLabelInputs"></div>
+                        <button class="btn btn-info" onclick="addDisplayLabelRow()">+ 라벨 추가</button>
+                    </div>
 
-                        <div class="setting-item">
-                            <label class="setting-label">부가설명 (소형/중형) 또는 소속 (명찰용)</label>
-                            <input type="text" id="displayInfo1" placeholder="예: 2024년 시험 또는 농촌진흥청">
+                    <div class="input-divider">또는</div>
+
+                    <div class="form-group">
+                        <label>텍스트 일괄 입력</label>
+                        <div class="alert alert-info" style="font-size: 13px; margin-bottom: 10px;">
+                            <strong>💡 입력 형식:</strong> 이름,부가설명 (쉼표로 구분)<br>
+                            <small>예: 한아름,2024년 시험</small>
+                        </div>
+                        <textarea id="displayBulkInput" rows="5" placeholder="한아름,2024년 시험
+새일미,우수품종
+삼광,농촌진흥청"></textarea>
+                    </div>
+
+                    <div class="input-divider">또는</div>
+
+                    <div class="form-group">
+                        <label>엑셀 파일 업로드</label>
+                        <div class="file-upload">
+                            <input type="file" id="displayExcelFile" accept=".xlsx,.xls" onchange="handleDisplayExcelUpload(event)">
+                            <label for="displayExcelFile" class="file-upload-label" id="displayExcelLabel">
+                                📂 클릭하여 파일 선택<br>
+                                <small>이름과 설명이 포함된 엑셀 파일</small>
+                            </label>
                         </div>
                     </div>
 
                     <div class="actions">
+                        <button class="btn btn-secondary" onclick="downloadDisplayLabelTemplate()">📥 엑셀 템플릿</button>
                         <button class="btn btn-primary" onclick="generateDisplayLabels()">🏷️ 전시용 라벨 생성</button>
                         <button class="btn btn-warning" onclick="resetBgImage()">🔄 이미지 초기화</button>
+                        <button class="btn btn-warning" onclick="clearDisplayLabelInputs()">🔄 입력 초기화</button>
                     </div>
                 </div>
 
@@ -516,33 +536,20 @@
                     <div class="panel" style="margin-top: 20px;">
                         <div class="panel-title" style="font-size: 16px;">🔢 시료번호 자동 생성</div>
                         
-                        <div class="settings-grid">
-                            <div class="setting-item">
-                                <label class="setting-label">연도 (4자리)</label>
-                                <input type="number" id="sampleYear" placeholder="예: 2024" min="2000" max="2099" 
-                                       value="2024" onchange="updateSampleNumberFormat()">
-                            </div>
-
-                            <div class="setting-item">
-                                <label class="setting-label">실험실</label>
-                                <select id="labCode" onchange="updateSampleNumberFormat()">
-                                    <option value="1">가공실 (1)</option>
-                                    <option value="2">이모작실 (2)</option>
-                                    <option value="3">경지실 (3)</option>
-                                </select>
-                            </div>
-
-                            <div class="setting-item">
-                                <label class="setting-label">시험번호</label>
-                                <input type="text" id="testNumberInput" placeholder="예: 001 또는 000001" 
-                                       maxlength="6" onchange="updateSampleNumberFormat()">
-                            </div>
+                        <div class="alert alert-info" style="font-size: 13px; margin-bottom: 15px;">
+                            <strong>💡 입력 방법:</strong> 각 품종별로 연도, 실험실, 시험번호, 품종명을 입력하세요.
                         </div>
 
+                        <div id="qrAutoInputs">
+                            <!-- 동적으로 생성됨 -->
+                        </div>
+                        
+                        <button class="btn btn-info" onclick="addQRAutoRow()" style="margin-top: 10px;">+ 품종 추가</button>
+                        
                         <div id="sampleNumberPreview" class="alert alert-success" style="margin-top: 15px;">
                             <strong>시료번호 생성 규칙:</strong><br>
-                            <span id="sampleFormatExample">2024 0 1 000001</span><br>
-                            <small>연도(4) + 0(1) + 실험실(1) + 시험번호(6, 앞에 0 추가) = 총 12자리</small>
+                            <span>연도(4) + 0(1) + 실험실(1) + 시험번호(6, 앞에 0 추가) = 총 12자리</span><br>
+                            <small>예: 2024 + 0 + 1 + 000001 = 202401000001</small>
                         </div>
                     </div>
 
@@ -568,15 +575,15 @@
                         </div>
 
                         <div id="qrDataInput" style="display:none; margin-top: 20px;">
-                            <div class="alert alert-warning">
-                                <strong>입력 형식:</strong> 품종명을 한 줄에 하나씩 입력<br>
-                                <small>시료번호는 위에서 설정한 형식으로 자동 생성됩니다</small>
+                            <div class="alert alert-info" style="font-size: 13px;">
+                                <strong>💡 입력 형식:</strong> 연도,실험실,시험번호,품종명 (쉼표로 구분)<br>
+                                <small>예: 2024,1,001,한아름</small>
                             </div>
-                            <textarea id="qrDataText" rows="10" placeholder="한아름
-새일미
-삼광
-참동진
-신동진"></textarea>
+                            <textarea id="qrDataText" rows="10" placeholder="2024,1,001,한아름
+2024,1,002,새일미
+2024,2,001,삼광
+2024,2,002,참동진
+2024,3,001,신동진"></textarea>
                         </div>
                     </div>
 
@@ -614,12 +621,14 @@
         let surveyItems = [];
         let excelData = null;
         let bgImageData = null;
+        let displayExcelData = null;
         let qrLabelData = [];
         let surveyData = {};
 
         // 초기화
         document.addEventListener('DOMContentLoaded', () => {
             for (let i = 0; i < 3; i++) addInputRow();
+            for (let i = 0; i < 3; i++) addDisplayLabelRow();
             updateSurveyItems();
         });
 
@@ -1533,9 +1542,9 @@
             const size = document.getElementById('displayLabelSize').value;
             const recommendedSize = document.getElementById('recommendedSize');
             const sizeInfo = {
-                small: '소형: 75mm × 40mm',
-                medium: '중형: 75mm × 50mm',
-                large: '명찰용: 150mm × 75mm'
+                small: '소형: 75mm × 40mm<br><small style="color: #666;">권장 이미지 사이즈: 591 × 315 pixels (200dpi)</small>',
+                medium: '중형: 75mm × 50mm<br><small style="color: #666;">권장 이미지 사이즈: 591 × 394 pixels (200dpi)</small>',
+                large: '명찰용: 150mm × 75mm<br><small style="color: #666;">권장 이미지 사이즈: 1181 × 591 pixels (200dpi)</small>'
             };
             recommendedSize.innerHTML = sizeInfo[size];
             updateLabelPreview();
@@ -1563,24 +1572,131 @@
             alert('배경 이미지가 초기화되었습니다.');
         }
 
-        function generateDisplayLabels() {
+
+        // 텍스트 너비 측정 함수 (mm 단위)
+        function measureTextWidth(text, fontSize) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = `bold ${fontSize}pt NanumSquare, sans-serif`;
+            const pixels = context.measureText(text).width;
+            // 1pt ≈ 0.3528mm, 화면 해상도 96dpi 기준
+            const mm = pixels * 0.3528 / 1.333; // 96dpi 보정
+            return mm;
+        }
+
+        // 최적 폰트 크기 계산
+        function calculateOptimalFontSize(text, maxWidth, initialSize, minSize) {
+            let fontSize = initialSize;
+            let textWidth = measureTextWidth(text, fontSize);
+            
+            while (textWidth > maxWidth && fontSize > minSize) {
+                fontSize -= 1;
+                textWidth = measureTextWidth(text, fontSize);
+            }
+            
+            return fontSize;
+        }
+
+
+        // 전시용 라벨 입력 행 추가
+        function addDisplayLabelRow() {
+            const container = document.getElementById('displayLabelInputs');
+            const row = document.createElement('div');
+            row.className = 'input-row';
+            row.innerHTML = `
+                <input type="text" placeholder="이름 입력" style="flex: 1;">
+                <input type="text" placeholder="부가설명 또는 소속" style="flex: 1;">
+                <button class="btn-remove" onclick="this.parentElement.remove()">삭제</button>
+            `;
+            container.appendChild(row);
+        }
+
+        // 전시용 라벨 엑셀 업로드
+        function handleDisplayExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const label = document.getElementById('displayExcelLabel');
+            const fileSize = (file.size / 1024).toFixed(1);
+            label.innerHTML = `<div style="color: #1976d2; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small>`;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    displayExcelData = XLSX.utils.sheet_to_json(sheet);
+                    alert('엑셀 파일이 로드되었습니다. "전시용 라벨 생성" 버튼을 클릭하세요.');
+                } catch (error) {
+                    alert('엑셀 파일 읽기 오류: ' + error.message);
+                    displayExcelData = null;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+                function generateDisplayLabels() {
             const labelSize = document.getElementById('displayLabelSize').value;
             const layout = document.getElementById('displayLabelLayout').value;
-            const names = document.getElementById('displayNames').value.trim();
-            const info = document.getElementById('displayInfo1').value;
             const textColor = document.getElementById('textColor').value;
             const textBg = document.getElementById('textBg').value;
             const imageFit = document.getElementById('imageFit').value;
-            if (!names) {
-                alert('이름을 입력해주세요.');
+            
+            // 라벨 데이터 수집
+            let labelData = [];
+            
+            // 1. 직접 입력에서 데이터 읽기
+            const rows = document.querySelectorAll('#displayLabelInputs .input-row');
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input[type="text"]');
+                const name = inputs[0].value.trim();
+                const description = inputs[1].value.trim();
+                if (name) {
+                    labelData.push({ name, description });
+                }
+            });
+            
+            // 2. 텍스트 일괄 입력에서 데이터 읽기
+            const bulkInput = document.getElementById('displayBulkInput').value.trim();
+            if (bulkInput) {
+                bulkInput.split('\n').forEach(line => {
+                    line = line.trim();
+                    if (line) {
+                        const parts = line.split(',').map(p => p.trim());
+                        const name = parts[0] || '';
+                        const description = parts.slice(1).join(',') || ''; // 쉼표가 여러 개 있을 수 있음
+                        if (name) {
+                            labelData.push({ name, description });
+                        }
+                    }
+                });
+            }
+            
+            // 3. 엑셀에서 데이터 읽기
+            if (displayExcelData && displayExcelData.length > 0) {
+                displayExcelData.forEach(row => {
+                    const name = row['이름'] || row['품종'] || row['name'] || '';
+                    const description = row['설명'] || row['부가설명'] || row['소속'] || row['description'] || '';
+                    if (name) {
+                        labelData.push({ name, description });
+                    }
+                });
+            }
+            
+            if (labelData.length === 0) {
+                alert('라벨 데이터를 입력해주세요.');
                 return;
             }
-            const nameList = names.split('\n').map(n => n.trim()).filter(n => n);
+            
             let gridColumns = 1;
             if (layout === '2x4') gridColumns = 2;
             else if (layout === '2x5') gridColumns = 2;
+            
             let html = `<div class="label-grid" style="grid-template-columns: repeat(${gridColumns}, 1fr);">`;
-            nameList.forEach(name => {
+            
+            labelData.forEach(item => {
+                const name = item.name;
+                const info = item.description;
+                
                 let bgStyle = '';
                 if (bgImageData) {
                     bgStyle = `background-image: url(${bgImageData}); `;
@@ -1599,21 +1715,19 @@
                             break;
                     }
                 }
+                
                 let textBgClass = '';
                 if (textBg === 'white') textBgClass = 'text-bg-white';
                 else if (textBg === 'black') textBgClass = 'text-bg-black';
                 else if (textBg === 'blur') textBgClass = 'text-bg-blur';
+                
                 if (labelSize === 'small') {
-                    let nameSize = 36;
-                    let descSize = 18;
-                    if (name.length > 5) {
-                        nameSize = Math.floor(36 * (5 / name.length));
-                        nameSize = Math.max(nameSize, 16);
-                    }
-                    if (info && info.length >= 15) {
-                        descSize = Math.floor(18 * (15 / info.length));
-                        descSize = Math.max(descSize, 8);
-                    }
+                    // 소형: 75mm 너비, 양쪽 5mm 여백, 최대 텍스트 너비 59mm (6mm 여유)
+                    const maxNameWidth = 59;
+                    const maxDescWidth = 59;
+                    let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
+                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
+                    
                     html += `
                         <div class="display-label-item display-label-small" style="${bgStyle}">
                             <div class="display-label-content">
@@ -1627,16 +1741,12 @@
                         </div>
                     `;
                 } else if (labelSize === 'medium') {
-                    let nameSize = 36;
-                    let descSize = 18;
-                    if (name.length > 5) {
-                        nameSize = Math.floor(36 * (5 / name.length));
-                        nameSize = Math.max(nameSize, 16);
-                    }
-                    if (info && info.length >= 15) {
-                        descSize = Math.floor(18 * (15 / info.length));
-                        descSize = Math.max(descSize, 8);
-                    }
+                    // 중형: 75mm 너비, 양쪽 5mm 여백, 최대 텍스트 너비 59mm (6mm 여유)
+                    const maxNameWidth = 59;
+                    const maxDescWidth = 59;
+                    let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
+                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
+                    
                     html += `
                         <div class="display-label-item display-label-medium" style="${bgStyle}">
                             <div class="display-label-content">
@@ -1650,16 +1760,12 @@
                         </div>
                     `;
                 } else if (labelSize === 'large') {
-                    let nameSize = 72;
-                    let orgSize = 24;
-                    if (name.length > 4) {
-                        nameSize = Math.floor(72 * (4 / name.length));
-                        nameSize = Math.max(nameSize, 24);
-                    }
-                    if (info && info.length > 12) {
-                        orgSize = Math.floor(24 * (12 / info.length));
-                        orgSize = Math.max(orgSize, 12);
-                    }
+                    // 명찰용: 150mm 너비, 양쪽 20mm 여백, 최대 텍스트 너비 87mm (23mm 여유)
+                    const maxNameWidth = 87;
+                    const maxOrgWidth = 87;
+                    let nameSize = calculateOptimalFontSize(name, maxNameWidth, 72, 24);
+                    let orgSize = info ? calculateOptimalFontSize(info, maxOrgWidth, 24, 12) : 24;
+                    
                     html += `
                         <div class="display-label-item display-label-large" style="${bgStyle}">
                             <div class="display-label-content">
@@ -1674,11 +1780,48 @@
                     `;
                 }
             });
+            
             html += '</div>';
             document.getElementById('labelPreview').innerHTML = html;
             document.getElementById('labelActions').style.display = 'flex';
         }
 
+
+
+        function downloadDisplayLabelTemplate() {
+            const wb = XLSX.utils.book_new();
+            const data = [
+                ['이름', '설명', '', '📌 입력 방법'],
+                ['한아름', '2024년 시험', '', '• 이름: 라벨에 표시할 이름이나 품종명'],
+                ['새일미', '우수품종', '', '• 설명: 부가설명(소형/중형) 또는 소속(명찰용)'],
+                ['삼광', '농촌진흥청', '', ''],
+                ['참동진', '', '', '💡 예시'],
+                ['신동진', '밀양지역', '', '이름: 한아름 / 설명: 2024년 시험']
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 2 }, { wch: 45 }];
+            XLSX.utils.book_append_sheet(wb, ws, '전시용라벨');
+            XLSX.writeFile(wb, '전시용라벨_템플릿.xlsx');
+        }
+
+        function clearDisplayLabelInputs() {
+            // 직접 입력 초기화
+            document.getElementById('displayLabelInputs').innerHTML = '';
+            for (let i = 0; i < 3; i++) addDisplayLabelRow();
+            
+            // 텍스트 일괄 입력 초기화
+            document.getElementById('displayBulkInput').value = '';
+            
+            // 엑셀 입력 초기화
+            displayExcelData = null;
+            document.getElementById('displayExcelFile').value = '';
+            document.getElementById('displayExcelLabel').innerHTML = `
+                📂 클릭하여 파일 선택<br>
+                <small>이름과 설명이 포함된 엑셀 파일</small>
+            `;
+            
+            alert('입력 데이터가 초기화되었습니다.');
+        }
         function updateLabelPreview() {
             const labelType = document.getElementById('labelType').value;
             if (varieties.length > 0) {
@@ -1715,6 +1858,14 @@
 
         function clearQRData() {
             qrLabelData = [];
+            
+            // 자동 입력 행 초기화
+            document.getElementById('qrAutoInputs').innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                addQRAutoRow();
+            }
+            
+            // 직접 입력 초기화
             document.getElementById('qrDataText').value = '';
             document.getElementById('qrLabelFile').value = '';
             document.getElementById('qrLabelFile').nextElementSibling.innerHTML = `
@@ -1790,23 +1941,86 @@
             return sampleNumber;
         }
 
-        function generateQRLabels() {
+
+        // QR 자동 입력 행 추가
+        function addQRAutoRow() {
+            const container = document.getElementById('qrAutoInputs');
+            const rowCount = container.children.length;
+            const row = document.createElement('div');
+            row.className = 'input-row';
+            row.style.marginBottom = '10px';
+            row.innerHTML = `
+                <input type="number" placeholder="연도" value="2024" min="2000" max="2099" style="width: 100px;">
+                <select style="width: 120px;">
+                    <option value="1">가공실 (1)</option>
+                    <option value="2">이모작실 (2)</option>
+                    <option value="3">경지실 (3)</option>
+                </select>
+                <input type="text" placeholder="시험번호" style="width: 100px;">
+                <input type="text" placeholder="품종명" style="flex: 1;">
+                <button class="btn-remove" onclick="this.parentElement.remove()">삭제</button>
+            `;
+            container.appendChild(row);
+        }
+
+        // 페이지 로드 시 기본 행 3개 추가
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('qrAutoInputs')) {
+                for (let i = 0; i < 3; i++) {
+                    addQRAutoRow();
+                }
+            }
+        });
+
+                function generateQRLabels() {
+            qrLabelData = [];
+            
+            // 1. 자동 생성 입력 행에서 데이터 읽기
+            const autoInputRows = document.querySelectorAll('#qrAutoInputs .input-row');
+            if (autoInputRows.length > 0) {
+                autoInputRows.forEach(row => {
+                    const inputs = row.querySelectorAll('input, select');
+                    if (inputs.length >= 4) {
+                        const year = inputs[0].value.trim();
+                        const lab = inputs[1].value.trim();
+                        const testNum = inputs[2].value.trim();
+                        const variety = inputs[3].value.trim();
+                        
+                        if (year && lab && testNum && variety) {
+                            const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
+                            const sampleNumber = year + '0' + lab + paddedTestNum;
+                            qrLabelData.push({
+                                sampleNumber: sampleNumber,
+                                testNumber: testNum,
+                                variety: variety
+                            });
+                        }
+                    }
+                });
+            }
+            
+            // 2. 직접 입력에서 데이터 읽기 (쉼표로 구분)
             const directInput = document.getElementById('qrDataText').value.trim();
-            if (directInput && qrLabelData.length === 0) {
+            if (directInput) {
                 const lines = directInput.split('\n').map(line => line.trim()).filter(line => line);
-                qrLabelData = [];
-                const year = document.getElementById('sampleYear').value || '2024';
-                const lab = document.getElementById('labCode').value || '1';
-                const testNum = document.getElementById('testNumberInput').value || '001';
-                lines.forEach((variety, index) => {
-                    if (variety) {
-                        const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
-                        const sampleNumber = year + '0' + lab + paddedTestNum;
-                        qrLabelData.push({
-                            sampleNumber: sampleNumber,
-                            testNumber: testNum,
-                            variety: variety
-                        });
+                lines.forEach(line => {
+                    // 쉼표로 구분: 연도,실험실,시험번호,품종명
+                    const parts = line.split(',').map(p => p.trim());
+                    if (parts.length >= 4) {
+                        const year = parts[0];
+                        const lab = parts[1];
+                        const testNum = parts[2];
+                        const variety = parts.slice(3).join(','); // 품종명에 쉼표가 있을 수 있음
+                        
+                        if (year && lab && testNum && variety) {
+                            const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
+                            const sampleNumber = year + '0' + lab + paddedTestNum;
+                            qrLabelData.push({
+                                sampleNumber: sampleNumber,
+                                testNumber: testNum,
+                                variety: variety
+                            });
+                        }
                     }
                 });
             }
