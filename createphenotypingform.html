@@ -11,41 +11,58 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
+        :root {
+            --bg-main: #ffffff;
+            --bg-card: #ffffff;
+            --bg-section: #f7fafc;
+            --accent-1: #cce3dd;
+            --accent-2: #b2d9d8;
+            --accent-3: #8dccd3;
+            --accent-4: #54b7c6;
+            --accent-5: #00a1b8;
+            --accent-6: #017f97;
+            --accent-7: #0c3026;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 1600px; margin: 0 auto; background: rgba(255, 255, 255, 0.98); border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg-main); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1600px; margin: 0 auto; background: var(--bg-card); border-radius: 16px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); overflow: hidden; border: 1px solid var(--border-color); }
+        .header { background: linear-gradient(135deg, var(--accent-7) 0%, var(--accent-6) 100%); padding: 30px; text-align: center; color: white; }
         .header h1 { font-size: 28px; margin-bottom: 10px; font-weight: 700; }
         .header p { font-size: 14px; opacity: 0.9; }
-        .nav-tabs { display: flex; background: #f8f9fa; border-bottom: 2px solid #e9ecef; padding: 0 20px; overflow-x: auto; }
-        .nav-tab { padding: 15px 25px; cursor: pointer; border: none; background: none; font-size: 15px; color: #495057; transition: all 0.3s; position: relative; white-space: nowrap; }
-        .nav-tab:hover { color: #667eea; }
-        .nav-tab.active { color: #667eea; font-weight: 600; }
-        .nav-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 3px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .content { padding: 30px; }
+        .nav-tabs { display: flex; background: var(--bg-section); border-bottom: 2px solid var(--border-color); padding: 0 20px; overflow-x: auto; }
+        .nav-tab { padding: 15px 25px; cursor: pointer; border: none; background: none; font-size: 15px; color: var(--text-secondary); transition: all 0.3s; position: relative; white-space: nowrap; }
+        .nav-tab:hover { color: var(--accent-6); }
+        .nav-tab.active { color: var(--accent-7); font-weight: 600; }
+        .nav-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 3px; background: linear-gradient(135deg, var(--accent-7) 0%, var(--accent-5) 100%); }
+        .content { padding: 30px; background: var(--bg-section); }
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .panel { background: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; border: 1px solid #e9ecef; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
-        .panel-title { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f0f0f0; }
+        .panel { background: var(--bg-card); border-radius: 12px; padding: 25px; margin-bottom: 25px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
+        .panel-title { font-size: 18px; font-weight: 600; color: var(--accent-7); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid var(--accent-1); }
         .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; color: #555; font-weight: 500; font-size: 14px; }
-        .setting-label { display: inline-block; margin-bottom: 8px; color: #555; font-weight: 500; font-size: 14px; }
+        label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-weight: 500; font-size: 14px; }
+        .setting-label { display: inline-block; margin-bottom: 8px; color: var(--text-secondary); font-weight: 500; font-size: 14px; }
         .input-divider { text-align: center; margin: 25px 0; color: #999; font-size: 14px; }
-        input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 10px 15px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 14px; transition: all 0.3s; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 10px 15px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 14px; transition: all 0.3s; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-5); box-shadow: 0 0 0 3px rgba(0, 161, 184, 0.1); }
         textarea { min-height: 120px; resize: vertical; font-family: 'Courier New', monospace; }
         .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
-        .btn-secondary { background: #6c757d; color: white; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-7) 0%, var(--accent-6) 100%); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(1, 127, 151, 0.3); }
+        .btn-secondary { background: var(--accent-5); color: white; }
         .btn-success { background: #28a745; color: white; }
         .btn-danger { background: #dc3545; color: white; }
         .btn-warning { background: #ffc107; color: #212529; }
-        .btn-info { background: #17a2b8; color: white; }
+        .btn-info { background: var(--accent-4); color: white; }
         .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
         .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
         .setting-item { display: flex; flex-direction: column; }
@@ -53,24 +70,24 @@
         .input-row input[type="text"] { flex: 1; }
         .input-row input[type="number"] { width: 80px; }
         .input-row .btn-remove { padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; }
-        .output-section { background: #f8f9fa; border-radius: 8px; padding: 20px; min-height: 200px; margin-bottom: 20px; overflow-x: auto; }
+        .output-section { background: var(--bg-section); border-radius: 8px; padding: 20px; min-height: 200px; margin-bottom: 20px; overflow-x: auto; border: 1px solid var(--border-color); }
         .output-empty { text-align: center; color: #adb5bd; padding: 40px; font-size: 14px; }
         .variety-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-        .variety-item { background: white; padding: 10px; border-radius: 6px; border: 1px solid #dee2e6; font-size: 14px; text-align: center; transition: all 0.2s; }
-        .variety-item:hover { border-color: #667eea; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2); }
+        .variety-item { background: white; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 14px; text-align: center; transition: all 0.2s; }
+        .variety-item:hover { border-color: var(--accent-5); box-shadow: 0 2px 4px rgba(0, 161, 184, 0.2); }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; background: white; }
-        table th { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 8px; text-align: center; font-weight: 600; position: sticky; top: 0; z-index: 10; }
-        table td { padding: 8px; border: 1px solid #dee2e6; text-align: center; }
-        table tr:nth-child(even) { background: #f8f9fa; }
-        table tr:hover { background: #e9ecef; }
-        table tr.thick-bottom-border td { border-bottom: 3px solid #495057 !important; }
-        table input { width: 100%; padding: 5px; border: 1px solid #dee2e6; border-radius: 4px; text-align: center; }
-        table input:focus { border-color: #667eea; outline: none; }
-        .chart-container { position: relative; height: 400px; margin-top: 20px; background: white; padding: 20px; border-radius: 8px; }
+        table th { background: linear-gradient(135deg, var(--accent-7) 0%, var(--accent-6) 100%); color: white; padding: 12px 8px; text-align: center; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+        table td { padding: 8px; border: 1px solid var(--border-color); text-align: center; }
+        table tr:nth-child(even) { background: var(--bg-section); }
+        table tr:hover { background: var(--accent-1); }
+        table tr.thick-bottom-border td { border-bottom: 3px solid var(--accent-7) !important; }
+        table input { width: 100%; padding: 5px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; }
+        table input:focus { border-color: var(--accent-5); outline: none; }
+        .chart-container { position: relative; height: 400px; margin-top: 20px; background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
         .file-upload { position: relative; display: inline-block; cursor: pointer; width: 100%; }
         .file-upload input[type=file] { position: absolute; left: -9999px; }
-        .file-upload-label { display: block; padding: 40px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; text-align: center; transition: all 0.3s; cursor: pointer; }
-        .file-upload-label:hover { background: #e9ecef; border-color: #667eea; }
+        .file-upload-label { display: block; padding: 40px; background: var(--bg-section); border: 2px dashed var(--border-color); border-radius: 8px; text-align: center; transition: all 0.3s; cursor: pointer; }
+        .file-upload-label:hover { background: var(--accent-1); border-color: var(--accent-5); }
         .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
         .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
@@ -81,32 +98,138 @@
         .conversion-item select { width: auto; }
         .formula-display { font-family: 'Courier New', monospace; font-size: 12px; color: #666; padding: 5px; background: #f1f3f5; border-radius: 4px; }
         .two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .display-label-item { position: relative; overflow: hidden; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-        .display-label-small { width: 75mm; height: 40mm; padding: 0 5mm; }
-        .display-label-medium { width: 75mm; height: 50mm; padding: 0 5mm; }
-        .display-label-large { width: 150mm; height: 75mm; padding: 0 20mm; }
-        .label-name { font-size: 36pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
-        .label-desc { margin-top: 2mm; font-size: 18pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+        .display-label-item { position: relative; overflow: visible; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+        .display-label-small { width: 75mm; height: 40mm; padding: 3mm 5mm; }
+        .display-label-medium { width: 75mm; height: 50mm; padding: 3mm 5mm; }
+        .display-label-large { width: 150mm; height: 75mm; padding: 5mm 20mm; }
+        .label-name { font-size: 36pt; line-height: 1.1; text-align: center; word-break: keep-all; }
+        .label-desc { margin-top: 2mm; font-size: 18pt; line-height: 1.1; text-align: center; word-break: keep-all; }
         .display-label-large .label-name { font-size: 72pt; }
-        .display-label-large .label-org { margin-top: 5mm; font-size: 24pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
-        .display-label-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
-        .text-bg-white { background-color: rgba(255, 255, 255, 0.9); padding: 5mm; border-radius: 3mm; }
-        .text-bg-black { background-color: rgba(0, 0, 0, 0.7); padding: 5mm; border-radius: 3mm; color: white; }
-        .text-bg-blur { backdrop-filter: blur(5px); background-color: rgba(255, 255, 255, 0.3); padding: 5mm; border-radius: 3mm; }
+        .display-label-large .label-org { margin-top: 1mm; font-size: 24pt; line-height: 1.1; text-align: center; word-break: keep-all; }
+        .display-label-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 100%; }
+        .text-bg-white { background-color: rgba(255, 255, 255, 0.9); padding: 3mm 5mm; border-radius: 3mm; }
+        .text-bg-black { background-color: rgba(0, 0, 0, 0.7); padding: 3mm 5mm; border-radius: 3mm; color: white; }
+        .text-bg-blur { backdrop-filter: blur(5px); background-color: rgba(255, 255, 255, 0.3); padding: 3mm 5mm; border-radius: 3mm; }
         .barcode-label-container { width: 210mm; min-height: 297mm; padding: 12mm 5mm; background: white; margin: 0 auto; }
         .barcode-label-grid { display: grid; grid-template-columns: repeat(3, 64mm); grid-template-rows: repeat(8, 34mm); gap: 0 2mm; width: 100%; }
         .barcode-label-grid-21 { display: grid; grid-template-columns: repeat(3, 64mm); grid-template-rows: repeat(7, 39mm); gap: 0 2mm; width: 100%; }
-        .qr-label-item { width: 64mm; height: 34mm; border: 1px solid #ccc; padding: 2mm; display: flex; align-items: center; overflow: hidden; box-sizing: border-box; font-family: 'NanumSquare', sans-serif; }
+        .qr-label-item { width: 64mm; height: 34mm; border: 1px solid #ccc; padding: 3mm 2mm; display: flex; align-items: center; overflow: hidden; box-sizing: border-box; font-family: 'NanumSquare', sans-serif; }
         .qr-label-item-39 { height: 39mm; }
         .qr-label-left { width: 20mm; height: 20mm; display: flex; align-items: center; justify-content: center; margin-right: 2mm; flex-shrink: 0; }
         .qr-code-container { width: 20mm; height: 20mm; display: flex; align-items: center; justify-content: center; }
-        .qr-code-container canvas, .qr-code-container img { max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; }
-        .qr-label-right { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-right: 5mm; padding-left: 2mm; min-width: 0; }
-        .qr-test-number { font-size: 18pt; font-weight: bold; line-height: 1; margin-bottom: 1mm; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-        .qr-variety-name { font-size: 9pt; line-height: 1; margin-bottom: 1mm; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-        .qr-sample-number { font-size: 8pt; font-family: 'Courier New', monospace; color: #666; line-height: 1; white-space: nowrap; }
+        .qr-code-container canvas { display: none !important; }
+        .qr-code-container img { max-width: 100%; max-height: 100%; width: 20mm !important; height: 20mm !important; }
+        .qr-label-right { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 1mm; padding-right: 4mm; min-width: 0; height: 100%; box-sizing: border-box; }
+        .qr-test-number { font-weight: bold; line-height: 1.1; white-space: nowrap; overflow: visible; }
+        .qr-variety-name { font-size: 9pt; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .qr-sample-number { font-size: 8pt; font-family: 'Courier New', monospace; color: #666; line-height: 1.1; white-space: nowrap; }
+        .qr-text-area { display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
         @media (max-width: 768px) { .two-column-layout { grid-template-columns: 1fr; } .conversion-item { grid-template-columns: 1fr; } }
-        @media print { body { background: white; padding: 0; } .container { box-shadow: none; } .nav-tabs, .header, .btn, .actions { display: none !important; } }
+        
+        /* 인쇄 전용 스타일 */
+        @media print {
+            /* 페이지 설정 */
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            
+            /* 기본 리셋 */
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                width: 210mm !important;
+                min-height: 297mm !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+            
+            /* 모든 불필요한 요소 숨기기 */
+            .container { display: none !important; }
+            .header { display: none !important; }
+            .nav-tabs { display: none !important; }
+            .panel { display: none !important; }
+            .panel-title { display: none !important; }
+            .actions { display: none !important; }
+            .btn { display: none !important; }
+            .form-group { display: none !important; }
+            .settings-grid { display: none !important; }
+            .alert { display: none !important; }
+            .file-upload { display: none !important; }
+            .input-divider { display: none !important; }
+            .setting-item { display: none !important; }
+            .output-empty { display: none !important; }
+            .page-info { display: none !important; }
+            #displayLabelSettings { display: none !important; }
+            #barcodeLabelSettings { display: none !important; }
+            #labelActions { display: none !important; }
+            
+            /* 라벨 미리보기만 표시 */
+            #labelPreview {
+                display: block !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 210mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                border: none !important;
+                box-shadow: none !important;
+                overflow: visible !important;
+            }
+            
+            /* A4 라벨 컨테이너 */
+            .a4-label-container, .barcode-label-container {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 10mm !important;
+                background: white !important;
+                page-break-after: always !important;
+                page-break-inside: avoid !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* 라벨 그리드 */
+            .a4-label-grid {
+                display: grid !important;
+            }
+            
+            /* 개별 라벨 - 배경 이미지 인쇄 */
+            .display-label-item {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+                overflow: visible !important;
+            }
+            
+            /* 라벨 내부 텍스트 */
+            .display-label-content {
+                overflow: visible !important;
+            }
+            
+            .label-name, .label-desc, .label-org {
+                overflow: visible !important;
+                white-space: normal !important;
+            }
+            
+            /* QR 라벨 */
+            .barcode-label-grid, .barcode-label-grid-21 {
+                margin: 0 !important;
+                padding: 12mm 5mm !important;
+            }
+            
+            .qr-label-item {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -274,7 +397,6 @@
                         <button class="btn btn-success" onclick="calculateAllStats()">📊 통계 계산</button>
                         <button class="btn btn-secondary" onclick="saveSurveyData()">💾 데이터 저장</button>
                         <button class="btn btn-secondary" onclick="downloadSurveyExcel()">📥 엑셀 다운로드</button>
-                        <button class="btn btn-secondary" onclick="downloadWithFormulas()">📥 수식포함 다운로드</button>
                     </div>
                 </div>
             </div>
@@ -287,11 +409,20 @@
                     <div class="form-group">
                         <label>생육조사 데이터 파일 업로드</label>
                         <div class="alert alert-info">
-                            <strong>📌 업로드 안내:</strong><br>
-                            • 생육조사 탭에서 생성한 양식에 데이터 입력<br>
-                            • 첫 번째 열: 품종명 (반복별로 각 행에 입력)<br>
-                            • 나머지 열: 조사항목별 측정값<br>
-                            • 같은 품종의 반복간 통계 분석 수행
+                            <strong>📌 데이터 형식 안내 (자동 인식):</strong><br>
+                            • <strong>1열:</strong> 품종명 (필수) - 반복별로 각 행에 입력<br>
+                            • <strong>2열:</strong> 반복 (선택) - "반복" 또는 숫자<br>
+                            • <strong>3열~:</strong> 형질 데이터 (수치형/범주형 자동 구분)<br>
+                            <br>
+                            <strong>🔄 배수 자동 변환 기능:</strong><br>
+                            ✓ "배수설정" 시트가 있는 엑셀 파일 업로드 시 자동 적용<br>
+                            ✓ 예: 간장 850mm 입력 → ÷10 → 85.0cm로 분석<br>
+                            ✓ 생육조사 양식에서 다운로드한 파일 사용 권장<br>
+                            <br>
+                            <strong>💡 자동 처리:</strong><br>
+                            ✓ 수치형 데이터 → 통계 분석 가능<br>
+                            ✓ 범주형 데이터 → 자동으로 제외<br>
+                            ✓ 품종별 반복간 통계 자동 계산
                         </div>
                         <div class="file-upload">
                             <input type="file" id="dataFile" accept=".xlsx,.xls" onchange="handleDataUpload(event)">
@@ -357,34 +488,136 @@
                 <div class="panel">
                     <div class="panel-title">📈 데이터 시각화</div>
                     
-                    <div class="settings-grid">
+                    <!-- 차트 옵션 그리드 -->
+                    <div class="settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
                         <div class="setting-item">
                             <label class="setting-label">차트 유형</label>
                             <select id="chartType" onchange="updateChart()">
                                 <option value="bar">막대 그래프</option>
                                 <option value="line">선 그래프</option>
-                                <option value="box">박스플롯</option>
-                                <option value="scatter">산점도</option>
                             </select>
                         </div>
                         
                         <div class="setting-item">
                             <label class="setting-label">오차 막대</label>
                             <select id="errorBar" onchange="updateChart()">
-                                <option value="none">없음</option>
-                                <option value="se">표준오차 (SE)</option>
+                                <option value="se" selected>표준오차 (SE)</option>
                                 <option value="sd">표준편차 (SD)</option>
-                                <option value="ci95">95% 신뢰구간</option>
+                                <option value="none">없음</option>
                             </select>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">차트 너비(mm)</label>
+                            <input type="number" id="chartWidthMM" value="170" min="50" max="400" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">차트 높이(mm)</label>
+                            <input type="number" id="chartHeightMM" value="120" min="50" max="300" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">DPI</label>
+                            <select id="chartDPI" onchange="updateChart()">
+                                <option value="72">72 (화면용)</option>
+                                <option value="150" selected>150 (프레젠테이션)</option>
+                                <option value="300">300 (인쇄용)</option>
+                                <option value="600">600 (고해상도)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">Y축 최소</label>
+                            <input type="number" id="yAxisMin" placeholder="자동" step="any" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">Y축 최대</label>
+                            <input type="number" id="yAxisMax" placeholder="자동" step="any" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">Y축 간격</label>
+                            <input type="number" id="yAxisStep" placeholder="자동" step="any" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">바 간격</label>
+                            <input type="number" id="barGap" value="0.2" min="0" max="1" step="0.1" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">바 테두리</label>
+                            <input type="number" id="barBorder" value="1" min="0" max="5" onchange="updateChart()">
+                        </div>
+                    </div>
+                    
+                    <!-- 폰트 설정 -->
+                    <div class="settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; margin-top: 15px;">
+                        <div class="setting-item">
+                            <label class="setting-label">제목 폰트</label>
+                            <input type="number" id="titleFontSize" value="16" min="8" max="36" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">축 폰트</label>
+                            <input type="number" id="axisFontSize" value="12" min="8" max="24" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">눈금 폰트</label>
+                            <input type="number" id="tickFontSize" value="10" min="6" max="20" onchange="updateChart()">
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">그룹문자 폰트</label>
+                            <input type="number" id="groupFontSize" value="12" min="6" max="24" onchange="updateChart()">
+                        </div>
+                    </div>
+                    
+                    <!-- 표시 옵션 -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showTitle" checked onchange="updateChart()"> 차트 제목
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showGroupLetters" checked onchange="updateChart()"> DMRT 그룹문자
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showMeanValues" onchange="updateChart()"> 평균값 표시
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="showGrid" checked onchange="updateChart()"> 격자선
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="useGroupColors" checked onchange="updateChart()"> 그룹별 색상
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="useGrayscale" onchange="updateChart()"> 흑백 모드
+                        </label>
+                    </div>
+                    
+                    <!-- 흑백 패턴 옵션 (흑백 모드시만 표시) -->
+                    <div id="patternOptions" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
+                        <label class="setting-label">흑백 패턴 사용</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="patternMode" value="solid" checked onchange="updateChart()"> 단색 (명도 차이)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="patternMode" value="pattern" onchange="updateChart()"> 패턴 사용
+                            </label>
                         </div>
                     </div>
 
-                    <div class="chart-container">
+                    <div class="chart-container" id="chartWrapper">
                         <canvas id="analysisChart"></canvas>
                     </div>
 
                     <div class="actions">
-                        <button class="btn btn-secondary" onclick="downloadChart()">📥 차트 다운로드</button>
+                        <button class="btn btn-secondary" onclick="downloadChart()">📥 차트 PNG 다운로드</button>
+                        <button class="btn btn-primary" onclick="downloadFullResults()">📊 전체 결과 다운로드 (엑셀+이미지)</button>
                     </div>
                 </div>
             </div>
@@ -427,11 +660,22 @@
                                 <option value="2x5">2 x 5 (A4)</option>
                             </select>
                         </div>
+                        
+                        <div class="setting-item">
+                            <label class="setting-label">반복 인쇄 횟수</label>
+                            <input type="number" id="displayRepeatCount" value="1" min="1" max="100" placeholder="1">
+                            <small style="color: #666; font-size: 12px;">각 라벨을 몇 번 반복할지 설정</small>
+                        </div>
                     </div>
 
                     <div id="sizeRecommendation" class="alert alert-info" style="margin-top: 15px;">
-                        <strong>📐 라벨 규격</strong><br>
-                        <span id="recommendedSize">중형: 75mm × 50mm</span>
+                        <strong>📐 라벨 규격 및 권장 이미지 사이즈</strong><br>
+                        <span id="recommendedSize">
+                            중형: 75mm × 50mm<br>
+                            <strong style="color: #0066cc;">• 권장 이미지: 591 × 394 pixels (200 DPI)</strong><br>
+                            <small style="color: #666;">• 최소 해상도: 295 × 197 pixels (100 DPI)</small><br>
+                            <small style="color: #666;">• 고해상도: 1181 × 787 pixels (400 DPI)</small>
+                        </span>
                     </div>
 
                     <div class="form-group">
@@ -638,6 +882,54 @@
         let displayExcelData = null;
         let qrLabelData = [];
         let surveyData = {};
+        let dmrtResults = null;
+        let rawDataForDownload = {};
+        
+        // DMRT 컬러 팔레트 (연한색 → 진한색)
+        const COLOR_PALETTE = ['#cce3dd', '#b2d9d8', '#8dccd3', '#54b7c6', '#00a1b8', '#017f97', '#0c3026'];
+        
+        // 흑백 채우기 (연한색 → 진한색)
+        const GRAYSCALE_FILLS = ['#f0f0f0', '#d0d0d0', '#b0b0b0', '#909090', '#707070', '#505050', '#303030'];
+        
+        // 패턴 정의
+        const PATTERNS = {
+            solid: null,
+            stripe: (ctx, color) => createStripePattern(ctx, color, '/'),
+            stripe2: (ctx, color) => createStripePattern(ctx, color, '\\'),
+            hline: (ctx, color) => createLinePattern(ctx, color, 'horizontal'),
+            vline: (ctx, color) => createLinePattern(ctx, color, 'vertical'),
+            grid: (ctx, color) => createGridPattern(ctx, color),
+            dot: (ctx, color) => createDotPattern(ctx, color),
+            cross: (ctx, color) => createCrossPattern(ctx, color)
+        };
+        
+        // Duncan's q값 테이블 (α = 0.05)
+        const qTable = {
+            0.05: {
+                1:[0,17.97],2:[0,6.085],3:[0,4.501,4.516],4:[0,3.927,4.013,4.033],5:[0,3.635,3.749,3.797,3.814],
+                6:[0,3.461,3.587,3.649,3.680,3.694],7:[0,3.344,3.477,3.548,3.588,3.611,3.622],
+                8:[0,3.261,3.399,3.475,3.521,3.549,3.566,3.575],9:[0,3.199,3.339,3.420,3.470,3.502,3.523,3.536,3.544],
+                10:[0,3.151,3.293,3.376,3.430,3.465,3.489,3.505,3.516,3.522],
+                12:[0,3.082,3.225,3.313,3.370,3.410,3.439,3.459,3.474,3.484,3.491],
+                15:[0,3.014,3.160,3.250,3.312,3.356,3.389,3.413,3.432,3.446,3.457],
+                20:[0,2.950,3.097,3.190,3.255,3.303,3.339,3.368,3.391,3.409,3.424],
+                30:[0,2.888,3.035,3.131,3.199,3.250,3.290,3.322,3.349,3.371,3.388],
+                60:[0,2.829,2.976,3.073,3.143,3.198,3.241,3.277,3.307,3.333,3.353],
+                120:[0,2.800,2.947,3.045,3.116,3.172,3.217,3.254,3.285,3.313,3.335]
+            },
+            0.01: {
+                1:[0,90.03],2:[0,14.04],3:[0,8.261,8.321],4:[0,6.512,6.677,6.740],5:[0,5.702,5.893,5.989,6.040],
+                6:[0,5.243,5.439,5.549,5.614,5.655],7:[0,4.949,5.145,5.260,5.334,5.383,5.416],
+                8:[0,4.746,4.939,5.057,5.135,5.189,5.227,5.256],9:[0,4.596,4.787,4.906,4.986,5.043,5.086,5.118,5.142],
+                10:[0,4.482,4.671,4.790,4.871,4.931,4.975,5.010,5.037,5.058],
+                12:[0,4.320,4.504,4.622,4.706,4.767,4.815,4.852,4.883,4.907],
+                15:[0,4.168,4.347,4.463,4.547,4.610,4.658,4.698,4.731,4.757],
+                20:[0,4.024,4.197,4.312,4.395,4.459,4.510,4.552,4.587,4.617],
+                30:[0,3.889,4.056,4.168,4.250,4.314,4.366,4.409,4.445,4.477],
+                60:[0,3.762,3.922,4.031,4.111,4.174,4.226,4.270,4.307,4.340],
+                120:[0,3.702,3.858,3.965,4.044,4.107,4.158,4.202,4.239,4.272]
+            }
+        };
 
         // 초기화
         document.addEventListener('DOMContentLoaded', () => {
@@ -1067,6 +1359,8 @@
             const repeatCount = parseInt(document.getElementById('repeatCount').value) || 3;
             const surveyType = document.getElementById('surveyType').value;
             const items = getSurveyItems(surveyType);
+            
+            // ===== 조사값 시트 =====
             const headers = ['품종', '반복'];
             items.forEach(item => {
                 headers.push(item);
@@ -1080,8 +1374,44 @@
                 ['새일미', '2', ...new Array(items.length).fill('')],
                 ['새일미', '3', ...new Array(items.length).fill('')]
             ];
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            XLSX.utils.book_append_sheet(wb, ws, '생육조사');
+            const ws1 = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws1, '조사값');
+            
+            // ===== 배수설정 시트 =====
+            const conversionData = [
+                ['📌 배수설정 안내', '', '', ''],
+                ['데이터분석 탭에서 이 시트 설정이 자동 적용됩니다.', '', '', ''],
+                ['', '', '', ''],
+                ['조사항목', '배수적용', '배수', '연산'],
+                ['(항목명)', '(Y/N)', '(숫자)', '(나누기/곱하기)']
+            ];
+            
+            // 현재 설정된 배수 적용
+            items.forEach((item, idx) => {
+                const conv = conversionSettings[idx];
+                if (conv && conv.enabled) {
+                    conversionData.push([
+                        item,
+                        'Y',
+                        conv.multiplier,
+                        conv.operation === 'divide' ? '나누기' : '곱하기'
+                    ]);
+                } else {
+                    conversionData.push([item, 'N', '', '']);
+                }
+            });
+            
+            // 사용 예시 추가
+            conversionData.push(['', '', '', '']);
+            conversionData.push(['💡 사용 예시', '', '', '']);
+            conversionData.push(['mm로 입력하고 cm 단위로 분석할 경우:', '', '', '']);
+            conversionData.push(['  배수적용: Y, 배수: 10, 연산: 나누기', '', '', '']);
+            conversionData.push(['  → 850 ÷ 10 = 85.0으로 분석됨', '', '', '']);
+            
+            const ws2 = XLSX.utils.aoa_to_sheet(conversionData);
+            ws2['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, ws2, '배수설정');
+            
             XLSX.writeFile(wb, '생육조사_템플릿.xlsx');
         }
 
@@ -1092,13 +1422,64 @@
                 return;
             }
             const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.table_to_sheet(table);
-            XLSX.utils.book_append_sheet(wb, ws, '생육조사');
+            
+            // ===== 조사값 시트 (원본 데이터만) =====
+            const varietiesText = document.getElementById('surveyVarieties').value.trim();
+            const repeatCount = parseInt(document.getElementById('repeatCount').value);
+            const varietyList = varietiesText.split('\n').map(v => v.trim()).filter(v => v);
+            
+            // 환산 열 제외한 원본 데이터만 추출
+            const surveyDataRows = [['품종', '반복', ...surveyItems]];
+            varietyList.forEach((variety, vIdx) => {
+                for (let r = 1; r <= repeatCount; r++) {
+                    const rowData = [variety, r];
+                    surveyItems.forEach((item, iIdx) => {
+                        const cellId = `cell_${vIdx}_${iIdx}_${r-1}`;
+                        const input = document.getElementById(cellId);
+                        rowData.push(input && input.value ? parseFloat(input.value) : '');
+                    });
+                    surveyDataRows.push(rowData);
+                }
+            });
+            
+            const ws1 = XLSX.utils.aoa_to_sheet(surveyDataRows);
+            XLSX.utils.book_append_sheet(wb, ws1, '조사값');
+            
+            // ===== 배수설정 시트 =====
+            const conversionDataRows = [
+                ['📌 배수설정 안내', '', '', ''],
+                ['이 시트의 설정은 데이터분석 탭에서 자동으로 적용됩니다.', '', '', ''],
+                ['', '', '', ''],
+                ['조사항목', '배수적용', '배수', '연산'],
+                ['(항목명)', '(Y/N)', '(숫자)', '(나누기/곱하기)']
+            ];
+            
+            surveyItems.forEach((item, idx) => {
+                const conv = conversionSettings[idx];
+                if (conv && conv.enabled) {
+                    conversionDataRows.push([
+                        item,
+                        'Y',
+                        conv.multiplier,
+                        conv.operation === 'divide' ? '나누기' : '곱하기'
+                    ]);
+                } else {
+                    conversionDataRows.push([item, 'N', '', '']);
+                }
+            });
+            
+            // 설명 추가
+            conversionDataRows.push(['', '', '', '']);
+            conversionDataRows.push(['💡 사용 예시', '', '', '']);
+            conversionDataRows.push(['간장(cm)를 mm로 입력했다면:', '', '', '']);
+            conversionDataRows.push(['  배수적용: Y, 배수: 10, 연산: 나누기', '', '', '']);
+            conversionDataRows.push(['  → 입력값 850 ÷ 10 = 85.0cm로 분석됨', '', '', '']);
+            
+            const ws2 = XLSX.utils.aoa_to_sheet(conversionDataRows);
+            ws2['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, ws2, '배수설정');
+            
             XLSX.writeFile(wb, '생육조사_' + getDateString() + '.xlsx');
-        }
-
-        function downloadWithFormulas() {
-            downloadSurveyExcel();
         }
 
         function handleSurveyExcelUpload(event) {
@@ -1129,6 +1510,9 @@
 
         // ========== 데이터 분석 기능 ==========
         
+        // 배수설정 저장용 전역 변수
+        let loadedConversionSettings = {};
+        
         function handleDataUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1140,56 +1524,243 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    // ===== 배수설정 시트 확인 및 읽기 =====
+                    loadedConversionSettings = {};
+                    let conversionApplied = false;
+                    let conversionInfo = [];
+                    
+                    if (workbook.SheetNames.includes('배수설정')) {
+                        const convSheet = workbook.Sheets['배수설정'];
+                        const convData = XLSX.utils.sheet_to_json(convSheet, {header: 1});
+                        
+                        // 헤더 행 찾기 (조사항목, 배수적용, 배수, 연산)
+                        let headerRowIdx = -1;
+                        for (let i = 0; i < convData.length; i++) {
+                            const row = convData[i];
+                            if (row && row[0] && (row[0].includes('조사항목') || row[0] === '조사항목')) {
+                                headerRowIdx = i;
+                                break;
+                            }
+                        }
+                        
+                        if (headerRowIdx >= 0) {
+                            // 데이터 행 파싱
+                            for (let i = headerRowIdx + 1; i < convData.length; i++) {
+                                const row = convData[i];
+                                if (!row || !row[0] || row[0].startsWith('💡') || row[0].startsWith('(')) continue;
+                                
+                                const itemName = row[0];
+                                const enabled = row[1] === 'Y' || row[1] === 'y';
+                                const multiplier = parseFloat(row[2]);
+                                const operation = row[3];
+                                
+                                if (enabled && !isNaN(multiplier) && multiplier !== 0) {
+                                    loadedConversionSettings[itemName] = {
+                                        multiplier: multiplier,
+                                        operation: operation === '나누기' || operation === 'divide' ? 'divide' : 'multiply'
+                                    };
+                                    const symbol = operation === '나누기' || operation === 'divide' ? '÷' : '×';
+                                    conversionInfo.push(`${itemName}: ${symbol}${multiplier}`);
+                                    conversionApplied = true;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // ===== 조사값 시트 읽기 =====
+                    // 조사값 시트 우선, 없으면 첫 번째 시트
+                    let dataSheetName = workbook.SheetNames[0];
+                    if (workbook.SheetNames.includes('조사값')) {
+                        dataSheetName = '조사값';
+                    }
+                    
+                    const sheet = workbook.Sheets[dataSheetName];
                     const jsonData = XLSX.utils.sheet_to_json(sheet);
-                    surveyData = {};
-                    const headers = Object.keys(jsonData[0] || {});
+                    
+                    if (jsonData.length === 0) {
+                        alert('데이터가 없습니다.');
+                        return;
+                    }
+                    
+                    // 헤더 분석
+                    const headers = Object.keys(jsonData[0]);
+                    if (headers.length < 2) {
+                        alert('최소 2개 이상의 열이 필요합니다 (품종명 + 형질).');
+                        return;
+                    }
+                    
+                    // 첫 번째 열: 품종명
                     const varietyCol = headers[0];
+                    
+                    // 두 번째 열이 "반복"인지 확인
+                    const secondCol = headers[1];
+                    const isRepeatCol = secondCol.includes('반복') || secondCol.toLowerCase().includes('repeat') || 
+                                       secondCol === '반복' || secondCol === 'Rep' || secondCol === 'rep';
+                    
+                    // 형질 열 결정 (반복 열 제외한 나머지)
+                    const traitCols = isRepeatCol ? headers.slice(2) : headers.slice(1);
+                    
+                    // 각 열의 데이터 타입 분석 (수치형 vs 범주형)
+                    const columnTypes = {};
+                    traitCols.forEach(col => {
+                        let numericCount = 0;
+                        let totalCount = 0;
+                        
+                        jsonData.forEach(row => {
+                            const value = row[col];
+                            if (value !== null && value !== undefined && value !== '') {
+                                totalCount++;
+                                if (!isNaN(parseFloat(value))) {
+                                    numericCount++;
+                                }
+                            }
+                        });
+                        
+                        // 80% 이상이 숫자면 수치형으로 판단
+                        columnTypes[col] = (numericCount / totalCount) >= 0.8 ? 'numeric' : 'categorical';
+                    });
+                    
+                    // 품종별 데이터 그룹화 (배수 변환 적용)
+                    surveyData = {};
+                    const numericTraits = traitCols.filter(col => columnTypes[col] === 'numeric');
+                    const categoricalTraits = traitCols.filter(col => columnTypes[col] === 'categorical');
+                    
                     jsonData.forEach(row => {
                         const variety = row[varietyCol];
-                        if (!variety || variety === '평균' || variety === 'Average') return;
+                        if (!variety || variety === '평균' || variety === 'Average' || variety === '합계') return;
+                        
                         if (!surveyData[variety]) {
                             surveyData[variety] = {};
                         }
-                        headers.forEach(header => {
-                            if (header === varietyCol) return;
-                            if (!surveyData[variety][header]) {
-                                surveyData[variety][header] = [];
+                        
+                        // 수치형 데이터 수집 (배수 변환 적용)
+                        numericTraits.forEach(trait => {
+                            if (!surveyData[variety][trait]) {
+                                surveyData[variety][trait] = [];
                             }
-                            const value = parseFloat(row[header]);
+                            let value = parseFloat(row[trait]);
                             if (!isNaN(value)) {
-                                surveyData[variety][header].push(value);
+                                // 배수 변환 적용
+                                if (loadedConversionSettings[trait]) {
+                                    const conv = loadedConversionSettings[trait];
+                                    if (conv.operation === 'divide') {
+                                        value = value / conv.multiplier;
+                                    } else {
+                                        value = value * conv.multiplier;
+                                    }
+                                }
+                                surveyData[variety][trait].push(value);
                             }
                         });
                     });
-                    const items = new Set();
-                    Object.values(surveyData).forEach(varietyData => {
-                        Object.keys(varietyData).forEach(item => items.add(item));
-                    });
+                    
+                    // 분석 항목 select 업데이트 (배수 적용 표시)
                     const itemSelect = document.getElementById('analysisItem');
                     itemSelect.innerHTML = '<option value="">항목을 선택하세요</option>';
-                    items.forEach(item => {
-                        itemSelect.innerHTML += `<option value="${item}">${item}</option>`;
-                    });
+                    
+                    if (numericTraits.length > 0) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = '📊 수치형 형질 (분석 가능)';
+                        numericTraits.forEach(trait => {
+                            const option = document.createElement('option');
+                            option.value = trait;
+                            if (loadedConversionSettings[trait]) {
+                                const conv = loadedConversionSettings[trait];
+                                const symbol = conv.operation === 'divide' ? '÷' : '×';
+                                option.textContent = `${trait} (${symbol}${conv.multiplier} 적용됨)`;
+                            } else {
+                                option.textContent = trait;
+                            }
+                            optgroup.appendChild(option);
+                        });
+                        itemSelect.appendChild(optgroup);
+                    }
+                    
+                    if (categoricalTraits.length > 0) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = '📝 범주형 형질 (분석 불가)';
+                        categoricalTraits.forEach(trait => {
+                            const option = document.createElement('option');
+                            option.value = trait;
+                            option.textContent = trait;
+                            option.disabled = true;
+                            optgroup.appendChild(option);
+                        });
+                        itemSelect.appendChild(optgroup);
+                    }
+                    
+                    // 데이터 요약 정보
                     let varietyInfo = [];
                     Object.keys(surveyData).forEach(variety => {
-                        const firstItem = Object.keys(surveyData[variety])[0];
-                        const repeatCount = surveyData[variety][firstItem]?.length || 0;
+                        const firstTrait = Object.keys(surveyData[variety])[0];
+                        const repeatCount = surveyData[variety][firstTrait]?.length || 0;
                         if (repeatCount > 0) {
                             varietyInfo.push(`${variety}(${repeatCount}반복)`);
                         }
                     });
-                    alert(`✅ 데이터 로드 완료: ${varietyInfo.join(', ')}`);
-                    if (items.size > 0) {
-                        itemSelect.selectedIndex = 1;
+                    
+                    // 알림 메시지
+                    let message = `✅ 데이터 로드 완료\n\n`;
+                    message += `📊 품종 수: ${Object.keys(surveyData).length}개\n`;
+                    message += `${varietyInfo.join(', ')}\n\n`;
+                    message += `📈 수치형 형질: ${numericTraits.length}개\n`;
+                    if (numericTraits.length > 0) {
+                        message += `${numericTraits.slice(0, 5).join(', ')}${numericTraits.length > 5 ? ' 외 ' + (numericTraits.length - 5) + '개' : ''}\n`;
+                    }
+                    if (categoricalTraits.length > 0) {
+                        message += `\n📝 범주형 형질: ${categoricalTraits.length}개 (분석 불가)\n`;
+                        message += `${categoricalTraits.slice(0, 3).join(', ')}${categoricalTraits.length > 3 ? ' 외 ' + (categoricalTraits.length - 3) + '개' : ''}`;
+                    }
+                    
+                    // 배수 변환 적용 정보
+                    if (conversionApplied) {
+                        message += `\n\n🔄 배수 변환 자동 적용됨:\n`;
+                        message += conversionInfo.join('\n');
+                    }
+                    
+                    alert(message);
+                    
+                    // 배수 변환 적용 정보 화면에 표시
+                    updateConversionInfoDisplay(conversionApplied, conversionInfo);
+                    
+                    // 첫 번째 수치형 항목 자동 선택
+                    if (numericTraits.length > 0) {
+                        itemSelect.value = numericTraits[0];
                         updateAnalysis();
                     }
+                    
                 } catch (error) {
                     alert('데이터 파일 읽기 오류: ' + error.message);
                     label.innerHTML = `📂 클릭하여 데이터 파일 선택<br><small>생육조사 데이터가 입력된 엑셀 파일</small>`;
                 }
             };
             reader.readAsArrayBuffer(file);
+        }
+        
+        // 배수 변환 정보 화면 표시
+        function updateConversionInfoDisplay(applied, info) {
+            let existingInfo = document.getElementById('conversionInfoDisplay');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+            
+            if (applied && info.length > 0) {
+                const infoDiv = document.createElement('div');
+                infoDiv.id = 'conversionInfoDisplay';
+                infoDiv.className = 'alert alert-success';
+                infoDiv.style.marginTop = '15px';
+                infoDiv.innerHTML = `
+                    <strong>🔄 배수 변환 적용됨</strong><br>
+                    ${info.map(i => `• ${i}`).join('<br>')}
+                    <br><small style="color: #666;">분석 시 자동으로 변환된 값이 사용됩니다.</small>
+                `;
+                
+                const uploadPanel = document.querySelector('#analysisTab .panel');
+                if (uploadPanel) {
+                    uploadPanel.appendChild(infoDiv);
+                }
+            }
         }
 
         function runStatisticalAnalysis() {
@@ -1332,56 +1903,127 @@
 
         function performDMRT(varietyData, itemName) {
             const alpha = parseFloat(document.getElementById('significanceLevel').value);
+            
+            // 평균 계산 및 정렬
             const means = [];
             Object.keys(varietyData).forEach(variety => {
                 const values = varietyData[variety];
                 if (values.length > 0) {
-                    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+                    const stats = calculateStatistics(values);
                     means.push({
                         variety: variety,
-                        mean: mean,
-                        n: values.length,
+                        mean: stats.mean,
+                        n: stats.n,
+                        se: stats.se,
                         values: values
                     });
                 }
             });
+            
+            if (means.length < 2) {
+                document.getElementById('dmrtResults').innerHTML = 
+                    '<div class="alert alert-warning">DMRT를 수행하려면 최소 2개 이상의 품종이 필요합니다.</div>';
+                return;
+            }
+            
+            // 내림차순 정렬
             means.sort((a, b) => b.mean - a.mean);
-            const groups = [];
-            means.forEach((item, idx) => {
-                let group = '';
-                if (idx === 0) {
-                    group = 'a';
-                } else {
-                    const diff = means[0].mean - item.mean;
-                    const se = calculatePooledSE(varietyData);
-                    const criticalDiff = se * 2.8;
-                    if (diff > criticalDiff) {
-                        group = String.fromCharCode(97 + Math.floor(diff / criticalDiff));
+            
+            // MSE 및 df 계산
+            const k = means.length;
+            let totalSS = 0;
+            let totalDF = 0;
+            means.forEach(m => {
+                if (m.values.length > 1) {
+                    const ss = m.values.reduce((sum, val) => sum + Math.pow(val - m.mean, 2), 0);
+                    totalSS += ss;
+                    totalDF += (m.values.length - 1);
+                }
+            });
+            const MSE = totalSS / totalDF;
+            const avgN = means.reduce((sum, m) => sum + m.n, 0) / k;
+            const pooledSE = Math.sqrt(MSE / avgN);
+            
+            // q값 가져오기
+            const getQValue = (df, p, alpha) => {
+                const table = qTable[alpha] || qTable[0.05];
+                const dfs = Object.keys(table).map(Number).sort((a, b) => a - b);
+                let closestDF = dfs[0];
+                for (const d of dfs) {
+                    if (d <= df) closestDF = d;
+                    else break;
+                }
+                const qVals = table[closestDF];
+                return qVals[Math.min(p, qVals.length - 1)] || qVals[qVals.length - 1];
+            };
+            
+            // Duncan 그룹 할당 (정확한 알고리즘)
+            const groups = means.map(() => []);
+            let currentLetter = 0;
+            
+            for (let i = 0; i < k; i++) {
+                if (groups[i].length === 0) {
+                    groups[i].push(String.fromCharCode(97 + currentLetter));
+                }
+                
+                for (let j = i + 1; j < k; j++) {
+                    const p = j - i + 1; // range
+                    const qVal = getQValue(totalDF, p, alpha);
+                    const criticalDiff = qVal * pooledSE;
+                    const actualDiff = means[i].mean - means[j].mean;
+                    
+                    if (actualDiff <= criticalDiff) {
+                        // 차이가 유의하지 않음 - 같은 그룹
+                        const currentGroup = groups[i][groups[i].length - 1];
+                        if (!groups[j].includes(currentGroup)) {
+                            groups[j].push(currentGroup);
+                        }
                     } else {
-                        group = 'a';
+                        // 차이가 유의함
+                        if (groups[j].length === 0) {
+                            currentLetter++;
+                            groups[j].push(String.fromCharCode(97 + currentLetter));
+                        }
                     }
                 }
-                groups.push({
-                    ...item,
-                    group: group
-                });
+            }
+            
+            // 결과 저장
+            dmrtResults = means.map((m, idx) => ({
+                variety: m.variety,
+                mean: m.mean,
+                n: m.n,
+                se: pooledSE,
+                group: groups[idx].sort().join('')
+            }));
+            
+            // 로우데이터 저장
+            rawDataForDownload = {};
+            means.forEach(m => {
+                rawDataForDownload[m.variety] = m.values;
             });
+            
+            // HTML 표시
             let html = '<h4>' + itemName + ' Duncan 다중검정 결과</h4>';
             html += '<table>';
             html += '<thead><tr>';
-            html += '<th>순위</th><th>품종</th><th>평균</th><th>그룹</th>';
+            html += '<th>순위</th><th>품종</th><th>평균</th><th>SE</th><th>그룹</th>';
             html += '</tr></thead><tbody>';
-            groups.forEach((item, idx) => {
+            dmrtResults.forEach((item, idx) => {
                 html += '<tr>';
                 html += `<td>${idx + 1}</td>`;
                 html += `<td><strong>${item.variety}</strong></td>`;
                 html += `<td>${item.mean.toFixed(2)}</td>`;
-                html += `<td style="font-weight: bold; color: #667eea;">${item.group}</td>`;
+                html += `<td>${item.se.toFixed(3)}</td>`;
+                html += `<td style="font-weight: bold; color: var(--accent-6);">${item.group}</td>`;
                 html += '</tr>';
             });
             html += '</tbody></table>';
             html += '<p class="alert alert-info">같은 문자를 공유하는 품종간에는 유의한 차이가 없습니다 (α = ' + alpha + ')</p>';
             document.getElementById('dmrtResults').innerHTML = html;
+            
+            // 차트 업데이트
+            updateChart();
         }
 
         function calculatePooledSE(varietyData) {
@@ -1419,56 +2061,232 @@
             const item = document.getElementById('analysisItem').value;
             const chartType = document.getElementById('chartType').value;
             const errorBarType = document.getElementById('errorBar').value;
-            if (!item || !surveyData) return;
-            const ctx = document.getElementById('analysisChart').getContext('2d');
+            
+            if (!item || !surveyData || Object.keys(surveyData).length === 0) return;
+            
+            // 옵션 읽기
+            const widthMM = parseFloat(document.getElementById('chartWidthMM').value) || 170;
+            const heightMM = parseFloat(document.getElementById('chartHeightMM').value) || 120;
+            const dpi = parseInt(document.getElementById('chartDPI').value) || 150;
+            const yMin = document.getElementById('yAxisMin').value ? parseFloat(document.getElementById('yAxisMin').value) : null;
+            const yMax = document.getElementById('yAxisMax').value ? parseFloat(document.getElementById('yAxisMax').value) : null;
+            const yStep = document.getElementById('yAxisStep').value ? parseFloat(document.getElementById('yAxisStep').value) : null;
+            const barGap = parseFloat(document.getElementById('barGap').value) || 0.2;
+            const barBorder = parseInt(document.getElementById('barBorder').value) || 1;
+            const titleFontSize = parseInt(document.getElementById('titleFontSize').value) || 16;
+            const axisFontSize = parseInt(document.getElementById('axisFontSize').value) || 12;
+            const tickFontSize = parseInt(document.getElementById('tickFontSize').value) || 10;
+            const groupFontSize = parseInt(document.getElementById('groupFontSize').value) || 12;
+            const showTitle = document.getElementById('showTitle').checked;
+            const showGroupLetters = document.getElementById('showGroupLetters').checked;
+            const showMeanValues = document.getElementById('showMeanValues').checked;
+            const showGrid = document.getElementById('showGrid').checked;
+            const useGroupColors = document.getElementById('useGroupColors').checked;
+            const useGrayscale = document.getElementById('useGrayscale').checked;
+            
+            // 흑백 패턴 옵션 표시/숨기기
+            document.getElementById('patternOptions').style.display = useGrayscale ? 'block' : 'none';
+            
+            // 캔버스 크기 설정 (mm → px 변환)
+            const widthPx = Math.round(widthMM * dpi / 25.4);
+            const heightPx = Math.round(heightMM * dpi / 25.4);
+            
+            const chartWrapper = document.getElementById('chartWrapper');
+            chartWrapper.style.width = widthPx + 'px';
+            chartWrapper.style.height = heightPx + 'px';
+            
+            const canvas = document.getElementById('analysisChart');
+            canvas.width = widthPx;
+            canvas.height = heightPx;
+            
+            const ctx = canvas.getContext('2d');
             if (currentChart) {
                 currentChart.destroy();
             }
-            const varietyStats = [];
-            const labels = [];
-            Object.keys(surveyData).forEach(variety => {
-                const values = surveyData[variety][item] || [];
-                if (values.length > 0) {
-                    const stats = calculateStatistics(values);
-                    varietyStats.push(stats);
-                    labels.push(variety);
-                }
-            });
-            const means = varietyStats.map(s => s.mean);
-            const errorBars = varietyStats.map(s => {
+            
+            // 통계 계산 (DMRT 결과 순서 사용)
+            let orderedData = [];
+            if (dmrtResults && dmrtResults.length > 0) {
+                orderedData = dmrtResults.map(r => ({
+                    variety: r.variety,
+                    stats: calculateStatistics(surveyData[r.variety][item] || []),
+                    group: r.group
+                }));
+            } else {
+                Object.keys(surveyData).forEach(variety => {
+                    const values = surveyData[variety][item] || [];
+                    if (values.length > 0) {
+                        orderedData.push({
+                            variety: variety,
+                            stats: calculateStatistics(values),
+                            group: ''
+                        });
+                    }
+                });
+            }
+            
+            const labels = orderedData.map(d => d.variety);
+            const means = orderedData.map(d => d.stats.mean);
+            const errorBars = orderedData.map(d => {
                 switch(errorBarType) {
-                    case 'se': return s.se;
-                    case 'sd': return s.std;
-                    case 'ci95': return s.se * 1.96;
+                    case 'se': return d.stats.se;
+                    case 'sd': return d.stats.std;
                     default: return 0;
                 }
             });
+            const groups = orderedData.map(d => d.group);
+            
+            // 그룹별 색상 결정
+            let colors, borderColors;
+            if (useGroupColors && dmrtResults) {
+                const uniqueGroups = [...new Set(groups)].sort();
+                const groupColorMap = {};
+                const palette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+                
+                uniqueGroups.forEach((g, i) => {
+                    const colorIdx = Math.floor(i * (palette.length - 1) / Math.max(uniqueGroups.length - 1, 1));
+                    groupColorMap[g] = palette[colorIdx];
+                });
+                
+                colors = groups.map(g => groupColorMap[g]);
+                borderColors = useGrayscale ? colors.map(() => '#333333') : colors.map(c => darkenColor(c, 0.3));
+            } else {
+                const baseColor = useGrayscale ? '#808080' : '#00a1b8';
+                colors = means.map(() => baseColor);
+                borderColors = means.map(() => useGrayscale ? '#333333' : '#017f97');
+            }
+            
+            // Chart.js 플러그인 - 오차막대
+            const errorBarPlugin = {
+                id: 'errorBars',
+                afterDatasetsDraw(chart) {
+                    if (errorBarType === 'none') return;
+                    
+                    const ctx = chart.ctx;
+                    const meta = chart.getDatasetMeta(0);
+                    
+                    meta.data.forEach((bar, index) => {
+                        const error = errorBars[index];
+                        if (error > 0) {
+                            const x = bar.x;
+                            const y = bar.y;
+                            const yScale = chart.scales.y;
+                            const errorPx = Math.abs(yScale.getPixelForValue(means[index] + error) - yScale.getPixelForValue(means[index]));
+                            const capWidth = bar.width * 0.3;
+                            
+                            ctx.save();
+                            ctx.strokeStyle = '#333333';
+                            ctx.lineWidth = 2;
+                            
+                            // 세로선
+                            ctx.beginPath();
+                            ctx.moveTo(x, y - errorPx);
+                            ctx.lineTo(x, y + errorPx);
+                            ctx.stroke();
+                            
+                            // 위 캡
+                            ctx.beginPath();
+                            ctx.moveTo(x - capWidth, y - errorPx);
+                            ctx.lineTo(x + capWidth, y - errorPx);
+                            ctx.stroke();
+                            
+                            // 아래 캡
+                            ctx.beginPath();
+                            ctx.moveTo(x - capWidth, y + errorPx);
+                            ctx.lineTo(x + capWidth, y + errorPx);
+                            ctx.stroke();
+                            
+                            ctx.restore();
+                        }
+                    });
+                }
+            };
+            
+            // Chart.js 플러그인 - 그룹 문자 및 평균값
+            const annotationPlugin = {
+                id: 'annotations',
+                afterDatasetsDraw(chart) {
+                    const ctx = chart.ctx;
+                    const meta = chart.getDatasetMeta(0);
+                    
+                    meta.data.forEach((bar, index) => {
+                        const x = bar.x;
+                        const y = bar.y;
+                        const error = errorBars[index];
+                        const yOffset = error > 0 ? 
+                            Math.abs(chart.scales.y.getPixelForValue(means[index] + error) - chart.scales.y.getPixelForValue(means[index])) + 5 : 5;
+                        
+                        ctx.save();
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = '#333333';
+                        
+                        let textY = y - yOffset - 5;
+                        
+                        // 그룹 문자
+                        if (showGroupLetters && groups[index]) {
+                            ctx.font = `bold ${groupFontSize}px sans-serif`;
+                            ctx.fillText(groups[index], x, textY);
+                            textY -= groupFontSize + 3;
+                        }
+                        
+                        // 평균값
+                        if (showMeanValues) {
+                            ctx.font = `${tickFontSize}px sans-serif`;
+                            ctx.fillText(means[index].toFixed(2), x, textY);
+                        }
+                        
+                        ctx.restore();
+                    });
+                }
+            };
+            
+            // Y축 설정
+            const yScaleConfig = {
+                beginAtZero: yMin === null,
+                min: yMin,
+                max: yMax,
+                grid: { display: showGrid },
+                title: {
+                    display: true,
+                    text: item,
+                    font: { size: axisFontSize }
+                },
+                ticks: {
+                    font: { size: tickFontSize },
+                    stepSize: yStep
+                }
+            };
+            
             const chartConfig = {
-                type: chartType === 'box' ? 'bar' : chartType,
+                type: chartType,
                 data: {
                     labels: labels,
                     datasets: [{
                         label: item,
                         data: means,
-                        backgroundColor: 'rgba(102, 126, 234, 0.5)',
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        borderWidth: 2,
-                        errorBars: errorBars
+                        backgroundColor: colors,
+                        borderColor: borderColors,
+                        borderWidth: barBorder,
+                        barPercentage: 1 - barGap,
+                        categoryPercentage: 0.9
                     }]
                 },
                 options: {
-                    responsive: true,
+                    responsive: false,
                     maintainAspectRatio: false,
+                    animation: false,
                     plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
+                        legend: { display: false },
+                        title: {
+                            display: showTitle,
+                            text: item,
+                            font: { size: titleFontSize, weight: 'bold' }
                         },
                         tooltip: {
                             callbacks: {
                                 afterLabel: function(context) {
                                     const idx = context.dataIndex;
-                                    const stats = varietyStats[idx];
+                                    const stats = orderedData[idx].stats;
                                     return [
                                         `n: ${stats.n}`,
                                         `평균: ${stats.mean.toFixed(2)}`,
@@ -1480,23 +2298,31 @@
                         }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: item
-                            }
-                        },
+                        y: yScaleConfig,
                         x: {
+                            grid: { display: false },
                             title: {
                                 display: true,
-                                text: '품종'
-                            }
+                                text: '품종',
+                                font: { size: axisFontSize }
+                            },
+                            ticks: { font: { size: tickFontSize } }
                         }
                     }
-                }
+                },
+                plugins: [errorBarPlugin, annotationPlugin]
             };
+            
             currentChart = new Chart(ctx, chartConfig);
+        }
+        
+        // 색상 어둡게 만들기
+        function darkenColor(color, amount) {
+            const hex = color.replace('#', '');
+            const r = Math.max(0, parseInt(hex.slice(0, 2), 16) - Math.round(255 * amount));
+            const g = Math.max(0, parseInt(hex.slice(2, 4), 16) - Math.round(255 * amount));
+            const b = Math.max(0, parseInt(hex.slice(4, 6), 16) - Math.round(255 * amount));
+            return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
         }
 
         function updateAnalysis() {
@@ -1508,35 +2334,97 @@
                 alert('다운로드할 차트가 없습니다.');
                 return;
             }
-            const url = currentChart.toBase64Image();
+            
+            const dpi = parseInt(document.getElementById('chartDPI').value) || 150;
+            const canvas = document.getElementById('analysisChart');
+            
+            // 고해상도 캔버스 생성
+            const scale = dpi / 96;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width * scale;
+            tempCanvas.height = canvas.height * scale;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.scale(scale, scale);
+            tempCtx.fillStyle = 'white';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(canvas, 0, 0);
+            
+            const url = tempCanvas.toDataURL('image/png');
             const a = document.createElement('a');
             a.href = url;
-            a.download = '통계차트_' + getDateString() + '.png';
+            const item = document.getElementById('analysisItem').value || '차트';
+            a.download = `${item}_DMRT_${dpi}dpi_${getDateString()}.png`;
             a.click();
+        }
+        
+        function downloadFullResults() {
+            if (!dmrtResults || dmrtResults.length === 0) {
+                alert('먼저 데이터 분석을 수행해주세요.');
+                return;
+            }
+            
+            const item = document.getElementById('analysisItem').value || '분석결과';
+            const wb = XLSX.utils.book_new();
+            
+            // 시트1: 기초통계량
+            const statsData = [['품종', 'n', '평균', '표준편차', '표준오차', 'CV(%)', '최소', '최대', 'DMRT그룹']];
+            dmrtResults.forEach(r => {
+                const values = rawDataForDownload[r.variety] || [];
+                const stats = calculateStatistics(values);
+                statsData.push([
+                    r.variety, stats.n, stats.mean.toFixed(2), stats.std.toFixed(2),
+                    stats.se.toFixed(3), stats.cv.toFixed(1), stats.min.toFixed(2), stats.max.toFixed(2), r.group
+                ]);
+            });
+            const ws1 = XLSX.utils.aoa_to_sheet(statsData);
+            XLSX.utils.book_append_sheet(wb, ws1, '기초통계량');
+            
+            // 시트2: DMRT 결과
+            const dmrtData = [['순위', '품종', '평균', 'SE', 'DMRT그룹']];
+            dmrtResults.forEach((r, idx) => {
+                dmrtData.push([idx + 1, r.variety, r.mean.toFixed(2), r.se.toFixed(3), r.group]);
+            });
+            const ws2 = XLSX.utils.aoa_to_sheet(dmrtData);
+            XLSX.utils.book_append_sheet(wb, ws2, 'DMRT결과');
+            
+            // 시트3: 로우데이터
+            const maxReps = Math.max(...Object.values(rawDataForDownload).map(v => v.length));
+            const rawHeaders = ['품종'];
+            for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
+            const rawDataSheet = [rawHeaders];
+            dmrtResults.forEach(r => {
+                const row = [r.variety];
+                const values = rawDataForDownload[r.variety] || [];
+                for (let i = 0; i < maxReps; i++) {
+                    row.push(values[i] !== undefined ? values[i] : '');
+                }
+                rawDataSheet.push(row);
+            });
+            const ws3 = XLSX.utils.aoa_to_sheet(rawDataSheet);
+            XLSX.utils.book_append_sheet(wb, ws3, '로우데이터');
+            
+            // 시트4: 차트 정보
+            const chartInfo = [
+                ['항목', item],
+                ['분석일시', new Date().toLocaleString('ko-KR')],
+                ['유의수준', document.getElementById('significanceLevel').value],
+                ['DPI', document.getElementById('chartDPI').value],
+                ['차트크기(mm)', `${document.getElementById('chartWidthMM').value} × ${document.getElementById('chartHeightMM').value}`]
+            ];
+            const ws4 = XLSX.utils.aoa_to_sheet(chartInfo);
+            XLSX.utils.book_append_sheet(wb, ws4, '차트정보');
+            
+            // 엑셀 저장
+            XLSX.writeFile(wb, `${item}_DMRT분석결과_${getDateString()}.xlsx`);
+            
+            // 차트 이미지도 다운로드
+            setTimeout(() => downloadChart(), 500);
+            
+            alert('엑셀 파일과 차트 이미지가 다운로드됩니다.');
         }
 
         function exportAnalysisReport() {
-            if (Object.keys(analysisData).length === 0) {
-                alert('분석할 데이터가 없습니다.');
-                return;
-            }
-            const wb = XLSX.utils.book_new();
-            const summaryData = [['항목', '평균', '표준편차', 'CV(%)', '최소', '최대', '범위']];
-            Object.keys(analysisData).forEach(item => {
-                const stats = analysisData[item];
-                summaryData.push([
-                    item,
-                    stats.mean.toFixed(2),
-                    stats.std.toFixed(2),
-                    stats.cv.toFixed(2),
-                    stats.min.toFixed(2),
-                    stats.max.toFixed(2),
-                    stats.range.toFixed(2)
-                ]);
-            });
-            const ws = XLSX.utils.aoa_to_sheet(summaryData);
-            XLSX.utils.book_append_sheet(wb, ws, '통계요약');
-            XLSX.writeFile(wb, '분석보고서_' + getDateString() + '.xlsx');
+            downloadFullResults();
         }
 
         // ========== 라벨 출력 기능 ==========
@@ -1555,12 +2443,41 @@
         function updateDisplaySizeInfo() {
             const size = document.getElementById('displayLabelSize').value;
             const recommendedSize = document.getElementById('recommendedSize');
+            const layoutSelect = document.getElementById('displayLabelLayout');
+            
             const sizeInfo = {
-                small: '소형: 75mm × 40mm<br><small style="color: #666;">권장 이미지 사이즈: 591 × 315 pixels (200dpi)</small>',
-                medium: '중형: 75mm × 50mm<br><small style="color: #666;">권장 이미지 사이즈: 591 × 394 pixels (200dpi)</small>',
-                large: '명찰용: 150mm × 75mm<br><small style="color: #666;">권장 이미지 사이즈: 1181 × 591 pixels (200dpi)</small>'
+                small: `소형: 75mm × 40mm<br>
+                        <strong style="color: #0066cc;">• 권장 이미지: 591 × 315 pixels (200 DPI)</strong><br>
+                        <small style="color: #666;">• 최소 해상도: 295 × 157 pixels (100 DPI)</small><br>
+                        <small style="color: #666;">• 고해상도: 1181 × 630 pixels (400 DPI)</small><br>
+                        <small style="color: #999;">※ 72 DPI 기준: 210 × 113 pixels</small>`,
+                medium: `중형: 75mm × 50mm<br>
+                        <strong style="color: #0066cc;">• 권장 이미지: 591 × 394 pixels (200 DPI)</strong><br>
+                        <small style="color: #666;">• 최소 해상도: 295 × 197 pixels (100 DPI)</small><br>
+                        <small style="color: #666;">• 고해상도: 1181 × 787 pixels (400 DPI)</small><br>
+                        <small style="color: #999;">※ 72 DPI 기준: 210 × 141 pixels</small>`,
+                large: `명찰용: 150mm × 75mm<br>
+                        <strong style="color: #0066cc;">• 권장 이미지: 1181 × 591 pixels (200 DPI)</strong><br>
+                        <small style="color: #666;">• 최소 해상도: 591 × 295 pixels (100 DPI)</small><br>
+                        <small style="color: #666;">• 고해상도: 2362 × 1181 pixels (400 DPI)</small><br>
+                        <small style="color: #999;">※ 72 DPI 기준: 425 × 212 pixels</small>`
             };
             recommendedSize.innerHTML = sizeInfo[size];
+            
+            // 명찰용일 때 레이아웃 옵션 변경 (1열만 가능)
+            if (size === 'large') {
+                layoutSelect.innerHTML = `
+                    <option value="1x1">단일 라벨</option>
+                    <option value="1x3">1 x 3 (A4)</option>
+                `;
+            } else {
+                layoutSelect.innerHTML = `
+                    <option value="1x1">단일 라벨</option>
+                    <option value="2x4">2 x 4 (A4)</option>
+                    <option value="2x5">2 x 5 (A4)</option>
+                `;
+            }
+            
             updateLabelPreview();
         }
 
@@ -1582,10 +2499,11 @@
         function resetBgImage() {
             bgImageData = null;
             document.getElementById('bgImageFile').value = '';
+            const label = document.querySelector('label[for="bgImageFile"]');
+            label.innerHTML = '🖼️ 클릭하여 이미지 선택<br><small>JPG, PNG 형식 지원</small>';
             updateLabelPreview();
             alert('배경 이미지가 초기화되었습니다.');
         }
-
 
         // 텍스트 너비 측정 함수 (mm 단위)
         function measureTextWidth(text, fontSize) {
@@ -1611,7 +2529,6 @@
             return fontSize;
         }
 
-
         // 전시용 라벨 입력 행 추가
         function addDisplayLabelRow() {
             const container = document.getElementById('displayLabelInputs');
@@ -1629,26 +2546,41 @@
         function handleDisplayExcelUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
+            console.log('📂 파일 업로드 시작:', file.name);
+            
             const label = document.getElementById('displayExcelLabel');
             const fileSize = (file.size / 1024).toFixed(1);
             label.innerHTML = `<div style="color: #1976d2; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small>`;
+            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
+                    console.log('📖 파일 읽기 시작');
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     displayExcelData = XLSX.utils.sheet_to_json(sheet);
-                    alert('엑셀 파일이 로드되었습니다. "전시용 라벨 생성" 버튼을 클릭하세요.');
+                    
+                    console.log('✅ 엑셀 데이터 로드 완료:', displayExcelData);
+                    console.log('데이터 개수:', displayExcelData.length);
+                    console.log('첫 번째 행:', displayExcelData[0]);
+                    
+                    alert(`엑셀 파일이 로드되었습니다.\n${displayExcelData.length}개의 항목을 읽었습니다.\n"전시용 라벨 생성" 버튼을 클릭하세요.`);
                 } catch (error) {
+                    console.error('❌ 엑셀 파일 읽기 오류:', error);
                     alert('엑셀 파일 읽기 오류: ' + error.message);
                     displayExcelData = null;
+                    label.innerHTML = `📂 클릭하여 파일 선택<br><small>이름과 설명이 포함된 엑셀 파일</small>`;
                 }
             };
             reader.readAsArrayBuffer(file);
         }
 
-                function generateDisplayLabels() {
+        function generateDisplayLabels() {
+            console.log('🏷️ 라벨 생성 시작');
+            console.log('현재 displayExcelData:', displayExcelData);
+            
             const labelSize = document.getElementById('displayLabelSize').value;
             const layout = document.getElementById('displayLabelLayout').value;
             const textColor = document.getElementById('textColor').value;
@@ -1665,6 +2597,7 @@
                 const name = inputs[0].value.trim();
                 const description = inputs[1].value.trim();
                 if (name) {
+                    console.log('✓ 직접 입력 데이터:', { name, description });
                     labelData.push({ name, description });
                 }
             });
@@ -1672,13 +2605,15 @@
             // 2. 텍스트 일괄 입력에서 데이터 읽기
             const bulkInput = document.getElementById('displayBulkInput').value.trim();
             if (bulkInput) {
+                console.log('📝 텍스트 일괄 입력 데이터:', bulkInput);
                 bulkInput.split('\n').forEach(line => {
                     line = line.trim();
                     if (line) {
                         const parts = line.split(',').map(p => p.trim());
                         const name = parts[0] || '';
-                        const description = parts.slice(1).join(',') || ''; // 쉼표가 여러 개 있을 수 있음
+                        const description = parts.slice(1).join(',') || '';
                         if (name) {
+                            console.log('✓ 일괄 입력 데이터:', { name, description });
                             labelData.push({ name, description });
                         }
                     }
@@ -1687,120 +2622,207 @@
             
             // 3. 엑셀에서 데이터 읽기
             if (displayExcelData && displayExcelData.length > 0) {
-                displayExcelData.forEach(row => {
-                    const name = row['이름'] || row['품종'] || row['name'] || '';
-                    const description = row['설명'] || row['부가설명'] || row['소속'] || row['description'] || '';
+                console.log('📊 엑셀 데이터 처리 시작:', displayExcelData);
+                displayExcelData.forEach((row, index) => {
+                    console.log(`행 ${index}:`, row);
+                    
+                    // 다양한 열 이름 패턴 지원
+                    const name = row['이름'] || row['품종'] || row['품종명'] || row['name'] || 
+                                 row['Name'] || row['variety'] || row['Variety'] || '';
+                    const description = row['설명'] || row['부가설명'] || row['소속'] || 
+                                      row['description'] || row['Description'] || row['비고'] || '';
+                    
+                    console.log(`  → 추출된 데이터: 이름="${name}", 설명="${description}"`);
+                    
                     if (name) {
-                        labelData.push({ name, description });
+                        console.log('✓ 엑셀 데이터 추가:', { name, description });
+                        labelData.push({ name: String(name).trim(), description: String(description).trim() });
                     }
                 });
+            } else {
+                console.log('ℹ️ 엑셀 데이터 없음');
             }
             
+            console.log('📋 최종 라벨 데이터 개수:', labelData.length);
+            console.log('최종 라벨 데이터:', labelData);
+            
             if (labelData.length === 0) {
-                alert('라벨 데이터를 입력해주세요.');
+                alert('라벨 데이터를 입력해주세요.\n\n입력 방법:\n1. 직접 입력\n2. 텍스트 일괄 입력\n3. 엑셀 파일 업로드');
                 return;
             }
             
-            let gridColumns = 1;
-            if (layout === '2x4') gridColumns = 2;
-            else if (layout === '2x5') gridColumns = 2;
+            // 반복 인쇄 횟수 적용
+            const repeatCount = parseInt(document.getElementById('displayRepeatCount').value) || 1;
+            if (repeatCount > 1) {
+                const originalData = [...labelData];
+                labelData = [];
+                originalData.forEach(item => {
+                    for (let i = 0; i < repeatCount; i++) {
+                        labelData.push({...item});
+                    }
+                });
+                console.log(`🔁 반복 인쇄 적용: ${originalData.length}개 → ${labelData.length}개`);
+            }
             
-            let html = `<div class="label-grid" style="grid-template-columns: repeat(${gridColumns}, 1fr);">`;
+            // 레이아웃별 설정
+            let labelsPerPage, gridColumns, gridRows, labelWidth, labelHeight;
             
-            labelData.forEach(item => {
-                const name = item.name;
-                const info = item.description;
+            if (layout === '2x4') {
+                gridColumns = 2;
+                gridRows = 4;
+                labelsPerPage = 8;
+            } else if (layout === '2x5') {
+                gridColumns = 2;
+                gridRows = 5;
+                labelsPerPage = 10;
+            } else if (layout === '1x3') {
+                gridColumns = 1;
+                gridRows = 3;
+                labelsPerPage = 3;
+            } else { // 1x1 단일 라벨
+                gridColumns = 1;
+                gridRows = 1;
+                labelsPerPage = 1;
+            }
+            
+            // 라벨 크기 설정
+            if (labelSize === 'small') {
+                labelWidth = '75mm';
+                labelHeight = '40mm';
+            } else if (labelSize === 'medium') {
+                labelWidth = '75mm';
+                labelHeight = '50mm';
+            } else { // large (명찰용)
+                labelWidth = '150mm';
+                labelHeight = '75mm';
+            }
+            
+            // 페이지 수 계산
+            const totalPages = Math.ceil(labelData.length / labelsPerPage);
+            let html = '';
+            
+            for (let page = 0; page < totalPages; page++) {
+                const startIdx = page * labelsPerPage;
+                const endIdx = Math.min(startIdx + labelsPerPage, labelData.length);
+                const pageLabels = labelData.slice(startIdx, endIdx);
                 
-                let bgStyle = '';
-                if (bgImageData) {
-                    bgStyle = `background-image: url(${bgImageData}); `;
-                    switch(imageFit) {
-                        case 'cover':
-                            bgStyle += 'background-size: cover; background-position: center;';
-                            break;
-                        case 'contain':
-                            bgStyle += 'background-size: contain; background-repeat: no-repeat; background-position: center;';
-                            break;
-                        case 'stretch':
-                            bgStyle += 'background-size: 100% 100%;';
-                            break;
-                        case 'center':
-                            bgStyle += 'background-size: auto; background-position: center; background-repeat: no-repeat;';
-                            break;
+                // A4 컨테이너 시작
+                html += `<div class="a4-label-container" style="width: 210mm; min-height: 297mm; padding: 10mm; background: white; margin: 0 auto 20px; box-sizing: border-box; page-break-after: always; display: flex; align-items: center; justify-content: center;">`;
+                
+                // 그리드 시작
+                html += `<div class="a4-label-grid" style="display: grid; grid-template-columns: repeat(${gridColumns}, ${labelWidth}); grid-template-rows: repeat(${gridRows}, ${labelHeight}); gap: 5mm; justify-content: center; align-content: center;">`;
+                
+                pageLabels.forEach((item, index) => {
+                    const name = item.name;
+                    const info = item.description;
+                    
+                    console.log(`라벨 ${startIdx + index + 1} 생성:`, { name, info });
+                    
+                    let bgStyle = '';
+                    if (bgImageData) {
+                        bgStyle = `background-image: url(${bgImageData}); `;
+                        switch(imageFit) {
+                            case 'cover':
+                                bgStyle += 'background-size: cover; background-position: center;';
+                                break;
+                            case 'contain':
+                                bgStyle += 'background-size: contain; background-repeat: no-repeat; background-position: center;';
+                                break;
+                            case 'stretch':
+                                bgStyle += 'background-size: 100% 100%;';
+                                break;
+                            case 'center':
+                                bgStyle += 'background-size: auto; background-position: center; background-repeat: no-repeat;';
+                                break;
+                        }
+                    }
+                    
+                    let textBgClass = '';
+                    if (textBg === 'white') textBgClass = 'text-bg-white';
+                    else if (textBg === 'black') textBgClass = 'text-bg-black';
+                    else if (textBg === 'blur') textBgClass = 'text-bg-blur';
+                    
+                    if (labelSize === 'small') {
+                        const maxNameWidth = 59;
+                        const maxDescWidth = 59;
+                        let nameSize = Math.floor(calculateOptimalFontSize(name, maxNameWidth, 36, 16) * 0.9);
+                        let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
+                        
+                        html += `
+                            <div class="display-label-item display-label-small" style="${bgStyle} -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                <div class="display-label-content">
+                                    <div class="${textBgClass}">
+                                        <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
+                                            ${name}
+                                        </div>
+                                        ${info ? `<div class="label-desc" style="color: ${textColor}; font-size: ${descSize}pt;">(${info})</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (labelSize === 'medium') {
+                        const maxNameWidth = 59;
+                        const maxDescWidth = 59;
+                        let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
+                        let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
+                        
+                        html += `
+                            <div class="display-label-item display-label-medium" style="${bgStyle} -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                <div class="display-label-content">
+                                    <div class="${textBgClass}">
+                                        <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
+                                            ${name}
+                                        </div>
+                                        ${info ? `<div class="label-desc" style="color: ${textColor}; font-size: ${descSize}pt;">(${info})</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (labelSize === 'large') {
+                        const maxNameWidth = 87;
+                        const maxOrgWidth = 87;
+                        let nameSize = calculateOptimalFontSize(name, maxNameWidth, 72, 24);
+                        let orgSize = info ? calculateOptimalFontSize(info, maxOrgWidth, 24, 12) : 24;
+                        
+                        html += `
+                            <div class="display-label-item display-label-large" style="${bgStyle} -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                <div class="display-label-content">
+                                    <div class="${textBgClass}">
+                                        <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
+                                            ${name}
+                                        </div>
+                                        ${info ? `<div class="label-org" style="color: ${textColor}; font-size: ${orgSize}pt;">${info}</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                
+                // 빈 라벨 추가 (그리드 채우기)
+                const remainingSlots = labelsPerPage - pageLabels.length;
+                for (let i = 0; i < remainingSlots; i++) {
+                    if (labelSize === 'small') {
+                        html += `<div class="display-label-item display-label-small" style="border: 1px dashed #ddd; opacity: 0.3;"></div>`;
+                    } else if (labelSize === 'medium') {
+                        html += `<div class="display-label-item display-label-medium" style="border: 1px dashed #ddd; opacity: 0.3;"></div>`;
+                    } else {
+                        html += `<div class="display-label-item display-label-large" style="border: 1px dashed #ddd; opacity: 0.3;"></div>`;
                     }
                 }
                 
-                let textBgClass = '';
-                if (textBg === 'white') textBgClass = 'text-bg-white';
-                else if (textBg === 'black') textBgClass = 'text-bg-black';
-                else if (textBg === 'blur') textBgClass = 'text-bg-blur';
-                
-                if (labelSize === 'small') {
-                    // 소형: 75mm 너비, 양쪽 5mm 여백, 최대 텍스트 너비 59mm (6mm 여유)
-                    const maxNameWidth = 59;
-                    const maxDescWidth = 59;
-                    let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
-                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
-                    
-                    html += `
-                        <div class="display-label-item display-label-small" style="${bgStyle}">
-                            <div class="display-label-content">
-                                <div class="${textBgClass}">
-                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
-                                        ${name}
-                                    </div>
-                                    ${info ? `<div class="label-desc" style="color: ${textColor}; font-size: ${descSize}pt;">(${info})</div>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else if (labelSize === 'medium') {
-                    // 중형: 75mm 너비, 양쪽 5mm 여백, 최대 텍스트 너비 59mm (6mm 여유)
-                    const maxNameWidth = 59;
-                    const maxDescWidth = 59;
-                    let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
-                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
-                    
-                    html += `
-                        <div class="display-label-item display-label-medium" style="${bgStyle}">
-                            <div class="display-label-content">
-                                <div class="${textBgClass}">
-                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
-                                        ${name}
-                                    </div>
-                                    ${info ? `<div class="label-desc" style="color: ${textColor}; font-size: ${descSize}pt;">(${info})</div>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else if (labelSize === 'large') {
-                    // 명찰용: 150mm 너비, 양쪽 20mm 여백, 최대 텍스트 너비 87mm (23mm 여유)
-                    const maxNameWidth = 87;
-                    const maxOrgWidth = 87;
-                    let nameSize = calculateOptimalFontSize(name, maxNameWidth, 72, 24);
-                    let orgSize = info ? calculateOptimalFontSize(info, maxOrgWidth, 24, 12) : 24;
-                    
-                    html += `
-                        <div class="display-label-item display-label-large" style="${bgStyle}">
-                            <div class="display-label-content">
-                                <div class="${textBgClass}">
-                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
-                                        ${name}
-                                    </div>
-                                    ${info ? `<div class="label-org" style="color: ${textColor}; font-size: ${orgSize}pt;">${info}</div>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
+                html += '</div>'; // a4-label-grid 종료
+                html += '</div>'; // a4-label-container 종료
+            }
             
-            html += '</div>';
+            // 페이지 정보 추가 (화면용, 인쇄 시 숨김)
+            html += `<div class="page-info" style="text-align: center; padding: 10px; color: #666; font-size: 14px;">총 ${labelData.length}개 라벨 / ${totalPages}페이지</div>`;
+            
             document.getElementById('labelPreview').innerHTML = html;
             document.getElementById('labelActions').style.display = 'flex';
+            
+            console.log('✅ 라벨 생성 완료');
         }
-
-
 
         function downloadDisplayLabelTemplate() {
             const wb = XLSX.utils.book_new();
@@ -1834,8 +2856,10 @@
                 <small>이름과 설명이 포함된 엑셀 파일</small>
             `;
             
+            console.log('🔄 전시용 라벨 입력 초기화 완료');
             alert('입력 데이터가 초기화되었습니다.');
         }
+
         function updateLabelPreview() {
             const labelType = document.getElementById('labelType').value;
             if (varieties.length > 0) {
@@ -1963,7 +2987,6 @@
             return sampleNumber;
         }
 
-
         // QR 자동 입력 행 추가
         function addQRAutoRow() {
             const container = document.getElementById('qrAutoInputs');
@@ -1994,7 +3017,7 @@
             }
         });
 
-                function generateQRLabels() {
+        function generateQRLabels() {
             qrLabelData = [];
             
             // 1. 자동 생성 입력 행에서 데이터 읽기
@@ -2026,13 +3049,12 @@
             if (directInput) {
                 const lines = directInput.split('\n').map(line => line.trim()).filter(line => line);
                 lines.forEach(line => {
-                    // 쉼표로 구분: 연도,실험실,시험번호,품종명
                     const parts = line.split(',').map(p => p.trim());
                     if (parts.length >= 4) {
                         const year = parts[0];
                         const lab = parts[1];
                         const testNum = parts[2];
-                        const variety = parts.slice(3).join(','); // 품종명에 쉼표가 있을 수 있음
+                        const variety = parts.slice(3).join(',');
                         
                         if (year && lab && testNum && variety) {
                             const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
@@ -2046,6 +3068,7 @@
                     }
                 });
             }
+            
             if (qrLabelData.length === 0) {
                 alert('품종 데이터를 입력하거나 엑셀 파일을 업로드해주세요.');
                 return;
@@ -2060,16 +3083,12 @@
                 qrLabelData = [];
                 
                 if (repeatMode === 'sequential') {
-                    // 연속 반복: 같은 번호끼리 연속으로
-                    // 예: 001, 001, 001, 002, 002, 002
                     originalData.forEach(item => {
                         for (let i = 0; i < setCount; i++) {
                             qrLabelData.push({...item});
                         }
                     });
                 } else {
-                    // 세트 반복: 한 세트 다 하고 처음부터 반복
-                    // 예: 001, 002, 003, 001, 002, 003
                     for (let i = 0; i < setCount; i++) {
                         originalData.forEach(item => {
                             qrLabelData.push({...item});
@@ -2080,6 +3099,16 @@
             
             const spec = document.getElementById('labelSpec').value;
             const isLarge = spec === '3105';
+            
+            // 텍스트 영역 크기 계산 (mm)
+            // 가로: 64mm - 20mm(QR) - 2mm(QR마진) - 1mm(좌패딩) - 4mm(우패딩) = 37mm
+            const textAreaWidth = 37;
+            // 세로: 라벨높이 - 3mm(위패딩) - 3mm(아래패딩) - 4mm(여유) 
+            const textAreaHeight = isLarge ? 29 : 24; // 3105: 29mm, 3106: 24mm
+            
+            // 시험번호 최대 높이 (전체의 약 55%)
+            const maxTestNumHeight = textAreaHeight * 0.55;
+            
             let html = '<div class="barcode-label-container">';
             if (isLarge) {
                 html += '<div class="barcode-label-grid-21">';
@@ -2087,25 +3116,48 @@
                 html += '<div class="barcode-label-grid">';
             }
             qrLabelData.forEach((data, idx) => {
-                let testNumSize = 18;
-                if (data.testNumber.length > 4) {
-                    testNumSize = Math.floor(18 * (4 / data.testNumber.length));
-                    testNumSize = Math.max(testNumSize, 12);
+                // 시험번호 폰트 크기 계산 - 가로에 꽉 차게
+                // 숫자/영문: 1글자 ≈ pt * 0.55mm, 한글: 1글자 ≈ pt * 1mm
+                const testNumStr = String(data.testNumber);
+                const charCount = testNumStr.length;
+                
+                // 문자 종류에 따른 폭 계수 (한글 많으면 더 넓음)
+                const koreanChars = (testNumStr.match(/[가-힣]/g) || []).length;
+                const otherChars = charCount - koreanChars;
+                const avgWidthFactor = (koreanChars * 1.0 + otherChars * 0.6) / charCount;
+                
+                // 가로에 맞춘 폰트 크기 (mm → pt 변환: 1pt ≈ 0.35mm)
+                let testNumSize = Math.floor(textAreaWidth / (charCount * avgWidthFactor) / 0.35);
+                
+                // 세로 제한 적용 (최대 높이 기준)
+                const maxSizeByHeight = Math.floor(maxTestNumHeight / 0.35);
+                testNumSize = Math.min(testNumSize, maxSizeByHeight);
+                
+                // 최소/최대 제한
+                testNumSize = Math.max(testNumSize, 14);
+                testNumSize = Math.min(testNumSize, 48);
+                
+                // 품종명 폰트 크기 (가용 높이의 약 25%)
+                let varietySize = 10;
+                const varietyStr = String(data.variety);
+                if (varietyStr.length > 12) {
+                    varietySize = Math.max(Math.floor(10 * (12 / varietyStr.length)), 7);
                 }
-                let varietySize = 9;
-                if (data.variety.length > 10) {
-                    varietySize = Math.floor(9 * (10 / data.variety.length));
-                    varietySize = Math.max(varietySize, 6);
-                }
+                
+                // 시료번호 폰트 크기 (고정)
+                const sampleNumSize = 8;
+                
                 html += `
                     <div class="qr-label-item ${isLarge ? 'qr-label-item-39' : ''}">
                         <div class="qr-label-left">
                             <div id="qr-code-${idx}" class="qr-code-container"></div>
                         </div>
                         <div class="qr-label-right">
-                            <div class="qr-test-number" style="font-size: ${testNumSize}pt;">${data.testNumber}</div>
-                            <div class="qr-variety-name" style="font-size: ${varietySize}pt;">${data.variety}</div>
-                            <div class="qr-sample-number">${data.sampleNumber}</div>
+                            <div class="qr-text-area" style="max-height: ${textAreaHeight}mm;">
+                                <div class="qr-test-number" style="font-size: ${testNumSize}pt;">${data.testNumber}</div>
+                                <div class="qr-variety-name" style="font-size: ${varietySize}pt;">${data.variety}</div>
+                                <div class="qr-sample-number" style="font-size: ${sampleNumSize}pt;">${data.sampleNumber}</div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2141,17 +3193,216 @@
         }
 
         function printLabels() {
-            window.print();
+            const labelPreview = document.getElementById('labelPreview');
+            const containers = labelPreview.querySelectorAll('.a4-label-container, .barcode-label-container');
+            
+            if (containers.length === 0) {
+                alert('인쇄할 라벨이 없습니다.');
+                return;
+            }
+            
+            // innerHTML 복사 후 canvas 태그 제거
+            let htmlContent = labelPreview.innerHTML;
+            htmlContent = htmlContent.replace(/<canvas[^>]*>.*?<\/canvas>/gi, '');
+            
+            // 인쇄용 새 창 열기
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>라벨 인쇄</title>
+                    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@2.0/nanumsquare.css">
+                    <style>
+                        @page {
+                            size: A4;
+                            margin: 0;
+                        }
+                        * {
+                            margin: 0;
+                            padding: 0;
+                            box-sizing: border-box;
+                        }
+                        html, body {
+                            width: 210mm;
+                            min-height: 297mm;
+                            background: white;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                            color-adjust: exact !important;
+                        }
+                        .a4-label-container, .barcode-label-container {
+                            width: 210mm;
+                            height: 297mm;
+                            padding: 10mm;
+                            background: white;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            page-break-after: always;
+                            box-sizing: border-box;
+                        }
+                        .a4-label-grid {
+                            display: grid;
+                        }
+                        .display-label-item {
+                            position: relative;
+                            overflow: visible;
+                            border: 1px solid #ddd;
+                            font-family: 'NanumSquare', sans-serif;
+                            font-weight: 800;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            box-sizing: border-box;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        .display-label-small { width: 75mm; height: 40mm; padding: 3mm 5mm; }
+                        .display-label-medium { width: 75mm; height: 50mm; padding: 3mm 5mm; }
+                        .display-label-large { width: 150mm; height: 75mm; padding: 5mm 20mm; }
+                        .display-label-content {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            width: 100%;
+                        }
+                        .label-name { line-height: 1.1; text-align: center; }
+                        .label-desc { margin-top: 2mm; line-height: 1.1; text-align: center; }
+                        .label-org { margin-top: 1mm; line-height: 1.1; text-align: center; }
+                        .text-bg-white { background-color: rgba(255, 255, 255, 0.9); padding: 3mm 5mm; border-radius: 3mm; }
+                        .text-bg-black { background-color: rgba(0, 0, 0, 0.7); padding: 3mm 5mm; border-radius: 3mm; color: white; }
+                        .text-bg-blur { backdrop-filter: blur(5px); background-color: rgba(255, 255, 255, 0.3); padding: 3mm 5mm; border-radius: 3mm; }
+                        .barcode-label-container { padding: 12mm 5mm; }
+                        .barcode-label-grid { display: grid; grid-template-columns: repeat(3, 64mm); grid-template-rows: repeat(8, 34mm); gap: 0 2mm; }
+                        .barcode-label-grid-21 { display: grid; grid-template-columns: repeat(3, 64mm); grid-template-rows: repeat(7, 39mm); gap: 0 2mm; }
+                        .qr-label-item { width: 64mm; height: 34mm; border: 1px solid #ccc; padding: 3mm 2mm; display: flex; align-items: center; font-family: 'NanumSquare', sans-serif; box-sizing: border-box; }
+                        .qr-label-item-39 { height: 39mm; }
+                        .qr-label-left { width: 20mm; height: 20mm; display: flex; align-items: center; justify-content: center; margin-right: 2mm; flex-shrink: 0; }
+                        .qr-label-right { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 1mm; padding-right: 4mm; height: 100%; }
+                        .qr-text-area { display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
+                        .qr-test-number { font-weight: bold; line-height: 1.1; white-space: nowrap; }
+                        .qr-variety-name { line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                        .qr-sample-number { font-family: 'Courier New', monospace; color: #666; line-height: 1.1; white-space: nowrap; }
+                        .qr-code-container { width: 20mm; height: 20mm; display: flex; align-items: center; justify-content: center; }
+                        .qr-code-container canvas { display: none !important; }
+                        .qr-code-container img { width: 20mm !important; height: 20mm !important; }
+                        .page-info { display: none; }
+                        @media print {
+                            body { background: white; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${htmlContent}
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            
+            // 폰트 로딩 대기 후 인쇄
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 500);
         }
 
-        function downloadLabelsPDF() {
-            alert('PDF 다운로드 기능은 서버 환경에서 구현됩니다.\n현재는 인쇄 기능을 사용해주세요.');
+        async function downloadLabelsPDF() {
+            const labelPreview = document.getElementById('labelPreview');
+            const containers = labelPreview.querySelectorAll('.a4-label-container, .barcode-label-container');
+            
+            if (containers.length === 0) {
+                alert('다운로드할 라벨이 없습니다.');
+                return;
+            }
+            
+            // 버튼 참조 저장
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ PDF 생성 중...';
+            btn.disabled = true;
+            
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+                
+                const pdfWidth = 210;
+                const pdfHeight = 297;
+                
+                // A4 크기를 px로 (96 DPI 기준)
+                const a4WidthPx = 794;  // 210mm at 96 DPI
+                const a4HeightPx = 1123; // 297mm at 96 DPI
+                
+                for (let i = 0; i < containers.length; i++) {
+                    const container = containers[i];
+                    
+                    // 폰트 로딩 대기
+                    await document.fonts.ready;
+                    
+                    // html2canvas로 캡처 - 고해상도
+                    const capturedCanvas = await html2canvas(container, {
+                        scale: 3,  // 고해상도
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                        windowWidth: a4WidthPx,
+                        windowHeight: a4HeightPx,
+                        onclone: function(clonedDoc) {
+                            // 클론된 문서에서 canvas 제거 (img만 사용)
+                            const canvases = clonedDoc.querySelectorAll('.qr-code-container canvas');
+                            canvases.forEach(cvs => cvs.remove());
+                            
+                            // 클론된 문서에서 스타일 보정
+                            const clonedContainer = clonedDoc.querySelector('.a4-label-container, .barcode-label-container');
+                            if (clonedContainer) {
+                                clonedContainer.style.width = '210mm';
+                                clonedContainer.style.height = '297mm';
+                                clonedContainer.style.padding = '10mm';
+                                clonedContainer.style.boxSizing = 'border-box';
+                            }
+                        }
+                    });
+                    
+                    const imgData = capturedCanvas.toDataURL('image/png', 1.0);
+                    
+                    // 첫 페이지가 아니면 새 페이지 추가
+                    if (i > 0) {
+                        pdf.addPage();
+                    }
+                    
+                    // 이미지를 A4 페이지에 맞게 추가
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                }
+                
+                // 파일 저장
+                const labelType = document.getElementById('labelType').value;
+                const filename = labelType === 'display' 
+                    ? '전시용라벨_' + getDateString() + '.pdf'
+                    : 'QR라벨_' + getDateString() + '.pdf';
+                    
+                pdf.save(filename);
+                
+            } catch (error) {
+                console.error('PDF 생성 오류:', error);
+                alert('PDF 생성 중 오류가 발생했습니다.\n인쇄 기능을 사용해주세요.');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
         }
 
         function downloadLabelsExcel() {
             const labelType = document.getElementById('labelType').value;
             
-            // QR 라벨인 경우
             if (labelType === 'barcode' || labelType === 'qr') {
                 if (!qrLabelData || qrLabelData.length === 0) {
                     alert('다운로드할 QR 라벨이 없습니다.');
@@ -2165,9 +3416,7 @@
                 const ws = XLSX.utils.aoa_to_sheet(data);
                 XLSX.utils.book_append_sheet(wb, ws, 'QR라벨');
                 XLSX.writeFile(wb, 'QR라벨_시료번호_' + getDateString() + '.xlsx');
-            } 
-            // 전시용 라벨인 경우
-            else {
+            } else {
                 if (varieties.length === 0) {
                     alert('다운로드할 라벨이 없습니다.');
                     return;
