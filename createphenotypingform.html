@@ -119,6 +119,7 @@
         .qr-code-container { width: 20mm; height: 20mm; display: flex; align-items: center; justify-content: center; }
         .qr-code-container canvas, .qr-code-container img { max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; }
         .qr-label-right { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-right: 2mm; padding-left: 2mm; min-width: 0; }
+        .qr-label-center { width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2mm; }
         .qr-test-number { font-size: 24pt; font-weight: bold; line-height: 1; margin-bottom: 1mm; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
         .qr-variety-name { font-size: 10pt; line-height: 1; margin-bottom: 0.5mm; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
         .qr-sample-number { font-size: 8pt; font-family: 'Courier New', monospace; color: #666; line-height: 1; white-space: nowrap; }
@@ -198,7 +199,7 @@
 
                         <div class="form-group">
                             <label>텍스트 일괄 입력</label>
-                            <textarea id="bulkInput" placeholder="한아름&#10;새일미&#10;삼광"></textarea>
+                            <textarea id="bulkInput" placeholder="한아름찰&#10;새일미&#10;해담쌀"></textarea>
                             <div style="margin-top: 10px;">
                                 <label class="setting-label">기본 반복수</label>
                                 <input type="number" id="defaultRepeatCount" value="3" min="1" max="20" style="width: 100px;">
@@ -294,7 +295,7 @@
                     
                     <div class="form-group">
                         <label>품종 목록 (한 줄에 하나씩)</label>
-                        <textarea id="surveyVarieties" placeholder="한아름&#10;새일미&#10;삼광"></textarea>
+                        <textarea id="surveyVarieties" placeholder="한아름찰&#10;새일미&#10;해담쌀"></textarea>
                         <div style="margin-top: 10px;">
                             <button class="btn btn-info" onclick="loadFromListTab()">📋 품종목록에서 가져오기</button>
                         </div>
@@ -568,7 +569,7 @@
                             <label class="setting-label">라벨 용도</label>
                             <select id="labelType" onchange="updateLabelType()">
                                 <option value="display">전시용 라벨 (배경이미지)</option>
-                                <option value="barcode">바코드/QR 라벨</option>
+                                <option value="barcode">폼텍라벨 &amp; Datatrans</option>
                             </select>
                             <small id="labelTypeHint" style="color: #666; font-size: 12px; display: none; margin-top: 5px;">
                                 💡 datatrans 입력용 기초 시험목록 생성 가능
@@ -661,11 +662,11 @@
                         <label>텍스트 일괄 입력</label>
                         <div class="alert alert-info" style="font-size: 13px; margin-bottom: 10px;">
                             <strong>💡 입력 형식:</strong> 이름,부가설명 (쉼표로 구분)<br>
-                            <small>예: 한아름,2024년 시험</small>
+                            <small>예: 한아름찰,2025년 시험</small>
                         </div>
-                        <textarea id="displayBulkInput" rows="5" placeholder="한아름,2024년 시험
+                        <textarea id="displayBulkInput" rows="5" placeholder="한아름찰,2025년 시험
 새일미,우수품종
-삼광,농촌진흥청"></textarea>
+해담쌀,농촌진흥청"></textarea>
                     </div>
 
                     <div class="input-divider">또는</div>
@@ -689,63 +690,41 @@
                     </div>
                 </div>
 
-                <!-- 바코드/QR 라벨 설정 -->
+                <!-- 폼텍라벨 & Datatrans 설정 -->
                 <div id="barcodeLabelSettings" class="panel" style="display:none;">
-                    <div class="panel-title">📊 QR코드 라벨 설정</div>
+                    <div class="panel-title">📊 폼텍라벨 & Datatrans</div>
                     
-                    <div class="settings-grid">
-                        <div class="setting-item">
-                            <label class="setting-label">라벨 규격</label>
-                            <select id="labelSpec" onchange="updateLabelSpec()">
-                                <option value="3106">폼텍 3106 (64mm × 34mm, 24칸)</option>
-                                <option value="3105">폼텍 3105 (64mm × 39mm, 21칸)</option>
-                            </select>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <label class="setting-label">세트수 (반복 횟수)</label>
-                            <input type="number" id="qrSetCount" value="1" min="1" max="10" placeholder="1">
-                            <small style="color: #666; font-size: 12px;">각 라벨을 몇 번 반복할지 설정</small>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <label class="setting-label">반복 방식</label>
-                            <select id="qrRepeatMode">
-                                <option value="sequential">연속 반복 (001, 001, 002, 002...)</option>
-                                <option value="batch">세트 반복 (001, 002... / 001, 002...)</option>
-                            </select>
+                    <!-- Step 1: 템플릿 다운로드 -->
+                    <div class="panel" style="background: #e8f5e9; border: 1px solid #c8e6c9; margin-bottom: 15px;">
+                        <div class="panel-title" style="font-size: 15px;">Step 1. 템플릿 다운로드</div>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <button class="btn btn-secondary" onclick="downloadQRLabelTemplateFixed()">📥 QR라벨용 템플릿</button>
+                                <small style="display: block; color: #666; margin-top: 5px;">시료번호 자동 생성 (Datatrans 연동)</small>
+                            </div>
+                            <div class="setting-item">
+                                <button class="btn btn-secondary" onclick="downloadTextLabelTemplate()">📥 텍스트라벨용 템플릿</button>
+                                <small style="display: block; color: #666; margin-top: 5px;">시험번호 + 품종명만</small>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- 글씨 크기 설정 -->
-                    <div class="settings-grid" style="margin-top: 15px;">
-                        <div class="setting-item">
-                            <label class="setting-label">시험번호 최대 크기 (pt)</label>
-                            <input type="number" id="qrTestNumMaxSize" value="24" min="10" max="36" style="width: 80px;">
-                        </div>
-                        <div class="setting-item">
-                            <label class="setting-label">품종명 최대 크기 (pt)</label>
-                            <input type="number" id="qrVarietyMaxSize" value="10" min="5" max="20" style="width: 80px;">
-                        </div>
-                        <div class="setting-item">
-                            <label class="setting-label">시료번호 크기 (pt)</label>
-                            <input type="number" id="qrSampleNumSize" value="8" min="3" max="12" style="width: 80px;">
-                        </div>
-                    </div>
-
-                    <div id="labelSpecInfo" class="alert alert-info">
-                        <strong>📋 폼텍 3106 라벨 규격</strong><br>
-                        • 라벨 크기: 64mm × 34mm<br>
-                        • 배열: 3열 × 8행 (A4 한 장에 24개)<br>
-                        • 여백: 위/아래 12mm, 좌/우 5mm, 열 간격 2mm
-                    </div>
-
-                    <div class="panel" style="margin-top: 20px;">
-                        <div class="panel-title" style="font-size: 16px;">🔢 시료번호 자동 생성</div>
+                    <!-- Step 2: 데이터 입력 -->
+                    <div class="panel" style="background: #e3f2fd; border: 1px solid #bbdefb; margin-bottom: 15px;">
+                        <div class="panel-title" style="font-size: 15px;">Step 2. 데이터 입력</div>
                         
-                        <div class="alert alert-info" style="font-size: 13px; margin-bottom: 15px;">
-                            <strong>💡 입력 방법:</strong> 각 품종별로 연도, 실험실, 시험번호, 품종명을 입력하세요.
+                        <div class="form-group">
+                            <label>엑셀 파일 업로드</label>
+                            <div class="file-upload">
+                                <input type="file" id="qrLabelFile" accept=".xlsx,.xls" onchange="handleQRLabelUpload(event)">
+                                <label for="qrLabelFile" class="file-upload-label">
+                                    📂 템플릿 엑셀 업로드<br>
+                                    <small>Step 1에서 다운받은 템플릿 작성 후 업로드</small>
+                                </label>
+                            </div>
                         </div>
+
+                        <div class="input-divider">또는 직접 입력</div>
 
                         <div id="qrAutoInputs">
                             <!-- 동적으로 생성됨 -->
@@ -753,51 +732,83 @@
                         
                         <button class="btn btn-info" onclick="addQRAutoRow()" style="margin-top: 10px;">+ 품종 추가</button>
                         
-                        <div id="sampleNumberPreview" class="alert alert-success" style="margin-top: 15px;">
-                            <strong>시료번호 생성 규칙:</strong><br>
-                            <span>연도(4) + 0(1) + 실험실(1) + 시험번호(6, 앞에 0 추가) = 총 12자리</span><br>
-                            <small>예: 2024 + 0 + 1 + 000001 = 202401000001</small>
+                        <div id="sampleNumberPreview" class="alert alert-success" style="margin-top: 15px; font-size: 12px;">
+                            <strong>시료번호 생성 규칙:</strong> 연도(4) + 0(1) + 실험실(1) + 시험번호(6) = 12자리<br>
+                            <small>예: 2025 + 0 + 1 + 001001 = 202501001001</small>
                         </div>
                     </div>
-
-                    <div class="panel" style="margin-top: 20px;">
-                        <div class="panel-title" style="font-size: 16px;">📥 라벨 데이터 입력</div>
+                    
+                    <!-- Step 3: Datatrans 목록 생성 (QR라벨 데이터일 때만 표시) -->
+                    <div id="datatransSection" class="panel" style="background: #fff3e0; border: 1px solid #ffe0b2; margin-bottom: 15px; display: none;">
+                        <div class="panel-title" style="font-size: 15px;">📋 Datatrans 목록 생성</div>
+                        <div class="alert alert-info" style="font-size: 13px; margin-bottom: 10px;">
+                            QR라벨 데이터가 입력되었습니다. 라벨 인쇄 없이 Datatrans 목록만 필요하면 아래 버튼을 클릭하세요.
+                        </div>
+                        <button class="btn btn-primary" onclick="downloadLabelsExcel()">📊 Datatrans 목록 다운로드</button>
+                    </div>
+                    
+                    <!-- Step 4: 라벨 설정 및 생성 -->
+                    <div class="panel" style="background: #fce4ec; border: 1px solid #f8bbd9; margin-bottom: 15px;">
+                        <div class="panel-title" style="font-size: 15px;">Step 3. 라벨 설정 및 생성</div>
                         
-                        <div class="form-group">
-                            <label>엑셀 템플릿 업로드</label>
-                            <div class="file-upload">
-                                <input type="file" id="qrLabelFile" accept=".xlsx,.xls" onchange="handleQRLabelUpload(event)">
-                                <label for="qrLabelFile" class="file-upload-label">
-                                    📂 QR라벨 데이터 엑셀 업로드<br>
-                                    <small>품종 및 계통 목록이 포함된 파일</small>
-                                </label>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <label class="setting-label">라벨 규격</label>
+                                <select id="labelSpec" onchange="updateLabelSpec()">
+                                    <option value="3106">폼텍 3106 (64mm × 34mm, 24칸)</option>
+                                    <option value="3105">폼텍 3105 (64mm × 39mm, 21칸)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <label class="setting-label">QR코드 표시</label>
+                                <select id="showQRCode" onchange="updateQRCodeOption()">
+                                    <option value="yes">QR코드 포함</option>
+                                    <option value="no">텍스트만 (QR코드 없음)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <label class="setting-label">세트수 (반복 횟수)</label>
+                                <input type="number" id="qrSetCount" value="1" min="1" max="10" placeholder="1">
+                            </div>
+                            
+                            <div class="setting-item">
+                                <label class="setting-label">반복 방식</label>
+                                <select id="qrRepeatMode">
+                                    <option value="sequential">연속 (001,001,002,002...)</option>
+                                    <option value="batch">세트 (001,002.../001,002...)</option>
+                                </select>
                             </div>
                         </div>
-
-                        <div class="input-divider">또는</div>
-
-                        <div class="form-group">
-                            <label>품종 직접 입력</label>
-                            <button class="btn btn-info" onclick="showQRDataInput()">📝 품종 직접 입력</button>
-                        </div>
-
-                        <div id="qrDataInput" style="display:none; margin-top: 20px;">
-                            <div class="alert alert-info" style="font-size: 13px;">
-                                <strong>💡 입력 형식:</strong> 연도,실험실,시험번호,품종명 (쉼표로 구분)<br>
-                                <small>예: 2024,1,001,한아름</small>
+                        
+                        <!-- 글씨 크기 설정 (접기/펼치기) -->
+                        <details style="margin-top: 15px;">
+                            <summary style="cursor: pointer; font-weight: bold; color: #666;">⚙️ 글씨 크기 상세 설정</summary>
+                            <div class="settings-grid" style="margin-top: 10px;">
+                                <div class="setting-item">
+                                    <label class="setting-label">시험번호 최대 (pt)</label>
+                                    <input type="number" id="qrTestNumMaxSize" value="24" min="10" max="36" style="width: 70px;">
+                                </div>
+                                <div class="setting-item">
+                                    <label class="setting-label">품종명 최대 (pt)</label>
+                                    <input type="number" id="qrVarietyMaxSize" value="10" min="5" max="30" style="width: 70px;">
+                                </div>
+                                <div class="setting-item">
+                                    <label class="setting-label">시료번호 (pt)</label>
+                                    <input type="number" id="qrSampleNumSize" value="8" min="3" max="12" style="width: 70px;">
+                                </div>
                             </div>
-                            <textarea id="qrDataText" rows="10" placeholder="2024,1,001,한아름
-2024,1,002,새일미
-2024,2,001,삼광
-2024,2,002,참동진
-2024,3,001,신동진"></textarea>
-                        </div>
-                    </div>
+                        </details>
 
-                    <div class="actions">
-                        <button class="btn btn-secondary" onclick="downloadQRTemplate()">📥 QR라벨 템플릿 다운로드</button>
-                        <button class="btn btn-primary" onclick="generateQRLabels()">🏷️ QR라벨 생성</button>
-                        <button class="btn btn-warning" onclick="clearQRData()">🔄 초기화</button>
+                        <div id="labelSpecInfo" class="alert alert-info" style="margin-top: 15px; font-size: 12px;">
+                            <strong>📋 폼텍 3106:</strong> 64mm × 34mm, 3열 × 8행 (24칸/장)
+                        </div>
+                        
+                        <div class="actions" style="margin-top: 15px;">
+                            <button class="btn btn-primary" onclick="generateQRLabels()">🏷️ 라벨 생성</button>
+                            <button class="btn btn-warning" onclick="clearQRData()">🔄 초기화</button>
+                        </div>
                     </div>
                 </div>
 
@@ -1403,12 +1414,12 @@
             const wb = XLSX.utils.book_new();
             const data = [
                 ['품종명', '반복수', '', '📌 입력 방법'],
-                ['한아름', '3', '', '• 품종명: 조사할 품종 이름을 입력하세요'],
+                ['한아름찰', '3', '', '• 품종명: 조사할 품종 이름을 입력하세요'],
                 ['새일미', '3', '', '• 반복수: 각 품종을 몇 번 반복할지 숫자 입력'],
-                ['삼광', '5', '', ''],
-                ['참동진', '3', '', '💡 예시'],
-                ['신동진', '4', '', '품종명: 한아름 / 반복수: 3'],
-                ['', '', '', '  → 결과: 한아름-1, 한아름-2, 한아름-3']
+                ['해담쌀', '5', '', ''],
+                ['영호진미', '3', '', '💡 예시'],
+                ['안평', '4', '', '품종명: 한아름찰 / 반복수: 3'],
+                ['', '', '', '  → 결과: 한아름찰-1, 한아름찰-2, 한아름찰-3']
             ];
             const ws = XLSX.utils.aoa_to_sheet(data);
             ws['!cols'] = [{ wch: 18 }, { wch: 12 }, { wch: 2 }, { wch: 45 }];
@@ -1747,9 +1758,9 @@
                 ['아래에 품종명을 입력하세요', ''],
                 ['', ''],
                 ['품종명', '비고 (선택)'],
-                ['한아름', ''],
+                ['한아름찰', ''],
                 ['새일미', ''],
-                ['삼광', ''],
+                ['해담쌀', ''],
                 ['', '← 품종 추가 시 아래로 입력'],
                 ['', ''],
                 ['', ''],
@@ -3147,11 +3158,11 @@
             const wb = XLSX.utils.book_new();
             const data = [
                 ['이름', '설명', '', '📌 입력 방법'],
-                ['한아름', '2024년 시험', '', '• 이름: 라벨에 표시할 이름이나 품종명'],
+                ['한아름찰', '2025년 시험', '', '• 이름: 라벨에 표시할 이름이나 품종명'],
                 ['새일미', '우수품종', '', '• 설명: 부가설명(소형/중형) 또는 소속(명찰용)'],
-                ['삼광', '농촌진흥청', '', ''],
-                ['참동진', '', '', '💡 예시'],
-                ['신동진', '밀양지역', '', '이름: 한아름 / 설명: 2024년 시험']
+                ['해담쌀', '농촌진흥청', '', ''],
+                ['해담쌀', '', '', '💡 예시'],
+                ['안평', '밀양지역', '', '이름: 한아름찰 / 설명: 2025년 시험']
             ];
             const ws = XLSX.utils.aoa_to_sheet(data);
             ws['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 2 }, { wch: 45 }];
@@ -3215,6 +3226,22 @@
                 `;
             }
         }
+        
+        function updateQRCodeOption() {
+            const showQR = document.getElementById('showQRCode').value === 'yes';
+            const varietyInput = document.getElementById('qrVarietyMaxSize');
+            const sampleInput = document.getElementById('qrSampleNumSize');
+            
+            if (showQR) {
+                // QR코드 포함: 기본 크기 작게
+                varietyInput.value = 10;
+                sampleInput.value = 8;
+            } else {
+                // 텍스트만: 기본 크기 크게
+                varietyInput.value = 20;
+                sampleInput.value = 10;
+            }
+        }
 
         function showQRDataInput() {
             const input = document.getElementById('qrDataInput');
@@ -3230,48 +3257,351 @@
                 addQRAutoRow();
             }
             
-            // 직접 입력 초기화
-            document.getElementById('qrDataText').value = '';
-            document.getElementById('qrLabelFile').value = '';
-            document.getElementById('qrLabelFile').nextElementSibling.innerHTML = `
-                📂 QR라벨 데이터 엑셀 업로드<br>
-                <small>품종 및 계통 목록이 포함된 파일</small>
-            `;
-            document.getElementById('labelPreview').innerHTML = '<div class="output-empty">라벨 설정을 완료하고 \'QR라벨 생성\' 버튼을 클릭하세요</div>';
+            // 파일 입력 초기화
+            const fileInput = document.getElementById('qrLabelFile');
+            if (fileInput) {
+                fileInput.value = '';
+                const label = fileInput.nextElementSibling;
+                if (label) {
+                    label.innerHTML = `
+                        📂 템플릿 엑셀 업로드<br>
+                        <small>Step 1에서 다운받은 템플릿 작성 후 업로드</small>
+                    `;
+                }
+            }
+            
+            // Datatrans 섹션 숨기기
+            const datatransSection = document.getElementById('datatransSection');
+            if (datatransSection) {
+                datatransSection.style.display = 'none';
+            }
+            
+            document.getElementById('labelPreview').innerHTML = '<div class="output-empty">라벨 설정을 완료하고 \'라벨 생성\' 버튼을 클릭하세요</div>';
             document.getElementById('labelActions').style.display = 'none';
-            alert('QR라벨 데이터가 초기화되었습니다.');
+            alert('데이터가 초기화되었습니다.');
         }
 
         function downloadQRTemplate() {
+            const showQR = document.getElementById('showQRCode')?.value !== 'no';
             const wb = XLSX.utils.book_new();
             
-            // QR라벨데이터 시트
+            if (showQR) {
+                // QR라벨데이터 시트 (QR코드 포함용)
+                const data = [
+                    ['연도', '실험실', '시험번호', '품종 및 계통', '', '시료번호 생성 규칙:'],
+                    [2025, '1', 1001, '한아름찰', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 0(6에서 시험번호 자릿수 뺀 만큼 반복) + 시험번호(최대 6자리) = 총 12자리'],
+                    [2025, '1', 10001, '새일미', '', '예: 연도가 2025년이고 가공실 계통이며 시험번호가 1001일 경우'],
+                    [2025, '2', 200001, '해담쌀', '', '  2025 + 0 + 1 + 00 + 1001 = 202501001001'],
+                    [2025, '2', 45501, '영호진미', '', ''],
+                    [2025, '3', 999, '안평', '', '']
+                ];
+                const ws1 = XLSX.utils.aoa_to_sheet(data);
+                ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 2 }, { wch: 60 }];
+                XLSX.utils.book_append_sheet(wb, ws1, 'QR라벨데이터');
+                
+                // 라벨 인쇄정보 시트
+                const printData = [
+                    ['반복횟수', '반복방식', '', ''],
+                    [3, '연속', '', '*반복횟수: 한 라벨당 인쇄 횟수'],
+                    ['', '', '', '*반복방식: 연속 or 세트'],
+                    ['', '', '', ''],
+                    ['', '', '', '연속: 001,001,001, 002,002,002…'],
+                    ['', '', '', '세트: 001,002, 001,002, 001,002…']
+                ];
+                const ws2 = XLSX.utils.aoa_to_sheet(printData);
+                ws2['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 2 }, { wch: 40 }];
+                XLSX.utils.book_append_sheet(wb, ws2, '라벨 인쇄정보');
+                
+                XLSX.writeFile(wb, 'QR라벨_템플릿.xlsx');
+            } else {
+                // 텍스트 라벨 데이터 시트 (QR코드 없음)
+                const data = [
+                    ['시험번호', '품종 및 계통'],
+                    [1001, '한아름찰'],
+                    [10001, '새일미'],
+                    [200001, '해담쌀'],
+                    [45501, '영호진미'],
+                    [999, '안평']
+                ];
+                const ws1 = XLSX.utils.aoa_to_sheet(data);
+                ws1['!cols'] = [{ wch: 12 }, { wch: 20 }];
+                XLSX.utils.book_append_sheet(wb, ws1, '텍스트라벨데이터');
+                
+                // 라벨 인쇄정보 시트
+                const printData = [
+                    ['반복횟수', '반복방식', '', ''],
+                    [3, '연속', '', '*반복횟수: 한 라벨당 인쇄 횟수'],
+                    ['', '', '', '*반복방식: 연속 or 세트'],
+                    ['', '', '', ''],
+                    ['', '', '', '연속: 001,001,001, 002,002,002…'],
+                    ['', '', '', '세트: 001,002, 001,002, 001,002…']
+                ];
+                const ws2 = XLSX.utils.aoa_to_sheet(printData);
+                ws2['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 2 }, { wch: 40 }];
+                XLSX.utils.book_append_sheet(wb, ws2, '라벨 인쇄정보');
+                
+                XLSX.writeFile(wb, '텍스트라벨_템플릿.xlsx');
+            }
+        }
+        
+        // QR라벨용 템플릿 (showQRCode 옵션과 무관하게 항상 QR용)
+        function downloadQRLabelTemplateFixed() {
+            const wb = XLSX.utils.book_new();
+            
             const data = [
                 ['연도', '실험실', '시험번호', '품종 및 계통', '', '시료번호 생성 규칙:'],
-                [2025, '1', 1001, '한아름', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 0(6에서 시험번호 자릿수 뺀 만큼 반복) + 시험번호(최대 6자리) = 총 12자리'],
-                [2025, '1', 10001, '새일미', '', '예: 연도가 2025년이고 가공실 계통이며 시험번호가 1001일 경우'],
-                [2025, '2', 200001, '삼광', '', '  2025 + 0 + 1 + 00 + 1001 = 202501001001'],
-                [2025, '2', 45501, '참동진', '', ''],
-                [2025, '3', 999, '신동진', '', '']
+                [2025, '1', 1001, '한아름찰', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 시험번호 패딩(6자리) = 총 12자리'],
+                [2025, '1', 10001, '새일미', '', '예: 2025 + 0 + 1 + 001001 = 202501001001'],
+                [2025, '2', 200001, '해담쌀', '', ''],
+                [2025, '2', 45501, '영호진미', '', ''],
+                [2025, '3', 999, '안평', '', '']
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(data);
             ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 2 }, { wch: 60 }];
             XLSX.utils.book_append_sheet(wb, ws1, 'QR라벨데이터');
             
-            // 라벨 인쇄정보 시트
             const printData = [
                 ['반복횟수', '반복방식', '', ''],
                 [3, '연속', '', '*반복횟수: 한 라벨당 인쇄 횟수'],
-                ['', '', '', '*반복방식: 연속 or 세트'],
-                ['', '', '', ''],
-                ['', '', '', '연속: 001,001,001, 002,002,002…'],
-                ['', '', '', '세트: 001,002, 001,002, 001,002…']
+                ['', '', '', '*반복방식: 연속 or 세트']
             ];
             const ws2 = XLSX.utils.aoa_to_sheet(printData);
             ws2['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 2 }, { wch: 40 }];
             XLSX.utils.book_append_sheet(wb, ws2, '라벨 인쇄정보');
             
             XLSX.writeFile(wb, 'QR라벨_템플릿.xlsx');
+        }
+        
+        // 텍스트라벨 전용 템플릿 다운로드
+        function downloadTextLabelTemplate() {
+            const wb = XLSX.utils.book_new();
+            
+            const data = [
+                ['시험번호', '품종 및 계통'],
+                [1001, '한아름찰'],
+                [10001, '새일미'],
+                [200001, '해담쌀'],
+                [45501, '영호진미'],
+                [999, '안평']
+            ];
+            const ws1 = XLSX.utils.aoa_to_sheet(data);
+            ws1['!cols'] = [{ wch: 12 }, { wch: 20 }];
+            XLSX.utils.book_append_sheet(wb, ws1, '텍스트라벨데이터');
+            
+            const printData = [
+                ['반복횟수', '반복방식', '', ''],
+                [3, '연속', '', '*반복횟수: 한 라벨당 인쇄 횟수'],
+                ['', '', '', '*반복방식: 연속 or 세트']
+            ];
+            const ws2 = XLSX.utils.aoa_to_sheet(printData);
+            ws2['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 2 }, { wch: 40 }];
+            XLSX.utils.book_append_sheet(wb, ws2, '라벨 인쇄정보');
+            
+            XLSX.writeFile(wb, '텍스트라벨_템플릿.xlsx');
+        }
+        
+        // Datatrans 자동 입력 행 추가
+        function addDatatransAutoRow() {
+            const container = document.getElementById('datatransAutoInputs');
+            const row = document.createElement('div');
+            row.className = 'input-row';
+            row.style.marginBottom = '10px';
+            row.innerHTML = `
+                <input type="number" placeholder="연도" value="2025" min="2000" max="2099" style="width: 80px;">
+                <select style="width: 100px;">
+                    <option value="1">가공실 (1)</option>
+                    <option value="2">이모작실 (2)</option>
+                    <option value="3">경지실 (3)</option>
+                </select>
+                <input type="text" placeholder="시험번호" style="width: 90px;">
+                <input type="text" placeholder="품종명" style="flex: 1;">
+                <button class="btn-remove" onclick="this.parentElement.remove()">삭제</button>
+            `;
+            container.appendChild(row);
+        }
+        
+        // Datatrans 엑셀 업로드 처리
+        function handleDatatransUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const label = document.getElementById('datatransFileLabel');
+            if (label) {
+                const fileSize = (file.size / 1024).toFixed(1);
+                label.innerHTML = `<div style="color: #1976d2; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small>`;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    // 데이터 시트 찾기
+                    let dataSheetName = workbook.SheetNames[0];
+                    if (workbook.SheetNames.includes('QR라벨데이터')) {
+                        dataSheetName = 'QR라벨데이터';
+                    } else if (workbook.SheetNames.includes('텍스트라벨데이터')) {
+                        dataSheetName = '텍스트라벨데이터';
+                    }
+                    
+                    const sheet = workbook.Sheets[dataSheetName];
+                    const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
+                    
+                    if (rawData.length < 2) {
+                        alert('엑셀 파일에 데이터가 없습니다.');
+                        return;
+                    }
+                    
+                    // 헤더에서 열 인덱스 찾기
+                    const headers = rawData[0].map(h => String(h || '').trim());
+                    const findColIndex = (keywords) => {
+                        for (const kw of keywords) {
+                            const idx = headers.findIndex(h => h.toLowerCase().includes(kw.toLowerCase()));
+                            if (idx >= 0) return idx;
+                        }
+                        return -1;
+                    };
+                    
+                    const yearIdx = findColIndex(['연도', '년도', 'year']);
+                    const labIdx = findColIndex(['실험실', '실', '기관', 'lab']);
+                    const testNumIdx = findColIndex(['시험번호', '시험', '번호', 'test']);
+                    const varietyIdx = findColIndex(['품종', '계통', 'variety']);
+                    
+                    // Datatrans 자동 입력 행에 데이터 채우기
+                    const container = document.getElementById('datatransAutoInputs');
+                    container.innerHTML = '';
+                    
+                    const defaultYear = '2025';
+                    const defaultLab = '1';
+                    let loadedCount = 0;
+                    
+                    for (let i = 1; i < rawData.length; i++) {
+                        const row = rawData[i];
+                        if (!row || row.length === 0) continue;
+                        
+                        const year = yearIdx >= 0 && row[yearIdx] != null ? String(row[yearIdx]) : defaultYear;
+                        const lab = labIdx >= 0 && row[labIdx] != null ? String(row[labIdx]) : defaultLab;
+                        const testNum = testNumIdx >= 0 && row[testNumIdx] != null ? String(row[testNumIdx]) : '';
+                        const variety = varietyIdx >= 0 && row[varietyIdx] != null ? String(row[varietyIdx]) : '';
+                        
+                        if (!testNum && !variety) continue;
+                        
+                        const inputRow = document.createElement('div');
+                        inputRow.className = 'input-row';
+                        inputRow.style.marginBottom = '10px';
+                        inputRow.innerHTML = `
+                            <input type="number" placeholder="연도" value="${year}" min="2000" max="2099" style="width: 80px;">
+                            <select style="width: 100px;">
+                                <option value="1" ${lab === '1' ? 'selected' : ''}>가공실 (1)</option>
+                                <option value="2" ${lab === '2' ? 'selected' : ''}>이모작실 (2)</option>
+                                <option value="3" ${lab === '3' ? 'selected' : ''}>경지실 (3)</option>
+                            </select>
+                            <input type="text" placeholder="시험번호" value="${testNum}" style="width: 90px;">
+                            <input type="text" placeholder="품종명" value="${variety}" style="flex: 1;">
+                            <button class="btn-remove" onclick="this.parentElement.remove()">삭제</button>
+                        `;
+                        container.appendChild(inputRow);
+                        loadedCount++;
+                    }
+                    
+                    alert(`${loadedCount}개 품종이 로드되었습니다.\n\n'Datatrans 목록 다운로드' 버튼을 클릭하세요.`);
+                    
+                } catch (error) {
+                    console.error('엑셀 파싱 오류:', error);
+                    alert('엑셀 파일 처리 중 오류가 발생했습니다.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // Datatrans 엑셀 바로 다운로드
+        function downloadDatatransExcel() {
+            // Datatrans 자동 입력 행에서 데이터 읽기
+            const dataToExport = [];
+            const autoInputRows = document.querySelectorAll('#datatransAutoInputs .input-row');
+            
+            autoInputRows.forEach(row => {
+                const inputs = row.querySelectorAll('input, select');
+                if (inputs.length >= 4) {
+                    const year = inputs[0].value.trim();
+                    const lab = inputs[1].value.trim();
+                    const testNum = inputs[2].value.trim();
+                    const variety = inputs[3].value.trim();
+                    
+                    if (year && lab && testNum && variety) {
+                        const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
+                        const sampleNumber = year + '0' + lab + paddedTestNum;
+                        dataToExport.push({
+                            sampleNumber: sampleNumber,
+                            testNumber: testNum,
+                            variety: variety,
+                            year: year,
+                            lab: lab
+                        });
+                    }
+                }
+            });
+            
+            if (dataToExport.length === 0) {
+                alert('다운로드할 데이터가 없습니다.\n품종 데이터를 입력하거나 엑셀을 업로드해주세요.');
+                return;
+            }
+            
+            // 연구실 코드 → 풀네임 변환
+            const labFullNames = {
+                '1': '가공용벼연구실',
+                '2': '이모작소재육종연구실',
+                '3': '경지이용연구실'
+            };
+            
+            const wb = XLSX.utils.book_new();
+            
+            // datatrans 입력 양식 헤더
+            const headers = ['시료번호', '시험번호', '품종 및 계통', '대비품종', '재배구분', '담당자', '시험구분', '포장위치', '세부과제번호', '연구실', '수확주수', '조간(cm)', '주간(cm)', '면적(㎡)', '작성일자'];
+            const data = [headers];
+            
+            dataToExport.forEach(item => {
+                const labCode = item.lab || '1';
+                const labFullName = labFullNames[labCode] || '';
+                
+                data.push([
+                    item.sampleNumber,
+                    item.testNumber,
+                    item.variety,
+                    '', '', '', '', '', '',
+                    labFullName,
+                    '', '', '', '', ''
+                ]);
+            });
+            
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [
+                { wch: 14 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 10 },
+                { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 18 },
+                { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }
+            ];
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'datatrans입력');
+            XLSX.writeFile(wb, 'datatrans_입력_' + getDateString() + '.xlsx');
+        }
+        
+        // Datatrans 데이터 초기화
+        function clearDatatransData() {
+            const container = document.getElementById('datatransAutoInputs');
+            container.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                addDatatransAutoRow();
+            }
+            
+            // 파일 입력 초기화
+            const fileInput = document.getElementById('datatransFile');
+            if (fileInput) fileInput.value = '';
+            
+            const label = document.getElementById('datatransFileLabel');
+            if (label) {
+                label.innerHTML = '📂 엑셀 파일 업로드<br><small>시험번호, 품종 목록이 포함된 파일</small>';
+            }
         }
 
         function handleQRLabelUpload(event) {
@@ -3290,10 +3620,15 @@
                     
                     console.log('시트 목록:', workbook.SheetNames);
                     
-                    // QR라벨데이터 시트 찾기
+                    // 데이터 시트 찾기 (QR라벨데이터 또는 텍스트라벨데이터)
                     let dataSheetName = workbook.SheetNames[0];
+                    let isTextOnlyTemplate = false;
+                    
                     if (workbook.SheetNames.includes('QR라벨데이터')) {
                         dataSheetName = 'QR라벨데이터';
+                    } else if (workbook.SheetNames.includes('텍스트라벨데이터')) {
+                        dataSheetName = '텍스트라벨데이터';
+                        isTextOnlyTemplate = true;
                     }
                     
                     const sheet = workbook.Sheets[dataSheetName];
@@ -3326,7 +3661,7 @@
                     console.log('열 인덱스:', { yearIdx, labIdx, testNumIdx, varietyIdx });
                     
                     // 현재 설정된 연도와 실험실 코드 가져오기
-                    const defaultYear = document.getElementById('sampleYear')?.value || '2024';
+                    const defaultYear = document.getElementById('sampleYear')?.value || '2025';
                     const defaultLab = document.getElementById('labCode')?.value || '1';
                     
                     qrLabelData = [];
@@ -3345,18 +3680,35 @@
                         // 빈 행 건너뛰기
                         if (!testNum && !variety) continue;
                         
-                        // 시료번호 생성: 연도(4) + 0(1) + 실험실(1) + 시험번호패딩(6) = 12자리
-                        const testNumStr = String(testNum).replace(/\D/g, ''); // 숫자만 추출
-                        const paddedTestNum = testNumStr.padStart(6, '0').slice(-6); // 6자리로 패딩 (앞에서 자르기)
-                        const sampleNumber = year + '0' + lab + paddedTestNum;
+                        let sampleNumber = '';
+                        
+                        if (isTextOnlyTemplate) {
+                            // 텍스트 전용 템플릿: 시료번호 없음
+                            sampleNumber = '';
+                        } else {
+                            // QR라벨 템플릿: 시료번호 생성 (연도4 + 01 + 실험실1 + 시험번호패딩6 = 12자리)
+                            const testNumStr = String(testNum).replace(/\D/g, ''); // 숫자만 추출
+                            const paddedTestNum = testNumStr.padStart(6, '0').slice(-6);
+                            sampleNumber = year + '0' + lab + paddedTestNum;
+                        }
                         
                         qrLabelData.push({
                             sampleNumber: sampleNumber,
                             testNumber: testNum,
                             variety: variety || `품종${i}`,
                             year: year,
-                            lab: lab
+                            lab: lab,
+                            isTextOnly: isTextOnlyTemplate
                         });
+                    }
+                    
+                    // 텍스트 전용 템플릿이면 QR코드 옵션을 '텍스트만'으로 변경
+                    if (isTextOnlyTemplate) {
+                        const showQRSelect = document.getElementById('showQRCode');
+                        if (showQRSelect) {
+                            showQRSelect.value = 'no';
+                            updateQRCodeOption();
+                        }
                     }
                     
                     // 라벨 인쇄정보 시트 처리
@@ -3413,8 +3765,14 @@
                         
                         fillQRAutoInputs(originalData);
                         
+                        // QR라벨 데이터(시료번호 있음)일 경우 Datatrans 섹션 표시
+                        const datatransSection = document.getElementById('datatransSection');
+                        if (datatransSection) {
+                            datatransSection.style.display = isTextOnlyTemplate ? 'none' : 'block';
+                        }
+                        
                         const uniqueCount = originalData.length;
-                        alert(`${uniqueCount}개 품종 로드 완료!\n(${repeatCount}세트 반복 설정)\n\n'QR라벨 생성' 버튼을 클릭하세요.`);
+                        alert(`${uniqueCount}개 품종 로드 완료!\n(${repeatCount}세트 반복 설정)\n\n'라벨 생성' 버튼을 클릭하세요.`);
                     } else {
                         alert('인식 가능한 데이터를 찾지 못했습니다.\n\n필요한 열: 연도, 실험실, 시험번호, 품종 및 계통');
                     }
@@ -3432,7 +3790,7 @@
             container.innerHTML = ''; // 기존 행 삭제
             
             dataArray.forEach(item => {
-                const year = item.year || '2024';
+                const year = item.year || '2025';
                 const lab = item.lab || '1';
                 const testNum = item.testNumber || '';
                 
@@ -3457,7 +3815,7 @@
         }
 
         function updateSampleNumberFormat() {
-            const year = document.getElementById('sampleYear').value || '2024';
+            const year = document.getElementById('sampleYear').value || '2025';
             const lab = document.getElementById('labCode').value || '1';
             const testNum = document.getElementById('testNumberInput').value || '';
             const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
@@ -3475,7 +3833,7 @@
             row.className = 'input-row';
             row.style.marginBottom = '10px';
             row.innerHTML = `
-                <input type="number" placeholder="연도" value="2024" min="2000" max="2099" style="width: 100px;">
+                <input type="number" placeholder="연도" value="2025" min="2000" max="2099" style="width: 100px;">
                 <select style="width: 120px;">
                     <option value="1">가공실 (1)</option>
                     <option value="2">이모작실 (2)</option>
@@ -3591,14 +3949,15 @@
             }
             
             // UI에서 글씨 크기 설정 읽기
+            const showQR = document.getElementById('showQRCode')?.value !== 'no';
             const maxTestNumSize = parseInt(document.getElementById('qrTestNumMaxSize')?.value) || 24;
-            const maxVarietySize = parseInt(document.getElementById('qrVarietyMaxSize')?.value) || 10;
-            const sampleNumSize = parseInt(document.getElementById('qrSampleNumSize')?.value) || 8;
+            const maxVarietySize = parseInt(document.getElementById('qrVarietyMaxSize')?.value) || (showQR ? 10 : 20);
+            const sampleNumSize = parseInt(document.getElementById('qrSampleNumSize')?.value) || (showQR ? 8 : 10);
+            
+            // QR 없을 때 가용 너비가 더 넓음
+            const availableWidth = showQR ? 38 : 58; // mm
             
             qrLabelData.forEach((data, idx) => {
-                // 텍스트 영역 가용 너비: 약 38mm (라벨 64mm - QR 20mm - 패딩들)
-                const availableWidth = 38; // mm
-                
                 // 시험번호 폰트 크기 계산 (1pt ≈ 0.35mm, 숫자 폭 ≈ 0.6em)
                 let testNumSize = maxTestNumSize;
                 const testNumLen = data.testNumber.length;
@@ -3619,18 +3978,31 @@
                 varietySize = Math.min(varietySize, maxVarietySize);
                 varietySize = Math.max(varietySize, 4);
                 
-                html += `
-                    <div class="qr-label-item ${isLarge ? 'qr-label-item-39' : ''}">
-                        <div class="qr-label-left">
-                            <div id="qr-code-${idx}" class="qr-code-container"></div>
+                if (showQR) {
+                    // QR코드 포함
+                    html += `
+                        <div class="qr-label-item ${isLarge ? 'qr-label-item-39' : ''}">
+                            <div class="qr-label-left">
+                                <div id="qr-code-${idx}" class="qr-code-container"></div>
+                            </div>
+                            <div class="qr-label-right">
+                                <div class="qr-test-number" style="font-size: ${testNumSize}pt;">${data.testNumber}</div>
+                                <div class="qr-variety-name" style="font-size: ${varietySize}pt;">${data.variety}</div>
+                                <div class="qr-sample-number" style="font-size: ${sampleNumSize}pt;">${data.sampleNumber}</div>
+                            </div>
                         </div>
-                        <div class="qr-label-right">
-                            <div class="qr-test-number" style="font-size: ${testNumSize}pt;">${data.testNumber}</div>
-                            <div class="qr-variety-name" style="font-size: ${varietySize}pt;">${data.variety}</div>
-                            <div class="qr-sample-number" style="font-size: ${sampleNumSize}pt;">${data.sampleNumber}</div>
+                    `;
+                } else {
+                    // 텍스트만 (가운데 정렬) - 시험번호와 품종만 표시
+                    html += `
+                        <div class="qr-label-item ${isLarge ? 'qr-label-item-39' : ''}" style="justify-content: center;">
+                            <div class="qr-label-center">
+                                <div class="qr-test-number" style="font-size: ${testNumSize}pt; text-align: center;">${data.testNumber}</div>
+                                <div class="qr-variety-name" style="font-size: ${varietySize}pt; text-align: center;">${data.variety}</div>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
             });
             const maxLabels = isLarge ? 21 : 24;
             const remaining = maxLabels - (qrLabelData.length % maxLabels);
@@ -3641,25 +4013,30 @@
             }
             html += '</div></div>';
             document.getElementById('labelPreview').innerHTML = html;
-            setTimeout(() => {
-                qrLabelData.forEach((data, idx) => {
-                    const qrElement = document.getElementById(`qr-code-${idx}`);
-                    if (qrElement) {
-                        qrElement.innerHTML = '';
-                        new QRCode(qrElement, {
-                            text: data.sampleNumber,
-                            width: 75,
-                            height: 75,
-                            typeNumber: 0,
-                            correctLevel: QRCode.CorrectLevel.M,
-                            colorDark: "#000000",
-                            colorLight: "#ffffff"
-                        });
-                    }
-                });
-            }, 100);
+            
+            // QR코드 생성 (옵션이 켜져 있을 때만)
+            if (showQR) {
+                setTimeout(() => {
+                    qrLabelData.forEach((data, idx) => {
+                        const qrElement = document.getElementById(`qr-code-${idx}`);
+                        if (qrElement) {
+                            qrElement.innerHTML = '';
+                            new QRCode(qrElement, {
+                                text: data.sampleNumber,
+                                width: 75,
+                                height: 75,
+                                typeNumber: 0,
+                                correctLevel: QRCode.CorrectLevel.M,
+                                colorDark: "#000000",
+                                colorLight: "#ffffff"
+                            });
+                        }
+                    });
+                }, 100);
+            }
+            
             document.getElementById('labelActions').style.display = 'flex';
-            alert('QR라벨이 생성되었습니다.');
+            alert(showQR ? 'QR라벨이 생성되었습니다.' : '텍스트 라벨이 생성되었습니다.');
         }
 
         function printLabels() {
@@ -3694,6 +4071,7 @@
                         .qr-code-container { width: 20mm; height: 20mm; display: flex; align-items: center; justify-content: center; }
                         .qr-code-container canvas, .qr-code-container img { max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; }
                         .qr-label-right { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-right: 2mm; padding-left: 2mm; min-width: 0; }
+                        .qr-label-center { width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2mm; }
                         .qr-test-number { font-size: 24pt; font-weight: bold; line-height: 1; margin-bottom: 1mm; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
                         .qr-variety-name { font-size: 10pt; line-height: 1; margin-bottom: 0.5mm; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
                         .qr-sample-number { font-size: 8pt; font-family: 'Courier New', monospace; color: #666; line-height: 1; white-space: nowrap; }
@@ -3811,8 +4189,39 @@
             const labelType = document.getElementById('labelType').value;
             
             if (labelType === 'barcode' || labelType === 'qr') {
-                if (!qrLabelData || qrLabelData.length === 0) {
-                    alert('다운로드할 QR 라벨이 없습니다.');
+                // qrLabelData가 비어있으면 자동 입력 행에서 직접 읽기
+                let dataToExport = qrLabelData;
+                
+                if (!dataToExport || dataToExport.length === 0) {
+                    dataToExport = [];
+                    
+                    // 자동 입력 행에서 데이터 읽기
+                    const autoInputRows = document.querySelectorAll('#qrAutoInputs .input-row');
+                    autoInputRows.forEach(row => {
+                        const inputs = row.querySelectorAll('input, select');
+                        if (inputs.length >= 4) {
+                            const year = inputs[0].value.trim();
+                            const lab = inputs[1].value.trim();
+                            const testNum = inputs[2].value.trim();
+                            const variety = inputs[3].value.trim();
+                            
+                            if (year && lab && testNum && variety) {
+                                const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
+                                const sampleNumber = year + '0' + lab + paddedTestNum;
+                                dataToExport.push({
+                                    sampleNumber: sampleNumber,
+                                    testNumber: testNum,
+                                    variety: variety,
+                                    year: year,
+                                    lab: lab
+                                });
+                            }
+                        }
+                    });
+                }
+                
+                if (dataToExport.length === 0) {
+                    alert('다운로드할 데이터가 없습니다.\n품종 데이터를 입력하거나 엑셀을 업로드해주세요.');
                     return;
                 }
                 
@@ -3826,7 +4235,7 @@
                 // 중복 제거 (1반복만)
                 const uniqueData = [];
                 const seen = new Set();
-                qrLabelData.forEach(item => {
+                dataToExport.forEach(item => {
                     if (!seen.has(item.sampleNumber)) {
                         seen.add(item.sampleNumber);
                         uniqueData.push(item);
