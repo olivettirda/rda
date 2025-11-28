@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
         :root {
@@ -98,10 +99,10 @@
         .conversion-item select { width: auto; }
         .formula-display { font-family: 'Courier New', monospace; font-size: 12px; color: #666; padding: 5px; background: #cce3dd; border-radius: 4px; }
         .two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .display-label-item { position: relative; overflow: hidden; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-        .display-label-small { width: 75mm; height: 40mm; padding: 0 5mm; }
-        .display-label-medium { width: 75mm; height: 50mm; padding: 0 5mm; }
-        .display-label-large { width: 150mm; height: 75mm; padding: 0 20mm; }
+        .display-label-item { position: relative; overflow: hidden; border: 1px solid #ccc; font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; }
+        .display-label-small { width: 85mm; height: 42.83mm; padding: 0 5mm; }
+        .display-label-medium { width: 85mm; height: 51.4mm; padding: 0 5mm; }
+        .display-label-large { width: 170mm; height: 85.67mm; padding: 0 20mm; }
         .label-name { font-size: 36pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .label-desc { margin-top: 2mm; font-size: 18pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .display-label-large .label-name { font-size: 72pt; }
@@ -424,7 +425,6 @@
                     
                     <div class="actions">
                         <button class="btn btn-primary" onclick="runStatisticalAnalysis()">📊 통계 분석 실행</button>
-                        <button class="btn btn-secondary" onclick="exportAnalysisReport()">📄 분석 보고서 내보내기</button>
                         <button class="btn btn-warning" onclick="clearAnalysisData()">🔄 초기화</button>
                     </div>
                 </div>
@@ -459,7 +459,7 @@
                     <div class="settings-grid" style="margin-bottom: 15px;">
                         <div class="setting-item">
                             <label class="setting-label">비교 품종 1</label>
-                            <select id="ttestVariety1">
+                            <select id="ttestVariety1" onchange="updateTTestVariety2Options()">
                                 <option value="">품종 선택</option>
                             </select>
                         </div>
@@ -625,8 +625,8 @@
                     </div>
 
                     <div class="actions">
-                        <button class="btn btn-secondary" onclick="downloadChart()">📥 차트 PNG 다운로드</button>
-                        <button class="btn btn-primary" onclick="downloadFullResults()">📊 전체 결과 다운로드 (엑셀+이미지)</button>
+                        <button class="btn btn-secondary" onclick="downloadChart()">📥 현재 형질 차트 다운로드</button>
+                        <button class="btn btn-primary" onclick="downloadFullResults()">📊 전체 결과 다운로드 (엑셀+차트ZIP)</button>
                     </div>
                 </div>
             </div>
@@ -931,6 +931,7 @@
         let surveyData = {};
         let dmrtResults = null;
         let rawDataForDownload = {};
+        let allTraitsResults = {}; // 모든 형질의 분석 결과 저장
         let labelStartPosition = 1;  // 라벨 시작 위치 (1부터 시작)
         let qrLabelDataOriginal = []; // 원본 라벨 데이터 (시작 위치 변경용)
         let currentPreviewPage = 1;   // 현재 미리보기 페이지
@@ -2270,43 +2271,311 @@
         }
 
         function runStatisticalAnalysis() {
-            const item = document.getElementById('analysisItem').value;
-            if (!item || !surveyData || Object.keys(surveyData).length === 0) {
-                alert('데이터를 업로드하고 항목을 선택하세요');
+            if (!surveyData || Object.keys(surveyData).length === 0) {
+                alert('먼저 데이터를 업로드하세요');
                 return;
             }
-            const varietyData = {};
-            Object.keys(surveyData).forEach(variety => {
-                varietyData[variety] = surveyData[variety][item] || [];
+            
+            // 모든 수치형 형질 가져오기
+            const itemSelect = document.getElementById('analysisItem');
+            const allTraits = [];
+            Array.from(itemSelect.options).forEach(opt => {
+                if (opt.value && !opt.disabled) {
+                    allTraits.push(opt.value);
+                }
             });
-            displayBasicStats(varietyData, item);
-            performANOVA(varietyData, item);
-            performDMRT(varietyData, item);
-            updateChart();
+            
+            if (allTraits.length === 0) {
+                alert('분석 가능한 형질이 없습니다.');
+                return;
+            }
+            
+            // 모든 형질 분석 결과 초기화
+            allTraitsResults = {};
+            
+            // 기초통계량 전체 표시용 HTML
+            let statsHtml = '<h4>📊 전체 형질 기초통계량</h4>';
+            
+            // 각 형질별로 분석 수행
+            allTraits.forEach((item, traitIdx) => {
+                const varietyData = {};
+                Object.keys(surveyData).forEach(variety => {
+                    varietyData[variety] = surveyData[variety][item] || [];
+                });
+                
+                // DMRT 분석 수행 및 결과 저장
+                const traitResult = performDMRTForTrait(varietyData, item);
+                allTraitsResults[item] = traitResult;
+                
+                // 기초통계량 표 추가
+                statsHtml += `<h5 style="margin-top: 20px; color: #017f97;">${item}</h5>`;
+                statsHtml += '<div style="overflow-x: auto;">';
+                statsHtml += '<table style="font-size: 11px; margin-bottom: 15px;">';
+                statsHtml += '<thead><tr>';
+                statsHtml += '<th>품종</th><th>n</th><th>합계</th><th>평균</th><th>중앙값</th><th>SD</th><th>SE</th>';
+                statsHtml += '<th>95% CI</th><th>CV(%)</th><th>최소</th><th>최대</th><th>범위</th><th>IQR</th><th>왜도</th><th>첨도</th><th>DMRT</th>';
+                statsHtml += '</tr></thead><tbody>';
+                
+                if (traitResult && traitResult.dmrtResults) {
+                    traitResult.dmrtResults.forEach(r => {
+                        const stats = r.stats;
+                        statsHtml += '<tr>';
+                        statsHtml += `<td><strong>${r.variety}</strong></td>`;
+                        statsHtml += `<td>${stats.n}</td>`;
+                        statsHtml += `<td>${stats.sum.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.mean.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.median.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.std.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.se.toFixed(3)}</td>`;
+                        statsHtml += `<td>${stats.ciLower.toFixed(2)}~${stats.ciUpper.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.cv.toFixed(1)}</td>`;
+                        statsHtml += `<td>${stats.min.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.max.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.range.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.iqr.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.skewness.toFixed(2)}</td>`;
+                        statsHtml += `<td>${stats.kurtosis.toFixed(2)}</td>`;
+                        statsHtml += `<td style="font-weight: bold; color: var(--accent-6);">${r.group}</td>`;
+                        statsHtml += '</tr>';
+                    });
+                }
+                statsHtml += '</tbody></table></div>';
+            });
+            
+            document.getElementById('basicStatsTable').innerHTML = statsHtml;
+            
+            // ANOVA/DMRT 결과 표시 (전체)
+            let anovaHtml = '<h4>📈 전체 형질 ANOVA 결과</h4>';
+            let dmrtHtml = '<h4>🔬 전체 형질 DMRT 결과</h4>';
+            
+            allTraits.forEach(item => {
+                const result = allTraitsResults[item];
+                if (result) {
+                    // ANOVA 결과
+                    if (result.anova) {
+                        const a = result.anova;
+                        anovaHtml += `<h5 style="margin-top: 15px; color: #017f97;">${item}</h5>`;
+                        anovaHtml += `<p>F = ${a.F.toFixed(3)}, p ${a.significant ? '< ' + a.alpha : '≥ ' + a.alpha} ${a.significant ? '(유의함)' : '(유의하지 않음)'}</p>`;
+                    }
+                    
+                    // DMRT 결과
+                    if (result.dmrtResults && result.dmrtResults.length > 0) {
+                        dmrtHtml += `<h5 style="margin-top: 15px; color: #017f97;">${item}</h5>`;
+                        dmrtHtml += '<table style="font-size: 12px;"><thead><tr><th>순위</th><th>품종</th><th>평균</th><th>SE</th><th>그룹</th></tr></thead><tbody>';
+                        result.dmrtResults.forEach((r, idx) => {
+                            dmrtHtml += `<tr><td>${idx + 1}</td><td><strong>${r.variety}</strong></td><td>${r.mean.toFixed(2)}</td><td>${r.se.toFixed(3)}</td><td style="font-weight:bold; color:var(--accent-6);">${r.group}</td></tr>`;
+                        });
+                        dmrtHtml += '</tbody></table>';
+                    }
+                }
+            });
+            
+            document.getElementById('anovaResults').innerHTML = anovaHtml;
+            document.getElementById('dmrtResults').innerHTML = dmrtHtml;
+            
+            // 첫 번째 형질로 차트 표시
+            if (allTraits.length > 0) {
+                const firstTrait = allTraits[0];
+                const firstResult = allTraitsResults[firstTrait];
+                if (firstResult) {
+                    dmrtResults = firstResult.dmrtResults;
+                    rawDataForDownload = firstResult.rawData;
+                    document.getElementById('analysisItem').value = firstTrait;
+                    updateChart();
+                }
+            }
             
             // t-test 품종 선택 드롭다운 업데이트
             updateTTestVarietySelects();
+            
+            alert(`${allTraits.length}개 형질의 통계 분석이 완료되었습니다.`);
+        }
+        
+        // 개별 형질 DMRT 분석 (결과 반환용)
+        function performDMRTForTrait(varietyData, itemName) {
+            const alpha = parseFloat(document.getElementById('significanceLevel').value);
+            
+            // 평균 계산 및 정렬
+            const means = [];
+            Object.keys(varietyData).forEach(variety => {
+                const values = varietyData[variety];
+                if (values.length > 0) {
+                    const stats = calculateStatistics(values);
+                    means.push({
+                        variety: variety,
+                        mean: stats.mean,
+                        n: stats.n,
+                        se: stats.se,
+                        values: values,
+                        stats: stats
+                    });
+                }
+            });
+            
+            if (means.length < 2) return null;
+            
+            means.sort((a, b) => b.mean - a.mean);
+            
+            // ANOVA 계산
+            const groups = Object.keys(varietyData);
+            const k = groups.length;
+            let grandTotal = 0, totalN = 0;
+            groups.forEach(variety => {
+                varietyData[variety].forEach(value => {
+                    grandTotal += value;
+                    totalN++;
+                });
+            });
+            const grandMean = grandTotal / totalN;
+            
+            let ssBetween = 0, ssWithin = 0;
+            groups.forEach(variety => {
+                const values = varietyData[variety];
+                if (values.length === 0) return;
+                const groupMean = values.reduce((a, b) => a + b, 0) / values.length;
+                ssBetween += values.length * Math.pow(groupMean - grandMean, 2);
+                values.forEach(value => {
+                    ssWithin += Math.pow(value - groupMean, 2);
+                });
+            });
+            
+            const dfBetween = k - 1;
+            const dfWithin = totalN - k;
+            const msBetween = ssBetween / dfBetween;
+            const msWithin = ssWithin / dfWithin;
+            const F = msBetween / msWithin;
+            const FCritical = getFCritical(dfBetween, dfWithin, alpha);
+            
+            // MSE 및 Pooled SE 계산
+            const MSE = ssWithin / dfWithin;
+            const avgN = means.reduce((sum, m) => sum + m.n, 0) / means.length;
+            const pooledSE = Math.sqrt(MSE / avgN);
+            
+            // q값 가져오기
+            const getQValue = (df, p, alpha) => {
+                const table = qTable[alpha] || qTable[0.05];
+                const dfs = Object.keys(table).map(Number).sort((a, b) => a - b);
+                let closestDF = dfs[0];
+                for (const d of dfs) {
+                    if (d <= df) closestDF = d;
+                    else break;
+                }
+                const qVals = table[closestDF];
+                return qVals[Math.min(p, qVals.length - 1)] || qVals[qVals.length - 1];
+            };
+            
+            // Duncan 그룹 할당
+            const n = means.length;
+            const groupings = means.map(() => []);
+            let currentLetter = 0;
+            
+            for (let i = 0; i < n; i++) {
+                if (groupings[i].length === 0) {
+                    groupings[i].push(String.fromCharCode(97 + currentLetter));
+                }
+                
+                for (let j = i + 1; j < n; j++) {
+                    const p = j - i + 1;
+                    const qVal = getQValue(dfWithin, p, alpha);
+                    const criticalDiff = qVal * pooledSE;
+                    const actualDiff = means[i].mean - means[j].mean;
+                    
+                    if (actualDiff <= criticalDiff) {
+                        const currentGroup = groupings[i][groupings[i].length - 1];
+                        if (!groupings[j].includes(currentGroup)) {
+                            groupings[j].push(currentGroup);
+                        }
+                    } else {
+                        if (groupings[j].length === 0) {
+                            currentLetter++;
+                            groupings[j].push(String.fromCharCode(97 + currentLetter));
+                        }
+                    }
+                }
+            }
+            
+            const dmrtResultsLocal = means.map((m, idx) => ({
+                variety: m.variety,
+                mean: m.mean,
+                n: m.n,
+                se: pooledSE,
+                group: groupings[idx].sort().join(''),
+                stats: m.stats,
+                values: m.values
+            }));
+            
+            const rawDataLocal = {};
+            means.forEach(m => {
+                rawDataLocal[m.variety] = m.values;
+            });
+            
+            return {
+                dmrtResults: dmrtResultsLocal,
+                rawData: rawDataLocal,
+                anova: {
+                    F: F,
+                    FCritical: FCritical,
+                    alpha: alpha,
+                    significant: F > FCritical
+                }
+            };
         }
 
         function calculateStatistics(values) {
             const n = values.length;
-            const mean = values.reduce((a, b) => a + b, 0) / n;
-            const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (n - 1);
+            const sum = values.reduce((a, b) => a + b, 0);
+            const mean = sum / n;
+            const variance = values.reduce((s, val) => s + Math.pow(val - mean, 2), 0) / (n - 1);
             const std = Math.sqrt(variance);
             const se = std / Math.sqrt(n);
             const cv = (std / mean) * 100;
             const min = Math.min(...values);
             const max = Math.max(...values);
             const range = max - min;
-            return { n, mean, std, se, variance, cv, min, max, range, values };
+            
+            // 중앙값 계산
+            const sorted = [...values].sort((a, b) => a - b);
+            const median = n % 2 === 0 
+                ? (sorted[n/2 - 1] + sorted[n/2]) / 2 
+                : sorted[Math.floor(n/2)];
+            
+            // 사분위수 및 IQR
+            const q1Idx = Math.floor(n * 0.25);
+            const q3Idx = Math.floor(n * 0.75);
+            const q1 = sorted[q1Idx] || min;
+            const q3 = sorted[q3Idx] || max;
+            const iqr = q3 - q1;
+            
+            // 95% 신뢰구간 (t분포 근사, df=n-1)
+            const tCritical = n <= 2 ? 12.71 : n <= 3 ? 4.30 : n <= 5 ? 2.78 : n <= 10 ? 2.26 : n <= 30 ? 2.04 : 1.96;
+            const ciMargin = tCritical * se;
+            const ciLower = mean - ciMargin;
+            const ciUpper = mean + ciMargin;
+            
+            // 왜도 (Skewness) - Fisher's formula
+            let skewness = 0;
+            if (n >= 3 && std > 0) {
+                const m3 = values.reduce((s, val) => s + Math.pow(val - mean, 3), 0) / n;
+                skewness = m3 / Math.pow(std, 3) * Math.sqrt(n * (n - 1)) / (n - 2);
+            }
+            
+            // 첨도 (Kurtosis) - excess kurtosis
+            let kurtosis = 0;
+            if (n >= 4 && std > 0) {
+                const m4 = values.reduce((s, val) => s + Math.pow(val - mean, 4), 0) / n;
+                kurtosis = (m4 / Math.pow(std, 4)) - 3;
+            }
+            
+            return { n, sum, mean, median, std, se, variance, cv, min, max, range, q1, q3, iqr, ciLower, ciUpper, ciMargin, skewness, kurtosis, values };
         }
 
         function displayBasicStats(varietyData, itemName) {
             let html = '<h4>' + itemName + ' 기초 통계량</h4>';
-            html += '<table>';
+            html += '<div style="overflow-x: auto;">';
+            html += '<table style="font-size: 12px;">';
             html += '<thead><tr>';
-            html += '<th>품종</th><th>n</th><th>평균</th><th>표준편차</th><th>표준오차</th>';
-            html += '<th>CV(%)</th><th>최소값</th><th>최대값</th>';
+            html += '<th>품종</th><th>n</th><th>합계</th><th>평균</th><th>중앙값</th><th>SD</th><th>SE</th>';
+            html += '<th>95% CI</th><th>CV(%)</th><th>최소</th><th>최대</th><th>범위</th><th>IQR</th><th>왜도</th><th>첨도</th>';
             html += '</tr></thead><tbody>';
             Object.keys(varietyData).forEach(variety => {
                 const values = varietyData[variety];
@@ -2315,16 +2584,24 @@
                     html += '<tr>';
                     html += `<td><strong>${variety}</strong></td>`;
                     html += `<td>${stats.n}</td>`;
+                    html += `<td>${stats.sum.toFixed(2)}</td>`;
                     html += `<td>${stats.mean.toFixed(2)}</td>`;
+                    html += `<td>${stats.median.toFixed(2)}</td>`;
                     html += `<td>${stats.std.toFixed(2)}</td>`;
-                    html += `<td>${stats.se.toFixed(2)}</td>`;
+                    html += `<td>${stats.se.toFixed(3)}</td>`;
+                    html += `<td>${stats.ciLower.toFixed(2)}~${stats.ciUpper.toFixed(2)}</td>`;
                     html += `<td>${stats.cv.toFixed(1)}</td>`;
                     html += `<td>${stats.min.toFixed(2)}</td>`;
                     html += `<td>${stats.max.toFixed(2)}</td>`;
+                    html += `<td>${stats.range.toFixed(2)}</td>`;
+                    html += `<td>${stats.iqr.toFixed(2)}</td>`;
+                    html += `<td>${stats.skewness.toFixed(2)}</td>`;
+                    html += `<td>${stats.kurtosis.toFixed(2)}</td>`;
                     html += '</tr>';
                 }
             });
             html += '</tbody></table>';
+            html += '</div>';
             document.getElementById('basicStatsTable').innerHTML = html;
         }
 
@@ -2583,6 +2860,29 @@
                 select1.innerHTML += `<option value="${variety}">${variety}</option>`;
                 select2.innerHTML += `<option value="${variety}">${variety}</option>`;
             });
+        }
+        
+        // 품종1 선택 시 품종2에서 같은 품종 비활성화
+        function updateTTestVariety2Options() {
+            const variety1 = document.getElementById('ttestVariety1').value;
+            const select2 = document.getElementById('ttestVariety2');
+            const currentValue2 = select2.value;
+            
+            // 품종2의 모든 옵션 순회하며 품종1과 같으면 disabled
+            Array.from(select2.options).forEach(option => {
+                if (option.value && option.value === variety1) {
+                    option.disabled = true;
+                    option.style.color = '#999';
+                } else {
+                    option.disabled = false;
+                    option.style.color = '';
+                }
+            });
+            
+            // 현재 선택된 품종2가 품종1과 같으면 초기화
+            if (currentValue2 === variety1) {
+                select2.value = '';
+            }
         }
         
         function runTTestAll() {
@@ -3294,70 +3594,243 @@
             a.click();
         }
         
-        function downloadFullResults() {
-            if (!dmrtResults || dmrtResults.length === 0) {
-                alert('먼저 데이터 분석을 수행해주세요.');
+        // 전체 형질 차트 다운로드
+        async function downloadAllTraitsCharts() {
+            if (!surveyData || Object.keys(surveyData).length === 0) {
+                alert('먼저 데이터를 업로드해주세요.');
                 return;
             }
             
-            const item = document.getElementById('analysisItem').value || '분석결과';
+            // 모든 수치형 형질 찾기
+            const itemSelect = document.getElementById('analysisItem');
+            const allTraits = [];
+            Array.from(itemSelect.options).forEach(opt => {
+                if (opt.value && !opt.disabled) {
+                    allTraits.push(opt.value);
+                }
+            });
+            
+            if (allTraits.length === 0) {
+                alert('분석 가능한 형질이 없습니다.');
+                return;
+            }
+            
+            const originalItem = itemSelect.value;
+            alert(`${allTraits.length}개 형질의 차트를 순차적으로 다운로드합니다.\n각 파일 다운로드 사이에 잠시 대기합니다.`);
+            
+            for (let i = 0; i < allTraits.length; i++) {
+                const trait = allTraits[i];
+                
+                // 형질 선택 및 분석 실행
+                itemSelect.value = trait;
+                runStatisticalAnalysis();
+                
+                // 차트가 그려질 때까지 대기
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // 차트 다운로드
+                downloadChart();
+                
+                // 다음 다운로드까지 대기 (브라우저 제한 방지)
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+            
+            // 원래 선택된 항목 복원
+            if (originalItem) {
+                itemSelect.value = originalItem;
+                runStatisticalAnalysis();
+            }
+            
+            alert('모든 형질의 차트 다운로드가 완료되었습니다.');
+        }
+        
+        async function downloadFullResults() {
+            if (!allTraitsResults || Object.keys(allTraitsResults).length === 0) {
+                alert('먼저 통계 분석을 수행해주세요.');
+                return;
+            }
+            
+            const allTraits = Object.keys(allTraitsResults);
+            const dateStr = getDateString();
             const wb = XLSX.utils.book_new();
             
-            // 시트1: 기초통계량
-            const statsData = [['품종', 'n', '평균', '표준편차', '표준오차', 'CV(%)', '최소', '최대', 'DMRT그룹']];
-            dmrtResults.forEach(r => {
-                const values = rawDataForDownload[r.variety] || [];
-                const stats = calculateStatistics(values);
-                statsData.push([
-                    r.variety, stats.n, stats.mean.toFixed(2), stats.std.toFixed(2),
-                    stats.se.toFixed(3), stats.cv.toFixed(1), stats.min.toFixed(2), stats.max.toFixed(2), r.group
-                ]);
-            });
-            const ws1 = XLSX.utils.aoa_to_sheet(statsData);
-            XLSX.utils.book_append_sheet(wb, ws1, '기초통계량');
+            // ===== 시트1: 전체 기초통계량 =====
+            const statsHeaders = ['형질', '품종', 'n', '합계', '평균', '중앙값', 'SD', 'SE', '95%CI_하한', '95%CI_상한', 'CV(%)', '최소', '최대', '범위', 'Q1', 'Q3', 'IQR', '왜도', '첨도', 'DMRT그룹'];
+            const allStatsData = [statsHeaders];
             
-            // 시트2: DMRT 결과
-            const dmrtData = [['순위', '품종', '평균', 'SE', 'DMRT그룹']];
-            dmrtResults.forEach((r, idx) => {
-                dmrtData.push([idx + 1, r.variety, r.mean.toFixed(2), r.se.toFixed(3), r.group]);
-            });
-            const ws2 = XLSX.utils.aoa_to_sheet(dmrtData);
-            XLSX.utils.book_append_sheet(wb, ws2, 'DMRT결과');
-            
-            // 시트3: 로우데이터
-            const maxReps = Math.max(...Object.values(rawDataForDownload).map(v => v.length));
-            const rawHeaders = ['품종'];
-            for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
-            const rawDataSheet = [rawHeaders];
-            dmrtResults.forEach(r => {
-                const row = [r.variety];
-                const values = rawDataForDownload[r.variety] || [];
-                for (let i = 0; i < maxReps; i++) {
-                    row.push(values[i] !== undefined ? values[i] : '');
+            allTraits.forEach(trait => {
+                const result = allTraitsResults[trait];
+                if (result && result.dmrtResults) {
+                    result.dmrtResults.forEach(r => {
+                        const s = r.stats;
+                        allStatsData.push([
+                            trait, r.variety, s.n, s.sum.toFixed(2), s.mean.toFixed(2), s.median.toFixed(2),
+                            s.std.toFixed(3), s.se.toFixed(4), s.ciLower.toFixed(2), s.ciUpper.toFixed(2),
+                            s.cv.toFixed(2), s.min.toFixed(2), s.max.toFixed(2), s.range.toFixed(2),
+                            s.q1.toFixed(2), s.q3.toFixed(2), s.iqr.toFixed(2),
+                            s.skewness.toFixed(3), s.kurtosis.toFixed(3), r.group
+                        ]);
+                    });
                 }
-                rawDataSheet.push(row);
             });
-            const ws3 = XLSX.utils.aoa_to_sheet(rawDataSheet);
-            XLSX.utils.book_append_sheet(wb, ws3, '로우데이터');
+            const ws1 = XLSX.utils.aoa_to_sheet(allStatsData);
+            XLSX.utils.book_append_sheet(wb, ws1, '전체_기초통계량');
             
-            // 시트4: 차트 정보
-            const chartInfo = [
-                ['항목', item],
+            // ===== 시트2: 전체 DMRT 결과 =====
+            const dmrtHeaders = ['형질', '순위', '품종', '평균', 'SE', 'DMRT그룹'];
+            const allDmrtData = [dmrtHeaders];
+            
+            allTraits.forEach(trait => {
+                const result = allTraitsResults[trait];
+                if (result && result.dmrtResults) {
+                    result.dmrtResults.forEach((r, idx) => {
+                        allDmrtData.push([trait, idx + 1, r.variety, r.mean.toFixed(2), r.se.toFixed(3), r.group]);
+                    });
+                }
+            });
+            const ws2 = XLSX.utils.aoa_to_sheet(allDmrtData);
+            XLSX.utils.book_append_sheet(wb, ws2, '전체_DMRT결과');
+            
+            // ===== 시트3: 전체 ANOVA 결과 =====
+            const anovaHeaders = ['형질', 'F값', 'F임계값', '유의수준', '유의여부'];
+            const allAnovaData = [anovaHeaders];
+            
+            allTraits.forEach(trait => {
+                const result = allTraitsResults[trait];
+                if (result && result.anova) {
+                    const a = result.anova;
+                    allAnovaData.push([trait, a.F.toFixed(3), a.FCritical.toFixed(3), a.alpha, a.significant ? '유의함' : '유의하지 않음']);
+                }
+            });
+            const ws3 = XLSX.utils.aoa_to_sheet(allAnovaData);
+            XLSX.utils.book_append_sheet(wb, ws3, '전체_ANOVA결과');
+            
+            // ===== 각 형질별 로우데이터 시트 =====
+            allTraits.forEach(trait => {
+                const result = allTraitsResults[trait];
+                if (result && result.rawData) {
+                    const maxReps = Math.max(...Object.values(result.rawData).map(v => v.length));
+                    const rawHeaders = ['품종'];
+                    for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
+                    
+                    // 배수 변환 정보
+                    let convInfo = '적용 안함';
+                    if (loadedConversionSettings && loadedConversionSettings[trait]) {
+                        const conv = loadedConversionSettings[trait];
+                        const symbol = conv.operation === 'divide' ? '÷' : '×';
+                        convInfo = `${symbol}${conv.multiplier}`;
+                    }
+                    
+                    const rawSheet = [
+                        ['형질:', trait],
+                        ['배수변환:', convInfo],
+                        [''],
+                        rawHeaders
+                    ];
+                    
+                    result.dmrtResults.forEach(r => {
+                        const row = [r.variety];
+                        const values = result.rawData[r.variety] || [];
+                        for (let i = 0; i < maxReps; i++) {
+                            row.push(values[i] !== undefined ? values[i] : '');
+                        }
+                        rawSheet.push(row);
+                    });
+                    
+                    // 시트명 30자 제한
+                    const sheetName = trait.substring(0, 25) + '_로우';
+                    const ws = XLSX.utils.aoa_to_sheet(rawSheet);
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                }
+            });
+            
+            // ===== 분석 정보 시트 =====
+            const infoData = [
                 ['분석일시', new Date().toLocaleString('ko-KR')],
+                ['분석 형질 수', allTraits.length],
                 ['유의수준', document.getElementById('significanceLevel').value],
                 ['DPI', document.getElementById('chartDPI').value],
-                ['차트크기(mm)', `${document.getElementById('chartWidthMM').value} × ${document.getElementById('chartHeightMM').value}`]
+                ['차트크기(mm)', `${document.getElementById('chartWidthMM').value} × ${document.getElementById('chartHeightMM').value}`],
+                [''],
+                ['분석 형질 목록:'],
+                ...allTraits.map((t, i) => [`  ${i + 1}. ${t}`])
             ];
-            const ws4 = XLSX.utils.aoa_to_sheet(chartInfo);
-            XLSX.utils.book_append_sheet(wb, ws4, '차트정보');
+            const wsInfo = XLSX.utils.aoa_to_sheet(infoData);
+            XLSX.utils.book_append_sheet(wb, wsInfo, '분석정보');
             
             // 엑셀 저장
-            XLSX.writeFile(wb, `${item}_DMRT분석결과_${getDateString()}.xlsx`);
+            XLSX.writeFile(wb, `전체형질_분석결과_${dateStr}.xlsx`);
             
-            // 차트 이미지도 다운로드
-            setTimeout(() => downloadChart(), 500);
+            // ===== 차트 이미지 압축 파일 생성 =====
+            alert('엑셀 파일 다운로드 완료.\n\n이제 모든 형질의 차트 이미지를 생성하여 압축 파일로 다운로드합니다.\n잠시 기다려주세요...');
             
-            alert('엑셀 파일과 차트 이미지가 다운로드됩니다.');
+            await downloadAllChartsAsZip(allTraits, dateStr);
+        }
+        
+        // 모든 형질 차트를 ZIP으로 다운로드
+        async function downloadAllChartsAsZip(allTraits, dateStr) {
+            const zip = new JSZip();
+            const imgFolder = zip.folder('차트이미지');
+            
+            const dpi = parseInt(document.getElementById('chartDPI').value) || 150;
+            const widthMM = parseInt(document.getElementById('chartWidthMM').value) || 170;
+            const heightMM = parseInt(document.getElementById('chartHeightMM').value) || 120;
+            const scale = dpi / 96;
+            
+            const originalItem = document.getElementById('analysisItem').value;
+            
+            for (let i = 0; i < allTraits.length; i++) {
+                const trait = allTraits[i];
+                const result = allTraitsResults[trait];
+                
+                if (result && result.dmrtResults) {
+                    // 해당 형질로 차트 업데이트
+                    dmrtResults = result.dmrtResults;
+                    rawDataForDownload = result.rawData;
+                    document.getElementById('analysisItem').value = trait;
+                    updateChart();
+                    
+                    // 차트 렌더링 대기
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    // 차트 캡처
+                    const canvas = document.getElementById('analysisChart');
+                    if (canvas) {
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = canvas.width * scale;
+                        tempCanvas.height = canvas.height * scale;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCtx.scale(scale, scale);
+                        tempCtx.fillStyle = 'white';
+                        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                        tempCtx.drawImage(canvas, 0, 0);
+                        
+                        // Base64 데이터 추출
+                        const imgData = tempCanvas.toDataURL('image/png').split(',')[1];
+                        
+                        // 파일명 정리 (특수문자 제거)
+                        const safeName = trait.replace(/[\/\\:*?"<>|]/g, '_');
+                        imgFolder.file(`${safeName}_DMRT_${dpi}dpi.png`, imgData, {base64: true});
+                    }
+                }
+            }
+            
+            // 원래 항목 복원
+            if (originalItem && allTraitsResults[originalItem]) {
+                dmrtResults = allTraitsResults[originalItem].dmrtResults;
+                rawDataForDownload = allTraitsResults[originalItem].rawData;
+                document.getElementById('analysisItem').value = originalItem;
+                updateChart();
+            }
+            
+            // ZIP 파일 생성 및 다운로드
+            const content = await zip.generateAsync({type: 'blob'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(content);
+            a.download = `전체형질_차트이미지_${dateStr}.zip`;
+            a.click();
+            
+            alert(`${allTraits.length}개 형질의 차트 이미지가 압축 파일로 다운로드되었습니다.`);
         }
 
         function exportAnalysisReport() {
@@ -3584,10 +4057,21 @@
             }
             
             let gridColumns = 1;
-            if (layout === '2x4') gridColumns = 2;
-            else if (layout === '2x5') gridColumns = 2;
+            let gridRows = 3; // large 기본값
+            if (labelSize === 'small') {
+                gridColumns = 2;
+                gridRows = 6;
+            } else if (labelSize === 'medium') {
+                gridColumns = 2;
+                gridRows = 5;
+            } else if (labelSize === 'large') {
+                gridColumns = 1;
+                gridRows = 3;
+            }
             
-            let html = `<div class="label-grid" style="display: grid; grid-template-columns: repeat(${gridColumns}, 1fr); gap: 10mm;">`;
+            // A4 여백 20mm, 라벨 붙이기, 구분선 1px 회색
+            html = `<div class="display-label-print-container" style="width: 210mm; padding: 20mm; box-sizing: border-box;">
+                <div class="display-label-grid" style="display: grid; grid-template-columns: repeat(${gridColumns}, 1fr); gap: 0;">`;
             
             labelData.forEach((item, index) => {
                 const name = item.name;
@@ -3676,7 +4160,7 @@
                 }
             });
             
-            html += '</div>';
+            html += '</div></div>'; // display-label-grid + display-label-print-container
             document.getElementById('labelPreview').innerHTML = html;
             document.getElementById('labelActions').style.display = 'flex';
             
@@ -4884,10 +5368,12 @@
                         .qr-sample-number { font-size: 8pt; font-family: 'Courier New', monospace; color: #666; line-height: 1; white-space: nowrap; }
                         
                         /* 전시용 라벨 스타일 */
-                        .display-label-item { position: relative; overflow: hidden; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-                        .display-label-small { width: 75mm; height: 40mm; padding: 0 5mm; }
-                        .display-label-medium { width: 75mm; height: 50mm; padding: 0 5mm; }
-                        .display-label-large { width: 150mm; height: 75mm; padding: 0 20mm; }
+                        .display-label-print-container { width: 210mm; padding: 20mm; box-sizing: border-box; margin: 0; }
+                        .display-label-grid { display: grid; gap: 0; }
+                        .display-label-item { position: relative; overflow: hidden; border: 1px solid #ccc; font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; }
+                        .display-label-small { width: 85mm; height: 42.83mm; padding: 0 5mm; }
+                        .display-label-medium { width: 85mm; height: 51.4mm; padding: 0 5mm; }
+                        .display-label-large { width: 170mm; height: 85.67mm; padding: 0 20mm; }
                         .label-name { font-size: 36pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
                         .label-desc { margin-top: 2mm; font-size: 18pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
                         .display-label-large .label-name { font-size: 72pt; }
@@ -4896,13 +5382,15 @@
                         .text-bg-white { background-color: rgba(255, 255, 255, 0.9); padding: 5mm; border-radius: 3mm; }
                         .text-bg-black { background-color: rgba(0, 0, 0, 0.7); padding: 5mm; border-radius: 3mm; color: white; }
                         .text-bg-blur { backdrop-filter: blur(5px); background-color: rgba(255, 255, 255, 0.3); padding: 5mm; border-radius: 3mm; }
-                        .display-label-grid { display: grid; gap: 5mm; padding: 10mm; justify-content: center; }
                         
                         @media print {
                             .print-guide { display: none !important; }
                             .content-wrapper { padding-top: 0 !important; }
                             body { margin: 0; padding: 0; }
                             .barcode-label-container { padding: 13.5mm 5mm 14mm 6.5mm; margin: 0; }
+                            .display-label-print-container { padding: 20mm; margin: 0; }
+                            .display-label-grid { gap: 0; }
+                            .display-label-item { border: 1px solid #ccc; }
                             @page { size: A4; margin: 0; }
                         }
                     </style>
