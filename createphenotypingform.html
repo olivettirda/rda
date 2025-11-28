@@ -14,6 +14,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
     <style>
         :root {
@@ -100,9 +102,9 @@
         .formula-display { font-family: 'Courier New', monospace; font-size: 12px; color: #666; padding: 5px; background: #cce3dd; border-radius: 4px; }
         .two-column-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .display-label-item { position: relative; overflow: hidden; border: 1px solid #ccc; font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; }
-        .display-label-small { width: 85mm; height: 42.83mm; padding: 0 5mm; }
-        .display-label-medium { width: 85mm; height: 51.4mm; padding: 0 5mm; }
-        .display-label-large { width: 170mm; height: 85.67mm; padding: 0 20mm; }
+        .display-label-small { width: 75mm; height: 40mm; padding: 0 5mm; }
+        .display-label-medium { width: 75mm; height: 50mm; padding: 0 5mm; }
+        .display-label-large { width: 150mm; height: 75mm; padding: 0 15mm; }
         .label-name { font-size: 36pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .label-desc { margin-top: 2mm; font-size: 18pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .display-label-large .label-name { font-size: 72pt; }
@@ -405,14 +407,12 @@
                 <div class="panel">
                     <div class="panel-title">📊 분석 설정</div>
                     
+                    <!-- 내부 사용용 (숨김) -->
+                    <select id="analysisItem" style="display: none;">
+                        <option value="">항목을 선택하세요</option>
+                    </select>
+                    
                     <div class="settings-grid">
-                        <div class="setting-item">
-                            <label class="setting-label">분석할 항목 선택</label>
-                            <select id="analysisItem" onchange="updateAnalysis()">
-                                <option value="">항목을 선택하세요</option>
-                            </select>
-                        </div>
-                        
                         <div class="setting-item">
                             <label class="setting-label">유의수준</label>
                             <select id="significanceLevel">
@@ -424,7 +424,7 @@
                     </div>
                     
                     <div class="actions">
-                        <button class="btn btn-primary" onclick="runStatisticalAnalysis()">📊 통계 분석 실행</button>
+                        <button class="btn btn-primary" onclick="runStatisticalAnalysis()">📊 전체 형질 통계 분석</button>
                         <button class="btn btn-warning" onclick="clearAnalysisData()">🔄 초기화</button>
                     </div>
                 </div>
@@ -454,21 +454,9 @@
                 </div>
 
                 <div class="panel">
-                    <div class="panel-title">📊 t-검정 (t-test) - 전체 형질</div>
+                    <div class="panel-title">📊 t-검정 (t-test)</div>
                     
                     <div class="settings-grid" style="margin-bottom: 15px;">
-                        <div class="setting-item">
-                            <label class="setting-label">비교 품종 1</label>
-                            <select id="ttestVariety1" onchange="updateTTestVariety2Options()">
-                                <option value="">품종 선택</option>
-                            </select>
-                        </div>
-                        <div class="setting-item">
-                            <label class="setting-label">비교 품종 2</label>
-                            <select id="ttestVariety2">
-                                <option value="">품종 선택</option>
-                            </select>
-                        </div>
                         <div class="setting-item">
                             <label class="setting-label">검정 유형</label>
                             <select id="ttestType">
@@ -477,12 +465,33 @@
                             </select>
                         </div>
                         <div class="setting-item">
-                            <button class="btn btn-primary" onclick="runTTestAll()">🔬 전체 형질 t-검정</button>
+                            <button class="btn btn-primary" onclick="runAllCombinationsTTest()">🔬 모든 품종 조합 t-검정</button>
                         </div>
                     </div>
                     
+                    <details style="margin-bottom: 15px; padding: 10px; background: #f5f9f8; border-radius: 8px;">
+                        <summary style="cursor: pointer; font-weight: bold; color: var(--accent-6);">📌 특정 품종 비교만 하기 (클릭하여 펼치기)</summary>
+                        <div class="settings-grid" style="margin-top: 10px;">
+                            <div class="setting-item">
+                                <label class="setting-label">비교 품종 1</label>
+                                <select id="ttestVariety1" onchange="updateTTestVariety2Options()">
+                                    <option value="">품종 선택</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <label class="setting-label">비교 품종 2</label>
+                                <select id="ttestVariety2">
+                                    <option value="">품종 선택</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <button class="btn btn-secondary" onclick="runTTestAll()">🔬 선택 품종 t-검정</button>
+                            </div>
+                        </div>
+                    </details>
+                    
                     <div id="ttestResults" class="output-section">
-                        <div class="output-empty">두 품종을 선택하고 't-검정 실행' 버튼을 클릭하세요</div>
+                        <div class="output-empty">검정 유형을 선택하고 '모든 품종 조합 t-검정' 버튼을 클릭하세요</div>
                     </div>
                 </div>
 
@@ -625,8 +634,9 @@
                     </div>
 
                     <div class="actions">
-                        <button class="btn btn-secondary" onclick="downloadChart()">📥 현재 형질 차트 다운로드</button>
-                        <button class="btn btn-primary" onclick="downloadFullResults()">📊 전체 결과 다운로드 (엑셀+차트ZIP)</button>
+                        <button class="btn btn-primary" onclick="downloadFullResultsZip()">📦 전체 다운로드 (엑셀+이미지)</button>
+                        <button class="btn btn-secondary" onclick="downloadExcelReport()">📊 엑셀만 다운로드</button>
+                        <button class="btn btn-info" onclick="downloadAllChartsZip()">🖼️ 이미지만 다운로드</button>
                     </div>
                 </div>
             </div>
@@ -658,19 +668,22 @@
                         <div class="setting-item">
                             <label class="setting-label">라벨 크기</label>
                             <select id="displayLabelSize" onchange="updateDisplaySizeInfo()">
-                                <option value="small">소형 (75mm × 40mm)</option>
-                                <option value="medium" selected>중형 (75mm × 50mm)</option>
-                                <option value="large">명찰용 (150mm × 75mm)</option>
+                                <option value="small">소형 75×40mm (2열×6행)</option>
+                                <option value="medium" selected>중형 75×50mm (2열×5행)</option>
+                                <option value="large">명찰 150×75mm (1열×3행)</option>
                             </select>
                         </div>
 
-                        <div class="setting-item">
-                            <label class="setting-label">라벨 레이아웃</label>
-                            <select id="displayLabelLayout" onchange="updateLabelPreview()">
-                                <option value="1x1">단일 라벨</option>
-                                <option value="2x4">2 x 4 (A4)</option>
-                                <option value="2x5">2 x 5 (A4)</option>
-                            </select>
+                        <div class="setting-item" id="nameBadgeSideOption" style="display: none;">
+                            <label class="setting-label">명찰 인쇄 방식</label>
+                            <div style="display: flex; gap: 15px; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="badgeSide" value="single" checked onchange="updateDisplaySizeInfo()"> 단면
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                    <input type="radio" name="badgeSide" value="double" onchange="updateDisplaySizeInfo()"> 양면 (접어서 사용)
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -932,9 +945,12 @@
         let dmrtResults = null;
         let rawDataForDownload = {};
         let allTraitsResults = {}; // 모든 형질의 분석 결과 저장
+        let allTTestResults = []; // 모든 t-test 결과 저장
         let labelStartPosition = 1;  // 라벨 시작 위치 (1부터 시작)
         let qrLabelDataOriginal = []; // 원본 라벨 데이터 (시작 위치 변경용)
         let currentPreviewPage = 1;   // 현재 미리보기 페이지
+        let currentDisplayPage = 1;   // 전시용 라벨 현재 페이지
+        let displayLabelDataAll = []; // 전시용 라벨 전체 데이터
         
         // DMRT 컬러 팔레트 (연한색 → 진한색)
         const COLOR_PALETTE = ['#cce3dd', '#b2d9d8', '#8dccd3', '#54b7c6', '#00a1b8', '#017f97', '#0c3026'];
@@ -2342,20 +2358,129 @@
                 statsHtml += '</tbody></table></div>';
             });
             
+            // 계산식 설명 접기/펴기 추가
+            statsHtml += `
+            <details style="margin-top: 20px; padding: 15px; background: #f5f9f8; border-radius: 8px; border: 1px solid var(--border-color);">
+                <summary style="cursor: pointer; font-weight: bold; color: var(--accent-6);">📐 통계량 계산식 설명 (클릭하여 펼치기)</summary>
+                <div style="margin-top: 15px; font-size: 13px; line-height: 1.8;">
+                    <table style="width: 100%; font-size: 12px;">
+                        <tr><td style="width: 100px;"><strong>n</strong></td><td>표본 수 (관측값 개수)</td></tr>
+                        <tr><td><strong>합계</strong></td><td>Σxᵢ (모든 값의 합)</td></tr>
+                        <tr><td><strong>평균</strong></td><td>x̄ = Σxᵢ / n</td></tr>
+                        <tr><td><strong>중앙값</strong></td><td>정렬 후 중간값 (n이 짝수면 두 중간값의 평균)</td></tr>
+                        <tr><td><strong>SD</strong></td><td>표준편차 = √[Σ(xᵢ - x̄)² / (n-1)]</td></tr>
+                        <tr><td><strong>SE</strong></td><td>표준오차 = SD / √n</td></tr>
+                        <tr><td><strong>95% CI</strong></td><td>95% 신뢰구간 = x̄ ± t₀.₀₂₅,ₙ₋₁ × SE</td></tr>
+                        <tr><td><strong>CV(%)</strong></td><td>변이계수 = (SD / x̄) × 100</td></tr>
+                        <tr><td><strong>범위</strong></td><td>최대값 - 최소값</td></tr>
+                        <tr><td><strong>IQR</strong></td><td>사분위범위 = Q3 - Q1 (중앙 50% 데이터 범위)</td></tr>
+                    </table>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #cce3dd;">
+                        <h5 style="color: #017f97; margin-bottom: 10px;">📊 왜도 (Skewness) - Fisher's 공식</h5>
+                        <div style="text-align: center; margin: 10px 0; font-size: 14px;">
+                            \\[ g_1 = \\frac{\\sqrt{n(n-1)}}{n-2} \\cdot \\frac{m_3}{s^3} \\]
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 10px;">
+                            여기서 \\( m_3 = \\frac{1}{n}\\sum_{i=1}^{n}(x_i - \\bar{x})^3 \\) (3차 중심적률), \\( s \\) = 표준편차
+                        </div>
+                        <ul style="font-size: 11px; color: #555; margin-top: 8px; padding-left: 20px;">
+                            <li>왜도 = 0 : 좌우 대칭</li>
+                            <li>왜도 > 0 : 오른쪽 꼬리가 긴 분포 (양의 왜도)</li>
+                            <li>왜도 < 0 : 왼쪽 꼬리가 긴 분포 (음의 왜도)</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #cce3dd;">
+                        <h5 style="color: #017f97; margin-bottom: 10px;">📊 첨도 (Kurtosis) - Excess Kurtosis</h5>
+                        <div style="text-align: center; margin: 10px 0; font-size: 14px;">
+                            \\[ g_2 = \\frac{m_4}{s^4} - 3 \\]
+                        </div>
+                        <div style="font-size: 12px; color: #666; margin-top: 10px;">
+                            여기서 \\( m_4 = \\frac{1}{n}\\sum_{i=1}^{n}(x_i - \\bar{x})^4 \\) (4차 중심적률), \\( s \\) = 표준편차
+                        </div>
+                        <ul style="font-size: 11px; color: #555; margin-top: 8px; padding-left: 20px;">
+                            <li>첨도 = 0 : 정규분포와 동일한 뾰족함</li>
+                            <li>첨도 > 0 : 정규분포보다 뾰족함 (Leptokurtic)</li>
+                            <li>첨도 < 0 : 정규분포보다 평평함 (Platykurtic)</li>
+                        </ul>
+                    </div>
+                    
+                    <p style="margin-top: 15px; color: #666; font-size: 11px; padding: 10px; background: #fff3cd; border-radius: 5px;">
+                        ⚠️ <strong>정규성 판단:</strong> |왜도| > 2 또는 |첨도| > 7 이면 정규성 가정에 문제가 있을 수 있음
+                    </p>
+                </div>
+            </details>`;
+            
+            // MathJax 재렌더링
+            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                setTimeout(() => MathJax.typesetPromise(), 100);
+            }
+            
             document.getElementById('basicStatsTable').innerHTML = statsHtml;
             
-            // ANOVA/DMRT 결과 표시 (전체)
+            // ANOVA 결과 표시 (전체) - 표 형태로
             let anovaHtml = '<h4>📈 전체 형질 ANOVA 결과</h4>';
+            anovaHtml += '<div style="overflow-x: auto;">';
+            anovaHtml += '<table style="font-size: 12px;">';
+            anovaHtml += '<thead><tr><th>형질</th><th>SS<sub>Between</sub></th><th>SS<sub>Within</sub></th><th>df<sub>B</sub></th><th>df<sub>W</sub></th><th>MS<sub>B</sub></th><th>MS<sub>W</sub></th><th>F</th><th>F<sub>crit</sub></th><th>판정</th></tr></thead>';
+            anovaHtml += '<tbody>';
+            
             let dmrtHtml = '<h4>🔬 전체 형질 DMRT 결과</h4>';
             
             allTraits.forEach(item => {
                 const result = allTraitsResults[item];
                 if (result) {
-                    // ANOVA 결과
+                    // ANOVA 결과 - 표 행으로 추가
                     if (result.anova) {
                         const a = result.anova;
-                        anovaHtml += `<h5 style="margin-top: 15px; color: #017f97;">${item}</h5>`;
-                        anovaHtml += `<p>F = ${a.F.toFixed(3)}, p ${a.significant ? '< ' + a.alpha : '≥ ' + a.alpha} ${a.significant ? '(유의함)' : '(유의하지 않음)'}</p>`;
+                        // SS 값 계산을 위해 rawData에서 다시 계산
+                        const varietyData = {};
+                        Object.keys(surveyData).forEach(v => {
+                            varietyData[v] = surveyData[v][item] || [];
+                        });
+                        
+                        // ANOVA 계산
+                        const groups = Object.keys(varietyData).filter(v => varietyData[v].length > 0);
+                        const k = groups.length;
+                        let grandTotal = 0, totalN = 0;
+                        groups.forEach(variety => {
+                            varietyData[variety].forEach(value => {
+                                grandTotal += value;
+                                totalN++;
+                            });
+                        });
+                        const grandMean = grandTotal / totalN;
+                        
+                        let ssBetween = 0, ssWithin = 0;
+                        groups.forEach(variety => {
+                            const values = varietyData[variety];
+                            if (values.length === 0) return;
+                            const groupMean = values.reduce((a, b) => a + b, 0) / values.length;
+                            ssBetween += values.length * Math.pow(groupMean - grandMean, 2);
+                            values.forEach(value => {
+                                ssWithin += Math.pow(value - groupMean, 2);
+                            });
+                        });
+                        
+                        const dfB = k - 1;
+                        const dfW = totalN - k;
+                        const msB = ssBetween / dfB;
+                        const msW = ssWithin / dfW;
+                        
+                        const sigStyle = a.significant ? 'color: #d32f2f; font-weight: bold;' : '';
+                        anovaHtml += `<tr>
+                            <td><strong>${item}</strong></td>
+                            <td>${ssBetween.toFixed(2)}</td>
+                            <td>${ssWithin.toFixed(2)}</td>
+                            <td>${dfB}</td>
+                            <td>${dfW}</td>
+                            <td>${msB.toFixed(3)}</td>
+                            <td>${msW.toFixed(3)}</td>
+                            <td>${a.F.toFixed(3)}</td>
+                            <td>${a.FCritical.toFixed(3)}</td>
+                            <td style="${sigStyle}">${a.significant ? '유의함 *' : 'ns'}</td>
+                        </tr>`;
                     }
                     
                     // DMRT 결과
@@ -2369,6 +2494,11 @@
                     }
                 }
             });
+            
+            anovaHtml += '</tbody></table></div>';
+            anovaHtml += `<p style="margin-top: 10px; font-size: 11px; color: #666;">
+                * 유의수준 α = ${document.getElementById('significanceLevel').value}, ns = not significant (유의하지 않음)
+            </p>`;
             
             document.getElementById('anovaResults').innerHTML = anovaHtml;
             document.getElementById('dmrtResults').innerHTML = dmrtHtml;
@@ -2989,6 +3119,141 @@
             </div>`;
             
             document.getElementById('ttestResults').innerHTML = html;
+        }
+        
+        // 모든 품종 조합 t-검정
+        function runAllCombinationsTTest() {
+            if (!surveyData || Object.keys(surveyData).length === 0) {
+                alert('먼저 데이터를 업로드하세요.');
+                return;
+            }
+            
+            const varieties = Object.keys(surveyData);
+            if (varieties.length < 2) {
+                alert('비교할 품종이 2개 이상 필요합니다.');
+                return;
+            }
+            
+            const testType = document.getElementById('ttestType').value;
+            const alpha = parseFloat(document.getElementById('significanceLevel').value);
+            
+            // 모든 품종 조합 생성
+            const combinations = [];
+            for (let i = 0; i < varieties.length; i++) {
+                for (let j = i + 1; j < varieties.length; j++) {
+                    combinations.push([varieties[i], varieties[j]]);
+                }
+            }
+            
+            // 전체 형질 목록
+            const allTraits = Object.keys(surveyData[varieties[0]] || {}).filter(trait => {
+                const data = surveyData[varieties[0]][trait];
+                return data && data.length >= 2 && !data.some(v => isNaN(v));
+            });
+            
+            if (allTraits.length === 0) {
+                alert('분석할 형질이 없습니다.');
+                return;
+            }
+            
+            // 전역 결과 초기화
+            allTTestResults = [];
+            
+            let html = `<h4>모든 품종 조합 t-검정 (${testType === 'independent' ? '독립표본' : '대응표본'})</h4>`;
+            html += `<div class="alert alert-info" style="margin-bottom: 15px; font-size: 13px;">
+                총 ${combinations.length}개 품종 조합 × ${allTraits.length}개 형질 = ${combinations.length * allTraits.length}개 비교<br>
+                유의수준: α = ${alpha} &nbsp;|&nbsp; 
+                <sup>ns</sup> 유의하지 않음, <sup>*</sup> p < ${alpha}, <sup>**</sup> p < 0.01, <sup>***</sup> p < 0.001
+            </div>`;
+            
+            // 형질별로 결과 표시
+            allTraits.forEach(trait => {
+                html += `<div style="margin-bottom: 20px;">`;
+                html += `<h5 style="color: #017f97; border-bottom: 2px solid #cce3dd; padding-bottom: 5px;">${trait}</h5>`;
+                html += '<table style="font-size: 12px;">';
+                html += '<thead><tr>';
+                html += '<th>품종1</th><th>품종2</th><th>평균1</th><th>평균2</th><th>차이</th><th>t</th><th>df</th><th>p</th><th>유의성</th>';
+                html += '</tr></thead><tbody>';
+                
+                combinations.forEach(([v1, v2]) => {
+                    const data1 = surveyData[v1][trait] || [];
+                    const data2 = surveyData[v2][trait] || [];
+                    
+                    if (data1.length < 2 || data2.length < 2) return;
+                    if (data1.some(v => isNaN(v)) || data2.some(v => isNaN(v))) return;
+                    
+                    const stats1 = calculateStatistics(data1);
+                    const stats2 = calculateStatistics(data2);
+                    
+                    let tValue, df;
+                    
+                    if (testType === 'independent') {
+                        const pooledSE = Math.sqrt((stats1.variance / stats1.n) + (stats2.variance / stats2.n));
+                        if (pooledSE === 0) return;
+                        tValue = (stats1.mean - stats2.mean) / pooledSE;
+                        const v1v = stats1.variance / stats1.n;
+                        const v2v = stats2.variance / stats2.n;
+                        df = Math.pow(v1v + v2v, 2) / (Math.pow(v1v, 2) / (stats1.n - 1) + Math.pow(v2v, 2) / (stats2.n - 1));
+                    } else {
+                        if (data1.length !== data2.length) return;
+                        const differences = data1.map((val, i) => val - data2[i]);
+                        const diffStats = calculateStatistics(differences);
+                        if (diffStats.std === 0) return;
+                        tValue = diffStats.mean / (diffStats.std / Math.sqrt(diffStats.n));
+                        df = diffStats.n - 1;
+                    }
+                    
+                    const pValue = calculatePValueFromT(Math.abs(tValue), df);
+                    const meanDiff = stats1.mean - stats2.mean;
+                    
+                    // 유의성 표시
+                    let sigMark = 'ns';
+                    let isSignificant = false;
+                    if (pValue < 0.001) { sigMark = '***'; isSignificant = true; }
+                    else if (pValue < 0.01) { sigMark = '**'; isSignificant = true; }
+                    else if (pValue < alpha) { sigMark = '*'; isSignificant = true; }
+                    
+                    // 95% 신뢰구간
+                    const se = Math.sqrt((stats1.variance / stats1.n) + (stats2.variance / stats2.n));
+                    const tCrit = df <= 2 ? 4.30 : df <= 5 ? 2.57 : df <= 10 ? 2.23 : df <= 30 ? 2.04 : 1.96;
+                    const ciLower = meanDiff - tCrit * se;
+                    const ciUpper = meanDiff + tCrit * se;
+                    
+                    // 전역 결과에 저장
+                    allTTestResults.push({
+                        trait, variety1: v1, variety2: v2,
+                        testType: testType === 'independent' ? '독립표본' : '대응표본',
+                        mean1: stats1.mean, mean2: stats2.mean,
+                        tValue, df, pValue, meanDiff,
+                        ciLower, ciUpper, significant: isSignificant, sigMark
+                    });
+                    
+                    html += `<tr style="background: ${isSignificant ? '#cce3dd' : 'inherit'}">`;
+                    html += `<td>${v1}</td><td>${v2}</td>`;
+                    html += `<td>${stats1.mean.toFixed(2)}</td><td>${stats2.mean.toFixed(2)}</td>`;
+                    html += `<td>${meanDiff >= 0 ? '+' : ''}${meanDiff.toFixed(2)}</td>`;
+                    html += `<td>${tValue.toFixed(3)}</td>`;
+                    html += `<td>${df.toFixed(1)}</td>`;
+                    html += `<td>${pValue < 0.0001 ? '<.0001' : pValue.toFixed(4)}</td>`;
+                    html += `<td><strong>${sigMark}</strong></td>`;
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table></div>';
+            });
+            
+            // 전체 요약
+            const totalComparisons = allTTestResults.length;
+            const significantCount = allTTestResults.filter(r => r.significant).length;
+            
+            html += `<div style="margin-top: 20px; padding: 15px; background: #cce3dd; border-radius: 8px;">
+                <strong>📊 전체 요약:</strong><br>
+                총 비교 수: ${totalComparisons}개<br>
+                유의한 차이: <span style="color: #0c3026; font-weight: bold;">${significantCount}개</span> (${(significantCount/totalComparisons*100).toFixed(1)}%)
+            </div>`;
+            
+            document.getElementById('ttestResults').innerHTML = html;
+            alert(`t-검정 완료!\n${totalComparisons}개 비교 중 ${significantCount}개에서 유의한 차이가 발견되었습니다.`);
         }
         
         // 단일 형질 t-검정 (기존 호환)
@@ -3644,7 +3909,372 @@
             alert('모든 형질의 차트 다운로드가 완료되었습니다.');
         }
         
-        async function downloadFullResults() {
+        // 전체 결과 ZIP 다운로드 (엑셀 + 이미지)
+        async function downloadFullResultsZip() {
+            try {
+                if (!allTraitsResults || Object.keys(allTraitsResults).length === 0) {
+                    alert('먼저 통계 분석을 수행해주세요.');
+                    return;
+                }
+                
+                const allTraits = Object.keys(allTraitsResults);
+                const dateStr = getDateString();
+                
+                alert('엑셀 파일과 차트 이미지를 생성하여 압축 파일로 다운로드합니다.\n잠시 기다려주세요...');
+                
+                const zip = new JSZip();
+                const imgFolder = zip.folder('차트이미지');
+                
+                // ===== 엑셀 파일 생성 =====
+                const wb = XLSX.utils.book_new();
+                
+                // 시트1: 전체 기초통계량
+                const statsHeaders = ['형질', '품종', 'n', '합계', '평균', '중앙값', 'SD', 'SE', '95%CI_하한', '95%CI_상한', 'CV(%)', '최소', '최대', '범위', 'Q1', 'Q3', 'IQR', '왜도', '첨도', 'DMRT그룹'];
+                const allStatsData = [statsHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.dmrtResults) {
+                        result.dmrtResults.forEach(r => {
+                            const s = r.stats;
+                            if (s) {
+                                allStatsData.push([
+                                    trait, r.variety, s.n || '', 
+                                    s.sum != null ? s.sum.toFixed(2) : '', 
+                                    s.mean != null ? s.mean.toFixed(2) : '', 
+                                    s.median != null ? s.median.toFixed(2) : '',
+                                    s.std != null ? s.std.toFixed(3) : '', 
+                                    s.se != null ? s.se.toFixed(4) : '', 
+                                    s.ciLower != null ? s.ciLower.toFixed(2) : '', 
+                                    s.ciUpper != null ? s.ciUpper.toFixed(2) : '',
+                                    s.cv != null ? s.cv.toFixed(2) : '', 
+                                    s.min != null ? s.min.toFixed(2) : '', 
+                                    s.max != null ? s.max.toFixed(2) : '', 
+                                    s.range != null ? s.range.toFixed(2) : '',
+                                    s.q1 != null ? s.q1.toFixed(2) : '', 
+                                    s.q3 != null ? s.q3.toFixed(2) : '', 
+                                    s.iqr != null ? s.iqr.toFixed(2) : '',
+                                    s.skewness != null ? s.skewness.toFixed(3) : '', 
+                                    s.kurtosis != null ? s.kurtosis.toFixed(3) : '', 
+                                    r.group || ''
+                                ]);
+                            }
+                        });
+                    }
+                });
+                const ws1 = XLSX.utils.aoa_to_sheet(allStatsData);
+                XLSX.utils.book_append_sheet(wb, ws1, '전체_기초통계량');
+                
+                // 시트2: 전체 DMRT 결과
+                const dmrtHeaders = ['형질', '순위', '품종', '평균', 'SE', 'DMRT그룹'];
+                const allDmrtData = [dmrtHeaders];
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.dmrtResults) {
+                        result.dmrtResults.forEach((r, idx) => {
+                            allDmrtData.push([trait, idx + 1, r.variety, r.mean != null ? r.mean.toFixed(2) : '', r.se != null ? r.se.toFixed(3) : '', r.group || '']);
+                        });
+                    }
+                });
+                const ws2 = XLSX.utils.aoa_to_sheet(allDmrtData);
+                XLSX.utils.book_append_sheet(wb, ws2, '전체_DMRT결과');
+                
+                // 시트3: 전체 ANOVA 결과
+                const anovaHeaders = ['형질', 'F값', 'F임계값', '유의수준', '유의여부'];
+                const allAnovaData = [anovaHeaders];
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.anova) {
+                        const a = result.anova;
+                        allAnovaData.push([trait, a.F != null ? a.F.toFixed(3) : '', a.FCritical != null ? a.FCritical.toFixed(3) : '', a.alpha || '', a.significant ? '유의함' : '유의하지 않음']);
+                    }
+                });
+                const ws3 = XLSX.utils.aoa_to_sheet(allAnovaData);
+                XLSX.utils.book_append_sheet(wb, ws3, '전체_ANOVA결과');
+                
+                // 시트4: 전체 t-test 결과 (있는 경우)
+                if (allTTestResults && allTTestResults.length > 0) {
+                    const ttestHeaders = ['형질', '품종1', '품종2', '검정유형', 't값', 'p값', '유의여부', '평균차이', '95%CI_하한', '95%CI_상한'];
+                    const ttestData = [ttestHeaders];
+                    allTTestResults.forEach(t => {
+                        ttestData.push([
+                            t.trait, t.variety1, t.variety2, t.testType,
+                            t.tValue != null ? t.tValue.toFixed(4) : '',
+                            t.pValue != null ? t.pValue.toFixed(6) : '',
+                            t.sigMark || (t.significant ? '유의함' : 'ns'),
+                            t.meanDiff != null ? t.meanDiff.toFixed(3) : '',
+                            t.ciLower != null ? t.ciLower.toFixed(3) : '',
+                            t.ciUpper != null ? t.ciUpper.toFixed(3) : ''
+                        ]);
+                    });
+                    const ws4 = XLSX.utils.aoa_to_sheet(ttestData);
+                    XLSX.utils.book_append_sheet(wb, ws4, '전체_ttest결과');
+                }
+                
+                // 각 형질별 로우데이터 시트
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.rawData) {
+                        const rawDataValues = Object.values(result.rawData).filter(v => v && v.length > 0);
+                        if (rawDataValues.length === 0) return;
+                        
+                        const maxReps = Math.max(...rawDataValues.map(v => v.length));
+                        const rawHeaders = ['품종'];
+                        for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
+                        
+                        let convInfo = '적용 안함';
+                        if (loadedConversionSettings && loadedConversionSettings[trait]) {
+                            const conv = loadedConversionSettings[trait];
+                            const symbol = conv.operation === 'divide' ? '÷' : '×';
+                            convInfo = `${symbol}${conv.multiplier}`;
+                        }
+                        
+                        const rawSheet = [['형질:', trait], ['배수변환:', convInfo], [''], rawHeaders];
+                        result.dmrtResults.forEach(r => {
+                            const row = [r.variety];
+                            const values = result.rawData[r.variety] || [];
+                            for (let i = 0; i < maxReps; i++) {
+                                row.push(values[i] !== undefined ? values[i] : '');
+                            }
+                            rawSheet.push(row);
+                        });
+                        
+                        const sheetName = (trait.substring(0, 20) + '_로우').replace(/[\/\\?*\[\]]/g, '_');
+                        const ws = XLSX.utils.aoa_to_sheet(rawSheet);
+                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    }
+                });
+                
+                // 분석 정보 시트
+                const infoData = [
+                    ['분석일시', new Date().toLocaleString('ko-KR')],
+                    ['분석 형질 수', allTraits.length],
+                    ['유의수준', document.getElementById('significanceLevel').value],
+                    ['DPI', document.getElementById('chartDPI').value],
+                    ['차트크기(mm)', `${document.getElementById('chartWidthMM').value} × ${document.getElementById('chartHeightMM').value}`],
+                    [''], ['분석 형질 목록:'],
+                    ...allTraits.map((t, i) => [`  ${i + 1}. ${t}`])
+                ];
+                const wsInfo = XLSX.utils.aoa_to_sheet(infoData);
+                XLSX.utils.book_append_sheet(wb, wsInfo, '분석정보');
+                
+                // 엑셀 파일을 ArrayBuffer로 변환하여 ZIP에 추가
+                const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                zip.file(`전체형질_분석결과_${dateStr}.xlsx`, excelBuffer);
+                
+                // ===== 차트 이미지 생성 =====
+                const dpi = parseInt(document.getElementById('chartDPI').value) || 150;
+                const scale = dpi / 96;
+                const originalItem = document.getElementById('analysisItem').value;
+                
+                for (let i = 0; i < allTraits.length; i++) {
+                    const trait = allTraits[i];
+                    const result = allTraitsResults[trait];
+                    
+                    if (result && result.dmrtResults) {
+                        dmrtResults = result.dmrtResults;
+                        rawDataForDownload = result.rawData;
+                        document.getElementById('analysisItem').value = trait;
+                        updateChart();
+                        
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        
+                        const canvas = document.getElementById('analysisChart');
+                        if (canvas) {
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = canvas.width * scale;
+                            tempCanvas.height = canvas.height * scale;
+                            const tempCtx = tempCanvas.getContext('2d');
+                            tempCtx.scale(scale, scale);
+                            tempCtx.fillStyle = 'white';
+                            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                            tempCtx.drawImage(canvas, 0, 0);
+                            
+                            const imgData = tempCanvas.toDataURL('image/png').split(',')[1];
+                            const safeName = trait.replace(/[\/\\:*?"<>|]/g, '_');
+                            imgFolder.file(`${safeName}_DMRT_${dpi}dpi.png`, imgData, {base64: true});
+                        }
+                    }
+                }
+                
+                // 원래 항목 복원
+                if (originalItem && allTraitsResults[originalItem]) {
+                    dmrtResults = allTraitsResults[originalItem].dmrtResults;
+                    rawDataForDownload = allTraitsResults[originalItem].rawData;
+                    document.getElementById('analysisItem').value = originalItem;
+                    updateChart();
+                }
+                
+                // ZIP 파일 생성 및 다운로드
+                const content = await zip.generateAsync({type: 'blob'});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(content);
+                a.download = `통계분석결과_${dateStr}.zip`;
+                a.click();
+                
+                alert(`${allTraits.length}개 형질의 분석 결과가 압축 파일로 다운로드되었습니다.\n\n포함 내용:\n• 전체형질_분석결과.xlsx\n• 차트이미지/ 폴더 (${allTraits.length}개 PNG)${allTTestResults && allTTestResults.length > 0 ? '\n• t-test 결과 포함' : ''}`);
+            } catch (error) {
+                console.error('전체 다운로드 오류:', error);
+                alert('다운로드 중 오류가 발생했습니다.\n오류: ' + error.message);
+            }
+        }
+        
+        // 엑셀 리포트만 다운로드
+        function downloadExcelReport() {
+            try {
+                if (!allTraitsResults || Object.keys(allTraitsResults).length === 0) {
+                    alert('먼저 통계 분석을 수행해주세요.');
+                    return;
+                }
+                
+                const allTraits = Object.keys(allTraitsResults);
+                const dateStr = getDateString();
+                const wb = XLSX.utils.book_new();
+                
+                // ===== 시트1: 전체 기초통계량 =====
+                const statsHeaders = ['형질', '품종', 'n', '합계', '평균', '중앙값', 'SD', 'SE', '95%CI_하한', '95%CI_상한', 'CV(%)', '최소', '최대', '범위', 'Q1', 'Q3', 'IQR', '왜도', '첨도', 'DMRT그룹'];
+                const allStatsData = [statsHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.dmrtResults) {
+                        result.dmrtResults.forEach(r => {
+                            const s = r.stats;
+                            if (s) {
+                                allStatsData.push([
+                                    trait, r.variety, s.n, 
+                                    s.sum ? s.sum.toFixed(2) : '', 
+                                    s.mean ? s.mean.toFixed(2) : '', 
+                                    s.median ? s.median.toFixed(2) : '',
+                                    s.std ? s.std.toFixed(3) : '', 
+                                    s.se ? s.se.toFixed(4) : '', 
+                                    s.ciLower ? s.ciLower.toFixed(2) : '', 
+                                    s.ciUpper ? s.ciUpper.toFixed(2) : '',
+                                    s.cv ? s.cv.toFixed(2) : '', 
+                                    s.min ? s.min.toFixed(2) : '', 
+                                    s.max ? s.max.toFixed(2) : '', 
+                                    s.range ? s.range.toFixed(2) : '',
+                                    s.q1 ? s.q1.toFixed(2) : '', 
+                                    s.q3 ? s.q3.toFixed(2) : '', 
+                                    s.iqr ? s.iqr.toFixed(2) : '',
+                                    s.skewness ? s.skewness.toFixed(3) : '', 
+                                    s.kurtosis ? s.kurtosis.toFixed(3) : '', 
+                                    r.group || ''
+                                ]);
+                            }
+                        });
+                    }
+                });
+                const ws1 = XLSX.utils.aoa_to_sheet(allStatsData);
+                XLSX.utils.book_append_sheet(wb, ws1, '전체_기초통계량');
+                
+                // ===== 시트2: 전체 DMRT 결과 =====
+                const dmrtHeaders = ['형질', '순위', '품종', '평균', 'SE', 'DMRT그룹'];
+                const allDmrtData = [dmrtHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.dmrtResults) {
+                        result.dmrtResults.forEach((r, idx) => {
+                            allDmrtData.push([trait, idx + 1, r.variety, r.mean ? r.mean.toFixed(2) : '', r.se ? r.se.toFixed(3) : '', r.group || '']);
+                        });
+                    }
+                });
+                const ws2 = XLSX.utils.aoa_to_sheet(allDmrtData);
+                XLSX.utils.book_append_sheet(wb, ws2, '전체_DMRT결과');
+                
+                // ===== 시트3: 전체 ANOVA 결과 =====
+                const anovaHeaders = ['형질', 'F값', 'F임계값', '유의수준', '유의여부'];
+                const allAnovaData = [anovaHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.anova) {
+                        const a = result.anova;
+                        allAnovaData.push([trait, a.F ? a.F.toFixed(3) : '', a.FCritical ? a.FCritical.toFixed(3) : '', a.alpha || '', a.significant ? '유의함' : '유의하지 않음']);
+                    }
+                });
+                const ws3 = XLSX.utils.aoa_to_sheet(allAnovaData);
+                XLSX.utils.book_append_sheet(wb, ws3, '전체_ANOVA결과');
+                
+                // ===== 시트4: 전체 t-test 결과 (있는 경우) =====
+                if (allTTestResults && allTTestResults.length > 0) {
+                    const ttestHeaders = ['형질', '품종1', '품종2', '검정유형', 't값', 'p값', '유의여부', '평균차이', '95%CI_하한', '95%CI_상한'];
+                    const ttestData = [ttestHeaders];
+                    allTTestResults.forEach(t => {
+                        ttestData.push([
+                            t.trait, t.variety1, t.variety2, t.testType,
+                            t.tValue ? t.tValue.toFixed(4) : '',
+                            t.pValue ? t.pValue.toFixed(6) : '',
+                            t.significant ? '유의함' : 'ns',
+                            t.meanDiff ? t.meanDiff.toFixed(3) : '',
+                            t.ciLower ? t.ciLower.toFixed(3) : '',
+                            t.ciUpper ? t.ciUpper.toFixed(3) : ''
+                        ]);
+                    });
+                    const ws4 = XLSX.utils.aoa_to_sheet(ttestData);
+                    XLSX.utils.book_append_sheet(wb, ws4, '전체_ttest결과');
+                }
+                
+                // ===== 각 형질별 로우데이터 시트 =====
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.rawData) {
+                        const rawDataValues = Object.values(result.rawData).filter(v => v && v.length > 0);
+                        if (rawDataValues.length === 0) return;
+                        
+                        const maxReps = Math.max(...rawDataValues.map(v => v.length));
+                        const rawHeaders = ['품종'];
+                        for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
+                        
+                        let convInfo = '적용 안함';
+                        if (loadedConversionSettings && loadedConversionSettings[trait]) {
+                            const conv = loadedConversionSettings[trait];
+                            const symbol = conv.operation === 'divide' ? '÷' : '×';
+                            convInfo = `${symbol}${conv.multiplier}`;
+                        }
+                        
+                        const rawSheet = [['형질:', trait], ['배수변환:', convInfo], [''], rawHeaders];
+                        
+                        result.dmrtResults.forEach(r => {
+                            const row = [r.variety];
+                            const values = result.rawData[r.variety] || [];
+                            for (let i = 0; i < maxReps; i++) {
+                                row.push(values[i] !== undefined ? values[i] : '');
+                            }
+                            rawSheet.push(row);
+                        });
+                        
+                        const sheetName = (trait.substring(0, 20) + '_로우').replace(/[\/\\?*\[\]]/g, '_');
+                        const ws = XLSX.utils.aoa_to_sheet(rawSheet);
+                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    }
+                });
+                
+                // ===== 분석 정보 시트 =====
+                const infoData = [
+                    ['분석일시', new Date().toLocaleString('ko-KR')],
+                    ['분석 형질 수', allTraits.length],
+                    ['유의수준', document.getElementById('significanceLevel').value],
+                    ['DPI', document.getElementById('chartDPI').value],
+                    ['차트크기(mm)', `${document.getElementById('chartWidthMM').value} × ${document.getElementById('chartHeightMM').value}`],
+                    [''], ['분석 형질 목록:'],
+                    ...allTraits.map((t, i) => [`  ${i + 1}. ${t}`])
+                ];
+                const wsInfo = XLSX.utils.aoa_to_sheet(infoData);
+                XLSX.utils.book_append_sheet(wb, wsInfo, '분석정보');
+                
+                // 엑셀 저장
+                XLSX.writeFile(wb, `전체형질_분석결과_${dateStr}.xlsx`);
+                alert(`${allTraits.length}개 형질의 분석 결과가 엑셀 파일로 다운로드되었습니다.`);
+            } catch (error) {
+                console.error('엑셀 다운로드 오류:', error);
+                alert('엑셀 다운로드 중 오류가 발생했습니다.\n오류: ' + error.message);
+            }
+        }
+        
+        // 이미지 전체 ZIP 다운로드
+        async function downloadAllChartsZip() {
             if (!allTraitsResults || Object.keys(allTraitsResults).length === 0) {
                 alert('먼저 통계 분석을 수행해주세요.');
                 return;
@@ -3652,97 +4282,141 @@
             
             const allTraits = Object.keys(allTraitsResults);
             const dateStr = getDateString();
-            const wb = XLSX.utils.book_new();
             
-            // ===== 시트1: 전체 기초통계량 =====
-            const statsHeaders = ['형질', '품종', 'n', '합계', '평균', '중앙값', 'SD', 'SE', '95%CI_하한', '95%CI_상한', 'CV(%)', '최소', '최대', '범위', 'Q1', 'Q3', 'IQR', '왜도', '첨도', 'DMRT그룹'];
-            const allStatsData = [statsHeaders];
-            
-            allTraits.forEach(trait => {
-                const result = allTraitsResults[trait];
-                if (result && result.dmrtResults) {
-                    result.dmrtResults.forEach(r => {
-                        const s = r.stats;
-                        allStatsData.push([
-                            trait, r.variety, s.n, s.sum.toFixed(2), s.mean.toFixed(2), s.median.toFixed(2),
-                            s.std.toFixed(3), s.se.toFixed(4), s.ciLower.toFixed(2), s.ciUpper.toFixed(2),
-                            s.cv.toFixed(2), s.min.toFixed(2), s.max.toFixed(2), s.range.toFixed(2),
-                            s.q1.toFixed(2), s.q3.toFixed(2), s.iqr.toFixed(2),
-                            s.skewness.toFixed(3), s.kurtosis.toFixed(3), r.group
+            alert('모든 형질의 차트 이미지를 생성하여 압축 파일로 다운로드합니다.\n잠시 기다려주세요...');
+            await downloadAllChartsAsZip(allTraits, dateStr);
+        }
+        
+        async function downloadFullResults() {
+            try {
+                if (!allTraitsResults || Object.keys(allTraitsResults).length === 0) {
+                    alert('먼저 통계 분석을 수행해주세요.');
+                    return;
+                }
+                
+                const allTraits = Object.keys(allTraitsResults);
+                const dateStr = getDateString();
+                const wb = XLSX.utils.book_new();
+                
+                // ===== 시트1: 전체 기초통계량 =====
+                const statsHeaders = ['형질', '품종', 'n', '합계', '평균', '중앙값', 'SD', 'SE', '95%CI_하한', '95%CI_상한', 'CV(%)', '최소', '최대', '범위', 'Q1', 'Q3', 'IQR', '왜도', '첨도', 'DMRT그룹'];
+                const allStatsData = [statsHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.dmrtResults) {
+                        result.dmrtResults.forEach(r => {
+                            const s = r.stats;
+                            if (s) {
+                                allStatsData.push([
+                                    trait, r.variety, s.n || '', 
+                                    s.sum != null ? s.sum.toFixed(2) : '', 
+                                    s.mean != null ? s.mean.toFixed(2) : '', 
+                                    s.median != null ? s.median.toFixed(2) : '',
+                                    s.std != null ? s.std.toFixed(3) : '', 
+                                    s.se != null ? s.se.toFixed(4) : '', 
+                                    s.ciLower != null ? s.ciLower.toFixed(2) : '', 
+                                    s.ciUpper != null ? s.ciUpper.toFixed(2) : '',
+                                    s.cv != null ? s.cv.toFixed(2) : '', 
+                                    s.min != null ? s.min.toFixed(2) : '', 
+                                    s.max != null ? s.max.toFixed(2) : '', 
+                                    s.range != null ? s.range.toFixed(2) : '',
+                                    s.q1 != null ? s.q1.toFixed(2) : '', 
+                                    s.q3 != null ? s.q3.toFixed(2) : '', 
+                                    s.iqr != null ? s.iqr.toFixed(2) : '',
+                                    s.skewness != null ? s.skewness.toFixed(3) : '', 
+                                    s.kurtosis != null ? s.kurtosis.toFixed(3) : '', 
+                                    r.group || ''
+                                ]);
+                            }
+                        });
+                    }
+                });
+                const ws1 = XLSX.utils.aoa_to_sheet(allStatsData);
+                XLSX.utils.book_append_sheet(wb, ws1, '전체_기초통계량');
+                
+                // ===== 시트2: 전체 DMRT 결과 =====
+                const dmrtHeaders = ['형질', '순위', '품종', '평균', 'SE', 'DMRT그룹'];
+                const allDmrtData = [dmrtHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.dmrtResults) {
+                        result.dmrtResults.forEach((r, idx) => {
+                            allDmrtData.push([trait, idx + 1, r.variety, r.mean != null ? r.mean.toFixed(2) : '', r.se != null ? r.se.toFixed(3) : '', r.group || '']);
+                        });
+                    }
+                });
+                const ws2 = XLSX.utils.aoa_to_sheet(allDmrtData);
+                XLSX.utils.book_append_sheet(wb, ws2, '전체_DMRT결과');
+                
+                // ===== 시트3: 전체 ANOVA 결과 =====
+                const anovaHeaders = ['형질', 'F값', 'F임계값', '유의수준', '유의여부'];
+                const allAnovaData = [anovaHeaders];
+                
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.anova) {
+                        const a = result.anova;
+                        allAnovaData.push([trait, a.F != null ? a.F.toFixed(3) : '', a.FCritical != null ? a.FCritical.toFixed(3) : '', a.alpha || '', a.significant ? '유의함' : '유의하지 않음']);
+                    }
+                });
+                const ws3 = XLSX.utils.aoa_to_sheet(allAnovaData);
+                XLSX.utils.book_append_sheet(wb, ws3, '전체_ANOVA결과');
+                
+                // ===== 시트4: 전체 t-test 결과 (있는 경우) =====
+                if (allTTestResults && allTTestResults.length > 0) {
+                    const ttestHeaders = ['형질', '품종1', '품종2', '검정유형', 't값', 'p값', '유의여부', '평균차이', '95%CI_하한', '95%CI_상한'];
+                    const ttestData = [ttestHeaders];
+                    allTTestResults.forEach(t => {
+                        ttestData.push([
+                            t.trait, t.variety1, t.variety2, t.testType,
+                            t.tValue != null ? t.tValue.toFixed(4) : '',
+                            t.pValue != null ? t.pValue.toFixed(6) : '',
+                            t.sigMark || (t.significant ? '유의함' : 'ns'),
+                            t.meanDiff != null ? t.meanDiff.toFixed(3) : '',
+                            t.ciLower != null ? t.ciLower.toFixed(3) : '',
+                            t.ciUpper != null ? t.ciUpper.toFixed(3) : ''
                         ]);
                     });
+                    const ws4 = XLSX.utils.aoa_to_sheet(ttestData);
+                    XLSX.utils.book_append_sheet(wb, ws4, '전체_ttest결과');
                 }
-            });
-            const ws1 = XLSX.utils.aoa_to_sheet(allStatsData);
-            XLSX.utils.book_append_sheet(wb, ws1, '전체_기초통계량');
-            
-            // ===== 시트2: 전체 DMRT 결과 =====
-            const dmrtHeaders = ['형질', '순위', '품종', '평균', 'SE', 'DMRT그룹'];
-            const allDmrtData = [dmrtHeaders];
-            
-            allTraits.forEach(trait => {
-                const result = allTraitsResults[trait];
-                if (result && result.dmrtResults) {
-                    result.dmrtResults.forEach((r, idx) => {
-                        allDmrtData.push([trait, idx + 1, r.variety, r.mean.toFixed(2), r.se.toFixed(3), r.group]);
-                    });
-                }
-            });
-            const ws2 = XLSX.utils.aoa_to_sheet(allDmrtData);
-            XLSX.utils.book_append_sheet(wb, ws2, '전체_DMRT결과');
-            
-            // ===== 시트3: 전체 ANOVA 결과 =====
-            const anovaHeaders = ['형질', 'F값', 'F임계값', '유의수준', '유의여부'];
-            const allAnovaData = [anovaHeaders];
-            
-            allTraits.forEach(trait => {
-                const result = allTraitsResults[trait];
-                if (result && result.anova) {
-                    const a = result.anova;
-                    allAnovaData.push([trait, a.F.toFixed(3), a.FCritical.toFixed(3), a.alpha, a.significant ? '유의함' : '유의하지 않음']);
-                }
-            });
-            const ws3 = XLSX.utils.aoa_to_sheet(allAnovaData);
-            XLSX.utils.book_append_sheet(wb, ws3, '전체_ANOVA결과');
-            
-            // ===== 각 형질별 로우데이터 시트 =====
-            allTraits.forEach(trait => {
-                const result = allTraitsResults[trait];
-                if (result && result.rawData) {
-                    const maxReps = Math.max(...Object.values(result.rawData).map(v => v.length));
-                    const rawHeaders = ['품종'];
-                    for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
-                    
-                    // 배수 변환 정보
-                    let convInfo = '적용 안함';
-                    if (loadedConversionSettings && loadedConversionSettings[trait]) {
-                        const conv = loadedConversionSettings[trait];
-                        const symbol = conv.operation === 'divide' ? '÷' : '×';
-                        convInfo = `${symbol}${conv.multiplier}`;
-                    }
-                    
-                    const rawSheet = [
-                        ['형질:', trait],
-                        ['배수변환:', convInfo],
-                        [''],
-                        rawHeaders
-                    ];
-                    
-                    result.dmrtResults.forEach(r => {
-                        const row = [r.variety];
-                        const values = result.rawData[r.variety] || [];
-                        for (let i = 0; i < maxReps; i++) {
-                            row.push(values[i] !== undefined ? values[i] : '');
+                
+                // ===== 각 형질별 로우데이터 시트 =====
+                allTraits.forEach(trait => {
+                    const result = allTraitsResults[trait];
+                    if (result && result.rawData) {
+                        const rawDataValues = Object.values(result.rawData).filter(v => v && v.length > 0);
+                        if (rawDataValues.length === 0) return;
+                        
+                        const maxReps = Math.max(...rawDataValues.map(v => v.length));
+                        const rawHeaders = ['품종'];
+                        for (let i = 1; i <= maxReps; i++) rawHeaders.push(`반복${i}`);
+                        
+                        let convInfo = '적용 안함';
+                        if (loadedConversionSettings && loadedConversionSettings[trait]) {
+                            const conv = loadedConversionSettings[trait];
+                            const symbol = conv.operation === 'divide' ? '÷' : '×';
+                            convInfo = `${symbol}${conv.multiplier}`;
                         }
-                        rawSheet.push(row);
-                    });
-                    
-                    // 시트명 30자 제한
-                    const sheetName = trait.substring(0, 25) + '_로우';
-                    const ws = XLSX.utils.aoa_to_sheet(rawSheet);
-                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-                }
-            });
+                        
+                        const rawSheet = [['형질:', trait], ['배수변환:', convInfo], [''], rawHeaders];
+                        
+                        result.dmrtResults.forEach(r => {
+                            const row = [r.variety];
+                            const values = result.rawData[r.variety] || [];
+                            for (let i = 0; i < maxReps; i++) {
+                                row.push(values[i] !== undefined ? values[i] : '');
+                            }
+                            rawSheet.push(row);
+                        });
+                        
+                        const sheetName = (trait.substring(0, 20) + '_로우').replace(/[\/\\?*\[\]]/g, '_');
+                        const ws = XLSX.utils.aoa_to_sheet(rawSheet);
+                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    }
+                });
             
             // ===== 분석 정보 시트 =====
             const infoData = [
@@ -3765,6 +4439,10 @@
             alert('엑셀 파일 다운로드 완료.\n\n이제 모든 형질의 차트 이미지를 생성하여 압축 파일로 다운로드합니다.\n잠시 기다려주세요...');
             
             await downloadAllChartsAsZip(allTraits, dateStr);
+            } catch (error) {
+                console.error('다운로드 오류:', error);
+                alert('다운로드 중 오류가 발생했습니다.\n오류: ' + error.message);
+            }
         }
         
         // 모든 형질 차트를 ZIP으로 다운로드
@@ -3865,24 +4543,42 @@
         function updateDisplaySizeInfo() {
             const size = document.getElementById('displayLabelSize').value;
             const recommendedSize = document.getElementById('recommendedSize');
+            const badgeOption = document.getElementById('nameBadgeSideOption');
+            
+            // 명찰 선택 시만 양면 옵션 표시
+            if (badgeOption) {
+                badgeOption.style.display = (size === 'large') ? 'block' : 'none';
+            }
+            
+            // 양면 선택 여부 확인
+            const isDoubleSided = document.querySelector('input[name="badgeSide"]:checked')?.value === 'double';
+            
             const sizeInfo = {
-                small: `소형: 75mm × 40mm<br>
+                small: `소형: 75mm × 40mm (2열 × 6행)<br>
                         <strong style="color: #00a1b8;">• 권장 이미지: 591 × 315 pixels (200 DPI)</strong><br>
                         <small style="color: #666;">• 최소 해상도: 295 × 157 pixels (100 DPI)</small><br>
-                        <small style="color: #666;">• 고해상도: 1181 × 630 pixels (400 DPI)</small><br>
-                        <small style="color: #999;">※ 72 DPI 기준: 210 × 113 pixels</small>`,
-                medium: `중형: 75mm × 50mm<br>
+                        <small style="color: #666;">• 고해상도: 1181 × 630 pixels (400 DPI)</small>`,
+                medium: `중형: 75mm × 50mm (2열 × 5행)<br>
                         <strong style="color: #00a1b8;">• 권장 이미지: 591 × 394 pixels (200 DPI)</strong><br>
                         <small style="color: #666;">• 최소 해상도: 295 × 197 pixels (100 DPI)</small><br>
-                        <small style="color: #666;">• 고해상도: 1181 × 787 pixels (400 DPI)</small><br>
-                        <small style="color: #999;">※ 72 DPI 기준: 210 × 141 pixels</small>`,
-                large: `명찰용: 150mm × 75mm<br>
+                        <small style="color: #666;">• 고해상도: 1181 × 787 pixels (400 DPI)</small>`,
+                large: `명찰: 150mm × 75mm (1열 × 3행)<br>
                         <strong style="color: #00a1b8;">• 권장 이미지: 1181 × 591 pixels (200 DPI)</strong><br>
                         <small style="color: #666;">• 최소 해상도: 591 × 295 pixels (100 DPI)</small><br>
-                        <small style="color: #666;">• 고해상도: 2362 × 1181 pixels (400 DPI)</small><br>
-                        <small style="color: #999;">※ 72 DPI 기준: 425 × 212 pixels</small>`
+                        <small style="color: #666;">• 고해상도: 2362 × 1181 pixels (400 DPI)</small>`
             };
-            recommendedSize.innerHTML = sizeInfo[size];
+            
+            let infoHtml = sizeInfo[size];
+            
+            // 양면 선택 시 추가 안내
+            if (size === 'large' && isDoubleSided) {
+                infoHtml += `<br><br><strong style="color: #017f97;">📌 양면 인쇄 안내:</strong><br>
+                        <small>• 한 페이지에 명찰 1개 (앞면 + 뒷면)</small><br>
+                        <small>• 중앙 접선을 기준으로 접어서 사용</small><br>
+                        <small>• 명찰꽂이에 끼워 양면 모두 보이게 사용</small>`;
+            }
+            
+            recommendedSize.innerHTML = infoHtml;
             updateLabelPreview();
         }
 
@@ -3986,12 +4682,6 @@
             console.log('🏷️ 라벨 생성 시작');
             console.log('현재 displayExcelData:', displayExcelData);
             
-            const labelSize = document.getElementById('displayLabelSize').value;
-            const layout = document.getElementById('displayLabelLayout').value;
-            const textColor = document.getElementById('textColor').value;
-            const textBg = document.getElementById('textBg').value;
-            const imageFit = document.getElementById('imageFit').value;
-            
             // 라벨 데이터 수집
             let labelData = [];
             
@@ -4056,45 +4746,96 @@
                 return;
             }
             
+            // 전역 변수에 저장
+            displayLabelDataAll = labelData;
+            currentDisplayPage = 1;
+            
+            // 페이지네이션 적용하여 렌더링
+            renderDisplayLabelsWithPagination();
+            document.getElementById('labelActions').style.display = 'flex';
+            
+            console.log('✅ 라벨 생성 완료');
+        }
+        
+        // 전시용 라벨 페이지네이션 렌더링
+        function renderDisplayLabelsWithPagination() {
+            const labelSize = document.getElementById('displayLabelSize').value;
+            const textColor = document.getElementById('textColor').value;
+            const textBg = document.getElementById('textBg').value;
+            const imageFit = document.getElementById('imageFit').value;
+            const isDoubleSidedBadge = labelSize === 'large' && 
+                document.querySelector('input[name="badgeSide"]:checked')?.value === 'double';
+            
+            // 페이지당 라벨 수 계산
+            let labelsPerPage = 3;
             let gridColumns = 1;
-            let gridRows = 3; // large 기본값
             if (labelSize === 'small') {
+                labelsPerPage = 12; // 2x6
                 gridColumns = 2;
-                gridRows = 6;
             } else if (labelSize === 'medium') {
+                labelsPerPage = 10; // 2x5
                 gridColumns = 2;
-                gridRows = 5;
             } else if (labelSize === 'large') {
+                labelsPerPage = isDoubleSidedBadge ? 1 : 3; // 양면이면 1개, 단면이면 3개
                 gridColumns = 1;
-                gridRows = 3;
             }
             
-            // A4 여백 20mm, 라벨 붙이기, 구분선 1px 회색
-            html = `<div class="display-label-print-container" style="width: 210mm; padding: 20mm; box-sizing: border-box;">
-                <div class="display-label-grid" style="display: grid; grid-template-columns: repeat(${gridColumns}, 1fr); gap: 0;">`;
+            const totalLabels = displayLabelDataAll.length;
+            const totalPages = Math.ceil(totalLabels / labelsPerPage);
             
-            labelData.forEach((item, index) => {
+            if (currentDisplayPage < 1) currentDisplayPage = 1;
+            if (currentDisplayPage > totalPages) currentDisplayPage = totalPages;
+            
+            // 현재 페이지 라벨 추출
+            const startIdx = (currentDisplayPage - 1) * labelsPerPage;
+            const endIdx = Math.min(startIdx + labelsPerPage, totalLabels);
+            const pageLabels = displayLabelDataAll.slice(startIdx, endIdx);
+            
+            // HTML 생성
+            let html = '';
+            
+            // 페이지네이션 UI (상단)
+            if (totalPages > 1) {
+                html += `
+                <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px; background: #f5f9f8; border-radius: 8px;">
+                    <button onclick="goToDisplayPage(1)" style="padding: 8px 12px; border: none; background: #017f97; color: white; border-radius: 5px; cursor: pointer;" ${currentDisplayPage === 1 ? 'disabled style="opacity:0.5;padding:8px 12px;border:none;background:#017f97;color:white;border-radius:5px;"' : ''}>⏮ 처음</button>
+                    <button onclick="goToDisplayPage(${currentDisplayPage - 1})" style="padding: 8px 16px; border: none; background: #017f97; color: white; border-radius: 5px; cursor: pointer; font-size: 16px;" ${currentDisplayPage === 1 ? 'disabled style="opacity:0.5;padding:8px 16px;border:none;background:#017f97;color:white;border-radius:5px;font-size:16px;"' : ''}>◀ 이전</button>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <input type="number" id="displayPageInput" value="${currentDisplayPage}" min="1" max="${totalPages}" 
+                            style="width: 50px; padding: 8px; text-align: center; border: 1px solid #ccc; border-radius: 5px; font-size: 16px;"
+                            onchange="goToDisplayPage(parseInt(this.value))"
+                            onkeypress="if(event.key==='Enter') goToDisplayPage(parseInt(this.value))">
+                        <span style="font-size: 14px; color: #666;">/ ${totalPages} 페이지</span>
+                    </span>
+                    <button onclick="goToDisplayPage(${currentDisplayPage + 1})" style="padding: 8px 16px; border: none; background: #017f97; color: white; border-radius: 5px; cursor: pointer; font-size: 16px;" ${currentDisplayPage === totalPages ? 'disabled style="opacity:0.5;padding:8px 16px;border:none;background:#017f97;color:white;border-radius:5px;font-size:16px;"' : ''}>다음 ▶</button>
+                    <button onclick="goToDisplayPage(${totalPages})" style="padding: 8px 12px; border: none; background: #017f97; color: white; border-radius: 5px; cursor: pointer;" ${currentDisplayPage === totalPages ? 'disabled style="opacity:0.5;padding:8px 12px;border:none;background:#017f97;color:white;border-radius:5px;"' : ''}>마지막 ⏭</button>
+                </div>
+                <div style="text-align: center; margin-bottom: 10px; font-size: 13px; color: #666;">
+                    총 ${totalLabels}개 라벨 중 ${startIdx + 1} ~ ${endIdx}번째 표시
+                </div>`;
+            }
+            
+            // 라벨 컨테이너
+            if (isDoubleSidedBadge) {
+                html += `<div class="display-label-print-container" style="width: 210mm; padding: 20mm; box-sizing: border-box;">`;
+            } else {
+                html += `<div class="display-label-print-container" style="width: 210mm; padding: 20mm; box-sizing: border-box;">
+                    <div class="display-label-grid" style="display: grid; grid-template-columns: repeat(${gridColumns}, 1fr); gap: 0;">`;
+            }
+            
+            // 각 라벨 생성
+            pageLabels.forEach((item) => {
                 const name = item.name;
                 const info = item.description;
-                
-                console.log(`라벨 ${index + 1} 생성:`, { name, info });
                 
                 let bgStyle = '';
                 if (bgImageData) {
                     bgStyle = `background-image: url(${bgImageData}); `;
                     switch(imageFit) {
-                        case 'cover':
-                            bgStyle += 'background-size: cover; background-position: center;';
-                            break;
-                        case 'contain':
-                            bgStyle += 'background-size: contain; background-repeat: no-repeat; background-position: center;';
-                            break;
-                        case 'stretch':
-                            bgStyle += 'background-size: 100% 100%;';
-                            break;
-                        case 'center':
-                            bgStyle += 'background-size: auto; background-position: center; background-repeat: no-repeat;';
-                            break;
+                        case 'cover': bgStyle += 'background-size: cover; background-position: center;'; break;
+                        case 'contain': bgStyle += 'background-size: contain; background-repeat: no-repeat; background-position: center;'; break;
+                        case 'stretch': bgStyle += 'background-size: 100% 100%;'; break;
+                        case 'center': bgStyle += 'background-size: auto; background-position: center; background-repeat: no-repeat;'; break;
                     }
                 }
                 
@@ -4105,66 +4846,95 @@
                 
                 if (labelSize === 'small') {
                     const maxNameWidth = 59;
-                    const maxDescWidth = 59;
                     let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
-                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
-                    
+                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxNameWidth, 18, 8) : 18;
                     html += `
                         <div class="display-label-item display-label-small" style="${bgStyle}">
                             <div class="display-label-content">
                                 <div class="${textBgClass}">
-                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
-                                        ${name}
-                                    </div>
+                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">${name}</div>
                                     ${info ? `<div class="label-desc" style="color: ${textColor}; font-size: ${descSize}pt;">(${info})</div>` : ''}
                                 </div>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                 } else if (labelSize === 'medium') {
                     const maxNameWidth = 59;
-                    const maxDescWidth = 59;
                     let nameSize = calculateOptimalFontSize(name, maxNameWidth, 36, 16);
-                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxDescWidth, 18, 8) : 18;
-                    
+                    let descSize = info ? calculateOptimalFontSize('(' + info + ')', maxNameWidth, 18, 8) : 18;
                     html += `
                         <div class="display-label-item display-label-medium" style="${bgStyle}">
                             <div class="display-label-content">
                                 <div class="${textBgClass}">
-                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
-                                        ${name}
-                                    </div>
+                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">${name}</div>
                                     ${info ? `<div class="label-desc" style="color: ${textColor}; font-size: ${descSize}pt;">(${info})</div>` : ''}
                                 </div>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                 } else if (labelSize === 'large') {
-                    const maxNameWidth = 87;
-                    const maxOrgWidth = 87;
+                    const maxNameWidth = 130;
                     let nameSize = calculateOptimalFontSize(name, maxNameWidth, 72, 24);
-                    let orgSize = info ? calculateOptimalFontSize(info, maxOrgWidth, 24, 12) : 24;
+                    let orgSize = info ? calculateOptimalFontSize(info, maxNameWidth, 24, 12) : 24;
                     
-                    html += `
-                        <div class="display-label-item display-label-large" style="${bgStyle}">
-                            <div class="display-label-content">
-                                <div class="${textBgClass}">
-                                    <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">
-                                        ${name}
+                    if (isDoubleSidedBadge) {
+                        html += `
+                            <div class="display-label-double-page" style="width: 150mm; margin-top: 5mm; position: relative; display: flex; flex-direction: column; align-items: center;">
+                                <div style="position: absolute; top: 0; left: 0; width: 150mm; border-top: 1px dashed #ccc; z-index: 10;"></div>
+                                <div class="display-label-item display-label-large" style="${bgStyle} transform: rotate(180deg); border: 1px solid #ccc; border-bottom: 1px solid #ccc; border-radius: 0; margin: 0;">
+                                    <div class="display-label-content">
+                                        <div class="${textBgClass}">
+                                            <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">${name}</div>
+                                            ${info ? `<div class="label-org" style="color: ${textColor}; font-size: ${orgSize}pt;">${info}</div>` : ''}
+                                        </div>
                                     </div>
-                                    ${info ? `<div class="label-org" style="color: ${textColor}; font-size: ${orgSize}pt;">${info}</div>` : ''}
                                 </div>
-                            </div>
-                        </div>
-                    `;
+                                <div class="display-label-item display-label-large" style="${bgStyle} border: 1px solid #ccc; border-top: none; border-radius: 0; margin: 0;">
+                                    <div class="display-label-content">
+                                        <div class="${textBgClass}">
+                                            <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">${name}</div>
+                                            ${info ? `<div class="label-org" style="color: ${textColor}; font-size: ${orgSize}pt;">${info}</div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
+                    } else {
+                        html += `
+                            <div class="display-label-item display-label-large" style="${bgStyle}">
+                                <div class="display-label-content">
+                                    <div class="${textBgClass}">
+                                        <div class="label-name" style="color: ${textColor}; font-size: ${nameSize}pt;">${name}</div>
+                                        ${info ? `<div class="label-org" style="color: ${textColor}; font-size: ${orgSize}pt;">${info}</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>`;
+                    }
                 }
             });
             
-            html += '</div></div>'; // display-label-grid + display-label-print-container
-            document.getElementById('labelPreview').innerHTML = html;
-            document.getElementById('labelActions').style.display = 'flex';
+            // 컨테이너 닫기
+            if (isDoubleSidedBadge) {
+                html += '</div>';
+            } else {
+                html += '</div></div>';
+            }
             
-            console.log('✅ 라벨 생성 완료');
+            document.getElementById('labelPreview').innerHTML = html;
+        }
+        
+        // 전시용 라벨 페이지 이동
+        function goToDisplayPage(page) {
+            const labelSize = document.getElementById('displayLabelSize').value;
+            const isDoubleSidedBadge = labelSize === 'large' && 
+                document.querySelector('input[name="badgeSide"]:checked')?.value === 'double';
+            
+            let labelsPerPage = 3;
+            if (labelSize === 'small') labelsPerPage = 12;
+            else if (labelSize === 'medium') labelsPerPage = 10;
+            else if (labelSize === 'large') labelsPerPage = isDoubleSidedBadge ? 1 : 3;
+            
+            const totalPages = Math.ceil(displayLabelDataAll.length / labelsPerPage);
+            
+            currentDisplayPage = Math.max(1, Math.min(page, totalPages));
+            renderDisplayLabelsWithPagination();
         }
 
         function downloadDisplayLabelTemplate() {
@@ -5371,9 +6141,9 @@
                         .display-label-print-container { width: 210mm; padding: 20mm; box-sizing: border-box; margin: 0; }
                         .display-label-grid { display: grid; gap: 0; }
                         .display-label-item { position: relative; overflow: hidden; border: 1px solid #ccc; font-family: 'NanumSquare', sans-serif; font-weight: 800; display: flex; align-items: center; justify-content: center; box-sizing: border-box; margin: 0; }
-                        .display-label-small { width: 85mm; height: 42.83mm; padding: 0 5mm; }
-                        .display-label-medium { width: 85mm; height: 51.4mm; padding: 0 5mm; }
-                        .display-label-large { width: 170mm; height: 85.67mm; padding: 0 20mm; }
+                        .display-label-small { width: 75mm; height: 40mm; padding: 0 5mm; }
+                        .display-label-medium { width: 75mm; height: 50mm; padding: 0 5mm; }
+                        .display-label-large { width: 150mm; height: 75mm; padding: 0 15mm; }
                         .label-name { font-size: 36pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
                         .label-desc { margin-top: 2mm; font-size: 18pt; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
                         .display-label-large .label-name { font-size: 72pt; }
