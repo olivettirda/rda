@@ -199,7 +199,7 @@
 
                         <div class="form-group">
                             <label>텍스트 일괄 입력</label>
-                            <textarea id="bulkInput" placeholder="한아름찰&#10;새일미&#10;해담쌀"></textarea>
+                            <textarea id="bulkInput" placeholder="한아름&#10;새일미&#10;삼광"></textarea>
                             <div style="margin-top: 10px;">
                                 <label class="setting-label">기본 반복수</label>
                                 <input type="number" id="defaultRepeatCount" value="3" min="1" max="20" style="width: 100px;">
@@ -295,7 +295,7 @@
                     
                     <div class="form-group">
                         <label>품종 목록 (한 줄에 하나씩)</label>
-                        <textarea id="surveyVarieties" placeholder="한아름찰&#10;새일미&#10;해담쌀"></textarea>
+                        <textarea id="surveyVarieties" placeholder="한아름&#10;새일미&#10;삼광"></textarea>
                         <div style="margin-top: 10px;">
                             <button class="btn btn-info" onclick="loadFromListTab()">📋 품종목록에서 가져오기</button>
                         </div>
@@ -419,6 +419,80 @@
                     
                     <div id="dmrtResults" class="output-section">
                         <div class="output-empty">DMRT 결과가 여기에 표시됩니다</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">📊 t-검정 (t-test)</div>
+                    
+                    <div class="settings-grid" style="margin-bottom: 15px;">
+                        <div class="setting-item">
+                            <label class="setting-label">비교 품종 1</label>
+                            <select id="ttestVariety1">
+                                <option value="">품종 선택</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">비교 품종 2</label>
+                            <select id="ttestVariety2">
+                                <option value="">품종 선택</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">검정 유형</label>
+                            <select id="ttestType">
+                                <option value="independent">독립표본 t-검정</option>
+                                <option value="paired">대응표본 t-검정</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <button class="btn btn-primary" onclick="runTTest()">🔬 t-검정 실행</button>
+                        </div>
+                    </div>
+                    
+                    <div id="ttestResults" class="output-section">
+                        <div class="output-empty">두 품종을 선택하고 't-검정 실행' 버튼을 클릭하세요</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">📈 분포도 (Distribution Plot)</div>
+                    
+                    <div class="settings-grid" style="margin-bottom: 15px;">
+                        <div class="setting-item">
+                            <label class="setting-label">분포도 유형</label>
+                            <select id="distributionType" onchange="updateDistributionPlot()">
+                                <option value="histogram">히스토그램</option>
+                                <option value="boxplot">박스플롯</option>
+                                <option value="violin">바이올린 플롯</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">구간 수 (히스토그램)</label>
+                            <input type="number" id="histogramBins" value="10" min="3" max="30" onchange="updateDistributionPlot()">
+                        </div>
+                        <div class="setting-item">
+                            <label class="setting-label">표시 항목</label>
+                            <select id="distributionDisplay">
+                                <option value="all">전체 품종</option>
+                                <option value="selected">선택 품종만</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <button class="btn btn-primary" onclick="updateDistributionPlot()">📊 분포도 생성</button>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container" id="distributionWrapper">
+                        <canvas id="distributionChart"></canvas>
+                    </div>
+                    
+                    <div id="distributionStats" class="output-section" style="margin-top: 15px;">
+                        <div class="output-empty">분포도 생성 시 정규성 검정 결과가 표시됩니다</div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn btn-secondary" onclick="downloadDistributionChart()">📥 분포도 다운로드</button>
                     </div>
                 </div>
 
@@ -662,11 +736,11 @@
                         <label>텍스트 일괄 입력</label>
                         <div class="alert alert-info" style="font-size: 13px; margin-bottom: 10px;">
                             <strong>💡 입력 형식:</strong> 이름,부가설명 (쉼표로 구분)<br>
-                            <small>예: 한아름찰,2025년 시험</small>
+                            <small>예: 한아름,2024년 시험</small>
                         </div>
-                        <textarea id="displayBulkInput" rows="5" placeholder="한아름찰,2025년 시험
+                        <textarea id="displayBulkInput" rows="5" placeholder="한아름,2024년 시험
 새일미,우수품종
-해담쌀,농촌진흥청"></textarea>
+삼광,농촌진흥청"></textarea>
                     </div>
 
                     <div class="input-divider">또는</div>
@@ -1414,12 +1488,12 @@
             const wb = XLSX.utils.book_new();
             const data = [
                 ['품종명', '반복수', '', '📌 입력 방법'],
-                ['한아름찰', '3', '', '• 품종명: 조사할 품종 이름을 입력하세요'],
+                ['한아름', '3', '', '• 품종명: 조사할 품종 이름을 입력하세요'],
                 ['새일미', '3', '', '• 반복수: 각 품종을 몇 번 반복할지 숫자 입력'],
-                ['해담쌀', '5', '', ''],
-                ['영호진미', '3', '', '💡 예시'],
-                ['안평', '4', '', '품종명: 한아름찰 / 반복수: 3'],
-                ['', '', '', '  → 결과: 한아름찰-1, 한아름찰-2, 한아름찰-3']
+                ['삼광', '5', '', ''],
+                ['참동진', '3', '', '💡 예시'],
+                ['신동진', '4', '', '품종명: 한아름 / 반복수: 3'],
+                ['', '', '', '  → 결과: 한아름-1, 한아름-2, 한아름-3']
             ];
             const ws = XLSX.utils.aoa_to_sheet(data);
             ws['!cols'] = [{ wch: 18 }, { wch: 12 }, { wch: 2 }, { wch: 45 }];
@@ -1758,9 +1832,9 @@
                 ['아래에 품종명을 입력하세요', ''],
                 ['', ''],
                 ['품종명', '비고 (선택)'],
-                ['한아름찰', ''],
+                ['한아름', ''],
                 ['새일미', ''],
-                ['해담쌀', ''],
+                ['삼광', ''],
                 ['', '← 품종 추가 시 아래로 입력'],
                 ['', ''],
                 ['', ''],
@@ -2193,6 +2267,9 @@
             performANOVA(varietyData, item);
             performDMRT(varietyData, item);
             updateChart();
+            
+            // t-test 품종 선택 드롭다운 업데이트
+            updateTTestVarietySelects();
         }
 
         function calculateStatistics(values) {
@@ -2471,6 +2548,441 @@
                 return 4.50;
             }
             return 3.00;
+        }
+
+        // ========== t-test 기능 ==========
+        function updateTTestVarietySelects() {
+            const varieties = Object.keys(surveyData);
+            const select1 = document.getElementById('ttestVariety1');
+            const select2 = document.getElementById('ttestVariety2');
+            
+            if (!select1 || !select2) return;
+            
+            // 기존 옵션 제거
+            select1.innerHTML = '<option value="">품종 선택</option>';
+            select2.innerHTML = '<option value="">품종 선택</option>';
+            
+            // 품종 옵션 추가
+            varieties.forEach(variety => {
+                select1.innerHTML += `<option value="${variety}">${variety}</option>`;
+                select2.innerHTML += `<option value="${variety}">${variety}</option>`;
+            });
+        }
+        
+        function runTTest() {
+            const item = document.getElementById('analysisItem').value;
+            const variety1 = document.getElementById('ttestVariety1').value;
+            const variety2 = document.getElementById('ttestVariety2').value;
+            const testType = document.getElementById('ttestType').value;
+            
+            if (!item || !variety1 || !variety2) {
+                alert('분석 항목과 비교할 두 품종을 선택하세요.');
+                return;
+            }
+            
+            if (variety1 === variety2) {
+                alert('서로 다른 두 품종을 선택하세요.');
+                return;
+            }
+            
+            const data1 = surveyData[variety1][item] || [];
+            const data2 = surveyData[variety2][item] || [];
+            
+            if (data1.length < 2 || data2.length < 2) {
+                alert('각 품종당 최소 2개 이상의 데이터가 필요합니다.');
+                return;
+            }
+            
+            // 통계량 계산
+            const stats1 = calculateStatistics(data1);
+            const stats2 = calculateStatistics(data2);
+            
+            let tValue, df, pValue;
+            
+            if (testType === 'independent') {
+                // 독립표본 t-검정 (Welch's t-test)
+                const pooledSE = Math.sqrt((stats1.variance / stats1.n) + (stats2.variance / stats2.n));
+                tValue = (stats1.mean - stats2.mean) / pooledSE;
+                
+                // Welch-Satterthwaite 자유도
+                const v1 = stats1.variance / stats1.n;
+                const v2 = stats2.variance / stats2.n;
+                df = Math.pow(v1 + v2, 2) / (Math.pow(v1, 2) / (stats1.n - 1) + Math.pow(v2, 2) / (stats2.n - 1));
+            } else {
+                // 대응표본 t-검정
+                if (data1.length !== data2.length) {
+                    alert('대응표본 t-검정은 두 그룹의 데이터 수가 같아야 합니다.');
+                    return;
+                }
+                
+                const differences = data1.map((v, i) => v - data2[i]);
+                const diffStats = calculateStatistics(differences);
+                tValue = diffStats.mean / (diffStats.std / Math.sqrt(diffStats.n));
+                df = diffStats.n - 1;
+            }
+            
+            // p-value 근사 계산 (t-분포)
+            pValue = calculatePValueFromT(Math.abs(tValue), df);
+            
+            const alpha = parseFloat(document.getElementById('significanceLevel').value);
+            const isSignificant = pValue < alpha;
+            
+            // 결과 표시
+            let html = `<h4>${item}: ${variety1} vs ${variety2}</h4>`;
+            html += `<table>
+                <thead><tr><th>품종</th><th>n</th><th>평균</th><th>표준편차</th><th>표준오차</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>${variety1}</strong></td><td>${stats1.n}</td><td>${stats1.mean.toFixed(3)}</td><td>${stats1.std.toFixed(3)}</td><td>${stats1.se.toFixed(3)}</td></tr>
+                    <tr><td><strong>${variety2}</strong></td><td>${stats2.n}</td><td>${stats2.mean.toFixed(3)}</td><td>${stats2.std.toFixed(3)}</td><td>${stats2.se.toFixed(3)}</td></tr>
+                </tbody>
+            </table>`;
+            
+            html += `<div style="margin-top: 15px; padding: 15px; background: ${isSignificant ? '#ffebee' : '#e8f5e9'}; border-radius: 8px;">
+                <strong>📊 ${testType === 'independent' ? '독립표본' : '대응표본'} t-검정 결과</strong><br><br>
+                <table style="width: auto;">
+                    <tr><td>t-값:</td><td><strong>${tValue.toFixed(4)}</strong></td></tr>
+                    <tr><td>자유도 (df):</td><td><strong>${df.toFixed(2)}</strong></td></tr>
+                    <tr><td>p-값:</td><td><strong>${pValue < 0.0001 ? '< 0.0001' : pValue.toFixed(4)}</strong></td></tr>
+                    <tr><td>유의수준 (α):</td><td>${alpha}</td></tr>
+                    <tr><td>평균 차이:</td><td><strong>${(stats1.mean - stats2.mean).toFixed(3)}</strong></td></tr>
+                </table>
+                <br>
+                <strong style="color: ${isSignificant ? '#c62828' : '#2e7d32'};">
+                    ${isSignificant ? '⚠️ 유의한 차이가 있음 (p < ' + alpha + ')' : '✓ 유의한 차이가 없음 (p ≥ ' + alpha + ')'}
+                </strong>
+            </div>`;
+            
+            document.getElementById('ttestResults').innerHTML = html;
+        }
+        
+        // t-분포에서 p-value 근사 계산
+        function calculatePValueFromT(t, df) {
+            // 근사 계산 (정규분포 근사 + 보정)
+            const x = df / (df + t * t);
+            const a = df / 2;
+            const b = 0.5;
+            
+            // 불완전 베타 함수 근사
+            let pValue;
+            if (df > 100) {
+                // 큰 자유도: 정규분포 근사
+                pValue = 2 * (1 - normalCDF(Math.abs(t)));
+            } else {
+                // 작은 자유도: 근사 공식
+                const g = Math.exp(logGamma(a + b) - logGamma(a) - logGamma(b));
+                pValue = g * Math.pow(x, a) * Math.pow(1 - x, b - 1) / a;
+                pValue = Math.min(1, pValue * df);
+            }
+            
+            return Math.max(0.0001, Math.min(1, pValue));
+        }
+        
+        function normalCDF(x) {
+            const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+            const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+            const sign = x < 0 ? -1 : 1;
+            x = Math.abs(x) / Math.sqrt(2);
+            const t = 1 / (1 + p * x);
+            const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+            return 0.5 * (1 + sign * y);
+        }
+        
+        function logGamma(x) {
+            const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+                      -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+            let y = x, tmp = x + 5.5;
+            tmp -= (x + 0.5) * Math.log(tmp);
+            let ser = 1.000000000190015;
+            for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+            return -tmp + Math.log(2.5066282746310005 * ser / x);
+        }
+
+        // ========== 분포도 기능 ==========
+        let distributionChartInstance = null;
+        
+        function updateDistributionPlot() {
+            const item = document.getElementById('analysisItem').value;
+            const distType = document.getElementById('distributionType').value;
+            const displayMode = document.getElementById('distributionDisplay').value;
+            
+            if (!item || !surveyData || Object.keys(surveyData).length === 0) {
+                alert('먼저 데이터를 업로드하고 분석 항목을 선택하세요.');
+                return;
+            }
+            
+            const canvas = document.getElementById('distributionChart');
+            const ctx = canvas.getContext('2d');
+            
+            if (distributionChartInstance) {
+                distributionChartInstance.destroy();
+            }
+            
+            const varieties = Object.keys(surveyData);
+            const colors = ['#1976d2', '#388e3c', '#d32f2f', '#7b1fa2', '#f57c00', '#0097a7', '#5d4037', '#455a64'];
+            
+            if (distType === 'histogram') {
+                drawHistogram(ctx, canvas, item, varieties, colors);
+            } else if (distType === 'boxplot') {
+                drawBoxPlot(ctx, canvas, item, varieties, colors);
+            } else if (distType === 'violin') {
+                drawViolinPlot(ctx, canvas, item, varieties, colors);
+            }
+            
+            // 정규성 검정 결과 표시
+            displayNormalityTest(item, varieties);
+        }
+        
+        function drawHistogram(ctx, canvas, item, varieties, colors) {
+            const bins = parseInt(document.getElementById('histogramBins').value) || 10;
+            
+            // 전체 데이터 범위 계산
+            let allValues = [];
+            varieties.forEach(v => {
+                const data = surveyData[v][item] || [];
+                allValues = allValues.concat(data);
+            });
+            
+            if (allValues.length === 0) return;
+            
+            const minVal = Math.min(...allValues);
+            const maxVal = Math.max(...allValues);
+            const binWidth = (maxVal - minVal) / bins;
+            
+            const datasets = varieties.map((variety, idx) => {
+                const data = surveyData[variety][item] || [];
+                const histogram = new Array(bins).fill(0);
+                
+                data.forEach(val => {
+                    let binIndex = Math.floor((val - minVal) / binWidth);
+                    if (binIndex >= bins) binIndex = bins - 1;
+                    if (binIndex < 0) binIndex = 0;
+                    histogram[binIndex]++;
+                });
+                
+                return {
+                    label: variety,
+                    data: histogram,
+                    backgroundColor: colors[idx % colors.length] + '80',
+                    borderColor: colors[idx % colors.length],
+                    borderWidth: 1
+                };
+            });
+            
+            const labels = [];
+            for (let i = 0; i < bins; i++) {
+                const start = (minVal + i * binWidth).toFixed(1);
+                const end = (minVal + (i + 1) * binWidth).toFixed(1);
+                labels.push(`${start}-${end}`);
+            }
+            
+            distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: `${item} 히스토그램` }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: item } },
+                        y: { title: { display: true, text: '빈도' }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+        
+        function drawBoxPlot(ctx, canvas, item, varieties, colors) {
+            // Chart.js 기본으로는 박스플롯이 없으므로 막대+오차막대로 표현
+            const datasets = [];
+            const boxData = [];
+            
+            varieties.forEach((variety, idx) => {
+                const data = surveyData[variety][item] || [];
+                if (data.length === 0) return;
+                
+                const sorted = [...data].sort((a, b) => a - b);
+                const n = sorted.length;
+                const q1 = sorted[Math.floor(n * 0.25)];
+                const median = sorted[Math.floor(n * 0.5)];
+                const q3 = sorted[Math.floor(n * 0.75)];
+                const min = sorted[0];
+                const max = sorted[n - 1];
+                const iqr = q3 - q1;
+                
+                boxData.push({ variety, min, q1, median, q3, max, iqr });
+            });
+            
+            // 간단한 박스플롯 표현 (평균 ± 범위)
+            distributionChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: boxData.map(d => d.variety),
+                    datasets: [{
+                        label: '중앙값 (Q1-Q3)',
+                        data: boxData.map(d => d.median),
+                        backgroundColor: colors.map((c, i) => c + '80'),
+                        borderColor: colors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: `${item} 박스플롯 (중앙값)` },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: function(context) {
+                                    const idx = context[0].dataIndex;
+                                    const d = boxData[idx];
+                                    return [
+                                        `최소: ${d.min.toFixed(2)}`,
+                                        `Q1: ${d.q1.toFixed(2)}`,
+                                        `중앙값: ${d.median.toFixed(2)}`,
+                                        `Q3: ${d.q3.toFixed(2)}`,
+                                        `최대: ${d.max.toFixed(2)}`,
+                                        `IQR: ${d.iqr.toFixed(2)}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { title: { display: true, text: item } }
+                    }
+                }
+            });
+            
+            // 박스플롯 상세 정보 표시
+            let html = '<h4>박스플롯 통계량</h4><table>';
+            html += '<thead><tr><th>품종</th><th>최소</th><th>Q1</th><th>중앙값</th><th>Q3</th><th>최대</th><th>IQR</th></tr></thead><tbody>';
+            boxData.forEach(d => {
+                html += `<tr><td><strong>${d.variety}</strong></td>`;
+                html += `<td>${d.min.toFixed(2)}</td><td>${d.q1.toFixed(2)}</td>`;
+                html += `<td>${d.median.toFixed(2)}</td><td>${d.q3.toFixed(2)}</td>`;
+                html += `<td>${d.max.toFixed(2)}</td><td>${d.iqr.toFixed(2)}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('distributionStats').innerHTML = html;
+        }
+        
+        function drawViolinPlot(ctx, canvas, item, varieties, colors) {
+            // 바이올린 플롯은 밀도 추정이 필요하므로 히스토그램 + 선으로 근사
+            const datasets = [];
+            
+            varieties.forEach((variety, idx) => {
+                const data = surveyData[variety][item] || [];
+                if (data.length < 3) return;
+                
+                const stats = calculateStatistics(data);
+                
+                // 커널 밀도 추정 (간단한 정규분포 근사)
+                const points = [];
+                const range = stats.max - stats.min;
+                const step = range / 20;
+                
+                for (let x = stats.min - range * 0.1; x <= stats.max + range * 0.1; x += step) {
+                    let density = 0;
+                    const h = stats.std * 0.5; // 대역폭
+                    data.forEach(val => {
+                        density += Math.exp(-0.5 * Math.pow((x - val) / h, 2)) / (h * Math.sqrt(2 * Math.PI));
+                    });
+                    density /= data.length;
+                    points.push({ x: x, y: density });
+                }
+                
+                datasets.push({
+                    label: variety,
+                    data: points,
+                    borderColor: colors[idx % colors.length],
+                    backgroundColor: colors[idx % colors.length] + '40',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                });
+            });
+            
+            distributionChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: `${item} 밀도 분포 (바이올린 플롯 근사)` }
+                    },
+                    scales: {
+                        x: { 
+                            type: 'linear',
+                            title: { display: true, text: item }
+                        },
+                        y: { 
+                            title: { display: true, text: '밀도' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function displayNormalityTest(item, varieties) {
+            let html = '<h4>정규성 검정 (Shapiro-Wilk 근사)</h4>';
+            html += '<table><thead><tr><th>품종</th><th>n</th><th>왜도</th><th>첨도</th><th>정규성</th></tr></thead><tbody>';
+            
+            varieties.forEach(variety => {
+                const data = surveyData[variety][item] || [];
+                if (data.length < 3) {
+                    html += `<tr><td>${variety}</td><td colspan="4">데이터 부족</td></tr>`;
+                    return;
+                }
+                
+                const stats = calculateStatistics(data);
+                const n = data.length;
+                
+                // 왜도 (Skewness)
+                let skewness = 0;
+                data.forEach(val => {
+                    skewness += Math.pow((val - stats.mean) / stats.std, 3);
+                });
+                skewness = skewness * n / ((n - 1) * (n - 2));
+                
+                // 첨도 (Kurtosis)
+                let kurtosis = 0;
+                data.forEach(val => {
+                    kurtosis += Math.pow((val - stats.mean) / stats.std, 4);
+                });
+                kurtosis = kurtosis * n * (n + 1) / ((n - 1) * (n - 2) * (n - 3));
+                kurtosis -= 3 * (n - 1) * (n - 1) / ((n - 2) * (n - 3));
+                
+                // 정규성 판정 (간단한 기준)
+                const isNormal = Math.abs(skewness) < 2 && Math.abs(kurtosis) < 7;
+                
+                html += `<tr>
+                    <td><strong>${variety}</strong></td>
+                    <td>${n}</td>
+                    <td>${skewness.toFixed(3)}</td>
+                    <td>${kurtosis.toFixed(3)}</td>
+                    <td style="color: ${isNormal ? '#2e7d32' : '#c62828'}">
+                        ${isNormal ? '✓ 정규분포 가정 가능' : '⚠️ 비정규 분포 의심'}
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            html += '<small style="color: #666;">* 왜도 |값| < 2, 첨도 |값| < 7 이면 정규분포 가정 가능</small>';
+            
+            document.getElementById('distributionStats').innerHTML = html;
+        }
+        
+        function downloadDistributionChart() {
+            const canvas = document.getElementById('distributionChart');
+            if (!distributionChartInstance) {
+                alert('먼저 분포도를 생성하세요.');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = '분포도_' + getDateString() + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         }
 
         function updateChart() {
@@ -3158,11 +3670,11 @@
             const wb = XLSX.utils.book_new();
             const data = [
                 ['이름', '설명', '', '📌 입력 방법'],
-                ['한아름찰', '2025년 시험', '', '• 이름: 라벨에 표시할 이름이나 품종명'],
+                ['한아름', '2024년 시험', '', '• 이름: 라벨에 표시할 이름이나 품종명'],
                 ['새일미', '우수품종', '', '• 설명: 부가설명(소형/중형) 또는 소속(명찰용)'],
-                ['해담쌀', '농촌진흥청', '', ''],
-                ['해담쌀', '', '', '💡 예시'],
-                ['안평', '밀양지역', '', '이름: 한아름찰 / 설명: 2025년 시험']
+                ['삼광', '농촌진흥청', '', ''],
+                ['참동진', '', '', '💡 예시'],
+                ['신동진', '밀양지역', '', '이름: 한아름 / 설명: 2024년 시험']
             ];
             const ws = XLSX.utils.aoa_to_sheet(data);
             ws['!cols'] = [{ wch: 18 }, { wch: 20 }, { wch: 2 }, { wch: 45 }];
@@ -3289,11 +3801,11 @@
                 // QR라벨데이터 시트 (QR코드 포함용)
                 const data = [
                     ['연도', '실험실', '시험번호', '품종 및 계통', '', '시료번호 생성 규칙:'],
-                    [2025, '1', 1001, '한아름찰', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 0(6에서 시험번호 자릿수 뺀 만큼 반복) + 시험번호(최대 6자리) = 총 12자리'],
+                    [2025, '1', 1001, '한아름', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 0(6에서 시험번호 자릿수 뺀 만큼 반복) + 시험번호(최대 6자리) = 총 12자리'],
                     [2025, '1', 10001, '새일미', '', '예: 연도가 2025년이고 가공실 계통이며 시험번호가 1001일 경우'],
-                    [2025, '2', 200001, '해담쌀', '', '  2025 + 0 + 1 + 00 + 1001 = 202501001001'],
-                    [2025, '2', 45501, '영호진미', '', ''],
-                    [2025, '3', 999, '안평', '', '']
+                    [2025, '2', 200001, '삼광', '', '  2025 + 0 + 1 + 00 + 1001 = 202501001001'],
+                    [2025, '2', 45501, '참동진', '', ''],
+                    [2025, '3', 999, '신동진', '', '']
                 ];
                 const ws1 = XLSX.utils.aoa_to_sheet(data);
                 ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 2 }, { wch: 60 }];
@@ -3317,11 +3829,11 @@
                 // 텍스트 라벨 데이터 시트 (QR코드 없음)
                 const data = [
                     ['시험번호', '품종 및 계통'],
-                    [1001, '한아름찰'],
+                    [1001, '한아름'],
                     [10001, '새일미'],
-                    [200001, '해담쌀'],
-                    [45501, '영호진미'],
-                    [999, '안평']
+                    [200001, '삼광'],
+                    [45501, '참동진'],
+                    [999, '신동진']
                 ];
                 const ws1 = XLSX.utils.aoa_to_sheet(data);
                 ws1['!cols'] = [{ wch: 12 }, { wch: 20 }];
@@ -3350,11 +3862,11 @@
             
             const data = [
                 ['연도', '실험실', '시험번호', '품종 및 계통', '', '시료번호 생성 규칙:'],
-                [2025, '1', 1001, '한아름찰', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 시험번호 패딩(6자리) = 총 12자리'],
+                [2025, '1', 1001, '한아름', '', '연도(4자리) + 0(1자리) + 실험실(가공실 1, 이모작실 2, 경지실 3) + 시험번호 패딩(6자리) = 총 12자리'],
                 [2025, '1', 10001, '새일미', '', '예: 2025 + 0 + 1 + 001001 = 202501001001'],
-                [2025, '2', 200001, '해담쌀', '', ''],
-                [2025, '2', 45501, '영호진미', '', ''],
-                [2025, '3', 999, '안평', '', '']
+                [2025, '2', 200001, '삼광', '', ''],
+                [2025, '2', 45501, '참동진', '', ''],
+                [2025, '3', 999, '신동진', '', '']
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(data);
             ws1['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 2 }, { wch: 60 }];
@@ -3378,11 +3890,11 @@
             
             const data = [
                 ['시험번호', '품종 및 계통'],
-                [1001, '한아름찰'],
+                [1001, '한아름'],
                 [10001, '새일미'],
-                [200001, '해담쌀'],
-                [45501, '영호진미'],
-                [999, '안평']
+                [200001, '삼광'],
+                [45501, '참동진'],
+                [999, '신동진']
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(data);
             ws1['!cols'] = [{ wch: 12 }, { wch: 20 }];
@@ -3661,7 +4173,7 @@
                     console.log('열 인덱스:', { yearIdx, labIdx, testNumIdx, varietyIdx });
                     
                     // 현재 설정된 연도와 실험실 코드 가져오기
-                    const defaultYear = document.getElementById('sampleYear')?.value || '2025';
+                    const defaultYear = document.getElementById('sampleYear')?.value || '2024';
                     const defaultLab = document.getElementById('labCode')?.value || '1';
                     
                     qrLabelData = [];
@@ -3790,7 +4302,7 @@
             container.innerHTML = ''; // 기존 행 삭제
             
             dataArray.forEach(item => {
-                const year = item.year || '2025';
+                const year = item.year || '2024';
                 const lab = item.lab || '1';
                 const testNum = item.testNumber || '';
                 
@@ -3815,7 +4327,7 @@
         }
 
         function updateSampleNumberFormat() {
-            const year = document.getElementById('sampleYear').value || '2025';
+            const year = document.getElementById('sampleYear').value || '2024';
             const lab = document.getElementById('labCode').value || '1';
             const testNum = document.getElementById('testNumberInput').value || '';
             const paddedTestNum = testNum.padStart(6, '0').substring(0, 6);
@@ -3833,7 +4345,7 @@
             row.className = 'input-row';
             row.style.marginBottom = '10px';
             row.innerHTML = `
-                <input type="number" placeholder="연도" value="2025" min="2000" max="2099" style="width: 100px;">
+                <input type="number" placeholder="연도" value="2024" min="2000" max="2099" style="width: 100px;">
                 <select style="width: 120px;">
                     <option value="1">가공실 (1)</option>
                     <option value="2">이모작실 (2)</option>
