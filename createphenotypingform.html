@@ -497,7 +497,29 @@
 
                 <div class="panel">
                     <div class="panel-title">📈 데이터 시각화</div>
-                    
+
+                    <!-- 형질 내비게이션 -->
+                    <div id="traitNavigation" style="display: none; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%); border-radius: 8px; border: 1px solid var(--border-color);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                            <button class="btn btn-secondary" onclick="navigateTrait(-1)" id="prevTraitBtn" style="padding: 8px 16px;">
+                                ◀ 이전 형질
+                            </button>
+                            <div style="text-align: center; flex: 1; min-width: 200px;">
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">현재 형질</div>
+                                <div id="currentTraitDisplay" style="font-size: 16px; font-weight: bold; color: var(--accent-7);"></div>
+                                <div id="traitIndexDisplay" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;"></div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="navigateTrait(1)" id="nextTraitBtn" style="padding: 8px 16px;">
+                                다음 형질 ▶
+                            </button>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <label class="setting-label" style="margin-bottom: 5px;">형질 바로가기</label>
+                            <select id="traitSelector" onchange="selectTrait(this.value)" style="width: 100%;">
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- 차트 옵션 그리드 -->
                     <div class="settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
                         <div class="setting-item">
@@ -616,16 +638,27 @@
                         </label>
                     </div>
                     
-                    <!-- 흑백 패턴 옵션 (흑백 모드시만 표시) -->
-                    <div id="patternOptions" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
-                        <label class="setting-label">흑백 패턴 사용</label>
+                    <!-- 패턴 채우기 옵션 -->
+                    <div id="patternOptions" style="margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
+                        <label class="setting-label">채우기 스타일</label>
                         <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="patternMode" value="solid" checked onchange="updateChart()"> 단색 (명도 차이)
+                                <input type="radio" name="patternMode" value="solid" checked onchange="updateChart()"> 단색 채우기
                             </label>
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="patternMode" value="pattern" onchange="updateChart()"> 패턴 사용
+                                <input type="radio" name="patternMode" value="pattern" onchange="updateChart()"> 패턴 채우기
                             </label>
+                        </div>
+                        <div id="patternTypeSelector" style="display: none; margin-top: 10px;">
+                            <label class="setting-label">패턴 종류</label>
+                            <select id="patternType" onchange="updateChart()" style="width: 100%; max-width: 200px;">
+                                <option value="mixed">혼합 (자동)</option>
+                                <option value="diagonal">대각선</option>
+                                <option value="cross">십자</option>
+                                <option value="dots">점</option>
+                                <option value="horizontal">수평선</option>
+                                <option value="vertical">수직선</option>
+                            </select>
                         </div>
                     </div>
 
@@ -958,17 +991,121 @@
         // 흑백 채우기 (연한색 → 진한색)
         const GRAYSCALE_FILLS = ['#f0f0f0', '#d0d0d0', '#b0b0b0', '#909090', '#707070', '#505050', '#303030'];
         
-        // 패턴 정의
-        const PATTERNS = {
-            solid: null,
-            stripe: (ctx, color) => createStripePattern(ctx, color, '/'),
-            stripe2: (ctx, color) => createStripePattern(ctx, color, '\\'),
-            hline: (ctx, color) => createLinePattern(ctx, color, 'horizontal'),
-            vline: (ctx, color) => createLinePattern(ctx, color, 'vertical'),
-            grid: (ctx, color) => createGridPattern(ctx, color),
-            dot: (ctx, color) => createDotPattern(ctx, color),
-            cross: (ctx, color) => createCrossPattern(ctx, color)
-        };
+        // 패턴 이름 배열 (혼합 모드용)
+        const PATTERN_NAMES = ['diagonal1', 'diagonal2', 'horizontal', 'vertical', 'dots', 'cross', 'grid'];
+
+        // 패턴 생성 함수들
+        function createPattern(ctx, patternType, baseColor, index) {
+            const canvas = document.createElement('canvas');
+            const size = 12;
+            canvas.width = size;
+            canvas.height = size;
+            const pctx = canvas.getContext('2d');
+
+            // 배경색
+            pctx.fillStyle = baseColor;
+            pctx.fillRect(0, 0, size, size);
+
+            // 패턴 선 색상 (대비되는 색상)
+            const lineColor = getContrastColor(baseColor);
+            pctx.strokeStyle = lineColor;
+            pctx.fillStyle = lineColor;
+            pctx.lineWidth = 2;
+
+            switch (patternType) {
+                case 'diagonal':
+                case 'diagonal1':
+                    // 대각선 (/)
+                    pctx.beginPath();
+                    pctx.moveTo(0, size);
+                    pctx.lineTo(size, 0);
+                    pctx.stroke();
+                    pctx.beginPath();
+                    pctx.moveTo(-size/2, size/2);
+                    pctx.lineTo(size/2, -size/2);
+                    pctx.stroke();
+                    pctx.beginPath();
+                    pctx.moveTo(size/2, size + size/2);
+                    pctx.lineTo(size + size/2, size/2);
+                    pctx.stroke();
+                    break;
+                case 'diagonal2':
+                    // 대각선 (\)
+                    pctx.beginPath();
+                    pctx.moveTo(0, 0);
+                    pctx.lineTo(size, size);
+                    pctx.stroke();
+                    pctx.beginPath();
+                    pctx.moveTo(-size/2, size/2);
+                    pctx.lineTo(size/2, size + size/2);
+                    pctx.stroke();
+                    pctx.beginPath();
+                    pctx.moveTo(size/2, -size/2);
+                    pctx.lineTo(size + size/2, size/2);
+                    pctx.stroke();
+                    break;
+                case 'horizontal':
+                    // 수평선
+                    pctx.beginPath();
+                    pctx.moveTo(0, size/2);
+                    pctx.lineTo(size, size/2);
+                    pctx.stroke();
+                    break;
+                case 'vertical':
+                    // 수직선
+                    pctx.beginPath();
+                    pctx.moveTo(size/2, 0);
+                    pctx.lineTo(size/2, size);
+                    pctx.stroke();
+                    break;
+                case 'dots':
+                    // 점 패턴
+                    pctx.beginPath();
+                    pctx.arc(size/2, size/2, 2, 0, Math.PI * 2);
+                    pctx.fill();
+                    break;
+                case 'cross':
+                    // 십자 패턴
+                    pctx.beginPath();
+                    pctx.moveTo(size/4, size/4);
+                    pctx.lineTo(size*3/4, size*3/4);
+                    pctx.moveTo(size*3/4, size/4);
+                    pctx.lineTo(size/4, size*3/4);
+                    pctx.stroke();
+                    break;
+                case 'grid':
+                    // 격자 패턴
+                    pctx.beginPath();
+                    pctx.moveTo(0, size/2);
+                    pctx.lineTo(size, size/2);
+                    pctx.moveTo(size/2, 0);
+                    pctx.lineTo(size/2, size);
+                    pctx.stroke();
+                    break;
+                default:
+                    // 단색 (패턴 없음)
+                    return baseColor;
+            }
+
+            return ctx.createPattern(canvas, 'repeat');
+        }
+
+        function getContrastColor(hexColor) {
+            // 16진수 색상에서 밝기 계산
+            const hex = hexColor.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            return brightness > 128 ? '#333333' : '#ffffff';
+        }
+
+        function getPatternTypeForIndex(index, selectedType) {
+            if (selectedType === 'mixed') {
+                return PATTERN_NAMES[index % PATTERN_NAMES.length];
+            }
+            return selectedType;
+        }
         
         // Duncan's q값 테이블 (α = 0.05)
         const qTable = {
@@ -2514,11 +2651,103 @@
                     updateChart();
                 }
             }
-            
+
+            // 내비게이션 업데이트
+            updateTraitNavigation();
+
             // t-test 품종 선택 드롭다운 업데이트
             updateTTestVarietySelects();
-            
+
             alert(`${allTraits.length}개 형질의 통계 분석이 완료되었습니다.`);
+        }
+
+        // ========== 형질 내비게이션 함수들 ==========
+        function updateTraitNavigation() {
+            const itemSelect = document.getElementById('analysisItem');
+            const allTraits = [];
+            Array.from(itemSelect.options).forEach(opt => {
+                if (opt.value && !opt.disabled) {
+                    allTraits.push(opt.value);
+                }
+            });
+
+            const navDiv = document.getElementById('traitNavigation');
+            const selector = document.getElementById('traitSelector');
+
+            if (allTraits.length > 0) {
+                navDiv.style.display = 'block';
+
+                // 드롭다운 업데이트
+                selector.innerHTML = allTraits.map((trait, idx) =>
+                    `<option value="${trait}">${idx + 1}. ${trait}</option>`
+                ).join('');
+
+                // 현재 선택된 형질 반영
+                const currentTrait = itemSelect.value;
+                if (currentTrait) {
+                    selector.value = currentTrait;
+                }
+
+                updateTraitDisplay();
+            } else {
+                navDiv.style.display = 'none';
+            }
+        }
+
+        function updateTraitDisplay() {
+            const itemSelect = document.getElementById('analysisItem');
+            const currentTrait = itemSelect.value;
+            const allTraits = [];
+            Array.from(itemSelect.options).forEach(opt => {
+                if (opt.value && !opt.disabled) {
+                    allTraits.push(opt.value);
+                }
+            });
+
+            const currentIndex = allTraits.indexOf(currentTrait);
+
+            document.getElementById('currentTraitDisplay').textContent = currentTrait || '-';
+            document.getElementById('traitIndexDisplay').textContent =
+                currentTrait ? `${currentIndex + 1} / ${allTraits.length}` : '';
+
+            // 버튼 활성화/비활성화
+            document.getElementById('prevTraitBtn').disabled = currentIndex <= 0;
+            document.getElementById('nextTraitBtn').disabled = currentIndex >= allTraits.length - 1;
+
+            // 드롭다운 동기화
+            const selector = document.getElementById('traitSelector');
+            if (selector && currentTrait) {
+                selector.value = currentTrait;
+            }
+        }
+
+        function navigateTrait(direction) {
+            const itemSelect = document.getElementById('analysisItem');
+            const allTraits = [];
+            Array.from(itemSelect.options).forEach(opt => {
+                if (opt.value && !opt.disabled) {
+                    allTraits.push(opt.value);
+                }
+            });
+
+            const currentTrait = itemSelect.value;
+            const currentIndex = allTraits.indexOf(currentTrait);
+            const newIndex = currentIndex + direction;
+
+            if (newIndex >= 0 && newIndex < allTraits.length) {
+                selectTrait(allTraits[newIndex]);
+            }
+        }
+
+        function selectTrait(traitName) {
+            const result = allTraitsResults[traitName];
+            if (result) {
+                dmrtResults = result.dmrtResults;
+                rawDataForDownload = result.rawData;
+                document.getElementById('analysisItem').value = traitName;
+                updateChart();
+                updateTraitDisplay();
+            }
         }
         
         // 개별 형질 DMRT 분석 (결과 반환용)
@@ -3307,53 +3536,68 @@
         function drawHistogramChart(item) {
             const bins = parseInt(document.getElementById('histogramBins')?.value) || 10;
             const varieties = Object.keys(surveyData);
-            const colors = ['#017f97', '#017f97', '#017f97', '#017f97', '#00a1b8', '#00a1b8', '#0c3026', '#0c3026'];
-            
+            const useGrayscale = document.getElementById('useGrayscale').checked;
+            const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
+            const patternType = document.getElementById('patternType')?.value || 'mixed';
+
+            // 색상 팔레트 선택
+            const basePalette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+
             // 전체 데이터 범위 계산
             let allValues = [];
             varieties.forEach(v => {
                 const data = surveyData[v][item] || [];
                 allValues = allValues.concat(data);
             });
-            
+
             if (allValues.length === 0) return;
-            
+
             const minVal = Math.min(...allValues);
             const maxVal = Math.max(...allValues);
             const binWidth = (maxVal - minVal) / bins;
-            
+
+            const canvas = document.getElementById('analysisChart');
+            const ctx = canvas.getContext('2d');
+
             const datasets = varieties.map((variety, idx) => {
                 const data = surveyData[variety][item] || [];
                 const histogram = new Array(bins).fill(0);
-                
+
                 data.forEach(val => {
                     let binIndex = Math.floor((val - minVal) / binWidth);
                     if (binIndex >= bins) binIndex = bins - 1;
                     if (binIndex < 0) binIndex = 0;
                     histogram[binIndex]++;
                 });
-                
+
+                const colorIdx = idx % basePalette.length;
+                const baseColor = basePalette[colorIdx];
+                let bgColor;
+
+                if (patternMode === 'pattern') {
+                    const pType = getPatternTypeForIndex(idx, patternType);
+                    bgColor = createPattern(ctx, pType, baseColor, idx);
+                } else {
+                    bgColor = baseColor + '80';
+                }
+
                 return {
                     label: variety,
                     data: histogram,
-                    backgroundColor: colors[idx % colors.length] + '80',
-                    borderColor: colors[idx % colors.length],
+                    backgroundColor: bgColor,
+                    borderColor: useGrayscale ? '#333333' : darkenColor(baseColor, 0.3),
                     borderWidth: 1
                 };
             });
-            
+
             const labels = [];
             for (let i = 0; i < bins; i++) {
                 const start = (minVal + i * binWidth).toFixed(1);
-                const end = (minVal + (i + 1) * binWidth).toFixed(1);
                 labels.push(`${start}`);
             }
-            
-            const canvas = document.getElementById('analysisChart');
-            const ctx = canvas.getContext('2d');
-            
+
             if (currentChart) currentChart.destroy();
-            
+
             currentChart = new Chart(ctx, {
                 type: 'bar',
                 data: { labels, datasets },
@@ -3374,13 +3618,20 @@
         
         function drawBoxPlotChart(item) {
             const varieties = Object.keys(surveyData);
-            const colors = ['#017f97', '#017f97', '#017f97', '#017f97', '#00a1b8', '#00a1b8', '#0c3026', '#0c3026'];
-            
+            const useGrayscale = document.getElementById('useGrayscale').checked;
+            const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
+            const patternType = document.getElementById('patternType')?.value || 'mixed';
+
+            const basePalette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+
+            const canvas = document.getElementById('analysisChart');
+            const ctx = canvas.getContext('2d');
+
             const boxData = [];
             varieties.forEach((variety, idx) => {
                 const data = surveyData[variety][item] || [];
                 if (data.length === 0) return;
-                
+
                 const sorted = [...data].sort((a, b) => a - b);
                 const n = sorted.length;
                 const q1 = sorted[Math.floor(n * 0.25)];
@@ -3390,15 +3641,27 @@
                 const max = sorted[n - 1];
                 const iqr = q3 - q1;
                 const mean = data.reduce((a, b) => a + b, 0) / n;
-                
-                boxData.push({ variety, min, q1, median, q3, max, iqr, mean, color: colors[idx % colors.length] });
+
+                const colorIdx = idx % basePalette.length;
+                const baseColor = basePalette[colorIdx];
+
+                let bgColor;
+                if (patternMode === 'pattern') {
+                    const pType = getPatternTypeForIndex(idx, patternType);
+                    bgColor = createPattern(ctx, pType, baseColor, idx);
+                } else {
+                    bgColor = baseColor + '80';
+                }
+
+                boxData.push({
+                    variety, min, q1, median, q3, max, iqr, mean,
+                    bgColor: bgColor,
+                    borderColor: useGrayscale ? '#333333' : darkenColor(baseColor, 0.3)
+                });
             });
-            
-            const canvas = document.getElementById('analysisChart');
-            const ctx = canvas.getContext('2d');
-            
+
             if (currentChart) currentChart.destroy();
-            
+
             // 박스플롯을 막대 + floating bar로 표현
             currentChart = new Chart(ctx, {
                 type: 'bar',
@@ -3408,8 +3671,8 @@
                         {
                             label: 'IQR (Q1-Q3)',
                             data: boxData.map(d => [d.q1, d.q3]),
-                            backgroundColor: boxData.map(d => d.color + '80'),
-                            borderColor: boxData.map(d => d.color),
+                            backgroundColor: boxData.map(d => d.bgColor),
+                            borderColor: boxData.map(d => d.borderColor),
                             borderWidth: 2
                         },
                         {
@@ -3455,11 +3718,13 @@
         
         function drawNormalDistributionChart(item) {
             const varieties = Object.keys(surveyData);
-            const colors = ['#017f97', '#017f97', '#017f97', '#017f97', '#00a1b8', '#00a1b8', '#0c3026', '#0c3026'];
-            
+            const useGrayscale = document.getElementById('useGrayscale').checked;
+
+            const basePalette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+
             const datasets = [];
             let globalMin = Infinity, globalMax = -Infinity;
-            
+
             // 각 품종의 데이터 범위 계산
             varieties.forEach(variety => {
                 const data = surveyData[variety][item] || [];
@@ -3468,39 +3733,42 @@
                 globalMin = Math.min(globalMin, stats.mean - 4 * stats.std);
                 globalMax = Math.max(globalMax, stats.mean + 4 * stats.std);
             });
-            
+
             // 정규분포 곡선 생성
             varieties.forEach((variety, idx) => {
                 const data = surveyData[variety][item] || [];
                 if (data.length < 3) return;
-                
+
                 const stats = calculateStatistics(data);
                 const points = [];
                 const step = (globalMax - globalMin) / 100;
-                
+
                 for (let x = globalMin; x <= globalMax; x += step) {
                     // 정규분포 확률밀도함수
                     const z = (x - stats.mean) / stats.std;
                     const y = (1 / (stats.std * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * z * z);
                     points.push({ x: x, y: y });
                 }
-                
+
+                const colorIdx = idx % basePalette.length;
+                const baseColor = basePalette[colorIdx];
+
                 datasets.push({
                     label: `${variety} (μ=${stats.mean.toFixed(1)}, σ=${stats.std.toFixed(1)})`,
                     data: points,
-                    borderColor: colors[idx % colors.length],
-                    backgroundColor: colors[idx % colors.length] + '20',
+                    borderColor: useGrayscale ? darkenColor(baseColor, 0.2) : baseColor,
+                    backgroundColor: baseColor + '20',
                     fill: true,
                     tension: 0.4,
                     pointRadius: 0
                 });
             });
-            
+
             const canvas = document.getElementById('analysisChart');
             const ctx = canvas.getContext('2d');
-            
+
             if (currentChart) currentChart.destroy();
-            
+
             currentChart = new Chart(ctx, {
                 type: 'line',
                 data: { datasets },
@@ -3512,13 +3780,13 @@
                         legend: { position: 'top' }
                     },
                     scales: {
-                        x: { 
+                        x: {
                             type: 'linear',
                             title: { display: true, text: item },
                             min: globalMin,
                             max: globalMax
                         },
-                        y: { 
+                        y: {
                             title: { display: true, text: '확률밀도' },
                             beginAtZero: true
                         }
@@ -3586,8 +3854,13 @@
             const useGroupColors = document.getElementById('useGroupColors').checked;
             const useGrayscale = document.getElementById('useGrayscale').checked;
             
-            // 흑백 패턴 옵션 표시/숨기기
-            document.getElementById('patternOptions').style.display = useGrayscale ? 'block' : 'none';
+            // 패턴 옵션 표시
+            const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
+            const patternTypeSelector = document.getElementById('patternTypeSelector');
+            if (patternTypeSelector) {
+                patternTypeSelector.style.display = patternMode === 'pattern' ? 'block' : 'none';
+            }
+            const patternType = document.getElementById('patternType')?.value || 'mixed';
             
             // 캔버스 크기 설정 (mm → px 변환)
             const widthPx = Math.round(widthMM * dpi / 25.4);
@@ -3639,23 +3912,34 @@
             const groups = orderedData.map(d => d.group);
             
             // 그룹별 색상 결정
-            let colors, borderColors;
+            let baseColors, borderColors;
             if (useGroupColors && dmrtResults) {
                 const uniqueGroups = [...new Set(groups)].sort();
                 const groupColorMap = {};
                 const palette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
-                
+
                 uniqueGroups.forEach((g, i) => {
                     const colorIdx = Math.floor(i * (palette.length - 1) / Math.max(uniqueGroups.length - 1, 1));
                     groupColorMap[g] = palette[colorIdx];
                 });
-                
-                colors = groups.map(g => groupColorMap[g]);
-                borderColors = useGrayscale ? colors.map(() => '#333333') : colors.map(c => darkenColor(c, 0.3));
+
+                baseColors = groups.map(g => groupColorMap[g]);
+                borderColors = useGrayscale ? baseColors.map(() => '#333333') : baseColors.map(c => darkenColor(c, 0.3));
             } else {
                 const baseColor = useGrayscale ? '#808080' : '#00a1b8';
-                colors = means.map(() => baseColor);
+                baseColors = means.map(() => baseColor);
                 borderColors = means.map(() => useGrayscale ? '#333333' : '#017f97');
+            }
+
+            // 패턴 적용
+            let colors;
+            if (patternMode === 'pattern') {
+                colors = baseColors.map((color, idx) => {
+                    const pType = getPatternTypeForIndex(idx, patternType);
+                    return createPattern(ctx, pType, color, idx);
+                });
+            } else {
+                colors = baseColors;
             }
             
             // Chart.js 플러그인 - 오차막대
@@ -4062,57 +4346,76 @@
                 const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 zip.file(`전체형질_분석결과_${dateStr}.xlsx`, excelBuffer);
                 
-                // ===== 차트 이미지 생성 =====
+                // ===== 차트 이미지 생성 (모든 차트 유형) =====
                 const dpi = parseInt(document.getElementById('chartDPI').value) || 150;
                 const scale = dpi / 96;
                 const originalItem = document.getElementById('analysisItem').value;
-                
-                for (let i = 0; i < allTraits.length; i++) {
-                    const trait = allTraits[i];
-                    const result = allTraitsResults[trait];
-                    
-                    if (result && result.dmrtResults) {
-                        dmrtResults = result.dmrtResults;
-                        rawDataForDownload = result.rawData;
-                        document.getElementById('analysisItem').value = trait;
-                        updateChart();
-                        
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        
-                        const canvas = document.getElementById('analysisChart');
-                        if (canvas) {
-                            const tempCanvas = document.createElement('canvas');
-                            tempCanvas.width = canvas.width * scale;
-                            tempCanvas.height = canvas.height * scale;
-                            const tempCtx = tempCanvas.getContext('2d');
-                            tempCtx.scale(scale, scale);
-                            tempCtx.fillStyle = 'white';
-                            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                            tempCtx.drawImage(canvas, 0, 0);
-                            
-                            const imgData = tempCanvas.toDataURL('image/png').split(',')[1];
-                            const safeName = trait.replace(/[\/\\:*?"<>|]/g, '_');
-                            imgFolder.file(`${safeName}_DMRT_${dpi}dpi.png`, imgData, {base64: true});
+                const originalChartType = document.getElementById('chartType').value;
+
+                // 모든 차트 유형
+                const chartTypes = [
+                    { value: 'bar', name: '막대그래프', folder: '1_막대그래프' },
+                    { value: 'line', name: '선그래프', folder: '2_선그래프' },
+                    { value: 'histogram', name: '히스토그램', folder: '3_히스토그램' },
+                    { value: 'boxplot', name: '박스플롯', folder: '4_박스플롯' },
+                    { value: 'normal', name: '정규분포', folder: '5_정규분포' }
+                ];
+
+                let totalImages = 0;
+
+                for (const chartTypeInfo of chartTypes) {
+                    const folder = imgFolder.folder(chartTypeInfo.folder);
+                    document.getElementById('chartType').value = chartTypeInfo.value;
+
+                    for (let i = 0; i < allTraits.length; i++) {
+                        const trait = allTraits[i];
+                        const result = allTraitsResults[trait];
+
+                        if (result && result.dmrtResults) {
+                            dmrtResults = result.dmrtResults;
+                            rawDataForDownload = result.rawData;
+                            document.getElementById('analysisItem').value = trait;
+                            updateChart();
+
+                            await new Promise(resolve => setTimeout(resolve, 300));
+
+                            const canvas = document.getElementById('analysisChart');
+                            if (canvas) {
+                                const tempCanvas = document.createElement('canvas');
+                                tempCanvas.width = canvas.width * scale;
+                                tempCanvas.height = canvas.height * scale;
+                                const tempCtx = tempCanvas.getContext('2d');
+                                tempCtx.scale(scale, scale);
+                                tempCtx.fillStyle = 'white';
+                                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                                tempCtx.drawImage(canvas, 0, 0);
+
+                                const imgData = tempCanvas.toDataURL('image/png').split(',')[1];
+                                const safeName = trait.replace(/[\/\\:*?"<>|]/g, '_');
+                                folder.file(`${safeName}_${chartTypeInfo.name}_${dpi}dpi.png`, imgData, {base64: true});
+                                totalImages++;
+                            }
                         }
                     }
                 }
-                
-                // 원래 항목 복원
+
+                // 원래 항목 및 차트 유형 복원
+                document.getElementById('chartType').value = originalChartType;
                 if (originalItem && allTraitsResults[originalItem]) {
                     dmrtResults = allTraitsResults[originalItem].dmrtResults;
                     rawDataForDownload = allTraitsResults[originalItem].rawData;
                     document.getElementById('analysisItem').value = originalItem;
                     updateChart();
                 }
-                
+
                 // ZIP 파일 생성 및 다운로드
                 const content = await zip.generateAsync({type: 'blob'});
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(content);
                 a.download = `통계분석결과_${dateStr}.zip`;
                 a.click();
-                
-                alert(`${allTraits.length}개 형질의 분석 결과가 압축 파일로 다운로드되었습니다.\n\n포함 내용:\n• 전체형질_분석결과.xlsx\n• 차트이미지/ 폴더 (${allTraits.length}개 PNG)${allTTestResults && allTTestResults.length > 0 ? '\n• t-test 결과 포함' : ''}`);
+
+                alert(`${allTraits.length}개 형질의 분석 결과가 압축 파일로 다운로드되었습니다.\n\n포함 내용:\n• 전체형질_분석결과.xlsx\n• 차트이미지/ 폴더 (총 ${totalImages}개 PNG)\n  - 1_막대그래프, 2_선그래프, 3_히스토그램\n  - 4_박스플롯, 5_정규분포${allTTestResults && allTTestResults.length > 0 ? '\n• t-test 결과 포함' : ''}`);
             } catch (error) {
                 console.error('전체 다운로드 오류:', error);
                 alert('다운로드 중 오류가 발생했습니다.\n오류: ' + error.message);
@@ -4445,70 +4748,86 @@
             }
         }
         
-        // 모든 형질 차트를 ZIP으로 다운로드
+        // 모든 형질 차트를 ZIP으로 다운로드 (모든 차트 유형 포함)
         async function downloadAllChartsAsZip(allTraits, dateStr) {
             const zip = new JSZip();
-            const imgFolder = zip.folder('차트이미지');
-            
+
             const dpi = parseInt(document.getElementById('chartDPI').value) || 150;
-            const widthMM = parseInt(document.getElementById('chartWidthMM').value) || 170;
-            const heightMM = parseInt(document.getElementById('chartHeightMM').value) || 120;
             const scale = dpi / 96;
-            
+
             const originalItem = document.getElementById('analysisItem').value;
-            
-            for (let i = 0; i < allTraits.length; i++) {
-                const trait = allTraits[i];
-                const result = allTraitsResults[trait];
-                
-                if (result && result.dmrtResults) {
-                    // 해당 형질로 차트 업데이트
-                    dmrtResults = result.dmrtResults;
-                    rawDataForDownload = result.rawData;
-                    document.getElementById('analysisItem').value = trait;
-                    updateChart();
-                    
-                    // 차트 렌더링 대기
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    
-                    // 차트 캡처
-                    const canvas = document.getElementById('analysisChart');
-                    if (canvas) {
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = canvas.width * scale;
-                        tempCanvas.height = canvas.height * scale;
-                        const tempCtx = tempCanvas.getContext('2d');
-                        tempCtx.scale(scale, scale);
-                        tempCtx.fillStyle = 'white';
-                        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                        tempCtx.drawImage(canvas, 0, 0);
-                        
-                        // Base64 데이터 추출
-                        const imgData = tempCanvas.toDataURL('image/png').split(',')[1];
-                        
-                        // 파일명 정리 (특수문자 제거)
-                        const safeName = trait.replace(/[\/\\:*?"<>|]/g, '_');
-                        imgFolder.file(`${safeName}_DMRT_${dpi}dpi.png`, imgData, {base64: true});
+            const originalChartType = document.getElementById('chartType').value;
+
+            // 모든 차트 유형
+            const chartTypes = [
+                { value: 'bar', name: '막대그래프', folder: '1_막대그래프' },
+                { value: 'line', name: '선그래프', folder: '2_선그래프' },
+                { value: 'histogram', name: '히스토그램', folder: '3_히스토그램' },
+                { value: 'boxplot', name: '박스플롯', folder: '4_박스플롯' },
+                { value: 'normal', name: '정규분포', folder: '5_정규분포' }
+            ];
+
+            let totalImages = 0;
+
+            for (const chartTypeInfo of chartTypes) {
+                const folder = zip.folder(chartTypeInfo.folder);
+                document.getElementById('chartType').value = chartTypeInfo.value;
+
+                for (let i = 0; i < allTraits.length; i++) {
+                    const trait = allTraits[i];
+                    const result = allTraitsResults[trait];
+
+                    if (result && result.dmrtResults) {
+                        // 해당 형질로 차트 업데이트
+                        dmrtResults = result.dmrtResults;
+                        rawDataForDownload = result.rawData;
+                        document.getElementById('analysisItem').value = trait;
+                        updateChart();
+
+                        // 차트 렌더링 대기
+                        await new Promise(resolve => setTimeout(resolve, 300));
+
+                        // 차트 캡처
+                        const canvas = document.getElementById('analysisChart');
+                        if (canvas) {
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = canvas.width * scale;
+                            tempCanvas.height = canvas.height * scale;
+                            const tempCtx = tempCanvas.getContext('2d');
+                            tempCtx.scale(scale, scale);
+                            tempCtx.fillStyle = 'white';
+                            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                            tempCtx.drawImage(canvas, 0, 0);
+
+                            // Base64 데이터 추출
+                            const imgData = tempCanvas.toDataURL('image/png').split(',')[1];
+
+                            // 파일명 정리 (특수문자 제거)
+                            const safeName = trait.replace(/[\/\\:*?"<>|]/g, '_');
+                            folder.file(`${safeName}_${chartTypeInfo.name}_${dpi}dpi.png`, imgData, {base64: true});
+                            totalImages++;
+                        }
                     }
                 }
             }
-            
-            // 원래 항목 복원
+
+            // 원래 항목 및 차트 유형 복원
+            document.getElementById('chartType').value = originalChartType;
             if (originalItem && allTraitsResults[originalItem]) {
                 dmrtResults = allTraitsResults[originalItem].dmrtResults;
                 rawDataForDownload = allTraitsResults[originalItem].rawData;
                 document.getElementById('analysisItem').value = originalItem;
                 updateChart();
             }
-            
+
             // ZIP 파일 생성 및 다운로드
             const content = await zip.generateAsync({type: 'blob'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(content);
             a.download = `전체형질_차트이미지_${dateStr}.zip`;
             a.click();
-            
-            alert(`${allTraits.length}개 형질의 차트 이미지가 압축 파일로 다운로드되었습니다.`);
+
+            alert(`${allTraits.length}개 형질 × ${chartTypes.length}개 차트유형 = 총 ${totalImages}개 이미지가 압축 파일로 다운로드되었습니다.\n\n포함된 폴더:\n• 1_막대그래프\n• 2_선그래프\n• 3_히스토그램\n• 4_박스플롯\n• 5_정규분포`);
         }
 
         function exportAnalysisReport() {
