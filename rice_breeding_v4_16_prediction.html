@@ -226,9 +226,34 @@
         .log-warning .log-message { color: #ffd43b; }
         .log-error { border-left-color: #ff6b6b; }
         .log-error .log-message { color: #ff6b6b; }
+        /* 전체 화면 드롭 오버레이 */
+        .drop-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(1, 127, 151, 0.92);
+            z-index: 99999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .drop-overlay.active { display: flex; }
+        .drop-overlay-content { text-align: center; color: #fff; }
+        .drop-overlay .drop-icon { font-size: 5rem; margin-bottom: 1rem; animation: bounce 0.6s ease infinite alternate; }
+        .drop-overlay .drop-text { font-size: 1.8rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .drop-overlay .drop-subtext { font-size: 1rem; opacity: 0.8; }
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-15px); } }
     </style>
 </head>
 <body>
+<!-- 전체 화면 드롭 오버레이 -->
+<div id="dropOverlay" class="drop-overlay">
+    <div class="drop-overlay-content">
+        <div class="drop-icon">📂</div>
+        <div class="drop-text">파일을 여기에 놓으세요</div>
+        <div class="drop-subtext">엑셀 파일(.xlsx, .xls)을 드래그하여 업로드</div>
+    </div>
+</div>
+
 <div class="container">
     <div class="header">
         <h1>🌾 벼 디지털육종 v4.16</h1>
@@ -1211,62 +1236,125 @@ function switchTab(idx) {
 document.getElementById('uploadArea').onclick = () => document.getElementById('fileInput').click();
 document.getElementById('fileInput').onchange = handleFile;
 
+// 전체 화면 드래그앤드롭 초기화
+function initGlobalDropZone() {
+    const overlay = document.getElementById('dropOverlay');
+    let dragCounter = 0;
+
+    document.addEventListener('dragenter', e => {
+        e.preventDefault();
+        dragCounter++;
+        if (e.dataTransfer.types.includes('Files')) {
+            overlay.classList.add('active');
+        }
+    });
+
+    document.addEventListener('dragleave', e => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0) {
+            overlay.classList.remove('active');
+        }
+    });
+
+    document.addEventListener('dragover', e => {
+        e.preventDefault();
+    });
+
+    document.addEventListener('drop', e => {
+        e.preventDefault();
+        dragCounter = 0;
+        overlay.classList.remove('active');
+
+        if (e.dataTransfer.files.length) {
+            const file = e.dataTransfer.files[0];
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            // 엑셀 파일인 경우
+            if (['xlsx', 'xls'].includes(ext)) {
+                // Tab 0 (데이터 업로드)로 전환
+                switchTab(0);
+
+                // 파일 처리
+                log(`📂 드래그앤드롭 파일 로드: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
+
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+                    processWorkbook(wb, file.name);
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert('지원하지 않는 파일 형식입니다.\n엑셀 파일(.xlsx, .xls)만 업로드할 수 있습니다.');
+            }
+        }
+    });
+}
+
+// 페이지 로드 시 드래그앤드롭 초기화
+initGlobalDropZone();
+
 async function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
     log(`📂 파일 로드 시작: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
-    
+
     const reader = new FileReader();
     reader.onload = function(ev) {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
-        log(`📑 시트 감지: ${wb.SheetNames.join(', ')}`, 'info');
-        
-        // 유전자형
-        const genoSheet = wb.Sheets['Genotype'] || wb.Sheets['유전자형'] || wb.Sheets[wb.SheetNames[1]];
-        genotypeData = XLSX.utils.sheet_to_json(genoSheet);
-        
-        // 표현형
-        let phenoSheet = wb.Sheets['Phenotype'] || wb.Sheets['표현형'];
-        if (!phenoSheet) for (let n of wb.SheetNames) if (n.includes('표현형')) phenoSheet = wb.Sheets[n];
-        phenotypeData = XLSX.utils.sheet_to_json(phenoSheet);
-        
-        // 품종정보
-        varietyInfoData = XLSX.utils.sheet_to_json(wb.Sheets['품종정보'] || wb.Sheets[wb.SheetNames[0]]);
-        
-        // 마커위치
-        const linkSheet = wb.Sheets['마커위치'] || wb.Sheets['Linkage'];
-        if (linkSheet) linkageData = XLSX.utils.sheet_to_json(linkSheet);
-        
-        // ★ 표현형별 유전자 목록 시트 읽기 (하드코딩된 매핑에 추가)
-        const traitGeneSheet = wb.Sheets['표현형별 유전자 목록'] || wb.Sheets['형질별 유전자'] || wb.Sheets['TraitGeneMapping'];
-        if (traitGeneSheet) {
-            const traitGeneList = XLSX.utils.sheet_to_json(traitGeneSheet);
-            let addedCount = 0;
-            traitGeneList.forEach(row => {
-                const trait = row['형질'] || row['Trait'] || '';
-                const gene = row['유전자'] || row['Gene'] || '';
-                if (trait && gene) {
-                    if (!traitGeneMapping[trait]) {
-                        traitGeneMapping[trait] = [];
-                    }
-                    if (!traitGeneMapping[trait].includes(gene)) {
-                        traitGeneMapping[trait].push(gene);
-                        addedCount++;
-                    }
-                }
-            });
-            log(`📋 표현형별 유전자 목록 로드: ${traitGeneList.length}행, 신규 ${addedCount}개 매핑 추가`, 'success');
-            
-            // 로드된 형질 목록 출력
-            const loadedTraits = [...new Set(traitGeneList.map(r => r['형질'] || r['Trait']))].filter(Boolean);
-            log(`  → 로드된 형질: ${loadedTraits.join(', ')}`, 'info');
-        } else {
-            log(`⚠️ "표현형별 유전자 목록" 시트 없음 - 기본 매핑만 사용`, 'warning');
-        }
-        
-        processData();
+        processWorkbook(wb, file.name);
     };
     reader.readAsArrayBuffer(file);
+}
+
+// 엑셀 워크북 처리 함수 (handleFile과 드래그앤드롭 공통 사용)
+function processWorkbook(wb, fileName) {
+    log(`📑 시트 감지: ${wb.SheetNames.join(', ')}`, 'info');
+
+    // 유전자형
+    const genoSheet = wb.Sheets['Genotype'] || wb.Sheets['유전자형'] || wb.Sheets[wb.SheetNames[1]];
+    genotypeData = XLSX.utils.sheet_to_json(genoSheet);
+
+    // 표현형
+    let phenoSheet = wb.Sheets['Phenotype'] || wb.Sheets['표현형'];
+    if (!phenoSheet) for (let n of wb.SheetNames) if (n.includes('표현형')) phenoSheet = wb.Sheets[n];
+    phenotypeData = XLSX.utils.sheet_to_json(phenoSheet);
+
+    // 품종정보
+    varietyInfoData = XLSX.utils.sheet_to_json(wb.Sheets['품종정보'] || wb.Sheets[wb.SheetNames[0]]);
+
+    // 마커위치
+    const linkSheet = wb.Sheets['마커위치'] || wb.Sheets['Linkage'];
+    if (linkSheet) linkageData = XLSX.utils.sheet_to_json(linkSheet);
+
+    // ★ 표현형별 유전자 목록 시트 읽기 (하드코딩된 매핑에 추가)
+    const traitGeneSheet = wb.Sheets['표현형별 유전자 목록'] || wb.Sheets['형질별 유전자'] || wb.Sheets['TraitGeneMapping'];
+    if (traitGeneSheet) {
+        const traitGeneList = XLSX.utils.sheet_to_json(traitGeneSheet);
+        let addedCount = 0;
+        traitGeneList.forEach(row => {
+            const trait = row['형질'] || row['Trait'] || '';
+            const gene = row['유전자'] || row['Gene'] || '';
+            if (trait && gene) {
+                if (!traitGeneMapping[trait]) {
+                    traitGeneMapping[trait] = [];
+                }
+                if (!traitGeneMapping[trait].includes(gene)) {
+                    traitGeneMapping[trait].push(gene);
+                    addedCount++;
+                }
+            }
+        });
+        log(`📋 표현형별 유전자 목록 로드: ${traitGeneList.length}행, 신규 ${addedCount}개 매핑 추가`, 'success');
+
+        // 로드된 형질 목록 출력
+        const loadedTraits = [...new Set(traitGeneList.map(r => r['형질'] || r['Trait']))].filter(Boolean);
+        log(`  → 로드된 형질: ${loadedTraits.join(', ')}`, 'info');
+    } else {
+        log(`⚠️ "표현형별 유전자 목록" 시트 없음 - 기본 매핑만 사용`, 'warning');
+    }
+
+    processData();
 }
 
 function processData() {
@@ -3414,11 +3502,11 @@ for i, pheno_name in enumerate(phenotype_names):
                         simplified_grid[key] = values
                 
                 grid_search = GridSearchCV(
-                    base_model, 
-                    simplified_grid, 
+                    base_model,
+                    simplified_grid,
                     cv=min(3, cv_fold),  # GridSearch는 cv=3으로 제한
                     scoring='f1',
-                    n_jobs=-1,
+                    n_jobs=1,  # Pyodide에서는 멀티프로세싱 불가
                     refit=True
                 )
                 grid_search.fit(X_train, y_train)
