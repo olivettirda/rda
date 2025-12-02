@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KASP Multi-Gene Analyzer v3</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary-dark: #0c3026;
+            --primary: #017f97;
+            --primary-light: #00a1b8;
+            --accent-light: #cce3dd;
+            --accent-lighter: #e8f4f0;
+            --bg: #f8fafa;
+            --card-bg: #ffffff;
+            --text: #1a1a1a;
+            --text-light: #666;
+            --border: #e0e0e0;
+            --ck1: #1565c0;
+            --ck2: #e65100;
+            --het: #7b1fa2;
+            --und: #757575;
+            --ntc: #455a64;
+            --success: #2e7d32;
+            --warning: #f57c00;
+        }
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 20px 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(12, 48, 38, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left h1 { font-size: 1.6rem; font-weight: 600; }
+        .header-left p { font-size: 0.9rem; opacity: 0.9; }
+        
+        .reset-btn {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        .reset-btn:hover {
+            background: rgba(255,255,255,0.25);
+            border-color: white;
+        }
+        
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+        
+        .steps {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: white;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            color: var(--text-light);
+            border: 2px solid var(--border);
+        }
+        
+        .step.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .step.completed { background: var(--accent-light); color: var(--primary-dark); border-color: var(--primary-light); }
+        
+        .step-num {
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: currentColor;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        
+        .step.active .step-num { background: white; color: var(--primary); }
+        .step.completed .step-num { background: var(--primary-dark); }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: var(--accent-lighter);
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-header h2 { font-size: 1rem; font-weight: 600; color: var(--primary-dark); }
+        .card-header .badge {
+            margin-left: auto;
+            padding: 4px 12px;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+        
+        .card-body { padding: 20px; }
+        
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 800px) { .upload-grid { grid-template-columns: 1fr; } }
+        
+        .upload-zone {
+            border: 2px dashed var(--primary-light);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            background: var(--accent-lighter);
+            cursor: pointer;
+            height: 160px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .upload-zone:hover { border-color: var(--primary-dark); background: var(--accent-light); }
+        .upload-zone h3 { color: var(--primary-dark); font-size: 1rem; margin: 10px 0 5px; }
+        .upload-zone p { color: var(--text-light); font-size: 0.8rem; }
+        .upload-zone .icon { font-size: 36px; }
+        .upload-zone.has-file { border-style: solid; border-color: var(--success); background: #e8f5e9; }
+        
+        .file-list { margin-top: 16px; max-height: 200px; overflow-y: auto; }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+        }
+        
+        .file-item .gene-name { font-weight: 600; color: var(--primary-dark); min-width: 100px; }
+        .file-item .file-name { color: var(--text-light); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-item .remove-btn { background: none; border: none; color: #c62828; cursor: pointer; font-size: 1.2rem; }
+        
+        .sample-preview { max-height: 300px; overflow: auto; font-size: 0.8rem; }
+        .sample-preview table { width: 100%; border-collapse: collapse; }
+        .sample-preview th, .sample-preview td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+        .sample-preview th { background: var(--primary-dark); color: white; position: sticky; top: 0; }
+        .sample-preview tr:nth-child(even) { background: var(--accent-lighter); }
+        
+        .column-selector {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+            padding: 16px;
+            background: #fff8e1;
+            border-radius: 8px;
+        }
+        
+        .column-selector label { font-weight: 500; color: var(--primary-dark); font-size: 0.9rem; }
+        .column-selector select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; min-width: 150px; }
+        
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+            gap: 20px;
+        }
+        
+        .gene-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .gene-card-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .gene-card-header h3 { font-size: 1rem; }
+        
+        .gene-stats { display: flex; gap: 8px; }
+        .gene-stat { padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.2); }
+        
+        .gene-card-body { padding: 16px; }
+        .chart-container { height: 300px; position: relative; }
+        
+        /* Threshold Controls - Improved */
+        .threshold-controls {
+            margin-top: 12px;
+            padding: 16px;
+            background: var(--accent-lighter);
+            border-radius: 8px;
+        }
+        
+        .pc-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        
+        .pc-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .pc-info-item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .pc-info-item .dot.ck1 { background: var(--ck1); }
+        .pc-info-item .dot.ck2 { background: var(--ck2); }
+        
+        .ntc-info {
+            padding: 8px 10px;
+            background: #fff3e0;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #e65100;
+            margin-bottom: 10px;
+        }
+        
+        .threshold-section {
+            background: white;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .threshold-section-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .threshold-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .threshold-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .threshold-item label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+        
+        .threshold-input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .threshold-input-group input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        
+        .threshold-input-group input[type="range"] {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            border-radius: 3px;
+        }
+        
+        .threshold-input-group input[type="range"].ck1-slider {
+            background: linear-gradient(to right, #ccc, var(--ck1));
+        }
+        
+        .threshold-input-group input[type="range"].ck2-slider {
+            background: linear-gradient(to right, var(--ck2), #ccc);
+        }
+        
+        .threshold-input-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: white;
+            border: 2px solid var(--primary-dark);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .chart-instruction {
+            font-size: 0.75rem;
+            color: var(--primary);
+            background: #e3f2fd;
+            padding: 8px 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+        
+        /* Point Edit Modal */
+        .point-edit-modal {
+            position: fixed;
+            z-index: 1000;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            padding: 12px;
+            min-width: 180px;
+        }
+        
+        .point-edit-modal h4 {
+            font-size: 0.85rem;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .point-edit-modal .sample-info {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-bottom: 8px;
+        }
+        
+        .point-edit-modal .geno-options {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .point-edit-modal .geno-btn {
+            padding: 6px 12px;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: inherit;
+        }
+        
+        .point-edit-modal .geno-btn:hover { background: var(--accent-lighter); }
+        .point-edit-modal .geno-btn.ck1 { color: var(--ck1); border-color: var(--ck1); }
+        .point-edit-modal .geno-btn.ck2 { color: var(--ck2); border-color: var(--ck2); }
+        .point-edit-modal .geno-btn.het { color: var(--het); border-color: var(--het); }
+        .point-edit-modal .geno-btn.und { color: var(--und); border-color: var(--und); }
+        .point-edit-modal .geno-btn.active { background: currentColor; color: white; }
+        
+        .point-edit-modal .close-btn {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+        
+        /* Chart Settings */
+        .chart-settings {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        .chart-settings-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            user-select: none;
+        }
+        
+        .chart-settings-toggle:hover { color: var(--primary-dark); }
+        
+        .chart-settings-content {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+        
+        .chart-settings-content.open { display: block; }
+        
+        .settings-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .settings-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .settings-item label {
+            font-size: 0.7rem;
+            color: var(--text-light);
+        }
+        
+        .settings-item input, .settings-item select {
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .settings-item input[type="number"] { width: 60px; }
+        .settings-item input[type="checkbox"] { width: auto; }
+        
+        .ratio-scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-light);
+            margin-top: 4px;
+            padding: 0 4px;
+        }
+        
+        .het-zone-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background: #f3e5f5;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--het);
+            margin-top: 8px;
+        }
+        
+        .apply-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        .apply-btn:hover { background: var(--primary-dark); }
+        
+        /* Result Table */
+        .result-table-wrapper {
+            overflow: auto;
+            max-height: 500px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        
+        .result-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .result-table thead { position: sticky; top: 0; z-index: 10; }
+        .result-table th { background: var(--primary-dark); color: white; padding: 10px 12px; text-align: center; white-space: nowrap; }
+        .result-table th.sample-col { background: var(--primary); text-align: left; min-width: 150px; }
+        .result-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: center; }
+        .result-table td.sample-col { text-align: left; font-weight: 500; background: var(--accent-lighter); position: sticky; left: 0; }
+        .result-table tbody tr:hover { background: #fffde7; }
+        
+        .geno-cell { font-weight: 600; padding: 4px 8px; border-radius: 4px; display: inline-block; min-width: 28px; }
+        .geno-1 { background: #e3f2fd; color: var(--ck1); }
+        .geno-0 { background: #fff3e0; color: var(--ck2); }
+        .geno-H { background: #f3e5f5; color: var(--het); }
+        .geno-X { background: #eeeeee; color: var(--und); }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
+        .btn-primary:hover { box-shadow: 0 4px 12px rgba(1, 127, 151, 0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: white; color: var(--primary-dark); border: 2px solid var(--primary); }
+        .btn-secondary:hover { background: var(--accent-lighter); }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+        
+        .hidden { display: none !important; }
+        
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+        .info-card { padding: 16px; background: var(--accent-lighter); border-radius: 8px; border-left: 4px solid var(--primary); }
+        .info-card h4 { color: var(--primary-dark); font-size: 0.95rem; margin-bottom: 8px; }
+        .info-card p { font-size: 0.85rem; color: var(--text-light); line-height: 1.5; }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--accent-lighter);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+        
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; }
+        
+        .info-box {
+            background: #fff8e1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+            border-left: 4px solid var(--warning);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <h1>🧬 KASP Multi-Gene Analyzer v3</h1>
+            <p>다중 유전자 KASP 데이터 통합 분석 - 형광값 기준 자동 분류</p>
+        </div>
+        <button class="reset-btn" onclick="resetAll()">🔄 처음부터 다시</button>
+    </header>
+    
+    <div class="container">
+        <div class="steps">
+            <div class="step active" id="step1"><span class="step-num">1</span> 파일 업로드</div>
+            <div class="step" id="step2"><span class="step-num">2</span> Allelic Discrimination 확인</div>
+            <div class="step" id="step3"><span class="step-num">3</span> 결과 정리 & 다운로드</div>
+        </div>
+        
+        <!-- Step 1 -->
+        <div class="card" id="uploadSection">
+            <div class="card-header">
+                <span>📁</span>
+                <h2>Step 1: 파일 업로드</h2>
+            </div>
+            <div class="card-body">
+                <div class="upload-grid">
+                    <div>
+                        <div class="upload-zone" id="sampleZone">
+                            <div class="icon">📋</div>
+                            <h3>시료 목록 파일</h3>
+                            <p>Well Position과 품종명이 포함된 Excel/CSV</p>
+                        </div>
+                        <input type="file" id="sampleInput" accept=".xls,.xlsx,.csv" class="hidden">
+                        <div id="samplePreview" class="hidden" style="margin-top: 16px;">
+                            <div class="column-selector">
+                                <div>
+                                    <label>Well Position 컬럼:</label>
+                                    <select id="wellColumn"></select>
+                                </div>
+                                <div>
+                                    <label>품종명/시료명 컬럼:</label>
+                                    <select id="sampleColumn"></select>
+                                </div>
+                            </div>
+                            <div class="sample-preview" style="margin-top: 12px;">
+                                <table id="sampleTable"></table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="upload-zone" id="rawDataZone">
+                            <div class="icon">📊</div>
+                            <h3>로우데이터 파일 (복수 선택 가능)</h3>
+                            <p>파일명 = 유전자명으로 인식됩니다</p>
+                            <p style="font-size: 0.75rem; color: #888; margin-top: 4px;">예: Xa3.xls, Wx.xls</p>
+                        </div>
+                        <input type="file" id="rawDataInput" accept=".xls,.xlsx" multiple class="hidden">
+                        <div class="file-list" id="rawFileList"></div>
+                    </div>
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="analyzeBtn" disabled>🔬 분석 시작</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 2 -->
+        <div class="card hidden" id="analysisSection">
+            <div class="card-header">
+                <span>📈</span>
+                <h2>Step 2: Allelic Discrimination Plot</h2>
+                <span class="badge" id="geneBadge">0 genes</span>
+            </div>
+            <div class="card-body">
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background: var(--ck1);"></div><strong>CK1</strong> = 1</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--ck2);"></div><strong>CK2</strong> = 0</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--het);"></div><strong>H</strong> = Het</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--und);"></div><strong>X</strong> = 판정불가</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--ntc);"></div><strong>NTC</strong></div>
+                </div>
+                
+                <div class="info-box">
+                    <strong>📊 분류 원리 (FAM÷HEX 비율):</strong><br>
+                    • <strong style="color:var(--ck1)">CK1(=1)</strong>: 비율 ≥ CK1경계 (파란 점선 <strong>위</strong>)<br>
+                    • <strong style="color:var(--ck2)">CK2(=0)</strong>: 비율 ≤ CK2경계 (주황 점선 <strong>아래</strong>)<br>
+                    • <strong style="color:var(--het)">H(Het)</strong>: CK2경계 &lt; 비율 &lt; CK1경계 (두 점선 <strong>사이</strong>)<br>
+                    • 점 클릭으로 경계 설정: <strong>클릭=CK2</strong>, <strong>Shift+클릭=CK1</strong>
+                </div>
+                
+                <div class="chart-settings">
+                    <div class="chart-settings-toggle" onclick="toggleChartSettings()">
+                        <span id="settingsArrow">▶</span> ⚙️ 차트 시각화 설정
+                    </div>
+                    <div class="chart-settings-content" id="chartSettingsContent">
+                        <div class="settings-row">
+                            <div class="settings-item">
+                                <label>점 크기</label>
+                                <input type="number" id="pointSize" value="6" min="3" max="15" onchange="updateChartSettings()">
+                            </div>
+                            <div class="settings-item">
+                                <label>폰트 크기</label>
+                                <input type="number" id="fontSize" value="11" min="8" max="16" onchange="updateChartSettings()">
+                            </div>
+                            <div class="settings-item">
+                                <label>경계선 두께</label>
+                                <input type="number" id="lineWidth" value="2" min="1" max="5" onchange="updateChartSettings()">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-item">
+                                <label>그리드 표시</label>
+                                <select id="showGrid" onchange="updateChartSettings()">
+                                    <option value="true">표시</option>
+                                    <option value="false">숨김</option>
+                                </select>
+                            </div>
+                            <div class="settings-item">
+                                <label>범례 위치</label>
+                                <select id="legendPos" onchange="updateChartSettings()">
+                                    <option value="top">상단</option>
+                                    <option value="bottom">하단</option>
+                                    <option value="right">우측</option>
+                                    <option value="false">숨김</option>
+                                </select>
+                            </div>
+                            <div class="settings-item">
+                                <label>차트 높이</label>
+                                <select id="chartHeight" onchange="updateChartSettings()">
+                                    <option value="250">작게 (250px)</option>
+                                    <option value="300" selected>보통 (300px)</option>
+                                    <option value="400">크게 (400px)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-grid" id="analysisGrid"></div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="confirmBtn">✅ 분류 확정 & 결과 정리</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 3 -->
+        <div class="card hidden" id="resultsSection">
+            <div class="card-header">
+                <span>📑</span>
+                <h2>Step 3: 최종 결과</h2>
+            </div>
+            <div class="card-body">
+                <div class="btn-group" style="margin-bottom: 16px;">
+                    <button class="btn btn-primary" id="downloadExcelBtn">📥 Excel 다운로드</button>
+                    <button class="btn btn-secondary" id="downloadCsvBtn">📥 CSV 다운로드</button>
+                    <button class="btn" id="sendToSimulatorBtn" style="background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);">🌾 시뮬레이터로 전송</button>
+                </div>
+                <div class="result-table-wrapper">
+                    <table class="result-table" id="resultTable">
+                        <thead id="resultHead"></thead>
+                        <tbody id="resultBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Info -->
+        <div class="card hidden" id="infoSection">
+            <div class="card-header">
+                <span>📚</span>
+                <h2>KASP 원리 및 메타데이터 설명</h2>
+            </div>
+            <div class="card-body">
+                <div class="info-grid" id="infoGrid"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global State
+        let sampleData = null;
+        let sampleColumns = [];
+        let wellCol = null;
+        let sampleCol = null;
+        let rawFiles = [];
+        let geneResults = {};
+        let charts = {};
+        
+        // Chart Settings
+        let chartSettings = {
+            pointSize: 6,
+            fontSize: 11,
+            lineWidth: 2,
+            showGrid: true,
+            legendPos: 'top',
+            chartHeight: 300
+        };
+        
+        function toggleChartSettings() {
+            const content = document.getElementById('chartSettingsContent');
+            const arrow = document.getElementById('settingsArrow');
+            content.classList.toggle('open');
+            arrow.textContent = content.classList.contains('open') ? '▼' : '▶';
+        }
+        
+        function updateChartSettings() {
+            chartSettings.pointSize = parseInt(document.getElementById('pointSize').value) || 6;
+            chartSettings.fontSize = parseInt(document.getElementById('fontSize').value) || 11;
+            chartSettings.lineWidth = parseInt(document.getElementById('lineWidth').value) || 2;
+            chartSettings.showGrid = document.getElementById('showGrid').value === 'true';
+            chartSettings.legendPos = document.getElementById('legendPos').value;
+            chartSettings.chartHeight = parseInt(document.getElementById('chartHeight').value) || 300;
+            
+            // Update chart container heights
+            document.querySelectorAll('.chart-container').forEach(container => {
+                container.style.height = chartSettings.chartHeight + 'px';
+            });
+            
+            // Recreate all charts with new settings
+            Object.entries(geneResults).forEach(([geneName, result]) => {
+                createScatterChart(geneName, result);
+            });
+        }
+        
+        // DOM Elements
+        const sampleZone = document.getElementById('sampleZone');
+        const sampleInput = document.getElementById('sampleInput');
+        const rawDataZone = document.getElementById('rawDataZone');
+        const rawDataInput = document.getElementById('rawDataInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        
+        // Event Listeners
+        sampleZone.addEventListener('click', () => sampleInput.click());
+        sampleZone.addEventListener('dragover', e => { e.preventDefault(); });
+        sampleZone.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) processSampleFile(e.dataTransfer.files[0]); });
+        sampleInput.addEventListener('change', e => { if (e.target.files[0]) processSampleFile(e.target.files[0]); });
+        
+        rawDataZone.addEventListener('click', () => rawDataInput.click());
+        rawDataZone.addEventListener('dragover', e => { e.preventDefault(); });
+        rawDataZone.addEventListener('drop', e => { e.preventDefault(); processRawFiles(e.dataTransfer.files); });
+        rawDataInput.addEventListener('change', e => processRawFiles(e.target.files));
+        
+        analyzeBtn.addEventListener('click', runAnalysis);
+        document.getElementById('confirmBtn').addEventListener('click', generateResults);
+        document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
+        document.getElementById('downloadCsvBtn').addEventListener('click', downloadCsv);
+        document.getElementById('sendToSimulatorBtn').addEventListener('click', sendToSimulator);
+        
+        document.getElementById('wellColumn').addEventListener('change', e => { wellCol = parseInt(e.target.value); checkReady(); });
+        document.getElementById('sampleColumn').addEventListener('change', e => { sampleCol = parseInt(e.target.value); checkReady(); });
+        
+        function processSampleFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                
+                if (json.length < 2) { alert('데이터가 없습니다.'); return; }
+                
+                sampleColumns = json[0].map(c => String(c || ''));
+                sampleData = json.slice(1).filter(row => row.some(c => c));
+                
+                const wellSelect = document.getElementById('wellColumn');
+                const sampleSelect = document.getElementById('sampleColumn');
+                wellSelect.innerHTML = '<option value="">선택...</option>';
+                sampleSelect.innerHTML = '<option value="">선택...</option>';
+                
+                sampleColumns.forEach((col, idx) => {
+                    wellSelect.innerHTML += `<option value="${idx}">${col}</option>`;
+                    sampleSelect.innerHTML += `<option value="${idx}">${col}</option>`;
+                });
+                
+                // Auto-detect
+                sampleColumns.forEach((col, idx) => {
+                    const lower = col.toLowerCase();
+                    if (lower.includes('well') || lower.includes('position') || lower === '위치') { wellSelect.value = idx; wellCol = idx; }
+                    if (lower.includes('sample') || lower.includes('품종') || lower.includes('시료') || lower.includes('name')) { sampleSelect.value = idx; sampleCol = idx; }
+                });
+                
+                // Preview
+                const table = document.getElementById('sampleTable');
+                let html = '<thead><tr>' + sampleColumns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+                sampleData.slice(0, 10).forEach(row => {
+                    html += '<tr>' + sampleColumns.map((_, i) => `<td>${row[i] || ''}</td>`).join('') + '</tr>';
+                });
+                if (sampleData.length > 10) html += `<tr><td colspan="${sampleColumns.length}" style="text-align:center;color:#888;">... 외 ${sampleData.length - 10}개</td></tr>`;
+                html += '</tbody>';
+                table.innerHTML = html;
+                
+                document.getElementById('samplePreview').classList.remove('hidden');
+                sampleZone.classList.add('has-file');
+                sampleZone.innerHTML = `<div class="icon">✅</div><h3>${file.name}</h3><p>${sampleData.length}개 시료</p>`;
+                checkReady();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function processRawFiles(files) {
+            Array.from(files).forEach(file => {
+                // 확장자 제거 후 유전자명 추출
+                const baseName = file.name.replace(/\.(xls|xlsx)$/i, '');
+                // 먼저 공백이나 _로 split해서 첫 부분 가져오기
+                const firstPart = baseName.split(/[\s_]/)[0];
+                // 하이픈 뒤에 알파벳이 오면 거기서 끊기 (예: Xa3-E → Xa3)
+                // 하이픈 뒤에 숫자면 유지 (예: qLTG3-1 → qLTG3-1)
+                const geneName = firstPart.replace(/-[A-Za-z].*$/, '').trim();
+                
+                if (rawFiles.some(f => f.geneName === geneName)) {
+                    alert(`${geneName} 유전자가 이미 추가되어 있습니다.`);
+                    return;
+                }
+                rawFiles.push({ file, geneName, status: 'ready' });
+            });
+            updateFileList();
+            checkReady();
+        }
+        
+        function updateFileList() {
+            const list = document.getElementById('rawFileList');
+            list.innerHTML = rawFiles.map((item, idx) => `
+                <div class="file-item">
+                    <span class="gene-name">${item.geneName}</span>
+                    <span class="file-name">${item.file.name}</span>
+                    <button class="remove-btn" onclick="removeFile(${idx})">×</button>
+                </div>
+            `).join('');
+            if (rawFiles.length > 0) rawDataZone.classList.add('has-file');
+        }
+        
+        window.removeFile = function(idx) {
+            rawFiles.splice(idx, 1);
+            updateFileList();
+            checkReady();
+        };
+        
+        function checkReady() {
+            analyzeBtn.disabled = !(sampleData && wellCol !== null && sampleCol !== null && rawFiles.length > 0);
+        }
+        
+        async function runAnalysis() {
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            
+            geneResults = {};
+            
+            const sampleMap = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                sampleMap[well] = row[sampleCol] || '';
+            });
+            
+            for (const item of rawFiles) {
+                const result = await processRawData(item.file, item.geneName, sampleMap);
+                geneResults[item.geneName] = result;
+                item.status = 'done';
+            }
+            
+            document.getElementById('analysisSection').classList.remove('hidden');
+            document.getElementById('geneBadge').textContent = `${rawFiles.length} genes`;
+            
+            createAnalysisCharts();
+            showInfoSection();
+        }
+        
+        function normalizeWell(well) {
+            const match = well.match(/([A-H])[\s\-_]?(\d+)/i);
+            return match ? match[1].toUpperCase() + parseInt(match[2]) : well;
+        }
+        
+        // Find signal threshold using distribution gap analysis
+        function findDistributionThreshold(values) {
+            if (!values || values.length < 10) return null;
+            const sorted = [...values].sort((a, b) => a - b);
+            
+            // Find the largest gap in lower 40% of values
+            const lowerN = Math.floor(sorted.length * 0.4);
+            let maxGap = 0, gapValue = null;
+            
+            for (let i = 1; i < lowerN; i++) {
+                const gap = sorted[i] - sorted[i-1];
+                if (gap > maxGap && gap > 0.03) {
+                    maxGap = gap;
+                    gapValue = sorted[i];
+                }
+            }
+            return gapValue;
+        }
+        
+        function processRawData(file, geneName, sampleMap) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const resultsSheet = workbook.Sheets['Results'];
+                    if (!resultsSheet) { resolve({ error: 'No Results sheet', samples: [] }); return; }
+                    
+                    const json = XLSX.utils.sheet_to_json(resultsSheet, { header: 1 });
+                    let headerRow = -1;
+                    for (let i = 0; i < json.length; i++) {
+                        if (json[i][0] === 'Well') { headerRow = i; break; }
+                    }
+                    if (headerRow === -1) { resolve({ error: 'No header', samples: [] }); return; }
+                    
+                    // Parse metadata
+                    const metadata = {};
+                    for (let i = 0; i < headerRow; i++) {
+                        if (json[i][0]) metadata[String(json[i][0]).trim()] = json[i][1];
+                    }
+                    
+                    const headers = json[headerRow];
+                    const colIdx = {};
+                    headers.forEach((h, i) => colIdx[h] = i);
+                    
+                    const samples = [];
+                    for (let i = headerRow + 1; i < json.length; i++) {
+                        const row = json[i];
+                        if (!row[0]) continue;
+                        
+                        const wellPos = normalizeWell(String(row[colIdx['Well Position']] || ''));
+                        const a1 = parseFloat(row[colIdx['Allele1 Delta Rn']]) || 0;
+                        const a2 = parseFloat(row[colIdx['Allele2 Delta Rn']]) || 0;
+                        const task = row[colIdx['Task']] || 'UNKNOWN';
+                        
+                        samples.push({
+                            well: wellPos,
+                            sampleName: sampleMap[wellPos] || '',
+                            task,
+                            allele1: a1,
+                            allele2: a2,
+                            ratio: a1 > 0 ? a2 / a1 : (a2 > 0 ? 999 : 0)
+                        });
+                    }
+                    
+                    // Detect PC types from fluorescence values (NOT from task name)
+                    const pc1Sample = samples.find(s => s.task === 'PC_ALLELE_1');
+                    const pc2Sample = samples.find(s => s.task === 'PC_ALLELE_2');
+                    const ntcSamples = samples.filter(s => s.task === 'NTC');
+                    const unknownSamples = samples.filter(s => s.task === 'UNKNOWN');
+                    
+                    // Calculate NTC-based minimum signal threshold
+                    let ntcMaxHex = 0, ntcMaxFam = 0;
+                    ntcSamples.forEach(ntc => {
+                        ntcMaxHex = Math.max(ntcMaxHex, ntc.allele1);
+                        ntcMaxFam = Math.max(ntcMaxFam, ntc.allele2);
+                    });
+                    
+                    // Initial minimum signal (NTC-based)
+                    let minSignalHex = Math.max(0.05, ntcMaxHex * 1.5);
+                    let minSignalFam = Math.max(0.08, ntcMaxFam * 1.5);
+                    
+                    let ck1Type, ck2Type;
+                    let ck1Threshold = 5, ck2Threshold = 0.5;
+                    
+                    if (pc1Sample && pc2Sample) {
+                        const pc1Ratio = pc1Sample.ratio;
+                        const pc2Ratio = pc2Sample.ratio;
+                        
+                        // Determine which PC is CK1 (high ratio = FAM dominant) and CK2 (low ratio = HEX dominant)
+                        if (pc1Ratio > pc2Ratio) {
+                            // PC1 is CK1 type (FAM dominant)
+                            ck1Type = 'PC_ALLELE_1';
+                            ck2Type = 'PC_ALLELE_2';
+                            ck1Threshold = Math.max(2, pc1Ratio * 0.5);
+                            ck2Threshold = Math.min(2, pc2Ratio * 1.5);
+                        } else {
+                            // PC2 is CK1 type (reversed)
+                            ck1Type = 'PC_ALLELE_2';
+                            ck2Type = 'PC_ALLELE_1';
+                            ck1Threshold = Math.max(2, pc2Ratio * 0.5);
+                            ck2Threshold = Math.min(2, pc1Ratio * 1.5);
+                        }
+                    } else {
+                        // No PC, use defaults
+                        ck1Type = 'PC_ALLELE_1';
+                        ck2Type = 'PC_ALLELE_2';
+                    }
+                    
+                    resolve({
+                        geneName,
+                        samples,
+                        metadata,
+                        pc1Sample,
+                        pc2Sample,
+                        ntcSamples,
+                        ck1Type,
+                        ck2Type,
+                        thresholds: { 
+                            ck1: Math.round(ck1Threshold * 10) / 10, 
+                            ck2: Math.round(ck2Threshold * 100) / 100,
+                            minHex: Math.round(minSignalHex * 1000) / 1000,
+                            minFam: Math.round(minSignalFam * 1000) / 1000
+                        },
+                        // Store for potential recalculation
+                        _ntcMaxHex: ntcMaxHex,
+                        _ntcMaxFam: ntcMaxFam,
+                        _unknownSamples: unknownSamples
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function classifySample(sample, result) {
+            // Manual override - don't reclassify
+            if (sample.manual) {
+                return { genotype: sample.genotype, code: sample.code };
+            }
+            
+            const { ck1, ck2, minHex, minFam } = result.thresholds;
+            const { allele1: a1, allele2: a2, ratio, task } = sample;
+            const { ck1Type, ck2Type } = result;
+            
+            // NTC check
+            if (task === 'NTC') return { genotype: 'NTC', code: '-' };
+            
+            // PC samples - classify based on which type they are
+            if (task === ck1Type) return { genotype: 'CK1', code: '1' };
+            if (task === ck2Type) return { genotype: 'CK2', code: '0' };
+            
+            // Low signal check - both signals below NTC-based threshold = undetermined
+            if (a1 < minHex && a2 < minFam) return { genotype: 'X', code: '-' };
+            
+            // Classify by ratio
+            // CK1: ratio >= ck1 (FAM dominant)
+            if (ratio >= ck1) return { genotype: 'CK1', code: '1' };
+            
+            // CK2: ratio <= ck2 (HEX dominant)  
+            if (ratio <= ck2) return { genotype: 'CK2', code: '0' };
+            
+            // Between ck2 and ck1 = Heterozygous zone
+            // But both signals must be above minimum
+            if (a1 >= minHex && a2 >= minFam && ratio > ck2 && ratio < ck1) {
+                return { genotype: 'H', code: 'H' };
+            }
+            
+            // Edge cases - one signal weak
+            if (a1 < minHex) return { genotype: 'X', code: '-' };
+            if (a2 < minFam) return { genotype: 'X', code: '-' };
+            
+            // Fallback
+            return { genotype: 'X', code: '-' };
+        }
+        
+        function createAnalysisCharts() {
+            const grid = document.getElementById('analysisGrid');
+            grid.innerHTML = '';
+            
+            Object.entries(geneResults).forEach(([geneName, result]) => {
+                if (result.error) return;
+                
+                // Initial classification
+                result.samples.forEach(s => {
+                    if (!s.manual) {
+                        const cls = classifySample(s, result);
+                        s.genotype = cls.genotype;
+                        s.code = cls.code;
+                    }
+                });
+                
+                // Count X values
+                let counts = { CK1: 0, CK2: 0, H: 0, X: 0, NTC: 0 };
+                result.samples.forEach(s => counts[s.genotype]++);
+                
+                const totalUnknown = counts.CK1 + counts.CK2 + counts.H + counts.X;
+                const xRatio = totalUnknown > 0 ? counts.X / totalUnknown : 0;
+                
+                // If X ratio > 30%, try distribution-based threshold
+                if (xRatio > 0.3 && result._unknownSamples && result._unknownSamples.length > 10) {
+                    const hexValues = result._unknownSamples.map(s => s.allele1);
+                    const famValues = result._unknownSamples.map(s => s.allele2);
+                    
+                    const distMinHex = findDistributionThreshold(hexValues);
+                    const distMinFam = findDistributionThreshold(famValues);
+                    
+                    let recalculated = false;
+                    
+                    // If distribution threshold is lower, use it
+                    if (distMinHex && distMinHex < result.thresholds.minHex * 0.8) {
+                        result.thresholds.minHex = Math.round(distMinHex * 0.9 * 1000) / 1000;
+                        recalculated = true;
+                    }
+                    if (distMinFam && distMinFam < result.thresholds.minFam * 0.8) {
+                        result.thresholds.minFam = Math.round(distMinFam * 0.9 * 1000) / 1000;
+                        recalculated = true;
+                    }
+                    
+                    // Reclassify if thresholds changed
+                    if (recalculated) {
+                        result.samples.forEach(s => {
+                            if (!s.manual) {
+                                const cls = classifySample(s, result);
+                                s.genotype = cls.genotype;
+                                s.code = cls.code;
+                            }
+                        });
+                        counts = { CK1: 0, CK2: 0, H: 0, X: 0, NTC: 0 };
+                        result.samples.forEach(s => counts[s.genotype]++);
+                        result._autoAdjusted = true;
+                    }
+                }
+                
+                // PC info
+                const pc1 = result.pc1Sample;
+                const pc2 = result.pc2Sample;
+                const pc1IsCK1 = result.ck1Type === 'PC_ALLELE_1';
+                
+                const safeId = geneName.replace(/\s/g, '_');
+                
+                const card = document.createElement('div');
+                card.className = 'gene-card';
+                card.id = `card-${safeId}`;
+                card.innerHTML = `
+                    <div class="gene-card-header">
+                        <h3>🧬 ${geneName}</h3>
+                        <div class="gene-stats" id="stats-${safeId}">
+                            <span class="gene-stat">1: ${counts.CK1}</span>
+                            <span class="gene-stat">0: ${counts.CK2}</span>
+                            ${counts.H ? `<span class="gene-stat">H: ${counts.H}</span>` : ''}
+                            ${counts.X ? `<span class="gene-stat">X: ${counts.X}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="gene-card-body">
+                        <div class="chart-container" id="chartContainer-${safeId}">
+                            <canvas id="chart-${safeId}"></canvas>
+                        </div>
+                        <div class="threshold-controls">
+                            <div class="pc-info">
+                                <div class="pc-info-item">
+                                    <span class="dot ${pc1IsCK1 ? 'ck1' : 'ck2'}"></span>
+                                    <span>PC1: ${pc1 ? `R=${pc1.ratio.toFixed(1)}` : '-'} → ${pc1IsCK1 ? 'CK1(1)' : 'CK2(0)'}</span>
+                                </div>
+                                <div class="pc-info-item">
+                                    <span class="dot ${pc1IsCK1 ? 'ck2' : 'ck1'}"></span>
+                                    <span>PC2: ${pc2 ? `R=${pc2.ratio.toFixed(1)}` : '-'} → ${pc1IsCK1 ? 'CK2(0)' : 'CK1(1)'}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="threshold-section">
+                                <div class="threshold-section-title">
+                                    📊 FAM/HEX 비율 경계 설정
+                                </div>
+                                <div class="threshold-row">
+                                    <div class="threshold-item">
+                                        <label>🔵 CK1(=1) 경계 (이상이면 1)</label>
+                                        <div class="threshold-input-group">
+                                            <input type="number" id="ck1input-${safeId}" value="${result.thresholds.ck1}" 
+                                                   step="0.5" min="0.5" max="50"
+                                                   onchange="setThresholdDirect('${geneName}', 'ck1', this.value)">
+                                            <input type="range" class="ck1-slider" id="ck1range-${safeId}" min="0.5" max="20" step="0.5" 
+                                                   value="${result.thresholds.ck1}"
+                                                   oninput="setThresholdDirect('${geneName}', 'ck1', this.value)">
+                                        </div>
+                                    </div>
+                                    <div class="threshold-item">
+                                        <label>🟠 CK2(=0) 경계 (이하이면 0)</label>
+                                        <div class="threshold-input-group">
+                                            <input type="number" id="ck2input-${safeId}" value="${result.thresholds.ck2}" 
+                                                   step="0.1" min="0.1" max="10"
+                                                   onchange="setThresholdDirect('${geneName}', 'ck2', this.value)">
+                                            <input type="range" class="ck2-slider" id="ck2range-${safeId}" min="0.1" max="5" step="0.1" 
+                                                   value="${result.thresholds.ck2}"
+                                                   oninput="setThresholdDirect('${geneName}', 'ck2', this.value)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="het-zone-indicator">
+                                    <span>🟣 Het 구간:</span>
+                                    <span id="hetZone-${safeId}">${result.thresholds.ck2} &lt; ratio &lt; ${result.thresholds.ck1}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-instruction">
+                                💡 <strong>클릭</strong>=CK2경계, <strong>Shift+클릭</strong>=CK1경계, <strong>Ctrl+클릭</strong>=개별 수정
+                            </div>
+                            
+                            <div class="ntc-info">
+                                ⚠️ 최소신호: HEX≥${result.thresholds.minHex.toFixed(3)}, FAM≥${result.thresholds.minFam.toFixed(3)} ${result._autoAdjusted ? '<span style="color:#2e7d32;">(분포 기반 자동조정)</span>' : '(NTC 기반)'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+                
+                createScatterChart(geneName, result);
+            });
+        }
+        
+        window.setThresholdDirect = function(geneName, key, value) {
+            const safeId = geneName.replace(/\s/g, '_');
+            const numValue = parseFloat(value);
+            
+            // Update both input and range
+            document.getElementById(`${key}input-${safeId}`).value = numValue;
+            document.getElementById(`${key}range-${safeId}`).value = Math.min(numValue, key === 'ck1' ? 20 : 5);
+            
+            // Apply threshold
+            geneResults[geneName].thresholds[key] = numValue;
+            
+            // Update het zone display
+            const ck1 = geneResults[geneName].thresholds.ck1;
+            const ck2 = geneResults[geneName].thresholds.ck2;
+            document.getElementById(`hetZone-${safeId}`).textContent = `${ck2} < ratio < ${ck1}`;
+            
+            // Reclassify and update
+            updateGeneClassification(geneName);
+        };
+        
+        window.setThresholdFromChart = function(geneName, ratio, isShift) {
+            const safeId = geneName.replace(/\s/g, '_');
+            const roundedRatio = Math.round(ratio * 10) / 10;
+            
+            if (isShift) {
+                // Shift+click = set CK1 threshold
+                setThresholdDirect(geneName, 'ck1', roundedRatio);
+            } else {
+                // Normal click = set CK2 threshold
+                setThresholdDirect(geneName, 'ck2', roundedRatio);
+            }
+        };
+        
+        // Point edit modal
+        let currentEditModal = null;
+        
+        window.showPointEditModal = function(geneName, sampleWell, x, y, currentGeno, ratio, mouseX, mouseY) {
+            closePointEditModal();
+            
+            const result = geneResults[geneName];
+            const sample = result.samples.find(s => s.well === sampleWell || s.sampleName === sampleWell);
+            const isManual = sample && sample.manual;
+            
+            const modal = document.createElement('div');
+            modal.className = 'point-edit-modal';
+            modal.style.left = mouseX + 'px';
+            modal.style.top = mouseY + 'px';
+            
+            modal.innerHTML = `
+                <button class="close-btn" onclick="closePointEditModal()">×</button>
+                <h4>📍 ${sampleWell} ${isManual ? '(수동)' : ''}</h4>
+                <div class="sample-info">R=${ratio.toFixed(2)} (HEX=${x.toFixed(3)}, FAM=${y.toFixed(3)})</div>
+                <div class="geno-options">
+                    <button class="geno-btn ck1 ${currentGeno === 'CK1' ? 'active' : ''}" 
+                            onclick="setPointGenotype('${geneName}', '${sampleWell}', 'CK1', '1')">1</button>
+                    <button class="geno-btn ck2 ${currentGeno === 'CK2' ? 'active' : ''}" 
+                            onclick="setPointGenotype('${geneName}', '${sampleWell}', 'CK2', '0')">0</button>
+                    <button class="geno-btn het ${currentGeno === 'H' ? 'active' : ''}" 
+                            onclick="setPointGenotype('${geneName}', '${sampleWell}', 'H', 'H')">H</button>
+                    <button class="geno-btn und ${currentGeno === 'X' ? 'active' : ''}" 
+                            onclick="setPointGenotype('${geneName}', '${sampleWell}', 'X', '-')">X</button>
+                </div>
+                ${isManual ? `<button class="geno-btn" style="width:100%;margin-top:8px;color:var(--primary);" 
+                              onclick="resetPointToAuto('${geneName}', '${sampleWell}')">🔄 자동분류로 복원</button>` : ''}
+            `;
+            
+            document.body.appendChild(modal);
+            currentEditModal = modal;
+            
+            // Adjust position if off screen
+            const rect = modal.getBoundingClientRect();
+            if (rect.right > window.innerWidth) {
+                modal.style.left = (mouseX - rect.width - 10) + 'px';
+            }
+            if (rect.bottom > window.innerHeight) {
+                modal.style.top = (mouseY - rect.height - 10) + 'px';
+            }
+        };
+        
+        window.resetPointToAuto = function(geneName, sampleWell) {
+            const result = geneResults[geneName];
+            const sample = result.samples.find(s => s.well === sampleWell || s.sampleName === sampleWell);
+            if (sample) {
+                delete sample.manual;
+                const cls = classifySample(sample, result);
+                sample.genotype = cls.genotype;
+                sample.code = cls.code;
+            }
+            closePointEditModal();
+            updateGeneClassification(geneName);
+        };
+        
+        window.closePointEditModal = function() {
+            if (currentEditModal) {
+                currentEditModal.remove();
+                currentEditModal = null;
+            }
+        };
+        
+        window.setPointGenotype = function(geneName, sampleWell, genotype, code) {
+            const result = geneResults[geneName];
+            const sample = result.samples.find(s => s.well === sampleWell || s.sampleName === sampleWell);
+            if (sample) {
+                sample.genotype = genotype;
+                sample.code = code;
+                sample.manual = true; // Mark as manually set
+            }
+            
+            closePointEditModal();
+            
+            // Update stats and chart
+            const safeId = geneName.replace(/\s/g, '_');
+            const counts = { CK1: 0, CK2: 0, H: 0, X: 0, NTC: 0 };
+            result.samples.forEach(s => counts[s.genotype]++);
+            
+            document.getElementById(`stats-${safeId}`).innerHTML = `
+                <span class="gene-stat">1: ${counts.CK1}</span>
+                <span class="gene-stat">0: ${counts.CK2}</span>
+                ${counts.H ? `<span class="gene-stat">H: ${counts.H}</span>` : ''}
+                ${counts.X ? `<span class="gene-stat">X: ${counts.X}</span>` : ''}
+            `;
+            
+            createScatterChart(geneName, result);
+        };
+        
+        // Close modal on outside click
+        document.addEventListener('click', function(e) {
+            if (currentEditModal && !currentEditModal.contains(e.target)) {
+                // Check if click was on chart
+                const isChartClick = e.target.tagName === 'CANVAS';
+                if (!isChartClick) {
+                    closePointEditModal();
+                }
+            }
+        });
+        
+        function updateGeneClassification(geneName) {
+            const result = geneResults[geneName];
+            const safeId = geneName.replace(/\s/g, '_');
+            
+            // Reclassify all samples
+            result.samples.forEach(s => {
+                const cls = classifySample(s, result);
+                s.genotype = cls.genotype;
+                s.code = cls.code;
+            });
+            
+            // Update stats
+            const counts = { CK1: 0, CK2: 0, H: 0, X: 0, NTC: 0 };
+            result.samples.forEach(s => counts[s.genotype]++);
+            
+            document.getElementById(`stats-${safeId}`).innerHTML = `
+                <span class="gene-stat">1: ${counts.CK1}</span>
+                <span class="gene-stat">0: ${counts.CK2}</span>
+                ${counts.H ? `<span class="gene-stat">H: ${counts.H}</span>` : ''}
+                ${counts.X ? `<span class="gene-stat">X: ${counts.X}</span>` : ''}
+            `;
+            
+            // Recreate chart
+            createScatterChart(geneName, result);
+        }
+        
+        function createScatterChart(geneName, result) {
+            const safeId = geneName.replace(/\s/g, '_');
+            const ctx = document.getElementById(`chart-${safeId}`).getContext('2d');
+            
+            // Update chart container height
+            const container = document.getElementById(`chartContainer-${safeId}`);
+            if (container) container.style.height = chartSettings.chartHeight + 'px';
+            
+            const colors = {
+                'CK1': 'rgba(21, 101, 192, 0.8)',
+                'CK2': 'rgba(230, 81, 0, 0.8)',
+                'H': 'rgba(123, 31, 162, 0.8)',
+                'X': 'rgba(158, 158, 158, 0.6)',
+                'NTC': 'rgba(69, 90, 100, 0.8)'
+            };
+            
+            const datasets = ['CK1', 'CK2', 'H', 'X', 'NTC'].map(geno => ({
+                label: geno === 'CK1' ? 'CK1 (=1)' : geno === 'CK2' ? 'CK2 (=0)' : geno,
+                data: result.samples.filter(s => s.genotype === geno && !s.manual).map(s => ({
+                    x: s.allele1,
+                    y: s.allele2,
+                    sample: s.sampleName || s.well,
+                    ratio: s.ratio
+                })),
+                backgroundColor: colors[geno],
+                pointRadius: chartSettings.pointSize,
+                pointHoverRadius: chartSettings.pointSize + 2
+            })).filter(ds => ds.data.length > 0);
+            
+            // Add manually set samples with border
+            ['CK1', 'CK2', 'H', 'X'].forEach(geno => {
+                const manualSamples = result.samples.filter(s => s.genotype === geno && s.manual);
+                if (manualSamples.length > 0) {
+                    datasets.push({
+                        label: `${geno} (수동)`,
+                        data: manualSamples.map(s => ({
+                            x: s.allele1,
+                            y: s.allele2,
+                            sample: s.sampleName || s.well,
+                            ratio: s.ratio
+                        })),
+                        backgroundColor: colors[geno],
+                        borderColor: '#000',
+                        borderWidth: 2,
+                        pointRadius: chartSettings.pointSize + 1,
+                        pointHoverRadius: chartSettings.pointSize + 3
+                    });
+                }
+            });
+            
+            // Add threshold lines
+            const maxX = Math.max(...result.samples.map(s => s.allele1)) * 1.1;
+            const maxY = Math.max(...result.samples.map(s => s.allele2)) * 1.1;
+            const ck1Thresh = result.thresholds.ck1;
+            const ck2Thresh = result.thresholds.ck2;
+            
+            // CK1 line: y/x = ck1 → y = ck1 * x
+            datasets.push({
+                label: `CK1 경계 (R=${ck1Thresh})`,
+                data: [{x: 0, y: 0}, {x: maxX, y: ck1Thresh * maxX}],
+                type: 'line',
+                borderColor: 'rgba(21, 101, 192, 0.5)',
+                borderWidth: chartSettings.lineWidth,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+            });
+            
+            // CK2 line: y/x = ck2 → y = ck2 * x
+            datasets.push({
+                label: `CK2 경계 (R=${ck2Thresh})`,
+                data: [{x: 0, y: 0}, {x: maxX, y: ck2Thresh * maxX}],
+                type: 'line',
+                borderColor: 'rgba(230, 81, 0, 0.5)',
+                borderWidth: chartSettings.lineWidth,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+            });
+            
+            if (charts[geneName]) charts[geneName].destroy();
+            
+            const legendConfig = chartSettings.legendPos === 'false' 
+                ? { display: false }
+                : { position: chartSettings.legendPos, labels: { boxWidth: 12, font: { size: chartSettings.fontSize - 1 }, filter: (item) => !item.text.includes('경계') && !item.text.includes('수동') } };
+            
+            charts[geneName] = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const el = elements[0];
+                            const datasetIndex = el.datasetIndex;
+                            const index = el.index;
+                            const dataset = charts[geneName].data.datasets[datasetIndex];
+                            const point = dataset.data[index];
+                            
+                            // Skip threshold lines
+                            if (point.ratio === undefined) return;
+                            
+                            const isShift = e.native.shiftKey;
+                            const isCtrl = e.native.ctrlKey || e.native.metaKey;
+                            
+                            if (isCtrl) {
+                                // Ctrl+click = show edit modal
+                                const rect = e.native.target.getBoundingClientRect();
+                                const mouseX = e.native.clientX;
+                                const mouseY = e.native.clientY;
+                                const currentGeno = dataset.label.includes('CK1') ? 'CK1' : 
+                                                   dataset.label.includes('CK2') ? 'CK2' : 
+                                                   dataset.label === 'H' ? 'H' : 
+                                                   dataset.label === 'X' ? 'X' : 'NTC';
+                                showPointEditModal(geneName, point.sample, point.x, point.y, currentGeno, point.ratio, mouseX, mouseY);
+                            } else {
+                                // Shift/normal click = set threshold
+                                setThresholdFromChart(geneName, point.ratio, isShift);
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: legendConfig,
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    if (ctx.raw.ratio !== undefined) {
+                                        return `${ctx.raw.sample}: R=${ctx.raw.ratio.toFixed(2)} (HEX=${ctx.raw.x.toFixed(3)}, FAM=${ctx.raw.y.toFixed(3)})`;
+                                    }
+                                    return ctx.dataset.label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { 
+                            title: { display: true, text: 'Allele1 (HEX)', font: { size: chartSettings.fontSize } }, 
+                            min: 0, 
+                            max: maxX,
+                            grid: { display: chartSettings.showGrid },
+                            ticks: { font: { size: chartSettings.fontSize - 1 } }
+                        },
+                        y: { 
+                            title: { display: true, text: 'Allele2 (FAM)', font: { size: chartSettings.fontSize } }, 
+                            min: 0, 
+                            max: Math.min(maxY, ck1Thresh * maxX * 1.2),
+                            grid: { display: chartSettings.showGrid },
+                            ticks: { font: { size: chartSettings.fontSize - 1 } }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function generateResults() {
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step2').classList.add('completed');
+            document.getElementById('step3').classList.add('active');
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            const genes = Object.keys(geneResults).sort();
+            
+            document.getElementById('resultHead').innerHTML = `<tr>
+                <th class="sample-col">Well</th>
+                <th class="sample-col">품종명/시료명</th>
+                ${genes.map(g => `<th>${g}</th>`).join('')}
+            </tr>`;
+            
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+            
+            genes.forEach(geneName => {
+                const result = geneResults[geneName];
+                if (!result.samples) return;
+                result.samples.forEach(s => {
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = s.code;
+                });
+            });
+            
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = Object.values(wellData)
+                .filter(item => item.sampleName)
+                .map(item => `<tr>
+                    <td class="sample-col">${item.well}</td>
+                    <td class="sample-col">${item.sampleName}</td>
+                    ${genes.map(g => {
+                        const code = item.genes[g] || '-';
+                        const cls = code === '1' ? 'geno-1' : code === '0' ? 'geno-0' : code === 'H' ? 'geno-H' : 'geno-X';
+                        return `<td><span class="geno-cell ${cls}">${code}</span></td>`;
+                    }).join('')}
+                </tr>`).join('');
+        }
+        
+        function showInfoSection() {
+            document.getElementById('infoSection').classList.remove('hidden');
+            document.getElementById('infoGrid').innerHTML = [
+                { title: '🧪 KASP 원리', desc: '두 개의 대립유전자 특이적 프라이머가 경쟁적으로 결합하여 FAM/HEX 형광으로 구분합니다.' },
+                { title: '💡 Delta Rn', desc: 'ROX로 정규화된 형광 신호. Allele1(HEX)과 Allele2(FAM)의 상대적 강도를 비교합니다.' },
+                { title: '📊 Ratio 계산', desc: 'FAM ÷ HEX 비율. 높으면 CK1(FAM 우세), 낮으면 CK2(HEX 우세)로 분류합니다.' },
+                { title: '🎯 PC 자동 감지', desc: 'PC_ALLELE_1과 PC_ALLELE_2의 형광값을 비교하여 어느 쪽이 CK1/CK2인지 자동 판별합니다.' },
+                { title: '⚗️ ROX', desc: 'Passive Reference. PCR 반응과 무관한 내부 표준으로 well 간 편차를 보정합니다.' },
+                { title: '🔬 NTC', desc: 'No Template Control. 주형 없는 음성 대조군으로 오염 여부를 확인합니다.' }
+            ].map(item => `<div class="info-card"><h4>${item.title}</h4><p>${item.desc}</p></div>`).join('');
+        }
+        
+        function resetAll() {
+            if (!confirm('모든 데이터를 초기화하고 처음부터 다시 시작하시겠습니까?')) return;
+            
+            sampleData = null; sampleColumns = []; wellCol = null; sampleCol = null;
+            rawFiles = []; geneResults = {};
+            Object.values(charts).forEach(c => c.destroy()); charts = {};
+            
+            document.getElementById('sampleZone').innerHTML = '<div class="icon">📋</div><h3>시료 목록 파일</h3><p>Well Position과 품종명이 포함된 Excel/CSV</p>';
+            document.getElementById('sampleZone').classList.remove('has-file');
+            document.getElementById('samplePreview').classList.add('hidden');
+            document.getElementById('rawFileList').innerHTML = '';
+            document.getElementById('rawDataZone').classList.remove('has-file');
+            document.getElementById('rawDataZone').innerHTML = '<div class="icon">📊</div><h3>로우데이터 파일 (복수 선택 가능)</h3><p>파일명 = 유전자명으로 인식됩니다</p><p style="font-size: 0.75rem; color: #888; margin-top: 4px;">예: Xa3.xls, Wx.xls</p>';
+            
+            ['analysisSection', 'resultsSection', 'infoSection'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            
+            document.getElementById('step1').classList.add('active');
+            document.getElementById('step1').classList.remove('completed');
+            ['step2', 'step3'].forEach(id => document.getElementById(id).classList.remove('active', 'completed'));
+            
+            analyzeBtn.disabled = true;
+            document.getElementById('sampleInput').value = '';
+            document.getElementById('rawDataInput').value = '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function downloadExcel() {
+            const genes = Object.keys(geneResults).sort();
+            const resultData = [['Well', '품종명', ...genes]];
+            
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+            
+            genes.forEach(geneName => {
+                geneResults[geneName].samples?.forEach(s => {
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = s.code;
+                });
+            });
+            
+            Object.values(wellData).forEach(item => {
+                if (item.sampleName) resultData.push([item.well, item.sampleName, ...genes.map(g => item.genes[g] || '-')]);
+            });
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resultData), 'Genotype Results');
+            
+            // Raw data sheets
+            genes.forEach(geneName => {
+                const result = geneResults[geneName];
+                if (!result.samples) return;
+                const data = [['Well', '품종명', 'Task', 'HEX', 'FAM', 'Ratio', 'Genotype', 'Code']];
+                result.samples.forEach(s => data.push([s.well, s.sampleName, s.task, s.allele1.toFixed(4), s.allele2.toFixed(4), s.ratio === 999 ? 'Inf' : s.ratio.toFixed(4), s.genotype, s.code]));
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), geneName.substring(0, 31));
+            });
+            
+            // Info sheet
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+                ['KASP 분석 결과 설명'],
+                [''],
+                ['분류 코드', '의미'],
+                ['1', 'CK1 - FAM 우세 (높은 비율)'],
+                ['0', 'CK2 - HEX 우세 (낮은 비율)'],
+                ['H', 'Heterozygous - 이형접합'],
+                ['-', '판정불가 또는 NTC'],
+                [''],
+                ['비율 계산: FAM ÷ HEX'],
+                ['PC 타입은 형광값을 기준으로 자동 판별됨']
+            ]), 'Info');
+            
+            XLSX.writeFile(wb, `KASP_Results_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+        
+        function downloadCsv() {
+            const genes = Object.keys(geneResults).sort();
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+            genes.forEach(geneName => {
+                geneResults[geneName].samples?.forEach(s => {
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = s.code;
+                });
+            });
+            
+            let csv = '\uFEFF' + ['Well', '품종명', ...genes].join(',') + '\n';
+            Object.values(wellData).forEach(item => {
+                if (item.sampleName) csv += [item.well, item.sampleName, ...genes.map(g => item.genes[g] || '-')].join(',') + '\n';
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `KASP_Genotypes_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+        }
+
+        function sendToSimulator() {
+            const genes = Object.keys(geneResults).sort();
+
+            // 시료별 데이터 구성
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+
+            genes.forEach(geneName => {
+                geneResults[geneName].samples?.forEach(s => {
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = s.code;
+                });
+            });
+
+            // 시뮬레이터용 데이터 형식으로 변환
+            // KASP: 0(CK2), 1(CK1), H, - → 시뮬레이터: 0, 2, 1, null
+            const simulatorData = {
+                timestamp: new Date().toISOString(),
+                source: 'KASP Multi-Gene Analyzer',
+                genes: genes,
+                varieties: [],
+                genotypes: []
+            };
+
+            Object.values(wellData).forEach(item => {
+                if (!item.sampleName) return;
+
+                const genotypeRow = { 'Variety': item.sampleName };
+                genes.forEach(g => {
+                    const code = item.genes[g];
+                    // KASP → 시뮬레이터 변환: 0→0, 1→2, H→1, -→null
+                    if (code === '0') genotypeRow[g] = 0;
+                    else if (code === '1') genotypeRow[g] = 2;
+                    else if (code === 'H') genotypeRow[g] = 1;
+                    else genotypeRow[g] = null;
+                });
+
+                simulatorData.varieties.push(item.sampleName);
+                simulatorData.genotypes.push(genotypeRow);
+            });
+
+            // localStorage에 저장
+            localStorage.setItem('kaspDataForSimulator', JSON.stringify(simulatorData));
+
+            // 성공 알림
+            const count = simulatorData.varieties.length;
+            const geneCount = genes.length;
+            alert(`✅ 시뮬레이터로 전송 완료!\n\n• 품종 수: ${count}개\n• 유전자 수: ${geneCount}개\n\n시뮬레이터에서 'KASP 데이터 가져오기' 버튼을 클릭하세요.`);
+
+            // 부모 창에 메시지 전송 (index.html의 iframe 환경일 경우)
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'kaspDataReady', count, geneCount }, '*');
+            }
+        }
+    </script>
+</body>
+</html>
