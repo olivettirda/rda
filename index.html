@@ -184,6 +184,53 @@
             text-align: center;
         }
 
+        .welcome-area.hidden {
+            display: none;
+        }
+
+        /* iframe 컨테이너 */
+        .app-frame-container {
+            flex: 1;
+            display: none;
+            position: relative;
+        }
+
+        .app-frame-container.active {
+            display: block;
+        }
+
+        .app-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .frame-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .frame-loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         .greeting-icon {
             width: 80px;
             height: 80px;
@@ -371,14 +418,19 @@
         </div>
 
         <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-page="home" onclick="loadPage('home'); return false;">
+                <div class="nav-icon">🏠</div>
+                <span class="nav-label">홈</span>
+            </a>
+
             <div class="nav-section-title">육종 시뮬레이션</div>
-            <a href="rice_breeding_v4_16_prediction.html" class="nav-item">
+            <a href="#" class="nav-item" data-page="simulator" onclick="loadPage('simulator'); return false;">
                 <div class="nav-icon">🌾</div>
                 <span class="nav-label">디지털육종 시뮬레이터</span>
             </a>
 
             <div class="nav-section-title">조사 도구</div>
-            <a href="createphenotypingform.html" class="nav-item">
+            <a href="#" class="nav-item" data-page="phenotyping" onclick="loadPage('phenotyping'); return false;">
                 <div class="nav-icon">📋</div>
                 <span class="nav-label">표현형 조사 양식</span>
             </a>
@@ -397,20 +449,20 @@
             </div>
         </header>
 
-        <div class="welcome-area">
+        <div class="welcome-area" id="welcomeArea">
             <div class="greeting-icon" id="greetingIcon">🌾</div>
             <h1 class="greeting-text" id="greetingText"></h1>
             <p class="greeting-subtext" id="greetingSubtext"></p>
 
             <div class="quick-actions">
-                <a href="rice_breeding_v4_16_prediction.html" class="quick-action">
+                <a href="#" class="quick-action" onclick="loadPage('simulator'); return false;">
                     <div class="quick-action-icon">🌾</div>
                     <div class="quick-action-text">
                         <div class="quick-action-title">디지털육종 시뮬레이터</div>
                         <div class="quick-action-desc">교배 시뮬레이션 시작</div>
                     </div>
                 </a>
-                <a href="createphenotypingform.html" class="quick-action">
+                <a href="#" class="quick-action" onclick="loadPage('phenotyping'); return false;">
                     <div class="quick-action-icon">📋</div>
                     <div class="quick-action-text">
                         <div class="quick-action-title">표현형 조사 양식</div>
@@ -418,6 +470,15 @@
                     </div>
                 </a>
             </div>
+        </div>
+
+        <!-- iframe 앱 컨테이너 -->
+        <div class="app-frame-container" id="appFrameContainer">
+            <div class="frame-loading" id="frameLoading">
+                <div class="spinner"></div>
+                <p>로딩 중...</p>
+            </div>
+            <iframe class="app-frame" id="appFrame" onload="onFrameLoad()"></iframe>
         </div>
     </main>
 
@@ -533,10 +594,85 @@
             document.querySelector('.sidebar-overlay').classList.toggle('open');
         }
 
+        // 페이지 URL 매핑
+        const pages = {
+            home: null,
+            simulator: 'rice_breeding_v4_16_prediction.html',
+            phenotyping: 'createphenotypingform.html'
+        };
+
+        let currentPage = 'home';
+
+        function loadPage(pageName) {
+            // 모바일에서 사이드바 닫기
+            document.querySelector('.sidebar').classList.remove('open');
+            document.querySelector('.sidebar-overlay').classList.remove('open');
+
+            // 네비게이션 활성화 상태 업데이트
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.page === pageName) {
+                    item.classList.add('active');
+                }
+            });
+
+            const welcomeArea = document.getElementById('welcomeArea');
+            const frameContainer = document.getElementById('appFrameContainer');
+            const appFrame = document.getElementById('appFrame');
+            const frameLoading = document.getElementById('frameLoading');
+
+            if (pageName === 'home') {
+                // 홈 화면 표시
+                welcomeArea.classList.remove('hidden');
+                frameContainer.classList.remove('active');
+                appFrame.src = '';
+                currentPage = 'home';
+            } else {
+                // 앱 로딩
+                welcomeArea.classList.add('hidden');
+                frameContainer.classList.add('active');
+                frameLoading.style.display = 'block';
+
+                const url = pages[pageName];
+                if (url && appFrame.src.indexOf(url) === -1) {
+                    appFrame.src = url;
+                }
+                currentPage = pageName;
+            }
+
+            // URL 해시 업데이트
+            window.location.hash = pageName === 'home' ? '' : pageName;
+        }
+
+        function onFrameLoad() {
+            const frameLoading = document.getElementById('frameLoading');
+            const appFrame = document.getElementById('appFrame');
+
+            if (appFrame.src) {
+                frameLoading.style.display = 'none';
+            }
+        }
+
+        // 해시 기반 라우팅
+        function handleHashChange() {
+            const hash = window.location.hash.slice(1);
+            if (hash && pages[hash]) {
+                loadPage(hash);
+            } else if (!hash) {
+                loadPage('home');
+            }
+        }
+
         // 초기화
         updateGreeting();
         updateTime();
         setInterval(updateTime, 60000);
+
+        // 해시 변경 감지
+        window.addEventListener('hashchange', handleHashChange);
+
+        // 초기 페이지 로드
+        handleHashChange();
     </script>
 </body>
 </html>
