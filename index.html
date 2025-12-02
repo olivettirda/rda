@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>벼 육종 도구 모음</title>
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0c3026;
+            --primary-light: #0d4a3a;
+            --secondary: #017f97;
+            --accent: #00a1b8;
+            --bg: #ffffff;
+            --bg-light: #f8faf9;
+            --bg-section: #e8f0ed;
+            --bg-sidebar: #0c3026;
+            --border: #d4e5df;
+            --text: #0c3026;
+            --text-light: #5a6b65;
+            --text-muted: #8a9a94;
+            --gradient: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* 사이드바 */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-sidebar);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 100;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: white;
+            padding: 4px;
+        }
+
+        .logo-text {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section-title {
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 12px 12px 8px;
+            font-weight: 500;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+            font-size: 0.95em;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .nav-item.active {
+            background: rgba(0, 161, 184, 0.3);
+            color: white;
+        }
+
+        .nav-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .nav-item:hover .nav-icon {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .nav-label {
+            flex: 1;
+        }
+
+        .nav-badge {
+            background: var(--accent);
+            color: white;
+            font-size: 0.7em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.8em;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* 메인 콘텐츠 */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-header {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+        }
+
+        .main-header-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .time-display {
+            font-size: 0.9em;
+            color: var(--text-muted);
+        }
+
+        .welcome-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .greeting-icon {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 30px;
+            font-size: 60px;
+            line-height: 1;
+        }
+
+        .greeting-text {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 16px;
+            opacity: 0;
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .greeting-subtext {
+            font-size: 1.2em;
+            color: var(--text-light);
+            max-width: 500px;
+            line-height: 1.6;
+            opacity: 0;
+            animation: fadeInUp 0.6s ease 0.2s forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 퀵 액션 카드 */
+        .quick-actions {
+            display: flex;
+            gap: 16px;
+            margin-top: 50px;
+            flex-wrap: wrap;
+            justify-content: center;
+            opacity: 0;
+            animation: fadeInUp 0.6s ease 0.4s forwards;
+        }
+
+        .quick-action {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 24px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            text-decoration: none;
+            color: var(--text);
+            transition: all 0.25s;
+            min-width: 220px;
+        }
+
+        .quick-action:hover {
+            border-color: var(--secondary);
+            box-shadow: 0 8px 25px rgba(12, 48, 38, 0.12);
+            transform: translateY(-3px);
+        }
+
+        .quick-action-icon {
+            width: 44px;
+            height: 44px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .quick-action-text {
+            text-align: left;
+        }
+
+        .quick-action-title {
+            font-weight: 600;
+            font-size: 0.95em;
+            margin-bottom: 2px;
+        }
+
+        .quick-action-desc {
+            font-size: 0.8em;
+            color: var(--text-muted);
+        }
+
+        /* 모바일 메뉴 버튼 */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 200;
+            width: 44px;
+            height: 44px;
+            background: var(--primary);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 90;
+        }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.open {
+                display: block;
+            }
+
+            .mobile-menu-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .main-header {
+                padding: 20px 20px 20px 70px;
+            }
+
+            .welcome-area {
+                padding: 40px 20px;
+            }
+
+            .greeting-text {
+                font-size: 1.8em;
+            }
+
+            .greeting-subtext {
+                font-size: 1em;
+            }
+
+            .quick-actions {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 0 10px;
+            }
+
+            .quick-action {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 모바일 메뉴 버튼 -->
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- 사이드바 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-area">
+                <img src="ssallogo.png" alt="로고" class="logo-img">
+                <span class="logo-text">벼 육종 도구</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-title">육종 시뮬레이션</div>
+            <a href="rice_breeding_v4_16_prediction.html" class="nav-item">
+                <div class="nav-icon">🌾</div>
+                <span class="nav-label">디지털육종 시뮬레이터</span>
+            </a>
+
+            <div class="nav-section-title">조사 도구</div>
+            <a href="createphenotypingform.html" class="nav-item">
+                <div class="nav-icon">📋</div>
+                <span class="nav-label">표현형 조사 양식</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <p>농촌진흥청 국립식량과학원</p>
+        </div>
+    </aside>
+
+    <!-- 메인 콘텐츠 -->
+    <main class="main-content">
+        <header class="main-header">
+            <div class="main-header-inner">
+                <div class="time-display" id="timeDisplay"></div>
+            </div>
+        </header>
+
+        <div class="welcome-area">
+            <div class="greeting-icon" id="greetingIcon">🌾</div>
+            <h1 class="greeting-text" id="greetingText"></h1>
+            <p class="greeting-subtext" id="greetingSubtext"></p>
+
+            <div class="quick-actions">
+                <a href="rice_breeding_v4_16_prediction.html" class="quick-action">
+                    <div class="quick-action-icon">🌾</div>
+                    <div class="quick-action-text">
+                        <div class="quick-action-title">디지털육종 시뮬레이터</div>
+                        <div class="quick-action-desc">교배 시뮬레이션 시작</div>
+                    </div>
+                </a>
+                <a href="createphenotypingform.html" class="quick-action">
+                    <div class="quick-action-icon">📋</div>
+                    <div class="quick-action-text">
+                        <div class="quick-action-title">표현형 조사 양식</div>
+                        <div class="quick-action-desc">조사 양식 생성</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 시간대별 인삿말 데이터
+        const greetings = {
+            morning: {
+                icon: ['🌅', '☀️', '🌤️', '🌻'],
+                texts: [
+                    '좋은 아침이에요!',
+                    '오늘도 힘찬 하루 되세요!',
+                    '상쾌한 아침입니다!',
+                    '새로운 하루가 시작됐어요!',
+                    '활기찬 아침이네요!'
+                ],
+                subtexts: [
+                    '오늘은 어떤 육종 연구를 진행할까요?',
+                    '새벽 이슬 맞은 벼처럼 싱그러운 하루 보내세요.',
+                    '아침 햇살처럼 밝은 연구 성과가 있길 바랍니다.',
+                    '오늘도 의미있는 육종 연구가 되길 바랍니다.',
+                    '좋은 품종 개발을 위한 새로운 시작입니다.'
+                ]
+            },
+            afternoon: {
+                icon: ['🌾', '🍃', '🌿', '☘️'],
+                texts: [
+                    '안녕하세요!',
+                    '좋은 오후입니다!',
+                    '점심은 맛있게 드셨나요?',
+                    '오후도 파이팅이에요!',
+                    '활기찬 오후네요!'
+                ],
+                subtexts: [
+                    '벼처럼 쑥쑥 자라는 연구 성과를 응원합니다.',
+                    '든든한 점심 후 집중력 높은 연구 시간 되세요.',
+                    '오후 연구에 좋은 결과가 있길 바랍니다.',
+                    '황금빛 벼처럼 빛나는 연구 되세요.',
+                    '풍성한 수확을 위한 노력에 박수를 보냅니다.'
+                ]
+            },
+            evening: {
+                icon: ['🌇', '🌆', '🏞️', '🌄'],
+                texts: [
+                    '수고 많으셨어요!',
+                    '오늘 하루도 고생하셨습니다!',
+                    '저녁 노을이 아름다운 시간이에요.',
+                    '하루를 마무리할 시간이네요.',
+                    '편안한 저녁 되세요!'
+                ],
+                subtexts: [
+                    '오늘의 연구가 내일의 풍요로 이어지길 바랍니다.',
+                    '하루의 노력이 좋은 결실을 맺길 기원합니다.',
+                    '잠시 쉬어가며 내일을 준비하세요.',
+                    '오늘의 데이터가 좋은 품종으로 영글길 바랍니다.',
+                    '저녁 햇살처럼 따뜻한 마무리 되세요.'
+                ]
+            },
+            night: {
+                icon: ['🌙', '✨', '🌃', '⭐'],
+                texts: [
+                    '늦은 시간까지 수고하세요!',
+                    '야근 중이시군요, 힘내세요!',
+                    '밤늦게까지 고생이 많으세요.',
+                    '별빛 아래 연구하시는군요!',
+                    '늦은 밤에도 파이팅!'
+                ],
+                subtexts: [
+                    '충분한 휴식도 좋은 연구의 일부입니다.',
+                    '내일을 위해 오늘은 푹 쉬어도 좋아요.',
+                    '달빛 아래 피어나는 아이디어가 있길 바랍니다.',
+                    '깊은 밤의 집중이 좋은 결과로 이어지길 바랍니다.',
+                    '건강이 최우선이에요, 무리하지 마세요.'
+                ]
+            }
+        };
+
+        function getTimeOfDay() {
+            const hour = new Date().getHours();
+            if (hour >= 5 && hour < 12) return 'morning';
+            if (hour >= 12 && hour < 17) return 'afternoon';
+            if (hour >= 17 && hour < 21) return 'evening';
+            return 'night';
+        }
+
+        function getRandomItem(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function updateGreeting() {
+            const timeOfDay = getTimeOfDay();
+            const data = greetings[timeOfDay];
+
+            document.getElementById('greetingIcon').textContent = getRandomItem(data.icon);
+            document.getElementById('greetingText').textContent = getRandomItem(data.texts);
+            document.getElementById('greetingSubtext').textContent = getRandomItem(data.subtexts);
+        }
+
+        function updateTime() {
+            const now = new Date();
+            const options = {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            document.getElementById('timeDisplay').textContent = now.toLocaleDateString('ko-KR', options);
+        }
+
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+            document.querySelector('.sidebar-overlay').classList.toggle('open');
+        }
+
+        // 초기화
+        updateGreeting();
+        updateTime();
+        setInterval(updateTime, 60000);
+    </script>
+</body>
+</html>
