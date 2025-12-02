@@ -745,6 +745,7 @@
                 <div class="btn-group" style="margin-bottom: 16px;">
                     <button class="btn btn-primary" id="downloadExcelBtn">📥 Excel 다운로드</button>
                     <button class="btn btn-secondary" id="downloadCsvBtn">📥 CSV 다운로드</button>
+                    <button class="btn" id="sendToSimulatorBtn" style="background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);">🌾 시뮬레이터로 전송</button>
                 </div>
                 <div class="result-table-wrapper">
                     <table class="result-table" id="resultTable">
@@ -835,6 +836,7 @@
         document.getElementById('confirmBtn').addEventListener('click', generateResults);
         document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
         document.getElementById('downloadCsvBtn').addEventListener('click', downloadCsv);
+        document.getElementById('sendToSimulatorBtn').addEventListener('click', sendToSimulator);
         
         document.getElementById('wellColumn').addEventListener('change', e => { wellCol = parseInt(e.target.value); checkReady(); });
         document.getElementById('sampleColumn').addEventListener('change', e => { sampleCol = parseInt(e.target.value); checkReady(); });
@@ -1749,6 +1751,63 @@
             link.href = URL.createObjectURL(blob);
             link.download = `KASP_Genotypes_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
+        }
+
+        function sendToSimulator() {
+            const genes = Object.keys(geneResults).sort();
+
+            // 시료별 데이터 구성
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+
+            genes.forEach(geneName => {
+                geneResults[geneName].samples?.forEach(s => {
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = s.code;
+                });
+            });
+
+            // 시뮬레이터용 데이터 형식으로 변환
+            // KASP: 0(CK2), 1(CK1), H, - → 시뮬레이터: 0, 2, 1, null
+            const simulatorData = {
+                timestamp: new Date().toISOString(),
+                source: 'KASP Multi-Gene Analyzer',
+                genes: genes,
+                varieties: [],
+                genotypes: []
+            };
+
+            Object.values(wellData).forEach(item => {
+                if (!item.sampleName) return;
+
+                const genotypeRow = { 'Variety': item.sampleName };
+                genes.forEach(g => {
+                    const code = item.genes[g];
+                    // KASP → 시뮬레이터 변환: 0→0, 1→2, H→1, -→null
+                    if (code === '0') genotypeRow[g] = 0;
+                    else if (code === '1') genotypeRow[g] = 2;
+                    else if (code === 'H') genotypeRow[g] = 1;
+                    else genotypeRow[g] = null;
+                });
+
+                simulatorData.varieties.push(item.sampleName);
+                simulatorData.genotypes.push(genotypeRow);
+            });
+
+            // localStorage에 저장
+            localStorage.setItem('kaspDataForSimulator', JSON.stringify(simulatorData));
+
+            // 성공 알림
+            const count = simulatorData.varieties.length;
+            const geneCount = genes.length;
+            alert(`✅ 시뮬레이터로 전송 완료!\n\n• 품종 수: ${count}개\n• 유전자 수: ${geneCount}개\n\n시뮬레이터에서 'KASP 데이터 가져오기' 버튼을 클릭하세요.`);
+
+            // 부모 창에 메시지 전송 (index.html의 iframe 환경일 경우)
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'kaspDataReady', count, geneCount }, '*');
+            }
         }
     </script>
 </body>
