@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KASP Multi-Gene Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary-dark: #0c3026;
+            --primary: #017f97;
+            --primary-light: #00a1b8;
+            --accent-light: #cce3dd;
+            --accent-lighter: #e8f4f0;
+            --bg: #f8fafa;
+            --card-bg: #ffffff;
+            --text: #1a1a1a;
+            --text-light: #666;
+            --border: #e0e0e0;
+            --ck1: #1565c0;
+            --ck2: #e65100;
+            --het: #7b1fa2;
+            --und: #757575;
+            --ntc: #455a64;
+            --success: #2e7d32;
+            --warning: #f57c00;
+        }
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 20px 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(12, 48, 38, 0.2);
+        }
+        
+        .header h1 { font-size: 1.6rem; font-weight: 600; }
+        .header p { font-size: 0.9rem; opacity: 0.9; }
+        
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+        
+        /* Steps Indicator */
+        .steps {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: white;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            color: var(--text-light);
+            border: 2px solid var(--border);
+            transition: all 0.3s;
+        }
+        
+        .step.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .step.completed {
+            background: var(--accent-light);
+            color: var(--primary-dark);
+            border-color: var(--primary-light);
+        }
+        
+        .step-num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: currentColor;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        
+        .step.active .step-num { background: white; color: var(--primary); }
+        .step.completed .step-num { background: var(--primary-dark); }
+        
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: var(--accent-lighter);
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-header h2 { font-size: 1rem; font-weight: 600; color: var(--primary-dark); }
+        .card-header .badge {
+            margin-left: auto;
+            padding: 4px 12px;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+        
+        .card-body { padding: 20px; }
+        
+        /* Upload Zones */
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 800px) {
+            .upload-grid { grid-template-columns: 1fr; }
+        }
+        
+        .upload-zone {
+            border: 2px dashed var(--primary-light);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            background: var(--accent-lighter);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary-dark);
+            background: var(--accent-light);
+        }
+        
+        .upload-zone h3 { color: var(--primary-dark); font-size: 1rem; margin: 10px 0 5px; }
+        .upload-zone p { color: var(--text-light); font-size: 0.8rem; }
+        .upload-zone .icon { font-size: 36px; }
+        
+        .upload-zone.has-file {
+            border-style: solid;
+            border-color: var(--success);
+            background: #e8f5e9;
+        }
+        
+        /* File List */
+        .file-list {
+            margin-top: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+        }
+        
+        .file-item .gene-name {
+            font-weight: 600;
+            color: var(--primary-dark);
+            min-width: 100px;
+        }
+        
+        .file-item .file-name {
+            color: var(--text-light);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .file-item .remove-btn {
+            background: none;
+            border: none;
+            color: #c62828;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0 4px;
+        }
+        
+        .file-item .status {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        
+        .file-item .status.ready { background: #e3f2fd; color: var(--ck1); }
+        .file-item .status.done { background: #e8f5e9; color: var(--success); }
+        
+        /* Sample Preview */
+        .sample-preview {
+            max-height: 300px;
+            overflow: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sample-preview table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .sample-preview th, .sample-preview td {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+        
+        .sample-preview th {
+            background: var(--primary-dark);
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        
+        .sample-preview tr:nth-child(even) { background: var(--accent-lighter); }
+        
+        /* Column Selector */
+        .column-selector {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+            padding: 16px;
+            background: #fff8e1;
+            border-radius: 8px;
+        }
+        
+        .column-selector label {
+            font-weight: 500;
+            color: var(--primary-dark);
+            font-size: 0.9rem;
+        }
+        
+        .column-selector select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+        
+        /* Analysis Grid */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+            gap: 20px;
+        }
+        
+        .gene-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .gene-card-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .gene-card-header h3 { font-size: 1rem; }
+        
+        .gene-stats {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .gene-stat {
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .gene-stat.ck1 { background: rgba(255,255,255,0.2); }
+        .gene-stat.ck2 { background: rgba(255,255,255,0.2); }
+        
+        .gene-card-body { padding: 16px; }
+        
+        .chart-container {
+            height: 280px;
+            position: relative;
+        }
+        
+        /* Threshold Controls */
+        .threshold-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--accent-lighter);
+            border-radius: 8px;
+        }
+        
+        .threshold-group label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+        
+        .threshold-group input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        /* Result Table */
+        .result-section { margin-top: 24px; }
+        
+        .result-table-wrapper {
+            overflow: auto;
+            max-height: 500px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        
+        .result-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .result-table th {
+            background: var(--primary-dark);
+            color: white;
+            padding: 10px 12px;
+            text-align: center;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        
+        .result-table th.sample-col {
+            background: var(--primary);
+            text-align: left;
+            min-width: 150px;
+        }
+        
+        .result-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+        
+        .result-table td.sample-col {
+            text-align: left;
+            font-weight: 500;
+            background: var(--accent-lighter);
+            position: sticky;
+            left: 0;
+        }
+        
+        .result-table tbody tr:hover { background: #fffde7; }
+        
+        .geno-cell {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            min-width: 28px;
+        }
+        
+        .geno-1 { background: #e3f2fd; color: var(--ck1); }
+        .geno-0 { background: #fff3e0; color: var(--ck2); }
+        .geno-H { background: #f3e5f5; color: var(--het); }
+        .geno-X { background: #eeeeee; color: var(--und); }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(1, 127, 151, 0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .btn-secondary {
+            background: white;
+            color: var(--primary-dark);
+            border: 2px solid var(--primary);
+        }
+        
+        .btn-secondary:hover { background: var(--accent-lighter); }
+        
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+        
+        /* Hidden */
+        .hidden { display: none !important; }
+        
+        /* Info Cards */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        
+        .info-card {
+            padding: 16px;
+            background: var(--accent-lighter);
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .info-card h4 {
+            color: var(--primary-dark);
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+        }
+        
+        .info-card p {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+        
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--accent-lighter);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+        
+        /* Progress */
+        .progress-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            cursor: help;
+        }
+        
+        .tooltip::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-dark);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        
+        .tooltip:hover::after { opacity: 1; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🧬 KASP Multi-Gene Analyzer</h1>
+        <p>다중 유전자 KASP 데이터 통합 분석 및 정리 도구</p>
+    </header>
+    
+    <div class="container">
+        <!-- Steps -->
+        <div class="steps">
+            <div class="step active" id="step1"><span class="step-num">1</span> 파일 업로드</div>
+            <div class="step" id="step2"><span class="step-num">2</span> Allelic Discrimination 확인</div>
+            <div class="step" id="step3"><span class="step-num">3</span> 결과 정리 & 다운로드</div>
+        </div>
+        
+        <!-- Step 1: File Upload -->
+        <div class="card" id="uploadSection">
+            <div class="card-header">
+                <span>📁</span>
+                <h2>Step 1: 파일 업로드</h2>
+            </div>
+            <div class="card-body">
+                <div class="upload-grid">
+                    <!-- Sample List -->
+                    <div>
+                        <div class="upload-zone" id="sampleZone">
+                            <div class="icon">📋</div>
+                            <h3>시료 목록 파일</h3>
+                            <p>Well Position과 품종명이 포함된 Excel/CSV</p>
+                        </div>
+                        <input type="file" id="sampleInput" accept=".xls,.xlsx,.csv" class="hidden">
+                        <div id="samplePreview" class="hidden" style="margin-top: 16px;">
+                            <div class="column-selector">
+                                <div>
+                                    <label>Well Position 컬럼:</label>
+                                    <select id="wellColumn"></select>
+                                </div>
+                                <div>
+                                    <label>품종명/시료명 컬럼:</label>
+                                    <select id="sampleColumn"></select>
+                                </div>
+                            </div>
+                            <div class="sample-preview" style="margin-top: 12px;">
+                                <table id="sampleTable"></table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Raw Data Files -->
+                    <div>
+                        <div class="upload-zone" id="rawDataZone">
+                            <div class="icon">📊</div>
+                            <h3>로우데이터 파일 (복수 선택 가능)</h3>
+                            <p>파일명 = 유전자명으로 인식됩니다</p>
+                            <p style="font-size: 0.75rem; color: #888; margin-top: 4px;">예: Xa3.xls, Wx.xls, SSIIa.xls</p>
+                        </div>
+                        <input type="file" id="rawDataInput" accept=".xls,.xlsx" multiple class="hidden">
+                        <div class="file-list" id="rawFileList"></div>
+                    </div>
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="analyzeBtn" disabled>🔬 분석 시작</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 2: Allelic Discrimination -->
+        <div class="card hidden" id="analysisSection">
+            <div class="card-header">
+                <span>📈</span>
+                <h2>Step 2: Allelic Discrimination Plot</h2>
+                <span class="badge" id="geneBadge">0 genes</span>
+            </div>
+            <div class="card-body">
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background: var(--ck1);"></div><strong>CK1</strong> = 1 (FAM 우세)</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--ck2);"></div><strong>CK2</strong> = 0 (HEX 우세)</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--het);"></div><strong>H</strong> = Heterozygous</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--und);"></div><strong>X</strong> = 판정불가</div>
+                    <div class="legend-item"><div class="legend-color" style="background: var(--ntc);"></div><strong>NTC</strong> = Negative Control</div>
+                </div>
+                
+                <div class="analysis-grid" id="analysisGrid"></div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="confirmBtn">✅ 분류 확정 & 결과 정리</button>
+                    <button class="btn btn-secondary" id="reanalyzeBtn">🔄 임계값 변경 후 재분석</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 3: Results -->
+        <div class="card hidden" id="resultsSection">
+            <div class="card-header">
+                <span>📑</span>
+                <h2>Step 3: 최종 결과</h2>
+            </div>
+            <div class="card-body">
+                <div class="btn-group" style="margin-bottom: 16px;">
+                    <button class="btn btn-primary" id="downloadExcelBtn">📥 Excel 다운로드 (전체)</button>
+                    <button class="btn btn-secondary" id="downloadCsvBtn">📥 CSV 다운로드 (유전자형만)</button>
+                </div>
+                
+                <div class="result-table-wrapper">
+                    <table class="result-table" id="resultTable">
+                        <thead id="resultHead"></thead>
+                        <tbody id="resultBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Metadata Info -->
+        <div class="card hidden" id="infoSection">
+            <div class="card-header">
+                <span>📚</span>
+                <h2>KASP 원리 및 메타데이터 설명</h2>
+            </div>
+            <div class="card-body">
+                <div class="info-grid" id="infoGrid"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ===== Global State =====
+        let sampleData = null;
+        let sampleColumns = [];
+        let wellCol = null;
+        let sampleCol = null;
+        let rawFiles = [];
+        let geneResults = {};
+        let charts = {};
+        
+        // ===== DOM Elements =====
+        const sampleZone = document.getElementById('sampleZone');
+        const sampleInput = document.getElementById('sampleInput');
+        const rawDataZone = document.getElementById('rawDataZone');
+        const rawDataInput = document.getElementById('rawDataInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        
+        // ===== Event Listeners =====
+        sampleZone.addEventListener('click', () => sampleInput.click());
+        sampleZone.addEventListener('dragover', e => { e.preventDefault(); sampleZone.classList.add('dragover'); });
+        sampleZone.addEventListener('dragleave', () => sampleZone.classList.remove('dragover'));
+        sampleZone.addEventListener('drop', e => {
+            e.preventDefault();
+            sampleZone.classList.remove('dragover');
+            if (e.dataTransfer.files[0]) processSampleFile(e.dataTransfer.files[0]);
+        });
+        sampleInput.addEventListener('change', e => {
+            if (e.target.files[0]) processSampleFile(e.target.files[0]);
+        });
+        
+        rawDataZone.addEventListener('click', () => rawDataInput.click());
+        rawDataZone.addEventListener('dragover', e => { e.preventDefault(); rawDataZone.classList.add('dragover'); });
+        rawDataZone.addEventListener('dragleave', () => rawDataZone.classList.remove('dragover'));
+        rawDataZone.addEventListener('drop', e => {
+            e.preventDefault();
+            rawDataZone.classList.remove('dragover');
+            processRawFiles(e.dataTransfer.files);
+        });
+        rawDataInput.addEventListener('change', e => processRawFiles(e.target.files));
+        
+        analyzeBtn.addEventListener('click', runAnalysis);
+        document.getElementById('confirmBtn').addEventListener('click', generateResults);
+        document.getElementById('reanalyzeBtn').addEventListener('click', reanalyze);
+        document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
+        document.getElementById('downloadCsvBtn').addEventListener('click', downloadCsv);
+        
+        document.getElementById('wellColumn').addEventListener('change', e => {
+            wellCol = e.target.value;
+            checkReady();
+        });
+        document.getElementById('sampleColumn').addEventListener('change', e => {
+            sampleCol = e.target.value;
+            checkReady();
+        });
+        
+        // ===== Functions =====
+        function processSampleFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                
+                if (json.length < 2) {
+                    alert('데이터가 없습니다.');
+                    return;
+                }
+                
+                sampleColumns = json[0].map(c => String(c || ''));
+                sampleData = json.slice(1).filter(row => row.some(c => c));
+                
+                // Populate column selectors
+                const wellSelect = document.getElementById('wellColumn');
+                const sampleSelect = document.getElementById('sampleColumn');
+                wellSelect.innerHTML = '<option value="">선택...</option>';
+                sampleSelect.innerHTML = '<option value="">선택...</option>';
+                
+                sampleColumns.forEach((col, idx) => {
+                    wellSelect.innerHTML += `<option value="${idx}">${col}</option>`;
+                    sampleSelect.innerHTML += `<option value="${idx}">${col}</option>`;
+                });
+                
+                // Auto-detect columns
+                sampleColumns.forEach((col, idx) => {
+                    const lower = col.toLowerCase();
+                    if (lower.includes('well') || lower.includes('position') || lower === '위치') {
+                        wellSelect.value = idx;
+                        wellCol = idx;
+                    }
+                    if (lower.includes('sample') || lower.includes('품종') || lower.includes('시료') || lower.includes('name') || lower.includes('variety')) {
+                        sampleSelect.value = idx;
+                        sampleCol = idx;
+                    }
+                });
+                
+                // Show preview table
+                const table = document.getElementById('sampleTable');
+                let html = '<thead><tr>';
+                sampleColumns.forEach(col => html += `<th>${col}</th>`);
+                html += '</tr></thead><tbody>';
+                sampleData.slice(0, 10).forEach(row => {
+                    html += '<tr>';
+                    sampleColumns.forEach((_, idx) => html += `<td>${row[idx] || ''}</td>`);
+                    html += '</tr>';
+                });
+                if (sampleData.length > 10) html += `<tr><td colspan="${sampleColumns.length}" style="text-align:center;color:#888;">... 외 ${sampleData.length - 10}개</td></tr>`;
+                html += '</tbody>';
+                table.innerHTML = html;
+                
+                document.getElementById('samplePreview').classList.remove('hidden');
+                sampleZone.classList.add('has-file');
+                sampleZone.innerHTML = `<div class="icon">✅</div><h3>${file.name}</h3><p>${sampleData.length}개 시료</p>`;
+                
+                checkReady();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function processRawFiles(files) {
+            Array.from(files).forEach(file => {
+                const geneName = file.name.replace(/\.(xls|xlsx)$/i, '').replace(/[_\-\s]+/g, ' ').trim();
+                
+                // Check duplicate
+                if (rawFiles.some(f => f.geneName === geneName)) {
+                    alert(`${geneName} 유전자가 이미 추가되어 있습니다.`);
+                    return;
+                }
+                
+                rawFiles.push({ file, geneName, status: 'ready' });
+            });
+            
+            updateFileList();
+            checkReady();
+        }
+        
+        function updateFileList() {
+            const list = document.getElementById('rawFileList');
+            list.innerHTML = '';
+            
+            rawFiles.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <span class="gene-name">${item.geneName}</span>
+                    <span class="file-name">${item.file.name}</span>
+                    <span class="status ${item.status}">${item.status === 'ready' ? '대기' : '완료'}</span>
+                    <button class="remove-btn" onclick="removeFile(${idx})">×</button>
+                `;
+                list.appendChild(div);
+            });
+            
+            if (rawFiles.length > 0) {
+                rawDataZone.classList.add('has-file');
+            }
+        }
+        
+        function removeFile(idx) {
+            rawFiles.splice(idx, 1);
+            updateFileList();
+            checkReady();
+        }
+        
+        function checkReady() {
+            const ready = sampleData && wellCol !== null && sampleCol !== null && rawFiles.length > 0;
+            analyzeBtn.disabled = !ready;
+        }
+        
+        async function runAnalysis() {
+            // Update steps
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step1').classList.add('completed');
+            document.getElementById('step2').classList.add('active');
+            
+            geneResults = {};
+            
+            // Build sample map (well -> sample name)
+            const sampleMap = {};
+            sampleData.forEach(row => {
+                let well = String(row[wellCol] || '').trim().toUpperCase();
+                // Normalize well format (A1 -> A01 or A01 -> A1)
+                well = normalizeWell(well);
+                sampleMap[well] = row[sampleCol] || '';
+            });
+            
+            // Process each raw file
+            for (const item of rawFiles) {
+                const result = await processRawData(item.file, item.geneName, sampleMap);
+                geneResults[item.geneName] = result;
+                item.status = 'done';
+                updateFileList();
+            }
+            
+            // Show analysis section
+            document.getElementById('analysisSection').classList.remove('hidden');
+            document.getElementById('geneBadge').textContent = `${rawFiles.length} genes`;
+            
+            // Create charts
+            createAnalysisCharts();
+            
+            // Show info section
+            showInfoSection();
+        }
+        
+        function normalizeWell(well) {
+            // Handle various formats: A1, A01, A 1, etc.
+            const match = well.match(/([A-H])[\s\-_]?(\d+)/i);
+            if (match) {
+                return match[1].toUpperCase() + parseInt(match[2]);
+            }
+            return well;
+        }
+        
+        function processRawData(file, geneName, sampleMap) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Find Results sheet
+                    const resultsSheet = workbook.Sheets['Results'];
+                    if (!resultsSheet) {
+                        resolve({ error: 'No Results sheet', data: [] });
+                        return;
+                    }
+                    
+                    const json = XLSX.utils.sheet_to_json(resultsSheet, { header: 1 });
+                    
+                    // Find header row
+                    let headerRow = -1;
+                    for (let i = 0; i < json.length; i++) {
+                        if (json[i][0] === 'Well') {
+                            headerRow = i;
+                            break;
+                        }
+                    }
+                    
+                    if (headerRow === -1) {
+                        resolve({ error: 'No header', data: [] });
+                        return;
+                    }
+                    
+                    // Parse metadata
+                    const metadata = {};
+                    for (let i = 0; i < headerRow; i++) {
+                        if (json[i][0]) {
+                            metadata[String(json[i][0]).trim()] = json[i][1];
+                        }
+                    }
+                    
+                    // Parse data
+                    const headers = json[headerRow];
+                    const colIdx = {};
+                    headers.forEach((h, i) => colIdx[h] = i);
+                    
+                    const samples = [];
+                    for (let i = headerRow + 1; i < json.length; i++) {
+                        const row = json[i];
+                        if (!row[0]) continue;
+                        
+                        const wellPos = normalizeWell(String(row[colIdx['Well Position']] || ''));
+                        const a1 = parseFloat(row[colIdx['Allele1 Delta Rn']]) || 0;
+                        const a2 = parseFloat(row[colIdx['Allele2 Delta Rn']]) || 0;
+                        const task = row[colIdx['Task']] || 'UNKNOWN';
+                        
+                        samples.push({
+                            well: wellPos,
+                            sampleName: sampleMap[wellPos] || '',
+                            task,
+                            allele1: a1,
+                            allele2: a2,
+                            ratio: a1 > 0 ? a2 / a1 : (a2 > 0 ? Infinity : 0)
+                        });
+                    }
+                    
+                    // Find PC references
+                    const pc1 = samples.find(s => s.task === 'PC_ALLELE_1');
+                    const pc2 = samples.find(s => s.task === 'PC_ALLELE_2');
+                    
+                    resolve({
+                        geneName,
+                        samples,
+                        metadata,
+                        pc1,
+                        pc2,
+                        thresholds: { ck1: 5, ck2: 0.5, minSignal: 0.05, hetMin: 0.3 }
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function classifySample(sample, thresholds) {
+            const { ck1, ck2, minSignal, hetMin } = thresholds;
+            const { allele1: a1, allele2: a2, ratio, task } = sample;
+            
+            if (task === 'NTC') return { genotype: 'NTC', code: '-' };
+            if (task === 'PC_ALLELE_1') return { genotype: 'CK1', code: '1' };
+            if (task === 'PC_ALLELE_2') return { genotype: 'CK2', code: '0' };
+            
+            if (a1 < minSignal && a2 < minSignal * 2) return { genotype: 'X', code: '-' };
+            if (ratio >= ck1) return { genotype: 'CK1', code: '1' };
+            if (ratio <= ck2) return { genotype: 'CK2', code: '0' };
+            if (a1 >= hetMin && a2 >= hetMin) return { genotype: 'H', code: 'H' };
+            if (ratio > 3) return { genotype: 'CK1', code: '1' };
+            if (ratio < 1) return { genotype: 'CK2', code: '0' };
+            return { genotype: 'X', code: '-' };
+        }
+        
+        function createAnalysisCharts() {
+            const grid = document.getElementById('analysisGrid');
+            grid.innerHTML = '';
+            
+            Object.entries(geneResults).forEach(([geneName, result]) => {
+                if (result.error) return;
+                
+                // Classify samples
+                result.samples.forEach(s => {
+                    const cls = classifySample(s, result.thresholds);
+                    s.genotype = cls.genotype;
+                    s.code = cls.code;
+                });
+                
+                // Count
+                const counts = { CK1: 0, CK2: 0, H: 0, X: 0, NTC: 0 };
+                result.samples.forEach(s => counts[s.genotype]++);
+                
+                // Create card
+                const card = document.createElement('div');
+                card.className = 'gene-card';
+                card.innerHTML = `
+                    <div class="gene-card-header">
+                        <h3>🧬 ${geneName}</h3>
+                        <div class="gene-stats">
+                            <span class="gene-stat ck1">1: ${counts.CK1}</span>
+                            <span class="gene-stat ck2">0: ${counts.CK2}</span>
+                            ${counts.H ? `<span class="gene-stat">H: ${counts.H}</span>` : ''}
+                            ${counts.X ? `<span class="gene-stat">X: ${counts.X}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="gene-card-body">
+                        <div class="chart-container">
+                            <canvas id="chart-${geneName.replace(/\s/g, '_')}"></canvas>
+                        </div>
+                        <div class="threshold-controls">
+                            <div class="threshold-group">
+                                <label>CK1 임계값 (≥)</label>
+                                <input type="number" step="0.5" value="${result.thresholds.ck1}" 
+                                       onchange="updateThreshold('${geneName}', 'ck1', this.value)">
+                            </div>
+                            <div class="threshold-group">
+                                <label>CK2 임계값 (≤)</label>
+                                <input type="number" step="0.05" value="${result.thresholds.ck2}"
+                                       onchange="updateThreshold('${geneName}', 'ck2', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+                
+                // Create chart
+                createScatterChart(geneName, result);
+            });
+        }
+        
+        function createScatterChart(geneName, result) {
+            const canvasId = `chart-${geneName.replace(/\s/g, '_')}`;
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            const colors = {
+                'CK1': 'rgba(21, 101, 192, 0.8)',
+                'CK2': 'rgba(230, 81, 0, 0.8)',
+                'H': 'rgba(123, 31, 162, 0.8)',
+                'X': 'rgba(158, 158, 158, 0.6)',
+                'NTC': 'rgba(69, 90, 100, 0.8)'
+            };
+            
+            const datasets = ['CK1', 'CK2', 'H', 'X', 'NTC'].map(geno => ({
+                label: geno,
+                data: result.samples.filter(s => s.genotype === geno).map(s => ({
+                    x: s.allele1,
+                    y: s.allele2,
+                    sample: s.sampleName || s.well
+                })),
+                backgroundColor: colors[geno],
+                pointRadius: 5,
+                pointHoverRadius: 7
+            })).filter(ds => ds.data.length > 0);
+            
+            if (charts[geneName]) charts[geneName].destroy();
+            
+            charts[geneName] = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.raw.sample}: (${ctx.raw.x.toFixed(3)}, ${ctx.raw.y.toFixed(3)})`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Allele1 (HEX)', font: { size: 11 } }, min: 0 },
+                        y: { title: { display: true, text: 'Allele2 (FAM)', font: { size: 11 } }, min: 0 }
+                    }
+                }
+            });
+        }
+        
+        window.updateThreshold = function(geneName, key, value) {
+            geneResults[geneName].thresholds[key] = parseFloat(value);
+        };
+        
+        function reanalyze() {
+            createAnalysisCharts();
+        }
+        
+        function generateResults() {
+            // Update steps
+            document.getElementById('step2').classList.remove('active');
+            document.getElementById('step2').classList.add('completed');
+            document.getElementById('step3').classList.add('active');
+            
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            // Build result table
+            const genes = Object.keys(geneResults).sort();
+            
+            // Create header
+            const thead = document.getElementById('resultHead');
+            thead.innerHTML = `<tr>
+                <th class="sample-col">Well</th>
+                <th class="sample-col">품종명/시료명</th>
+                ${genes.map(g => `<th>${g}</th>`).join('')}
+            </tr>`;
+            
+            // Build data by well
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = {
+                    well,
+                    sampleName: row[sampleCol] || '',
+                    genes: {}
+                };
+            });
+            
+            // Fill gene data
+            genes.forEach(geneName => {
+                const result = geneResults[geneName];
+                if (!result.samples) return;
+                
+                result.samples.forEach(s => {
+                    const cls = classifySample(s, result.thresholds);
+                    if (wellData[s.well]) {
+                        wellData[s.well].genes[geneName] = cls.code;
+                    }
+                });
+            });
+            
+            // Render table
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = '';
+            
+            Object.values(wellData).forEach(item => {
+                if (!item.sampleName && Object.keys(item.genes).length === 0) return;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="sample-col">${item.well}</td>
+                    <td class="sample-col">${item.sampleName}</td>
+                    ${genes.map(g => {
+                        const code = item.genes[g] || '-';
+                        const cls = code === '1' ? 'geno-1' : code === '0' ? 'geno-0' : code === 'H' ? 'geno-H' : 'geno-X';
+                        return `<td><span class="geno-cell ${cls}">${code}</span></td>`;
+                    }).join('')}
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        function showInfoSection() {
+            document.getElementById('infoSection').classList.remove('hidden');
+            
+            const infoData = [
+                {
+                    title: '🧪 KASP (Kompetitive Allele Specific PCR)',
+                    desc: '두 개의 대립유전자 특이적 프라이머가 경쟁적으로 결합하여, 각각 다른 형광 염료(FAM/HEX)로 표지된 프로브와 반응합니다. 최종 형광 비율로 유전자형을 판별합니다.'
+                },
+                {
+                    title: '💡 Delta Rn (ΔRn)',
+                    desc: 'ROX 패시브 레퍼런스로 정규화된 형광 신호입니다. 배경 신호를 제거한 순수 증폭 신호로, Allele1(HEX)과 Allele2(FAM)의 상대적 강도를 비교합니다.'
+                },
+                {
+                    title: '📊 Allelic Discrimination Plot',
+                    desc: 'X축(HEX)과 Y축(FAM)의 형광 강도를 산점도로 표시합니다. 세 개의 클러스터(동형접합 2개, 이형접합 1개)로 분리되어야 좋은 분석입니다.'
+                },
+                {
+                    title: '🎯 Positive Control (PC)',
+                    desc: 'PC_ALLELE_1과 PC_ALLELE_2는 알려진 유전자형의 대조군입니다. 이들의 형광 패턴을 기준으로 미지 시료의 유전자형을 판정합니다.'
+                },
+                {
+                    title: '⚗️ Passive Reference (ROX)',
+                    desc: 'PCR 반응과 무관하게 일정한 형광을 내는 내부 표준입니다. Well 간 부피 차이나 광학적 편차를 보정하여 신호의 정확도를 높입니다.'
+                },
+                {
+                    title: '🔬 NTC (No Template Control)',
+                    desc: '주형 DNA 없이 반응한 음성 대조군입니다. 오염 여부를 확인하며, 이상적으로 형광 신호가 매우 낮아야 합니다.'
+                }
+            ];
+            
+            const grid = document.getElementById('infoGrid');
+            grid.innerHTML = infoData.map(item => `
+                <div class="info-card">
+                    <h4>${item.title}</h4>
+                    <p>${item.desc}</p>
+                </div>
+            `).join('');
+        }
+        
+        function downloadExcel() {
+            const genes = Object.keys(geneResults).sort();
+            
+            // Sheet 1: Genotype Results
+            const resultData = [['Well', '품종명/시료명', ...genes]];
+            
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+            
+            genes.forEach(geneName => {
+                const result = geneResults[geneName];
+                if (!result.samples) return;
+                result.samples.forEach(s => {
+                    const cls = classifySample(s, result.thresholds);
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = cls.code;
+                });
+            });
+            
+            Object.values(wellData).forEach(item => {
+                if (!item.sampleName) return;
+                resultData.push([item.well, item.sampleName, ...genes.map(g => item.genes[g] || '-')]);
+            });
+            
+            // Sheet 2: Raw Data per Gene
+            const rawSheets = {};
+            genes.forEach(geneName => {
+                const result = geneResults[geneName];
+                if (!result.samples) return;
+                
+                const sheetData = [['Well', '품종명', 'Task', 'Allele1 (HEX)', 'Allele2 (FAM)', 'Ratio', 'Genotype', 'Code']];
+                result.samples.forEach(s => {
+                    const cls = classifySample(s, result.thresholds);
+                    sheetData.push([
+                        s.well, s.sampleName, s.task,
+                        s.allele1.toFixed(4), s.allele2.toFixed(4),
+                        s.ratio === Infinity ? 'Inf' : s.ratio.toFixed(4),
+                        cls.genotype, cls.code
+                    ]);
+                });
+                rawSheets[geneName] = sheetData;
+            });
+            
+            // Sheet 3: Info
+            const infoData = [
+                ['KASP 분석 원리 및 용어 설명'],
+                [''],
+                ['용어', '설명'],
+                ['KASP', '두 개의 대립유전자 특이적 프라이머가 경쟁적으로 결합하여 FAM/HEX 형광으로 표지된 프로브와 반응'],
+                ['Delta Rn (ΔRn)', 'ROX로 정규화된 형광 신호. 배경 제거된 순수 증폭 신호'],
+                ['Allele1 (HEX)', 'HEX 형광 염료로 표지된 대립유전자 신호'],
+                ['Allele2 (FAM)', 'FAM 형광 염료로 표지된 대립유전자 신호'],
+                ['Ratio', 'FAM/HEX 비율. CK1은 높은 값, CK2는 낮은 값'],
+                ['PC_ALLELE_1', '첫 번째 대립유전자 양성 대조군 (동형접합)'],
+                ['PC_ALLELE_2', '두 번째 대립유전자 양성 대조군 (동형접합)'],
+                ['NTC', 'No Template Control. 주형 없는 음성 대조군'],
+                ['ROX', 'Passive Reference. 형광 정규화용 내부 표준'],
+                [''],
+                ['분류 기준'],
+                ['CK1 (=1)', 'FAM/HEX 비율이 임계값 이상 (FAM 우세)'],
+                ['CK2 (=0)', 'FAM/HEX 비율이 임계값 이하 (HEX 우세)'],
+                ['H', '이형접합. 두 신호 모두 일정 수준 이상'],
+                ['X', '판정불가. 신호 약함 또는 중간 영역']
+            ];
+            
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            
+            const ws1 = XLSX.utils.aoa_to_sheet(resultData);
+            XLSX.utils.book_append_sheet(wb, ws1, 'Genotype Results');
+            
+            Object.entries(rawSheets).forEach(([name, data]) => {
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, name.substring(0, 31)); // Sheet name max 31 chars
+            });
+            
+            const ws3 = XLSX.utils.aoa_to_sheet(infoData);
+            XLSX.utils.book_append_sheet(wb, ws3, 'KASP 원리 설명');
+            
+            XLSX.writeFile(wb, `KASP_Results_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+        
+        function downloadCsv() {
+            const genes = Object.keys(geneResults).sort();
+            
+            const wellData = {};
+            sampleData.forEach(row => {
+                const well = normalizeWell(String(row[wellCol] || ''));
+                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+            });
+            
+            genes.forEach(geneName => {
+                const result = geneResults[geneName];
+                if (!result.samples) return;
+                result.samples.forEach(s => {
+                    const cls = classifySample(s, result.thresholds);
+                    if (wellData[s.well]) wellData[s.well].genes[geneName] = cls.code;
+                });
+            });
+            
+            let csv = '\uFEFF' + ['Well', '품종명', ...genes].join(',') + '\n';
+            Object.values(wellData).forEach(item => {
+                if (!item.sampleName) return;
+                csv += [item.well, item.sampleName, ...genes.map(g => item.genes[g] || '-')].join(',') + '\n';
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `KASP_Genotypes_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
