@@ -284,6 +284,12 @@
             <h2 style="color: #0c3026;">📂 클릭하거나 파일을 드래그하세요</h2>
             <p style="color: #666;">지원 형식: .xlsx, .xls</p>
         </div>
+        <div class="result-card" id="kaspImportCard" style="display: none; background: linear-gradient(135deg, #017f97 0%, #00a1b8 100%); color: white; margin-top: 15px;">
+            <h3 style="color: white;">🧬 KASP 데이터 연동</h3>
+            <p style="opacity: 0.9; margin: 8px 0;" id="kaspDataInfo">KASP 분석 결과가 준비되었습니다.</p>
+            <button class="btn" onclick="importKaspData()" style="background: white; color: #017f97; margin-top: 10px;">📥 KASP 데이터 가져오기</button>
+            <button class="btn btn-sm" onclick="clearKaspData()" style="background: rgba(255,255,255,0.2); color: white; margin-left: 8px;">✕ 무시</button>
+        </div>
         <div id="dataStatus"></div>
     </div>
     <!-- Tab 1: 결측치 예측 (순서 변경) -->
@@ -7138,11 +7144,131 @@ function downloadTemplate() {
     XLSX.writeFile(wb, '벼육종_v4.16_양식.xlsx');
 }
 
+// ==================== KASP 데이터 연동 ====================
+function checkKaspData() {
+    const kaspData = localStorage.getItem('kaspDataForSimulator');
+    if (kaspData) {
+        try {
+            const data = JSON.parse(kaspData);
+            const card = document.getElementById('kaspImportCard');
+            const info = document.getElementById('kaspDataInfo');
+            if (card && info) {
+                info.textContent = `KASP 분석 결과: ${data.varieties.length}개 품종, ${data.genes.length}개 유전자 (${new Date(data.timestamp).toLocaleString()})`;
+                card.style.display = 'block';
+                log(`🧬 KASP 데이터 감지: ${data.varieties.length}개 품종, ${data.genes.length}개 유전자`, 'info');
+            }
+        } catch (e) {
+            console.error('KASP 데이터 파싱 오류:', e);
+        }
+    }
+}
+
+function importKaspData() {
+    const kaspData = localStorage.getItem('kaspDataForSimulator');
+    if (!kaspData) {
+        alert('가져올 KASP 데이터가 없습니다.');
+        return;
+    }
+
+    try {
+        const data = JSON.parse(kaspData);
+        log(`🧬 KASP 데이터 가져오기 시작: ${data.varieties.length}개 품종, ${data.genes.length}개 유전자`, 'info');
+
+        // 기존 데이터와 병합 또는 새로 설정
+        if (genotypeData && genotypeData.length > 0) {
+            if (!confirm('기존 데이터가 있습니다. KASP 데이터로 대체하시겠습니까?\n(취소 시 기존 데이터에 추가됩니다)')) {
+                // 기존 데이터에 추가 - 품종명이 같으면 유전자만 추가
+                data.genotypes.forEach(kaspRow => {
+                    const variety = kaspRow['Variety'];
+                    const existing = genotypeData.find(r => (r['Variety'] || r['품종명']) === variety);
+                    if (existing) {
+                        data.genes.forEach(gene => {
+                            if (kaspRow[gene] !== null && kaspRow[gene] !== undefined) {
+                                existing[gene] = kaspRow[gene];
+                            }
+                        });
+                    } else {
+                        genotypeData.push(kaspRow);
+                    }
+                });
+                // 새 유전자 추가
+                data.genes.forEach(g => {
+                    if (!geneNames.includes(g)) geneNames.push(g);
+                });
+                varietyNames = genotypeData.map(r => r['Variety'] || r['품종명'] || Object.values(r)[0]);
+                log(`✅ KASP 데이터 병합 완료: 총 ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'success');
+            } else {
+                // 대체
+                genotypeData = data.genotypes;
+                geneNames = data.genes;
+                varietyNames = data.varieties;
+                varietyTypes = varietyNames.map(() => 'KASP');
+                log(`✅ KASP 데이터로 대체 완료: ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'success');
+            }
+        } else {
+            // 새로 설정
+            genotypeData = data.genotypes;
+            geneNames = data.genes;
+            varietyNames = data.varieties;
+            varietyTypes = varietyNames.map(() => 'KASP');
+            log(`✅ KASP 데이터 로드 완료: ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'success');
+        }
+
+        // 품종 콤보박스 업데이트
+        updateVarietySelectors();
+
+        // 데이터 상태 표시
+        const statusDiv = document.getElementById('dataStatus');
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <div class="info-box success">
+                    <h3>🧬 KASP 데이터 로드 완료</h3>
+                    <p><strong>품종:</strong> ${varietyNames.length}개 | <strong>유전자:</strong> ${geneNames.length}개</p>
+                    <p style="font-size: 0.85em; color: #666; margin-top: 8px;">출처: ${data.source} (${new Date(data.timestamp).toLocaleString()})</p>
+                </div>
+            `;
+        }
+
+        // KASP 카드 숨기기
+        clearKaspData();
+        dataLoaded = true;
+
+        alert(`✅ KASP 데이터 가져오기 완료!\n\n• 품종 수: ${varietyNames.length}개\n• 유전자 수: ${geneNames.length}개\n\n다른 탭에서 분석을 진행하세요.`);
+
+    } catch (e) {
+        console.error('KASP 데이터 가져오기 오류:', e);
+        alert('KASP 데이터 가져오기 중 오류가 발생했습니다: ' + e.message);
+    }
+}
+
+function clearKaspData() {
+    const card = document.getElementById('kaspImportCard');
+    if (card) card.style.display = 'none';
+    localStorage.removeItem('kaspDataForSimulator');
+}
+
+function updateVarietySelectors() {
+    // 품종 선택 콤보박스들 업데이트
+    const selectors = ['simCrossCombo', 'parent1', 'parent2', 'simP1', 'simP2'];
+    selectors.forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel) {
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="">-- 품종 선택 --</option>';
+            varietyNames.forEach((v, i) => {
+                sel.innerHTML += `<option value="${i}">${v}</option>`;
+            });
+            if (currentVal) sel.value = currentVal;
+        }
+    });
+}
+
 // ==================== 초기화 ====================
 window.onload = function() {
     initChromosomeViz();
     initGenerationTimeline();
     updateInteractionTab();
+    checkKaspData(); // KASP 데이터 확인
     log('🌾 벼 디지털육종 v4.16 로드 완료', 'success');
 };
 </script>
