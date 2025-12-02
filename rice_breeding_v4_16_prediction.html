@@ -3394,6 +3394,11 @@ from sklearn.metrics import confusion_matrix, roc_curve, auc
 import warnings
 warnings.filterwarnings('ignore')
 
+# Pyodide 환경에서 joblib 병렬처리 비활성화
+import os
+os.environ['JOBLIB_MULTIPROCESSING'] = '0'
+os.environ['LOKY_MAX_CPU_COUNT'] = '1'
+
 # JSON 문자열을 Python dict로 변환
 trait_gene_mapping = json.loads(trait_gene_mapping_json)
 
@@ -3517,11 +3522,11 @@ for i, pheno_name in enumerate(phenotype_names):
                 model = model_info
                 model.fit(X_train, y_train)
             
-            # Cross-validation 점수 계산
-            f1_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='f1')
-            precision_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='precision')
-            recall_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='recall')
-            accuracy_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='accuracy')
+            # Cross-validation 점수 계산 (n_jobs=1 필수 - Pyodide)
+            f1_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='f1', n_jobs=1)
+            precision_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='precision', n_jobs=1)
+            recall_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='recall', n_jobs=1)
+            accuracy_scores = cross_val_score(model, X_train, y_train, cv=cv_fold, scoring='accuracy', n_jobs=1)
             
             avg_f1 = float(np.mean(f1_scores))
             avg_precision = float(np.mean(precision_scores))
@@ -3664,12 +3669,12 @@ for i, pheno_name in enumerate(phenotype_names):
                 used_genes = gene_names_list
             
             # 간단한 대체: 각 특성 제거 후 성능 변화 측정 (간략화)
-            base_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_train, y_train, cv=2, scoring='f1')))
+            base_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_train, y_train, cv=2, scoring='f1', n_jobs=1)))
             perm_importance = []
             for j in range(X_train.shape[1]):
                 X_perm = X_train.copy()
                 np.random.shuffle(X_perm[:, j])
-                perm_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_perm, y_train, cv=2, scoring='f1')))
+                perm_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_perm, y_train, cv=2, scoring='f1', n_jobs=1)))
                 perm_importance.append(max(0, base_score - perm_score))
             
             importances = np.array(perm_importance)
