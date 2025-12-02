@@ -1370,12 +1370,14 @@ function processData() {
     });
     
     const excludeKeys = ['Variety', '품종명', 'Type', '재배형', '시험번호', '교배조합', '영문품종명'];
-    geneNames = Object.keys(genotypeData[0]).filter(k => !excludeKeys.includes(k) && 
+    geneNames = Object.keys(genotypeData[0]).filter(k => !excludeKeys.includes(k) &&
+        !k.startsWith('__EMPTY') && k.trim() !== '' &&
         genotypeData.some(r => [0, 1, '0', '1', 'R', 'S', 'X', 'x', null, '', 'NA', '-'].includes(r[k])));
-    
-    // 표현형: 제외 키 + 숫자 데이터가 하나라도 있는 열만 선택
+
+    // 표현형: 제외 키 + __EMPTY 제외 + 숫자 데이터가 하나라도 있는 열만 선택
     phenotypeNames = Object.keys(phenotypeData[0]).filter(k => {
         if (excludeKeys.includes(k)) return false;
+        if (k.startsWith('__EMPTY') || k.trim() === '') return false;  // 빈 열 제외
         // 해당 열에 숫자 데이터가 하나라도 있는지 확인
         return phenotypeData.some(row => {
             const val = row[k];
