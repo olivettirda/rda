@@ -3578,8 +3578,11 @@ for i, pheno_name in enumerate(phenotype_names):
     if pheno_best_params:
         best_params_data[pheno_name] = pheno_best_params
     
-    if pheno_scores:
-        best_model_name = max(pheno_scores, key=lambda x: pheno_scores[x]['f1'])
+    # 실제로 학습에 성공한 모델만 고려 (pheno_models에 있는 것)
+    successful_models = {k: v for k, v in pheno_scores.items() if k in pheno_models}
+
+    if successful_models:
+        best_model_name = max(successful_models, key=lambda x: successful_models[x]['f1'])
         best_f1 = pheno_scores[best_model_name]['f1']
         best_auc = pheno_scores[best_model_name].get('auc', 0.5)
         best_params = pheno_scores[best_model_name].get('best_params', {})
