@@ -3608,7 +3608,7 @@ for i, pheno_name in enumerate(phenotype_names):
         print(f"🏆 {pheno_name} 최적 모델: {best_model_name} (F1={best_f1:.3f}, AUC={best_auc:.3f})")
         
         # Feature Importance 계산 (전체 유전자에 대해)
-        if best_model_name in ['RandomForest', 'GradientBoosting']:
+        if best_model_name in ['RandomForest', 'GradientBoosting'] and best_model_name in pheno_models:
             best_model = pheno_models[best_model_name]
             importances = best_model.feature_importances_
             
@@ -3637,7 +3637,7 @@ for i, pheno_name in enumerate(phenotype_names):
                 'std': [float(shap_std[j]) for j in sorted_indices],
                 'model': best_model_name
             }
-        elif best_model_name == 'LogisticRegression':
+        elif best_model_name == 'LogisticRegression' and best_model_name in pheno_models:
             best_model = pheno_models[best_model_name]
             coefs = np.abs(best_model.coef_[0])
             
@@ -3661,7 +3661,7 @@ for i, pheno_name in enumerate(phenotype_names):
                 'std': [float(np.abs(best_model.coef_[0][j]) * 0.1) for j in sorted_indices],
                 'model': best_model_name
             }
-        elif best_model_name == 'SVM':
+        elif best_model_name == 'SVM' and best_model_name in pheno_models:
             # SVM은 Feature Importance 직접 지원하지 않으므로 Permutation Importance 사용
             if used_gene_indices is not None:
                 used_genes = [gene_names_list[j] for j in used_gene_indices]
