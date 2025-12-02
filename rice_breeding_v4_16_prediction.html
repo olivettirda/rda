@@ -3606,92 +3606,83 @@ for i, pheno_name in enumerate(phenotype_names):
             }
         
         print(f"🏆 {pheno_name} 최적 모델: {best_model_name} (F1={best_f1:.3f}, AUC={best_auc:.3f})")
-        
-        # Feature Importance 계산 (전체 유전자에 대해)
-        if best_model_name in ['RandomForest', 'GradientBoosting']:
-            best_model = pheno_models[best_model_name]
-            importances = best_model.feature_importances_
-            
+
+        # Feature Importance 계산 (모델이 존재하는 경우에만)
+        if best_model_name in pheno_models:
             if used_gene_indices is not None:
                 used_genes = [gene_names_list[j] for j in used_gene_indices]
             else:
                 used_genes = gene_names_list
-            
-            # 모든 유전자 포함 (상위만 아닌 전체)
-            sorted_indices = np.argsort(importances)[::-1]
-            
-            feature_importance_data[pheno_name] = {
-                'genes': [used_genes[j] for j in sorted_indices],
-                'importances': [float(importances[j]) for j in sorted_indices],
-                'model': best_model_name
-            }
-            
-            # SHAP-like 값 계산 (Permutation Importance 기반)
-            # 실제 SHAP은 계산 비용이 높으므로 Feature Importance 기반 근사
-            shap_mean = importances.copy()
-            shap_std = np.abs(shap_mean) * 0.1  # 표준편차 근사
-            
-            shap_values_data[pheno_name] = {
-                'genes': [used_genes[j] for j in sorted_indices],
-                'values': [float(shap_mean[j]) for j in sorted_indices],
-                'std': [float(shap_std[j]) for j in sorted_indices],
-                'model': best_model_name
-            }
-        elif best_model_name == 'LogisticRegression':
-            best_model = pheno_models[best_model_name]
-            coefs = np.abs(best_model.coef_[0])
-            
-            if used_gene_indices is not None:
-                used_genes = [gene_names_list[j] for j in used_gene_indices]
-            else:
-                used_genes = gene_names_list
-            
-            sorted_indices = np.argsort(coefs)[::-1]
-            
-            feature_importance_data[pheno_name] = {
-                'genes': [used_genes[j] for j in sorted_indices],
-                'importances': [float(coefs[j]) for j in sorted_indices],
-                'model': best_model_name
-            }
-            
-            # Logistic Regression 계수를 SHAP-like 값으로
-            shap_values_data[pheno_name] = {
-                'genes': [used_genes[j] for j in sorted_indices],
-                'values': [float(best_model.coef_[0][j]) for j in sorted_indices],
-                'std': [float(np.abs(best_model.coef_[0][j]) * 0.1) for j in sorted_indices],
-                'model': best_model_name
-            }
-        elif best_model_name == 'SVM':
-            # SVM은 Feature Importance 직접 지원하지 않으므로 Permutation Importance 사용
-            if used_gene_indices is not None:
-                used_genes = [gene_names_list[j] for j in used_gene_indices]
-            else:
-                used_genes = gene_names_list
-            
-            # 간단한 대체: 각 특성 제거 후 성능 변화 측정 (간략화)
-            base_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_train, y_train, cv=2, scoring='f1', n_jobs=1)))
-            perm_importance = []
-            for j in range(X_train.shape[1]):
-                X_perm = X_train.copy()
-                np.random.shuffle(X_perm[:, j])
-                perm_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_perm, y_train, cv=2, scoring='f1', n_jobs=1)))
-                perm_importance.append(max(0, base_score - perm_score))
-            
-            importances = np.array(perm_importance)
-            sorted_indices = np.argsort(importances)[::-1]
-            
-            feature_importance_data[pheno_name] = {
-                'genes': [used_genes[j] for j in sorted_indices],
-                'importances': [float(importances[j]) for j in sorted_indices],
-                'model': best_model_name
-            }
-            
-            shap_values_data[pheno_name] = {
-                'genes': [used_genes[j] for j in sorted_indices],
-                'values': [float(importances[j]) for j in sorted_indices],
-                'std': [float(importances[j] * 0.1) for j in sorted_indices],
-                'model': best_model_name
-            }
+
+            if best_model_name in ['RandomForest', 'GradientBoosting']:
+                best_model = pheno_models[best_model_name]
+                importances = best_model.feature_importances_
+                sorted_indices = np.argsort(importances)[::-1]
+
+                feature_importance_data[pheno_name] = {
+                    'genes': [used_genes[j] for j in sorted_indices],
+                    'importances': [float(importances[j]) for j in sorted_indices],
+                    'model': best_model_name
+                }
+
+                shap_mean = importances.copy()
+                shap_std = np.abs(shap_mean) * 0.1
+                shap_values_data[pheno_name] = {
+                    'genes': [used_genes[j] for j in sorted_indices],
+                    'values': [float(shap_mean[j]) for j in sorted_indices],
+                    'std': [float(shap_std[j]) for j in sorted_indices],
+                    'model': best_model_name
+                }
+
+            elif best_model_name == 'LogisticRegression':
+                best_model = pheno_models[best_model_name]
+                coefs = np.abs(best_model.coef_[0])
+                sorted_indices = np.argsort(coefs)[::-1]
+
+                feature_importance_data[pheno_name] = {
+                    'genes': [used_genes[j] for j in sorted_indices],
+                    'importances': [float(coefs[j]) for j in sorted_indices],
+                    'model': best_model_name
+                }
+
+                shap_values_data[pheno_name] = {
+                    'genes': [used_genes[j] for j in sorted_indices],
+                    'values': [float(best_model.coef_[0][j]) for j in sorted_indices],
+                    'std': [float(np.abs(best_model.coef_[0][j]) * 0.1) for j in sorted_indices],
+                    'model': best_model_name
+                }
+
+            elif best_model_name == 'SVM':
+                try:
+                    base_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_train, y_train, cv=2, scoring='f1', n_jobs=1)))
+                    perm_importance = []
+                    for j in range(min(X_train.shape[1], 50)):  # 최대 50개 유전자만 계산 (시간 단축)
+                        X_perm = X_train.copy()
+                        np.random.shuffle(X_perm[:, j])
+                        perm_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_perm, y_train, cv=2, scoring='f1', n_jobs=1)))
+                        perm_importance.append(max(0, base_score - perm_score))
+
+                    # 나머지 유전자는 0으로 채움
+                    while len(perm_importance) < X_train.shape[1]:
+                        perm_importance.append(0.0)
+
+                    importances = np.array(perm_importance)
+                    sorted_indices = np.argsort(importances)[::-1]
+
+                    feature_importance_data[pheno_name] = {
+                        'genes': [used_genes[j] for j in sorted_indices],
+                        'importances': [float(importances[j]) for j in sorted_indices],
+                        'model': best_model_name
+                    }
+
+                    shap_values_data[pheno_name] = {
+                        'genes': [used_genes[j] for j in sorted_indices],
+                        'values': [float(importances[j]) for j in sorted_indices],
+                        'std': [float(importances[j] * 0.1) for j in sorted_indices],
+                        'model': best_model_name
+                    }
+                except Exception as e:
+                    print(f"⚠️ {pheno_name} SVM Feature Importance 계산 실패: {str(e)}")
 
 models = {pheno_name: best_models[pheno_name]['model'] for pheno_name in best_models if best_models[pheno_name].get('model')}
 
