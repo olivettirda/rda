@@ -1127,7 +1127,12 @@ const chartInterpretations = {
         </ul>`,
     predSummary: `<h5>📊 결과 해석</h5>
         <ul>
-            <li><strong>적합도 (Fitness):</strong> NSGA-II 유전 알고리즘이 계산한 최적해의 품질 지표 (높을수록 우수).</li>
+            <li><strong>적합도 (Fitness):</strong> NSGA-II 유전 알고리즘이 계산한 최적해의 품질 지표 (높을수록 우수).
+                <ul style="margin-top: 5px; font-size: 0.9em;">
+                    <li><strong>🤖 ML 기반:</strong> RandomForest 모델의 predict_proba로 형질 달성 확률 예측. 유전자 간 상호작용 및 비선형 관계 반영.</li>
+                    <li><strong>📈 상관계수 기반:</strong> 유전자-형질 상관계수의 가중합. ML 모델 학습 불가 시 자동 사용.</li>
+                </ul>
+            </li>
             <li><strong>조합수:</strong> 해당 적합도를 달성 가능한 실제 교배 조합 개수.</li>
             <li><strong>막대 높이:</strong> 각 형질에서 목표값(1) 달성 확률. 1.0에 가까울수록 해당 형질 확보 가능성 높음.</li>
             <li><strong>색상:</strong> 높은 확률(녹색)~낮은 확률(빨강). 취약 형질 식별에 활용.</li>
@@ -2174,22 +2179,135 @@ async function runGeneticAlgorithmPyodide(selectedObjectives, popSize, generatio
     pyodide.globals.set('n_generations', generations);
     pyodide.globals.set('n_genes', geneNames.length);
     pyodide.globals.set('correlation_matrix', correlationMatrix);
-    
+
+    // ML 모델 학습을 위한 genotype/phenotype 데이터 전달
+    const genotypeMatrix = genotypeData.map(row => {
+        return geneNames.map(gene => {
+            const val = row[gene];
+            if (val === 'R' || val === 1 || val === '1' || val === 'X' || val === 'x') return 1;
+            if (val === 'S' || val === 0 || val === '0') return 0;
+            return 0.5;
+        });
+    });
+
+    const phenotypeMatrix = phenotypeData.map(row => {
+        return phenotypeNames.map(pheno => {
+            const val = row[pheno];
+            if (val === 1 || val === '1') return 1;
+            if (val === 0 || val === '0') return 0;
+            const num = parseFloat(val);
+            return isNaN(num) ? NaN : num;
+        });
+    });
+
+    pyodide.globals.set('genotype_matrix', genotypeMatrix);
+    pyodide.globals.set('phenotype_matrix', phenotypeMatrix);
+    pyodide.globals.set('phenotype_names', phenotypeNames);
+
     const pythonCode = `
 import numpy as np
 import random
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
+import warnings
+warnings.filterwarnings('ignore')
+
+# === ML 기반 적합도 함수 ===
+class MLFitnessEvaluator:
+    """머신러닝 기반 적합도 평가기"""
+    def __init__(self, geno_matrix, pheno_matrix, objective_indices, pheno_names):
+        self.models = {}
+        self.imputer = SimpleImputer(strategy='most_frequent')
+        self.use_ml = False
+        self.correlation_fallback = None
+
+        geno = np.array(geno_matrix, dtype=float)
+        pheno = np.array(pheno_matrix, dtype=float)
+
+        # Genotype 데이터 전처리
+        self.X_train = self.imputer.fit_transform(geno)
+
+        # 각 목표 형질에 대해 ML 모델 학습
+        successful_models = 0
+        for obj_idx in objective_indices:
+            y = pheno[:, obj_idx]
+            valid_idx = ~np.isnan(y)
+
+            if valid_idx.sum() < 10:
+                print(f"⚠️ {pheno_names[obj_idx]}: 학습 데이터 부족, 상관계수 사용")
+                continue
+
+            try:
+                X = self.X_train[valid_idx]
+                y_train = y[valid_idx].astype(int)
+
+                # 간단하고 빠른 RandomForest 모델 사용
+                model = RandomForestClassifier(
+                    n_estimators=50,  # 빠른 학습을 위해 줄임
+                    max_depth=8,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                model.fit(X, y_train)
+                self.models[obj_idx] = model
+                successful_models += 1
+                print(f"✅ {pheno_names[obj_idx]}: ML 모델 학습 완료")
+            except Exception as e:
+                print(f"❌ {pheno_names[obj_idx]}: ML 학습 실패 - {str(e)}")
+
+        self.use_ml = successful_models > 0
+        if self.use_ml:
+            print(f"🤖 ML 기반 적합도 함수 활성화 ({successful_models}/{len(objective_indices)} 형질)")
+        else:
+            print(f"⚠️ ML 모델 학습 실패, 상관계수 기반 fallback 사용")
+
+    def evaluate(self, genotype, correlation_matrix, objectives):
+        """ML 모델 또는 상관계수 기반 적합도 계산"""
+        fitness = []
+        genotype_arr = np.array(genotype, dtype=float).reshape(1, -1)
+
+        for obj_idx in objectives:
+            if self.use_ml and obj_idx in self.models:
+                # ML 기반: predict_proba로 형질 달성 확률 계산
+                try:
+                    prob = self.models[obj_idx].predict_proba(genotype_arr)[0]
+                    # 클래스 1(형질 보유)의 확률을 적합도로 사용
+                    if len(prob) > 1:
+                        score = float(prob[1])
+                    else:
+                        score = float(prob[0])
+                    fitness.append(score)
+                except:
+                    # ML 실패 시 상관계수 fallback
+                    correlations = np.array(correlation_matrix[obj_idx], dtype=float)
+                    correlations = np.nan_to_num(correlations, nan=0.0)
+                    score = np.dot(genotype, correlations)
+                    # 정규화 (0~1 범위)
+                    score = max(0, min(1, (score + 1) / 2))
+                    fitness.append(float(score))
+            else:
+                # 상관계수 기반 fallback
+                correlations = np.array(correlation_matrix[obj_idx], dtype=float)
+                correlations = np.nan_to_num(correlations, nan=0.0)
+                score = np.dot(genotype, correlations)
+                # 정규화 (0~1 범위)
+                score = max(0, min(1, (score + 1) / 2))
+                fitness.append(float(score))
+
+        return fitness
+
+# ML 적합도 평가기 초기화
+print("🔧 ML 기반 적합도 평가기 초기화 중...")
+ml_evaluator = MLFitnessEvaluator(
+    genotype_matrix,
+    phenotype_matrix,
+    selected_objectives,
+    phenotype_names
+)
 
 def evaluate_fitness(genotype, correlation_matrix, objectives):
-    """상관계수 기반 weighted summation 적합도 함수"""
-    fitness = []
-    genotype = np.array(genotype, dtype=float)
-    
-    for obj_idx in objectives:
-        correlations = np.array(correlation_matrix[obj_idx], dtype=float)
-        correlations = np.nan_to_num(correlations, nan=0.0)
-        score = np.dot(genotype, correlations)
-        fitness.append(float(score))
-    return fitness
+    """ML 기반 적합도 함수 (fallback 포함)"""
+    return ml_evaluator.evaluate(genotype, correlation_matrix, objectives)
 
 def create_individual(n_genes):
     return [random.randint(0, 1) for _ in range(n_genes)]
@@ -2219,7 +2337,9 @@ def dominates(f1, f2):
     return better_in_any
 
 # NSGA-II
+fitness_mode = "ML 기반" if ml_evaluator.use_ml else "상관계수 기반"
 print(f"유전 알고리즘 시작: 집단 {pop_size}, 세대 {n_generations}, 유전자 {n_genes}개")
+print(f"적합도 함수: {fitness_mode}")
 
 population = [create_individual(n_genes) for _ in range(pop_size)]
 history = []
@@ -2232,7 +2352,7 @@ for gen in range(n_generations):
             fitness_values.append(fit)
         except:
             fitness_values.append([0.0] * len(selected_objectives))
-    
+
     # 비지배 정렬
     fronts = [[]]
     for i, fi in enumerate(fitness_values):
@@ -2243,20 +2363,20 @@ for gen in range(n_generations):
                 break
         if not dominated:
             fronts[0].append(i)
-    
+
     if len(fronts[0]) == 0:
         fronts[0] = list(range(len(population)))
-    
+
     # 통계
     best_fitness = max([sum(f) for f in fitness_values])
     avg_fitness = np.mean([sum(f) for f in fitness_values])
     history.append({'gen': gen, 'best': float(best_fitness), 'avg': float(avg_fitness)})
-    
+
     # 다음 세대
     offspring = []
     max_attempts = pop_size * 2
     attempts = 0
-    
+
     while len(offspring) < pop_size and attempts < max_attempts:
         attempts += 1
         try:
@@ -2266,9 +2386,9 @@ for gen in range(n_generations):
             offspring.extend([mutate(c1), mutate(c2)])
         except:
             offspring.append(create_individual(n_genes))
-    
+
     population = offspring[:pop_size]
-    
+
     if (gen + 1) % 10 == 0:
         print(f"세대 {gen + 1}/{n_generations} 완료 - 최고 적합도: {best_fitness:.2f}")
 
@@ -2286,7 +2406,7 @@ for i, fi in enumerate(final_fitness):
 
 pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
 
-{'pareto_front': pareto_front[:10], 'history': history}
+{'pareto_front': pareto_front[:10], 'history': history, 'fitness_mode': fitness_mode}
     `;
 
     try {
@@ -2322,9 +2442,11 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
             }
         }
 
+        const fitnessMode = resultsJs.fitness_mode || '상관계수 기반';
         log(`✅ 유전 알고리즘 완료: Pareto 프론트 ${optimalSolutions.length}개 해 발견`, 'success');
-        
-        displayGAResults(optimalSolutions, history);
+        log(`📊 적합도 함수: ${fitnessMode}`, 'info');
+
+        displayGAResults(optimalSolutions, history, fitnessMode);
         updateOptimalSolutionSelect();
         
     } catch (error) {
@@ -2337,9 +2459,15 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
     }
 }
 
-function displayGAResults(solutions, history) {
+function displayGAResults(solutions, history, fitnessMode = '상관계수 기반') {
+    const modeIcon = fitnessMode === 'ML 기반' ? '🤖' : '📈';
+    const modeBadge = fitnessMode === 'ML 기반'
+        ? '<span style="background: #00b894; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">ML 기반</span>'
+        : '<span style="background: #636e72; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">상관계수 기반</span>';
+
     let html = `<div class="result-card">
-        <h3>🏆 Pareto 프론트 (Top ${solutions.length} 최적해)</h3>
+        <h3>🏆 Pareto 프론트 (Top ${solutions.length} 최적해) ${modeBadge}</h3>
+        <p style="color: #666; margin-bottom: 10px; font-size: 0.9em;">${modeIcon} 적합도 함수: ${fitnessMode} ${fitnessMode === 'ML 기반' ? '- RandomForest predict_proba 사용' : '- 유전자-형질 상관계수 가중합'}</p>
         <table class="data-table"><thead><tr>
             <th>순위</th><th>적합도 합</th><th>유전자 수</th>`;
     
