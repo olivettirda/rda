@@ -603,6 +603,26 @@
                     <label>마커/유전자 이름</label>
                     <input type="text" id="markerName" placeholder="예: RM224, Wx-SSR, GS3-InDel">
                 </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: #fff3e0; border-radius: 8px; border-left: 4px solid #ff9800;">
+                    <h4 style="margin-bottom: 10px; color: #e65100;">이미지 설정</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label>레인 방향</label>
+                            <select id="laneOrientation">
+                                <option value="horizontal">가로 (레인이 가로로)</option>
+                                <option value="vertical">세로 (레인이 세로로)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label>밴드 색상</label>
+                            <select id="bandPolarity">
+                                <option value="bright">밝은 밴드 (어두운 배경)</option>
+                                <option value="dark">어두운 밴드 (밝은 배경)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -777,6 +797,8 @@
         let markerType = 'codominant';
         let currentTool = 'lane';
         let zoom = 100;
+        let laneOrientation = 'horizontal'; // 'horizontal' or 'vertical'
+        let bandPolarity = 'bright'; // 'bright' (bright bands on dark bg) or 'dark'
 
         // Ladder definitions
         const ladderDefs = {
@@ -815,6 +837,10 @@
         });
 
         function processImageFile(file) {
+            // Read settings before processing
+            laneOrientation = document.getElementById('laneOrientation').value;
+            bandPolarity = document.getElementById('bandPolarity').value;
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 gelImage = new Image();
@@ -911,19 +937,25 @@
             const canvas = e.target;
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
             const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
 
             if (currentTool === 'lane') {
-                addLane(x);
+                if (laneOrientation === 'horizontal') {
+                    addLane(y); // Use y for horizontal lanes
+                } else {
+                    addLane(x); // Use x for vertical lanes
+                }
             }
         }
 
-        function addLane(x) {
+        function addLane(pos) {
             const laneNum = lanes.length + 1;
             const name = sampleInfo[laneNum] || `Lane ${laneNum}`;
 
             lanes.push({
-                x: x,
+                pos: pos, // Position (y for horizontal, x for vertical)
                 name: name,
                 bands: []
             });
@@ -976,61 +1008,100 @@
 
             lanes.forEach((lane, idx) => {
                 ctx.beginPath();
-                ctx.moveTo(lane.x, 0);
-                ctx.lineTo(lane.x, canvas.height);
-                ctx.stroke();
-
-                // Draw lane number
-                ctx.fillStyle = 'rgba(0, 161, 184, 0.9)';
-                ctx.font = 'bold 14px Noto Sans KR';
-                ctx.fillText(`${idx + 1}`, lane.x + 5, 20);
+                if (laneOrientation === 'horizontal') {
+                    // Horizontal lanes - draw horizontal lines
+                    ctx.moveTo(0, lane.pos);
+                    ctx.lineTo(canvas.width, lane.pos);
+                    ctx.stroke();
+                    // Draw lane number
+                    ctx.fillStyle = 'rgba(0, 161, 184, 0.9)';
+                    ctx.font = 'bold 14px Noto Sans KR';
+                    ctx.fillText(`${idx + 1}`, 5, lane.pos - 5);
+                } else {
+                    // Vertical lanes - draw vertical lines
+                    ctx.moveTo(lane.pos, 0);
+                    ctx.lineTo(lane.pos, canvas.height);
+                    ctx.stroke();
+                    // Draw lane number
+                    ctx.fillStyle = 'rgba(0, 161, 184, 0.9)';
+                    ctx.font = 'bold 14px Noto Sans KR';
+                    ctx.fillText(`${idx + 1}`, lane.pos + 5, 20);
+                }
             });
 
             ctx.setLineDash([]);
         }
 
         function autoDetectLanes() {
-            // Simple auto-detection based on vertical intensity profile
             const canvas = document.getElementById('gelCanvas');
             const ctx = canvas.getContext('2d');
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
 
-            // Calculate vertical intensity profile
-            const profile = new Array(canvas.width).fill(0);
-            for (let x = 0; x < canvas.width; x++) {
+            let profile;
+            let profileLength;
+
+            if (laneOrientation === 'horizontal') {
+                // For horizontal lanes, create horizontal profile (average intensity per row)
+                profileLength = canvas.height;
+                profile = new Array(profileLength).fill(0);
                 for (let y = 0; y < canvas.height; y++) {
-                    const idx = (y * canvas.width + x) * 4;
-                    const intensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                    profile[x] += intensity;
+                    for (let x = 0; x < canvas.width; x++) {
+                        const idx = (y * canvas.width + x) * 4;
+                        const intensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                        profile[y] += intensity;
+                    }
+                    profile[y] /= canvas.width;
                 }
-                profile[x] /= canvas.height;
+            } else {
+                // For vertical lanes, create vertical profile (average intensity per column)
+                profileLength = canvas.width;
+                profile = new Array(profileLength).fill(0);
+                for (let x = 0; x < canvas.width; x++) {
+                    for (let y = 0; y < canvas.height; y++) {
+                        const idx = (y * canvas.width + x) * 4;
+                        const intensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                        profile[x] += intensity;
+                    }
+                    profile[x] /= canvas.height;
+                }
             }
 
-            // Find local minima (darker regions between lanes)
-            const minima = [];
+            // Find lane positions based on intensity profile
             const smoothed = smoothArray(profile, 10);
-            const threshold = Math.min(...smoothed) + (Math.max(...smoothed) - Math.min(...smoothed)) * 0.3;
+            const minVal = Math.min(...smoothed);
+            const maxVal = Math.max(...smoothed);
+            const range = maxVal - minVal;
 
+            // For bright bands, lanes have higher intensity; for dark bands, lower intensity
+            const threshold = bandPolarity === 'bright'
+                ? minVal + range * 0.3  // Look for bright regions
+                : maxVal - range * 0.3; // Look for dark regions
+
+            const lanePositions = [];
             let inLane = false;
             let laneStart = 0;
 
-            for (let x = 10; x < canvas.width - 10; x++) {
-                if (smoothed[x] > threshold && !inLane) {
+            for (let i = 10; i < profileLength - 10; i++) {
+                const isLane = bandPolarity === 'bright'
+                    ? smoothed[i] > threshold
+                    : smoothed[i] < threshold;
+
+                if (isLane && !inLane) {
                     inLane = true;
-                    laneStart = x;
-                } else if (smoothed[x] <= threshold && inLane) {
+                    laneStart = i;
+                } else if (!isLane && inLane) {
                     inLane = false;
-                    const laneCenter = Math.round((laneStart + x) / 2);
-                    minima.push(laneCenter);
+                    const laneCenter = Math.round((laneStart + i) / 2);
+                    lanePositions.push(laneCenter);
                 }
             }
 
             // Clear and add detected lanes
             lanes = [];
-            minima.forEach((x, idx) => {
+            lanePositions.forEach((pos, idx) => {
                 const name = sampleInfo[idx + 1] || `Lane ${idx + 1}`;
-                lanes.push({ x: x, name: name, bands: [] });
+                lanes.push({ pos: pos, name: name, bands: [] });
             });
 
             updateLaneList();
@@ -1086,8 +1157,8 @@
                 return;
             }
 
-            // Sort lanes by x position
-            lanes.sort((a, b) => a.x - b.x);
+            // Sort lanes by position
+            lanes.sort((a, b) => a.pos - b.pos);
 
             goToStep(3);
             initBandCanvas();
@@ -1134,7 +1205,10 @@
             let minDist = Infinity;
 
             lanes.forEach((lane, idx) => {
-                const dist = Math.abs(x - lane.x);
+                // For horizontal lanes, compare y; for vertical lanes, compare x
+                const dist = laneOrientation === 'horizontal'
+                    ? Math.abs(y - lane.pos)
+                    : Math.abs(x - lane.pos);
                 if (dist < minDist) {
                     minDist = dist;
                     laneIdx = idx;
@@ -1144,9 +1218,10 @@
             if (laneIdx >= 0 && minDist < 50) {
                 bands.push({
                     laneIdx: laneIdx,
-                    x: lanes[laneIdx].x,
+                    x: x,
                     y: y,
-                    size: estimateBandSize(y)
+                    lanePos: lanes[laneIdx].pos,
+                    size: estimateBandSize(x, y)
                 });
 
                 drawBands();
@@ -1174,18 +1249,25 @@
             }
         }
 
-        function estimateBandSize(y) {
+        function estimateBandSize(x, y) {
             // Simple linear estimation based on ladder
             const canvas = document.getElementById('gelCanvas2');
             const ladderType = document.getElementById('ladderType').value;
             const ladderBands = ladderDefs[ladderType] || [100, 500, 1000];
 
-            // For now, simple estimation
-            const ratio = y / canvas.height;
             const maxSize = Math.max(...ladderBands);
             const minSize = Math.min(...ladderBands);
 
-            // Higher y (lower on gel) = smaller size
+            // For horizontal lanes, x determines size (left = larger, right = smaller)
+            // For vertical lanes, y determines size (top = larger, bottom = smaller)
+            let ratio;
+            if (laneOrientation === 'horizontal') {
+                ratio = x / canvas.width;
+            } else {
+                ratio = y / canvas.height;
+            }
+
+            // Higher ratio = smaller size
             return Math.round(maxSize - ratio * (maxSize - minSize));
         }
 
@@ -1204,58 +1286,112 @@
             // Clear existing bands
             bands = [];
 
-            // For each lane, analyze vertical profile
+            // For each lane, analyze profile along the band direction
             lanes.forEach((lane, laneIdx) => {
-                const x = Math.round(lane.x);
+                const lanePos = Math.round(lane.pos);
                 const profile = [];
+                const bandWidth = 20; // sample width around lane center
 
-                // Get vertical intensity profile for this lane
-                for (let y = 0; y < canvas.height; y++) {
-                    let sum = 0;
-                    const width = 20; // sample width around lane center
-                    let count = 0;
+                if (laneOrientation === 'horizontal') {
+                    // Horizontal lanes: scan along x-axis to find bands
+                    for (let x = 0; x < canvas.width; x++) {
+                        let sum = 0;
+                        let count = 0;
 
-                    for (let dx = -width; dx <= width; dx++) {
-                        const px = x + dx;
-                        if (px >= 0 && px < canvas.width) {
-                            const idx = (y * canvas.width + px) * 4;
-                            // For typical gel images, bands are darker
-                            const intensity = 255 - (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                            sum += intensity;
-                            count++;
+                        for (let dy = -bandWidth; dy <= bandWidth; dy++) {
+                            const py = lanePos + dy;
+                            if (py >= 0 && py < canvas.height) {
+                                const idx = (py * canvas.width + x) * 4;
+                                const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                                // For bright bands, use raw intensity; for dark bands, invert
+                                const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
+                                sum += intensity;
+                                count++;
+                            }
+                        }
+                        profile.push(sum / count);
+                    }
+
+                    // Smooth and find peaks
+                    const smoothed = smoothArray(profile, 3);
+                    const maxVal = Math.max(...smoothed);
+                    const minVal = Math.min(...smoothed);
+                    const threshold = minVal + (maxVal - minVal) * 0.4;
+
+                    let inPeak = false;
+                    let peakStart = 0;
+                    let peakMax = 0;
+                    let peakMaxX = 0;
+
+                    for (let x = 5; x < canvas.width - 5; x++) {
+                        if (smoothed[x] > threshold && !inPeak) {
+                            inPeak = true;
+                            peakStart = x;
+                            peakMax = smoothed[x];
+                            peakMaxX = x;
+                        } else if (inPeak && smoothed[x] > peakMax) {
+                            peakMax = smoothed[x];
+                            peakMaxX = x;
+                        } else if (smoothed[x] <= threshold && inPeak) {
+                            inPeak = false;
+                            bands.push({
+                                laneIdx: laneIdx,
+                                x: peakMaxX,
+                                y: lanePos,
+                                lanePos: lanePos,
+                                size: estimateBandSize(peakMaxX, lanePos)
+                            });
                         }
                     }
-                    profile.push(sum / count);
-                }
+                } else {
+                    // Vertical lanes: scan along y-axis to find bands
+                    for (let y = 0; y < canvas.height; y++) {
+                        let sum = 0;
+                        let count = 0;
 
-                // Smooth the profile
-                const smoothed = smoothArray(profile, 3);
+                        for (let dx = -bandWidth; dx <= bandWidth; dx++) {
+                            const px = lanePos + dx;
+                            if (px >= 0 && px < canvas.width) {
+                                const idx = (y * canvas.width + px) * 4;
+                                const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                                const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
+                                sum += intensity;
+                                count++;
+                            }
+                        }
+                        profile.push(sum / count);
+                    }
 
-                // Find peaks (bands)
-                const threshold = Math.max(...smoothed) * 0.3;
-                let inPeak = false;
-                let peakStart = 0;
-                let peakMax = 0;
-                let peakMaxY = 0;
+                    // Smooth and find peaks
+                    const smoothed = smoothArray(profile, 3);
+                    const maxVal = Math.max(...smoothed);
+                    const minVal = Math.min(...smoothed);
+                    const threshold = minVal + (maxVal - minVal) * 0.4;
 
-                for (let y = 5; y < canvas.height - 5; y++) {
-                    if (smoothed[y] > threshold && !inPeak) {
-                        inPeak = true;
-                        peakStart = y;
-                        peakMax = smoothed[y];
-                        peakMaxY = y;
-                    } else if (inPeak && smoothed[y] > peakMax) {
-                        peakMax = smoothed[y];
-                        peakMaxY = y;
-                    } else if (smoothed[y] <= threshold && inPeak) {
-                        inPeak = false;
-                        // Add band at peak position
-                        bands.push({
-                            laneIdx: laneIdx,
-                            x: x,
-                            y: peakMaxY,
-                            size: estimateBandSize(peakMaxY)
-                        });
+                    let inPeak = false;
+                    let peakStart = 0;
+                    let peakMax = 0;
+                    let peakMaxY = 0;
+
+                    for (let y = 5; y < canvas.height - 5; y++) {
+                        if (smoothed[y] > threshold && !inPeak) {
+                            inPeak = true;
+                            peakStart = y;
+                            peakMax = smoothed[y];
+                            peakMaxY = y;
+                        } else if (inPeak && smoothed[y] > peakMax) {
+                            peakMax = smoothed[y];
+                            peakMaxY = y;
+                        } else if (smoothed[y] <= threshold && inPeak) {
+                            inPeak = false;
+                            bands.push({
+                                laneIdx: laneIdx,
+                                x: lanePos,
+                                y: peakMaxY,
+                                lanePos: lanePos,
+                                size: estimateBandSize(lanePos, peakMaxY)
+                            });
+                        }
                     }
                 }
             });
@@ -1312,8 +1448,13 @@
 
             lanes.forEach((lane, idx) => {
                 ctx.beginPath();
-                ctx.moveTo(lane.x, 0);
-                ctx.lineTo(lane.x, canvas.height);
+                if (laneOrientation === 'horizontal') {
+                    ctx.moveTo(0, lane.pos);
+                    ctx.lineTo(canvas.width, lane.pos);
+                } else {
+                    ctx.moveTo(lane.pos, 0);
+                    ctx.lineTo(lane.pos, canvas.height);
+                }
                 ctx.stroke();
             });
             ctx.setLineDash([]);
@@ -1324,15 +1465,27 @@
                 ctx.strokeStyle = '#ffc107';
                 ctx.lineWidth = 2;
 
-                // Draw band marker
-                const width = 30;
-                ctx.fillRect(band.x - width/2, band.y - 3, width, 6);
-                ctx.strokeRect(band.x - width/2, band.y - 3, width, 6);
+                if (laneOrientation === 'horizontal') {
+                    // For horizontal lanes, bands are vertical markers
+                    const height = 30;
+                    ctx.fillRect(band.x - 3, band.y - height/2, 6, height);
+                    ctx.strokeRect(band.x - 3, band.y - height/2, 6, height);
 
-                // Draw size label
-                ctx.fillStyle = '#000';
-                ctx.font = '10px Noto Sans KR';
-                ctx.fillText(`${band.size}bp`, band.x + width/2 + 3, band.y + 3);
+                    // Draw size label
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px Noto Sans KR';
+                    ctx.fillText(`${band.size}bp`, band.x + 5, band.y - height/2 - 3);
+                } else {
+                    // For vertical lanes, bands are horizontal markers
+                    const width = 30;
+                    ctx.fillRect(band.x - width/2, band.y - 3, width, 6);
+                    ctx.strokeRect(band.x - width/2, band.y - 3, width, 6);
+
+                    // Draw size label
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px Noto Sans KR';
+                    ctx.fillText(`${band.size}bp`, band.x + width/2 + 3, band.y + 3);
+                }
             });
 
             document.getElementById('bandCount').textContent = `${bands.length}개 밴드`;
@@ -1347,7 +1500,10 @@
 
             container.innerHTML = lanes.map((lane, laneIdx) => {
                 const laneBands = bands.filter(b => b.laneIdx === laneIdx)
-                    .sort((a, b) => a.y - b.y);
+                    .sort((a, b) => {
+                        // Sort by size descending (larger bands first)
+                        return b.size - a.size;
+                    });
 
                 return `
                     <div style="margin-bottom: 12px; padding: 10px; background: var(--accent-lighter); border-radius: 6px;">
