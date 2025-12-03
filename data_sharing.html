@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>데이터 공유/백업 - 벼 육종 도구</title>
+    <link rel="icon" type="image/png" href="ssallogo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0c3026;
+            --secondary: #017f97;
+            --accent: #00a1b8;
+            --bg: #f8faf9;
+            --card-bg: #ffffff;
+            --border: #d4e5df;
+            --text: #0c3026;
+            --text-light: #5a6b65;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 1.8em;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            font-size: 0.95em;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .card-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-description {
+            color: var(--text-light);
+            font-size: 0.9em;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--secondary);
+            border: 2px solid var(--secondary);
+        }
+
+        .btn-outline:hover {
+            background: #e0f7fa;
+        }
+
+        .btn-danger {
+            background: #e53935;
+        }
+
+        .btn-danger:hover {
+            background: #c62828;
+        }
+
+        .btn-success {
+            background: #43a047;
+        }
+
+        .btn-success:hover {
+            background: #2e7d32;
+        }
+
+        .data-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .data-item {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .data-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .data-info {
+            flex: 1;
+        }
+
+        .data-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .data-size {
+            font-size: 0.85em;
+            color: var(--text-light);
+        }
+
+        .data-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.green { background: #4caf50; }
+        .status-dot.yellow { background: #ffc107; }
+        .status-dot.red { background: #f44336; }
+
+        .storage-bar {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+
+        .storage-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--secondary), var(--accent));
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .storage-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: var(--text-light);
+        }
+
+        .share-link-container {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .share-link-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95em;
+            background: var(--bg);
+        }
+
+        .share-link-input:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .cloud-services {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .cloud-service {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .cloud-service:hover {
+            background: #e0f7fa;
+            transform: translateY(-2px);
+        }
+
+        .cloud-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .cloud-logo.gdrive { background: #4285f4; color: white; }
+        .cloud-logo.dropbox { background: #0061ff; color: white; }
+        .cloud-logo.onedrive { background: #0078d4; color: white; }
+
+        .backup-history {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .backup-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .backup-item:last-child {
+            border-bottom: none;
+        }
+
+        .backup-date {
+            font-weight: 500;
+        }
+
+        .backup-size {
+            color: var(--text-light);
+            font-size: 0.85em;
+        }
+
+        .backup-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .backup-actions button {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            border-radius: 6px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            border-color: var(--secondary);
+        }
+
+        .tab.active {
+            background: var(--secondary);
+            color: white;
+            border-color: var(--secondary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .import-zone {
+            border: 3px dashed var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg);
+        }
+
+        .import-zone:hover {
+            border-color: var(--secondary);
+            background: #f0f8f8;
+        }
+
+        .import-zone.dragover {
+            border-color: var(--accent);
+            background: #e0f7fa;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .alert-warning {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .qr-container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .qr-container canvas {
+            border: 4px solid white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg);
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .sync-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .sync-icon.syncing {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 16px 0;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--secondary);
+        }
+
+        @media (max-width: 768px) {
+            .share-link-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>☁️ 데이터 공유/백업</h1>
+            <p class="subtitle">연구 데이터를 안전하게 백업하고 공유하세요</p>
+        </header>
+
+        <!-- 탭 -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('backup')">💾 백업/복원</button>
+            <button class="tab" onclick="showTab('share')">🔗 공유</button>
+            <button class="tab" onclick="showTab('cloud')">☁️ 클라우드</button>
+            <button class="tab" onclick="showTab('sync')">🔄 동기화</button>
+        </div>
+
+        <!-- 백업/복원 -->
+        <div class="tab-content active" id="backup-tab">
+            <div class="card">
+                <div class="card-title">💾 로컬 데이터 현황</div>
+
+                <div class="data-section" id="dataOverview">
+                    <!-- 동적으로 채워짐 -->
+                </div>
+
+                <div class="storage-bar">
+                    <div class="storage-fill" id="storageFill" style="width: 0%;"></div>
+                </div>
+                <div class="storage-info">
+                    <span id="storageUsed">0 KB 사용 중</span>
+                    <span id="storageLimit">5 MB 중</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📦 백업 생성</div>
+                <div class="card-description">
+                    현재 저장된 모든 데이터를 하나의 파일로 백업합니다.
+                    백업 파일은 다른 기기에서 복원할 수 있습니다.
+                </div>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="backupKasp" checked>
+                        <span>KASP 분석 데이터</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="backupPhenotype" checked>
+                        <span>표현형 조사 데이터</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="backupSimulator" checked>
+                        <span>시뮬레이터 설정</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="backupGene" checked>
+                        <span>유전자 북마크</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn" onclick="createBackup()">
+                        📥 백업 파일 다운로드
+                    </button>
+                    <button class="btn btn-outline" onclick="createAutoBackup()">
+                        ⏰ 자동 백업 설정
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📤 백업 복원</div>
+                <div class="card-description">
+                    이전에 생성한 백업 파일을 업로드하여 데이터를 복원합니다.
+                </div>
+
+                <div class="import-zone" id="importZone" onclick="document.getElementById('importFile').click()">
+                    <input type="file" id="importFile" accept=".json,.backup" style="display: none;" onchange="handleImport(event)">
+                    <div style="font-size: 3em; margin-bottom: 16px;">📂</div>
+                    <div style="font-size: 1.1em;">백업 파일을 드래그하거나 클릭하여 선택</div>
+                    <div style="font-size: 0.9em; color: var(--text-light); margin-top: 8px;">
+                        .json 또는 .backup 파일
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📋 백업 기록</div>
+                <div class="backup-history" id="backupHistory">
+                    <!-- 동적으로 채워짐 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 공유 -->
+        <div class="tab-content" id="share-tab">
+            <div class="card">
+                <div class="card-title">🔗 공유 링크 생성</div>
+                <div class="card-description">
+                    데이터를 URL로 인코딩하여 공유합니다. 링크를 통해 다른 사람과 데이터를 공유할 수 있습니다.
+                </div>
+
+                <div class="alert alert-info">
+                    ℹ️ 공유 링크는 데이터를 URL 파라미터로 포함합니다.
+                    대용량 데이터는 링크가 길어질 수 있으니 파일 공유를 권장합니다.
+                </div>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="shareKasp">
+                        <span>KASP 분석 결과</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="sharePhenotype">
+                        <span>표현형 데이터</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="shareGene" checked>
+                        <span>유전자 북마크</span>
+                    </label>
+                </div>
+
+                <button class="btn" onclick="generateShareLink()">
+                    🔗 공유 링크 생성
+                </button>
+
+                <div id="shareLinkResult" style="display: none; margin-top: 20px;">
+                    <div class="share-link-container">
+                        <input type="text" class="share-link-input" id="shareLink" readonly>
+                        <button class="btn" onclick="copyShareLink()">📋 복사</button>
+                    </div>
+
+                    <div class="qr-container" style="margin-top: 20px;">
+                        <canvas id="qrCanvas"></canvas>
+                        <p style="margin-top: 12px; color: var(--text-light); font-size: 0.9em;">
+                            QR 코드를 스캔하여 데이터를 가져올 수 있습니다
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📥 공유 데이터 가져오기</div>
+                <div class="card-description">
+                    공유받은 링크나 코드를 붙여넣어 데이터를 가져옵니다.
+                </div>
+
+                <div class="share-link-container">
+                    <input type="text" class="share-link-input" id="importLink" placeholder="공유 링크 또는 코드를 붙여넣기...">
+                    <button class="btn" onclick="importFromLink()">📥 가져오기</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 클라우드 -->
+        <div class="tab-content" id="cloud-tab">
+            <div class="card">
+                <div class="card-title">☁️ 클라우드 저장소 연동</div>
+                <div class="card-description">
+                    클라우드 서비스에 데이터를 백업하고 여러 기기에서 동기화할 수 있습니다.
+                </div>
+
+                <div class="alert alert-warning">
+                    ⚠️ 클라우드 연동은 각 서비스의 공유 폴더 기능을 활용합니다.
+                    아래 버튼을 클릭하면 해당 서비스로 이동합니다.
+                </div>
+
+                <div class="cloud-services">
+                    <a href="https://drive.google.com" target="_blank" class="cloud-service">
+                        <div class="cloud-logo gdrive">📁</div>
+                        <div>
+                            <div style="font-weight: 500;">Google Drive</div>
+                            <div style="font-size: 0.85em; color: var(--text-light);">15GB 무료</div>
+                        </div>
+                    </a>
+                    <a href="https://www.dropbox.com" target="_blank" class="cloud-service">
+                        <div class="cloud-logo dropbox">📦</div>
+                        <div>
+                            <div style="font-weight: 500;">Dropbox</div>
+                            <div style="font-size: 0.85em; color: var(--text-light);">2GB 무료</div>
+                        </div>
+                    </a>
+                    <a href="https://onedrive.live.com" target="_blank" class="cloud-service">
+                        <div class="cloud-logo onedrive">☁️</div>
+                        <div>
+                            <div style="font-weight: 500;">OneDrive</div>
+                            <div style="font-size: 0.85em; color: var(--text-light);">5GB 무료</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📤 클라우드 업로드 준비</div>
+                <div class="card-description">
+                    백업 파일을 생성하여 클라우드에 업로드하세요.
+                </div>
+
+                <button class="btn" onclick="prepareCloudBackup()">
+                    📦 클라우드용 백업 파일 생성
+                </button>
+
+                <div id="cloudBackupResult" style="display: none; margin-top: 16px;">
+                    <div class="alert alert-success">
+                        ✅ 백업 파일이 다운로드되었습니다.
+                        이 파일을 원하는 클라우드 서비스에 업로드하세요.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 동기화 -->
+        <div class="tab-content" id="sync-tab">
+            <div class="card">
+                <div class="card-title">🔄 실시간 동기화</div>
+                <div class="card-description">
+                    여러 브라우저 탭 간에 데이터를 실시간으로 동기화합니다.
+                </div>
+
+                <div class="sync-status">
+                    <div class="sync-icon" id="syncIcon">🔄</div>
+                    <div>
+                        <div style="font-weight: 500;" id="syncStatusText">동기화 대기 중</div>
+                        <div style="font-size: 0.85em; color: var(--text-light);" id="lastSyncTime">
+                            마지막 동기화: -
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn" onclick="manualSync()">
+                        🔄 수동 동기화
+                    </button>
+                    <button class="btn btn-outline" id="autoSyncBtn" onclick="toggleAutoSync()">
+                        ⏸️ 자동 동기화 켜기
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🗑️ 데이터 관리</div>
+                <div class="card-description">
+                    저장된 데이터를 관리합니다. 주의: 삭제된 데이터는 복구할 수 없습니다.
+                </div>
+
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn btn-outline" onclick="clearOldData()">
+                        🧹 오래된 데이터 정리
+                    </button>
+                    <button class="btn btn-danger" onclick="clearAllData()">
+                        ⚠️ 모든 데이터 삭제
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR 코드 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+    <script>
+        // 상태
+        let autoSyncEnabled = false;
+        let syncInterval = null;
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDataOverview();
+            updateBackupHistory();
+            checkUrlParameters();
+            setupDragDrop();
+            setupStorageListener();
+        });
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        // 데이터 현황 업데이트
+        function updateDataOverview() {
+            const dataKeys = [
+                { key: 'kaspResults', name: 'KASP 분석', icon: '🧬' },
+                { key: 'phenotypeDataForSimulator', name: '표현형 데이터', icon: '📊' },
+                { key: 'kaspDataForSimulator', name: 'KASP→시뮬레이터', icon: '🔗' },
+                { key: 'geneBookmarks', name: '유전자 북마크', icon: '⭐' },
+                { key: 'geneSearchHistory', name: '검색 기록', icon: '🔍' }
+            ];
+
+            let totalSize = 0;
+            const overviewDiv = document.getElementById('dataOverview');
+            let html = '';
+
+            dataKeys.forEach(item => {
+                const data = localStorage.getItem(item.key);
+                const size = data ? new Blob([data]).size : 0;
+                totalSize += size;
+
+                const sizeStr = size > 1024 ? (size / 1024).toFixed(1) + ' KB' : size + ' B';
+                const hasData = size > 0;
+
+                html += `
+                    <div class="data-item">
+                        <div class="data-icon">${item.icon}</div>
+                        <div class="data-info">
+                            <div class="data-name">${item.name}</div>
+                            <div class="data-size">${sizeStr}</div>
+                        </div>
+                        <div class="data-status">
+                            <div class="status-dot ${hasData ? 'green' : 'yellow'}"></div>
+                            <span>${hasData ? '저장됨' : '없음'}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            overviewDiv.innerHTML = html;
+
+            // 스토리지 바 업데이트
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            const percent = Math.min(100, (totalSize / maxSize) * 100);
+            document.getElementById('storageFill').style.width = percent + '%';
+            document.getElementById('storageUsed').textContent =
+                totalSize > 1024 ? (totalSize / 1024).toFixed(1) + ' KB 사용 중' : totalSize + ' B 사용 중';
+        }
+
+        // 백업 생성
+        function createBackup() {
+            const backup = {
+                version: '1.0',
+                timestamp: new Date().toISOString(),
+                source: 'rice-breeding-tools',
+                data: {}
+            };
+
+            if (document.getElementById('backupKasp').checked) {
+                backup.data.kaspResults = localStorage.getItem('kaspResults');
+                backup.data.kaspDataForSimulator = localStorage.getItem('kaspDataForSimulator');
+            }
+
+            if (document.getElementById('backupPhenotype').checked) {
+                backup.data.phenotypeDataForSimulator = localStorage.getItem('phenotypeDataForSimulator');
+            }
+
+            if (document.getElementById('backupSimulator').checked) {
+                backup.data.simulatorSettings = localStorage.getItem('simulatorSettings');
+            }
+
+            if (document.getElementById('backupGene').checked) {
+                backup.data.geneBookmarks = localStorage.getItem('geneBookmarks');
+                backup.data.geneSearchHistory = localStorage.getItem('geneSearchHistory');
+            }
+
+            // 파일 다운로드
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rice_breeding_backup_${formatDate(new Date())}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            // 백업 기록 저장
+            saveBackupHistory(backup);
+            updateBackupHistory();
+
+            alert('백업이 완료되었습니다!');
+        }
+
+        function formatDate(date) {
+            return date.toISOString().slice(0, 10).replace(/-/g, '');
+        }
+
+        // 백업 복원
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const backup = JSON.parse(e.target.result);
+
+                    if (!backup.version || !backup.data) {
+                        throw new Error('Invalid backup format');
+                    }
+
+                    if (!confirm(`이 백업을 복원하시겠습니까?\n\n생성일: ${backup.timestamp}\n\n현재 데이터를 덮어씁니다.`)) {
+                        return;
+                    }
+
+                    // 데이터 복원
+                    Object.entries(backup.data).forEach(([key, value]) => {
+                        if (value) {
+                            localStorage.setItem(key, value);
+                        }
+                    });
+
+                    updateDataOverview();
+                    alert('복원이 완료되었습니다!\n페이지를 새로고침하여 변경사항을 확인하세요.');
+
+                } catch (err) {
+                    alert('백업 파일을 읽을 수 없습니다: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // 백업 기록
+        function saveBackupHistory(backup) {
+            let history = JSON.parse(localStorage.getItem('backupHistory') || '[]');
+            history.unshift({
+                timestamp: backup.timestamp,
+                size: new Blob([JSON.stringify(backup)]).size,
+                items: Object.keys(backup.data).length
+            });
+            history = history.slice(0, 10); // 최근 10개만 유지
+            localStorage.setItem('backupHistory', JSON.stringify(history));
+        }
+
+        function updateBackupHistory() {
+            const history = JSON.parse(localStorage.getItem('backupHistory') || '[]');
+            const historyDiv = document.getElementById('backupHistory');
+
+            if (history.length === 0) {
+                historyDiv.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 20px;">백업 기록이 없습니다.</p>';
+                return;
+            }
+
+            historyDiv.innerHTML = history.map((item, idx) => `
+                <div class="backup-item">
+                    <div>
+                        <div class="backup-date">${new Date(item.timestamp).toLocaleString('ko-KR')}</div>
+                        <div class="backup-size">${(item.size / 1024).toFixed(1)} KB · ${item.items}개 항목</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 공유 링크 생성
+        function generateShareLink() {
+            const shareData = {};
+
+            if (document.getElementById('shareKasp').checked) {
+                shareData.kasp = localStorage.getItem('kaspResults');
+            }
+            if (document.getElementById('sharePhenotype').checked) {
+                shareData.phenotype = localStorage.getItem('phenotypeDataForSimulator');
+            }
+            if (document.getElementById('shareGene').checked) {
+                shareData.genes = localStorage.getItem('geneBookmarks');
+            }
+
+            if (Object.keys(shareData).length === 0) {
+                alert('공유할 데이터를 선택하세요.');
+                return;
+            }
+
+            // Base64 인코딩
+            const encoded = btoa(encodeURIComponent(JSON.stringify(shareData)));
+            const shareUrl = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+
+            document.getElementById('shareLink').value = shareUrl;
+            document.getElementById('shareLinkResult').style.display = 'block';
+
+            // QR 코드 생성
+            QRCode.toCanvas(document.getElementById('qrCanvas'), shareUrl, {
+                width: 200,
+                margin: 2,
+                color: { dark: '#0c3026', light: '#ffffff' }
+            });
+        }
+
+        function copyShareLink() {
+            const input = document.getElementById('shareLink');
+            input.select();
+            document.execCommand('copy');
+            alert('링크가 복사되었습니다!');
+        }
+
+        function importFromLink() {
+            const link = document.getElementById('importLink').value.trim();
+            if (!link) {
+                alert('링크를 입력하세요.');
+                return;
+            }
+
+            try {
+                let data;
+
+                if (link.includes('share=')) {
+                    const encoded = link.split('share=')[1];
+                    data = JSON.parse(decodeURIComponent(atob(encoded)));
+                } else {
+                    // 직접 JSON 입력
+                    data = JSON.parse(link);
+                }
+
+                if (!confirm('공유 데이터를 가져오시겠습니까?')) return;
+
+                if (data.kasp) localStorage.setItem('kaspResults', data.kasp);
+                if (data.phenotype) localStorage.setItem('phenotypeDataForSimulator', data.phenotype);
+                if (data.genes) localStorage.setItem('geneBookmarks', data.genes);
+
+                updateDataOverview();
+                alert('데이터를 가져왔습니다!');
+
+            } catch (err) {
+                alert('링크를 해석할 수 없습니다: ' + err.message);
+            }
+        }
+
+        // URL 파라미터 확인
+        function checkUrlParameters() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('share')) {
+                showTab('share');
+                document.getElementById('importLink').value = window.location.href;
+            }
+        }
+
+        // 클라우드 백업
+        function prepareCloudBackup() {
+            createBackup();
+            document.getElementById('cloudBackupResult').style.display = 'block';
+        }
+
+        // 자동 백업
+        function createAutoBackup() {
+            const interval = prompt('자동 백업 간격을 입력하세요 (분 단위, 최소 5분):', '30');
+            if (!interval || isNaN(interval) || parseInt(interval) < 5) {
+                alert('올바른 간격을 입력하세요 (최소 5분).');
+                return;
+            }
+
+            const minutes = parseInt(interval);
+            localStorage.setItem('autoBackupInterval', minutes);
+
+            alert(`${minutes}분마다 자동 백업이 설정되었습니다.\n백업 파일은 자동으로 다운로드됩니다.`);
+
+            // 자동 백업 시작
+            startAutoBackup(minutes);
+        }
+
+        function startAutoBackup(minutes) {
+            setInterval(() => {
+                console.log('Auto backup triggered');
+                createBackup();
+            }, minutes * 60 * 1000);
+        }
+
+        // 동기화
+        function setupStorageListener() {
+            window.addEventListener('storage', (e) => {
+                if (e.key && !e.key.startsWith('backup')) {
+                    updateDataOverview();
+                    document.getElementById('lastSyncTime').textContent =
+                        `마지막 동기화: ${new Date().toLocaleTimeString('ko-KR')}`;
+                }
+            });
+        }
+
+        function manualSync() {
+            const icon = document.getElementById('syncIcon');
+            icon.classList.add('syncing');
+            document.getElementById('syncStatusText').textContent = '동기화 중...';
+
+            setTimeout(() => {
+                icon.classList.remove('syncing');
+                document.getElementById('syncStatusText').textContent = '동기화 완료';
+                document.getElementById('lastSyncTime').textContent =
+                    `마지막 동기화: ${new Date().toLocaleTimeString('ko-KR')}`;
+                updateDataOverview();
+            }, 1500);
+        }
+
+        function toggleAutoSync() {
+            autoSyncEnabled = !autoSyncEnabled;
+            const btn = document.getElementById('autoSyncBtn');
+
+            if (autoSyncEnabled) {
+                btn.textContent = '⏸️ 자동 동기화 끄기';
+                syncInterval = setInterval(manualSync, 30000); // 30초마다
+            } else {
+                btn.textContent = '▶️ 자동 동기화 켜기';
+                clearInterval(syncInterval);
+            }
+        }
+
+        // 데이터 정리
+        function clearOldData() {
+            if (!confirm('검색 기록 등 오래된 데이터를 정리하시겠습니까?')) return;
+
+            localStorage.removeItem('geneSearchHistory');
+            updateDataOverview();
+            alert('오래된 데이터가 정리되었습니다.');
+        }
+
+        function clearAllData() {
+            if (!confirm('⚠️ 정말 모든 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다!')) return;
+            if (!confirm('마지막 확인: 정말 삭제하시겠습니까?')) return;
+
+            const keys = [
+                'kaspResults', 'kaspDataForSimulator', 'phenotypeDataForSimulator',
+                'geneBookmarks', 'geneSearchHistory', 'simulatorSettings', 'backupHistory'
+            ];
+
+            keys.forEach(key => localStorage.removeItem(key));
+            updateDataOverview();
+            updateBackupHistory();
+            alert('모든 데이터가 삭제되었습니다.');
+        }
+
+        // 드래그 앤 드롭
+        function setupDragDrop() {
+            const zone = document.getElementById('importZone');
+
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById('importFile').files = files;
+                    handleImport({ target: { files } });
+                }
+            });
+        }
+    </script>
+</body>
+</html>
