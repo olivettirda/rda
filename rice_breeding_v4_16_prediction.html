@@ -1443,6 +1443,17 @@ async function handleFile(e) {
     if (!file) return;
     log(`📂 파일 로드 시작: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
 
+    // 파일명 표시 및 삭제 버튼 추가
+    const uploadArea = document.getElementById('uploadArea');
+    const fileSize = (file.size / 1024).toFixed(1);
+    uploadArea.innerHTML = `
+        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+        <h2 style="color: #017f97;">✅ ${file.name}</h2>
+        <p style="color: #666;">${fileSize} KB 업로드됨</p>
+        <button class="btn" onclick="event.stopPropagation(); clearMainFile();" style="background: #d32f2f; color: white; margin-top: 10px;">🗑️ 파일 삭제</button>
+    `;
+    document.getElementById('fileInput').onchange = handleFile;
+
     const reader = new FileReader();
     reader.onload = function(ev) {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
@@ -7976,6 +7987,46 @@ function clearUploadedPhenotypeData() {
 
     log('🗑️ 표현형 데이터가 삭제되었습니다.', 'warning');
     alert('표현형 데이터가 삭제되었습니다.');
+}
+
+function clearMainFile() {
+    if (!confirm('메인 파일을 삭제하시겠습니까?\n\n모든 데이터(유전자형, 표현형, 품종정보 등)가 초기화됩니다.\n이 작업은 되돌릴 수 없습니다.')) return;
+
+    // 모든 데이터 초기화
+    genotypeData = [];
+    phenotypeData = [];
+    varietyInfoData = [];
+    linkageData = [];
+    varietyNames = [];
+    geneNames = [];
+    phenotypeNames = [];
+    genotypeMatrix = [];
+    varietyTypes = [];
+    imputedGenotypeMatrix = null;
+    selectedParentsA = [];
+    selectedParentsB = [];
+    selectedPhenotypes = [];
+    simulationResults = null;
+
+    // 업로드 영역 초기화
+    const uploadArea = document.getElementById('uploadArea');
+    if (uploadArea) {
+        uploadArea.innerHTML = `
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+            <h2 style="color: #0c3026;">📂 클릭하거나 파일을 드래그하세요</h2>
+            <p style="color: #666;">지원 형식: .xlsx, .xls</p>
+        `;
+        document.getElementById('fileInput').onchange = handleFile;
+    }
+
+    // UI 업데이트
+    updateVarietySelectors();
+    updateDataStatusDisplay();
+    updateAllSelects();
+    updateDataClearButtons();
+
+    log('🗑️ 메인 파일이 삭제되고 모든 데이터가 초기화되었습니다.', 'warning');
+    alert('메인 파일이 삭제되었습니다.');
 }
 
 function updateDataClearButtons() {

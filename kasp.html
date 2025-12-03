@@ -883,7 +883,7 @@
                 
                 document.getElementById('samplePreview').classList.remove('hidden');
                 sampleZone.classList.add('has-file');
-                sampleZone.innerHTML = `<div class="icon">✅</div><h3>${file.name}</h3><p>${sampleData.length}개 시료</p>`;
+                sampleZone.innerHTML = `<div class="icon">✅</div><h3>${file.name}</h3><p>${sampleData.length}개 시료</p><button class="remove-btn" onclick="clearSampleFile()" style="margin-top: 8px;">✕ 파일 삭제</button>`;
                 checkReady();
             };
             reader.readAsArrayBuffer(file);
@@ -926,7 +926,19 @@
             updateFileList();
             checkReady();
         };
-        
+
+        window.clearSampleFile = function() {
+            sampleData = null;
+            sampleColumns = [];
+            wellCol = null;
+            sampleCol = null;
+            document.getElementById('sampleInput').value = '';
+            document.getElementById('sampleZone').innerHTML = '<div class="icon">📋</div><h3>시료 목록 파일</h3><p>Well Position과 품종명이 포함된 Excel/CSV</p>';
+            document.getElementById('sampleZone').classList.remove('has-file');
+            document.getElementById('samplePreview').classList.add('hidden');
+            checkReady();
+        };
+
         function checkReady() {
             analyzeBtn.disabled = !(sampleData && wellCol !== null && sampleCol !== null && rawFiles.length > 0);
         }
