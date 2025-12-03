@@ -1768,13 +1768,16 @@
         function sendToSimulator() {
             const genes = Object.keys(geneResults).sort();
 
-            // "구분" 열 찾기
+            // "구분" 열 찾기 (다양한 열 이름 지원)
             let categoryCol = null;
             if (sampleData.length > 0) {
                 const firstRow = sampleData[0];
                 for (const key of Object.keys(firstRow)) {
-                    const keyLower = key.toLowerCase();
-                    if (key === '구분' || keyLower === 'category' || keyLower === 'type' || keyLower === 'class') {
+                    const keyLower = key.toLowerCase().trim();
+                    if (key === '구분' || key === '분류' || key === '종류' ||
+                        keyLower === 'category' || keyLower === 'type' || keyLower === 'class' ||
+                        keyLower === 'classification' || keyLower === 'group' ||
+                        keyLower.includes('구분') || keyLower.includes('분류')) {
                         categoryCol = key;
                         break;
                     }
@@ -1825,9 +1828,12 @@
                 // 구분 열에 CK나 NTC가 있으면 제외 (대소문자 무관)
                 if (category) {
                     const catUpper = String(category).toUpperCase().trim();
+                    // 정확히 일치하거나 포함하는 경우 모두 체크
                     if (catUpper === 'CK' || catUpper === 'NTC' ||
                         catUpper === 'CHECK' || catUpper === 'CONTROL' ||
-                        catUpper.startsWith('CK') || catUpper.startsWith('NTC')) {
+                        catUpper.includes('CK') || catUpper.includes('NTC') ||
+                        catUpper.includes('CHECK') || catUpper.includes('CONTROL') ||
+                        catUpper.includes('대조') || catUpper.includes('체크')) {
                         return true;
                     }
                 }
@@ -1835,11 +1841,17 @@
                 return false;
             };
 
+            // 필터링된 샘플 로그
+            const filteredSamples = [];
+
             Object.values(wellData).forEach(item => {
                 if (!item.sampleName) return;
 
                 // NTC, CK 등 대조구 제외 (구분 열도 체크)
-                if (isControlSample(item.sampleName, item.category)) return;
+                if (isControlSample(item.sampleName, item.category)) {
+                    filteredSamples.push({ name: item.sampleName, category: item.category });
+                    return;
+                }
 
                 const genotypeRow = { 'Variety': item.sampleName };
                 genes.forEach(g => {
