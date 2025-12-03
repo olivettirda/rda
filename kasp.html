@@ -1779,8 +1779,21 @@
                 genotypes: []
             };
 
+            // NTC, CK 등 대조구 제외 함수
+            const isControlSample = (name) => {
+                if (!name) return true;
+                const upper = String(name).toUpperCase().trim();
+                return upper === 'NTC' || upper === 'CK' ||
+                       upper.startsWith('NTC') || upper.startsWith('CK') ||
+                       upper.includes('CONTROL') || upper === 'BLANK' ||
+                       upper === 'NC' || upper === 'PC';
+            };
+
             Object.values(wellData).forEach(item => {
                 if (!item.sampleName) return;
+
+                // NTC, CK 등 대조구 제외
+                if (isControlSample(item.sampleName)) return;
 
                 const genotypeRow = { 'Variety': item.sampleName };
                 genes.forEach(g => {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>벼 디지털육종 v4.16 - 연관 기반 교배 시뮬레이션</title>
+    <title>디지털육종 도구모음 - 벼 육종도구</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
@@ -256,7 +256,7 @@
 
 <div class="container">
     <div class="header">
-        <h1>🌾 벼 디지털육종 v4.16</h1>
+        <h1>🌾 디지털육종 도구모음 - 벼 육종도구</h1>
         <p>연관 기반 교배 시뮬레이션 - 동원체 재조합 억제 반영</p>
     </div>
     <div class="tabs">
@@ -305,6 +305,7 @@
                     <input type="file" id="genotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectGenotypeUpload(event)">
                     <button class="btn" onclick="document.getElementById('genotypeFileInput').click()" style="background: #017f97; color: white;">📂 유전자형 엑셀 선택</button>
                     <button class="btn btn-secondary" onclick="downloadGenotypeTemplate()">📥 유전자형 양식 다운로드</button>
+                    <button class="btn" id="clearGenotypeBtn" onclick="clearGenotypeData()" style="display: none; background: #d32f2f; color: white;">🗑️ 유전자형 데이터 삭제</button>
                 </div>
                 <p id="genotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
             </div>
@@ -331,6 +332,7 @@
                     <input type="file" id="phenotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectPhenotypeUpload(event)">
                     <button class="btn" onclick="document.getElementById('phenotypeFileInput').click()" style="background: #4caf50; color: white;">📂 표현형 엑셀 선택</button>
                     <button class="btn btn-secondary" onclick="downloadPhenotypeTemplate()">📥 표현형 양식 다운로드</button>
+                    <button class="btn" id="clearPhenotypeBtn" onclick="clearUploadedPhenotypeData()" style="display: none; background: #d32f2f; color: white;">🗑️ 표현형 데이터 삭제</button>
                 </div>
                 <p id="phenotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
             </div>
@@ -417,6 +419,24 @@
             <div style="margin: 15px 0;">
                 <label>집단 크기: <input type="number" id="popSize" value="100" min="50"></label>
                 <label>세대 수: <input type="number" id="generations" value="50" min="20"></label>
+            </div>
+            <div style="margin: 15px 0; padding: 12px; background: #f5f5f5; border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="useEarlyStopping" style="width: 18px; height: 18px;" onchange="document.getElementById('earlyStopOptions').style.display = this.checked ? 'block' : 'none'">
+                    <strong>조기 종료 사용</strong>
+                </label>
+                <p style="margin: 8px 0 0 26px; font-size: 0.9em; color: #666;">
+                    최적해가 연속으로 개선되지 않으면 알고리즘을 조기 종료합니다.
+                </p>
+                <div id="earlyStopOptions" style="display: none; margin-top: 10px; margin-left: 26px;">
+                    <label>
+                        연속 미개선 세대 수:
+                        <input type="number" id="earlyStopGens" value="10" min="3" max="30" style="width: 60px;">
+                    </label>
+                    <span style="color: #888; font-size: 0.85em; margin-left: 10px;">
+                        (이 횟수 동안 최적해 최대치가 개선되지 않으면 중지)
+                    </span>
+                </div>
             </div>
             <button class="btn" onclick="runGeneticAlgorithm()">🚀 실행</button>
         </div>
@@ -1541,7 +1561,8 @@ function processData() {
     imputedGenotypeData = null;
     displayDataStatus();
     updateAllSelects();
-    
+    updateDataClearButtons();
+
     log(`📊 상관행렬 계산 완료: ${phenotypeNames.length} x ${geneNames.length}`, 'info');
 }
 
@@ -2357,19 +2378,23 @@ function runGeneticAlgorithm() {
     
     const popSize = parseInt(document.getElementById('popSize').value);
     const generations = parseInt(document.getElementById('generations').value);
-    
+
+    // 조기 종료 옵션
+    const useEarlyStopping = document.getElementById('useEarlyStopping').checked;
+    const earlyStopGens = parseInt(document.getElementById('earlyStopGens').value) || 10;
+
     const selectedPhenoNames = selectedObjectives.map(i => phenotypeNames[i]);
     log(`🧬 유전 알고리즘 시작: ${selectedPhenoNames.length}개 목표 형질`, 'info');
     log(`  - 선택된 형질: ${selectedPhenoNames.slice(0, 5).join(', ')}${selectedPhenoNames.length > 5 ? '...' : ''}`, 'info');
-    log(`  - 설정: 모집단 ${popSize}, 세대 수 ${generations}`, 'info');
-    
+    log(`  - 설정: 모집단 ${popSize}, 세대 수 ${generations}${useEarlyStopping ? `, 조기종료(${earlyStopGens}세대 미개선시)` : ''}`, 'info');
+
     document.getElementById('gaLoading').classList.add('active');
     document.getElementById('gaProgress').style.display = 'block';
     document.getElementById('gaResults').innerHTML = '';
-    
+
     // Pyodide 초기화 후 실행
     initPyodide().then(() => {
-        return runGeneticAlgorithmPyodide(selectedObjectives, popSize, generations);
+        return runGeneticAlgorithmPyodide(selectedObjectives, popSize, generations, useEarlyStopping, earlyStopGens);
     }).catch(err => {
         log('❌ 유전 알고리즘 실행 실패: ' + err.message, 'error');
         console.error('GA 실행 실패:', err);
@@ -2396,12 +2421,14 @@ async function initPyodide() {
     }
 }
 
-async function runGeneticAlgorithmPyodide(selectedObjectives, popSize, generations) {
+async function runGeneticAlgorithmPyodide(selectedObjectives, popSize, generations, useEarlyStopping = false, earlyStopGens = 10) {
     pyodide.globals.set('selected_objectives', selectedObjectives);
     pyodide.globals.set('pop_size', popSize);
     pyodide.globals.set('n_generations', generations);
     pyodide.globals.set('n_genes', geneNames.length);
     pyodide.globals.set('correlation_matrix', correlationMatrix);
+    pyodide.globals.set('use_early_stopping', useEarlyStopping);
+    pyodide.globals.set('early_stop_gens', earlyStopGens);
 
     // ML 모델 학습을 위한 genotype/phenotype 데이터 전달
     const genotypeMatrix = genotypeData.map(row => {
@@ -2563,9 +2590,16 @@ def dominates(f1, f2):
 fitness_mode = "ML 기반" if ml_evaluator.use_ml else "상관계수 기반"
 print(f"유전 알고리즘 시작: 집단 {pop_size}, 세대 {n_generations}, 유전자 {n_genes}개")
 print(f"적합도 함수: {fitness_mode}")
+if use_early_stopping:
+    print(f"조기 종료 활성화: {early_stop_gens}세대 미개선시 중지")
 
 population = [create_individual(n_genes) for _ in range(pop_size)]
 history = []
+
+# 조기 종료를 위한 변수
+best_ever_fitness = float('-inf')
+no_improvement_count = 0
+final_gen = n_generations
 
 for gen in range(n_generations):
     fitness_values = []
@@ -2594,6 +2628,20 @@ for gen in range(n_generations):
     best_fitness = max([sum(f) for f in fitness_values])
     avg_fitness = np.mean([sum(f) for f in fitness_values])
     history.append({'gen': gen, 'best': float(best_fitness), 'avg': float(avg_fitness)})
+
+    # 조기 종료 체크
+    if use_early_stopping:
+        if best_fitness > best_ever_fitness + 0.001:  # 최소 개선량
+            best_ever_fitness = best_fitness
+            no_improvement_count = 0
+        else:
+            no_improvement_count += 1
+            if no_improvement_count >= early_stop_gens:
+                print(f"조기 종료: {early_stop_gens}세대 동안 개선 없음 (세대 {gen + 1}에서 중지)")
+                final_gen = gen + 1
+                break
+    else:
+        best_ever_fitness = max(best_ever_fitness, best_fitness)
 
     # 다음 세대
     offspring = []
@@ -2629,7 +2677,7 @@ for i, fi in enumerate(final_fitness):
 
 pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
 
-{'pareto_front': pareto_front[:10], 'history': history, 'fitness_mode': fitness_mode}
+{'pareto_front': pareto_front[:10], 'history': history, 'fitness_mode': fitness_mode, 'final_gen': final_gen, 'early_stopped': final_gen < n_generations}
     `;
 
     try {
@@ -2666,10 +2714,17 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
         }
 
         const fitnessMode = resultsJs.fitness_mode || '상관계수 기반';
-        log(`✅ 유전 알고리즘 완료: Pareto 프론트 ${optimalSolutions.length}개 해 발견`, 'success');
+        const finalGen = resultsJs.final_gen || generations;
+        const earlyStopped = resultsJs.early_stopped || false;
+
+        if (earlyStopped) {
+            log(`✅ 유전 알고리즘 조기 종료: ${finalGen}세대에서 완료 (Pareto 프론트 ${optimalSolutions.length}개 해)`, 'success');
+        } else {
+            log(`✅ 유전 알고리즘 완료: ${finalGen}세대 실행 (Pareto 프론트 ${optimalSolutions.length}개 해)`, 'success');
+        }
         log(`📊 적합도 함수: ${fitnessMode}`, 'info');
 
-        displayGAResults(optimalSolutions, history, fitnessMode);
+        displayGAResults(optimalSolutions, history, fitnessMode, earlyStopped, finalGen);
         updateOptimalSolutionSelect();
         
     } catch (error) {
@@ -2682,14 +2737,18 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
     }
 }
 
-function displayGAResults(solutions, history, fitnessMode = '상관계수 기반') {
+function displayGAResults(solutions, history, fitnessMode = '상관계수 기반', earlyStopped = false, finalGen = 0) {
     const modeIcon = fitnessMode === 'ML 기반' ? '🤖' : '📈';
     const modeBadge = fitnessMode === 'ML 기반'
         ? '<span style="background: #00b894; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">ML 기반</span>'
         : '<span style="background: #636e72; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.85em;">상관계수 기반</span>';
 
+    const earlyStopBadge = earlyStopped
+        ? `<span style="background: #fdcb6e; color: #2d3436; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; margin-left: 8px;">⏱️ 조기종료 (${finalGen}세대)</span>`
+        : '';
+
     let html = `<div class="result-card">
-        <h3>🏆 Pareto 프론트 (Top ${solutions.length} 최적해) ${modeBadge}</h3>
+        <h3>🏆 Pareto 프론트 (Top ${solutions.length} 최적해) ${modeBadge}${earlyStopBadge}</h3>
         <p style="color: #666; margin-bottom: 10px; font-size: 0.9em;">${modeIcon} 적합도 함수: ${fitnessMode} ${fitnessMode === 'ML 기반' ? '- RandomForest predict_proba 사용' : '- 유전자-형질 상관계수 가중합'}</p>
         <table class="data-table"><thead><tr>
             <th>순위</th><th>적합도 합</th><th>유전자 수</th>`;
@@ -7372,6 +7431,7 @@ function importKaspData() {
         // KASP 카드 숨기기
         clearKaspData();
         dataLoaded = true;
+        updateDataClearButtons();
 
         alert(`✅ KASP 데이터 가져오기 완료!\n\n• 품종 수: ${varietyNames.length}개\n• 유전자 수: ${geneNames.length}개\n\n다른 탭에서 분석을 진행하세요.`);
 
@@ -7481,6 +7541,7 @@ function importPhenotypeData() {
         // 표현형 카드 숨기기
         clearPhenotypeData();
         dataLoaded = true;
+        updateDataClearButtons();
 
         alert(`✅ 표현형 데이터 가져오기 완료!\n\n• 품종 수: ${data.varieties.length}개\n• 형질 수: ${data.traits.length}개\n• 데이터: 각 품종의 형질별 평균값\n\n다른 탭에서 분석을 진행하세요.`);
 
@@ -7652,6 +7713,7 @@ function handleDirectPhenotypeUpload(event) {
             updateVarietySelectors();
             updateDataStatusDisplay();
             updateAllSelects();
+            updateDataClearButtons();
             dataLoaded = true;
 
             if (statusEl) {
@@ -7838,6 +7900,7 @@ function handleDirectGenotypeUpload(event) {
             updateVarietySelectors();
             updateDataStatusDisplay();
             updateAllSelects();
+            updateDataClearButtons();
             dataLoaded = true;
 
             if (statusEl) {
@@ -7856,6 +7919,79 @@ function handleDirectGenotypeUpload(event) {
     reader.readAsArrayBuffer(file);
 }
 
+// ==================== 데이터 삭제 기능 ====================
+
+function clearGenotypeData() {
+    if (!confirm('유전자형 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+
+    genotypeMatrix = [];
+    geneNames = [];
+    varietyNames = [];
+    varietyTypes = [];
+    imputedGenotypeMatrix = null;
+
+    const statusEl = document.getElementById('genotypeUploadStatus');
+    if (statusEl) {
+        statusEl.innerHTML = '';
+        statusEl.style.color = '#888';
+    }
+
+    const clearBtn = document.getElementById('clearGenotypeBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('genotypeFileInput');
+    if (fileInput) fileInput.value = '';
+
+    updateVarietySelectors();
+    updateDataStatusDisplay();
+    updateAllSelects();
+
+    log('🗑️ 유전자형 데이터가 삭제되었습니다.', 'warning');
+    alert('유전자형 데이터가 삭제되었습니다.');
+}
+
+function clearUploadedPhenotypeData() {
+    if (!confirm('표현형 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+
+    phenotypeData = [];
+    phenotypeNames = [];
+
+    const statusEl = document.getElementById('phenotypeUploadStatus');
+    if (statusEl) {
+        statusEl.innerHTML = '';
+        statusEl.style.color = '#888';
+    }
+
+    const clearBtn = document.getElementById('clearPhenotypeBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('phenotypeFileInput');
+    if (fileInput) fileInput.value = '';
+
+    updateVarietySelectors();
+    updateDataStatusDisplay();
+    updateAllSelects();
+
+    log('🗑️ 표현형 데이터가 삭제되었습니다.', 'warning');
+    alert('표현형 데이터가 삭제되었습니다.');
+}
+
+function updateDataClearButtons() {
+    // 유전자형 삭제 버튼 표시/숨김
+    const genoBtn = document.getElementById('clearGenotypeBtn');
+    if (genoBtn) {
+        genoBtn.style.display = (genotypeMatrix && genotypeMatrix.length > 0) ? 'inline-block' : 'none';
+    }
+
+    // 표현형 삭제 버튼 표시/숨김
+    const phenoBtn = document.getElementById('clearPhenotypeBtn');
+    if (phenoBtn) {
+        phenoBtn.style.display = (phenotypeData && phenotypeData.length > 0) ? 'inline-block' : 'none';
+    }
+}
+
 // ==================== 초기화 ====================
 window.onload = function() {
     initChromosomeViz();
@@ -7863,6 +7999,7 @@ window.onload = function() {
     updateInteractionTab();
     checkKaspData(); // KASP 데이터 확인
     checkPhenotypeData(); // 표현형 데이터 확인
+    updateDataClearButtons(); // 삭제 버튼 상태 업데이트
     log('🌾 벼 디지털육종 v4.16 로드 완료', 'success');
 };
 </script>
