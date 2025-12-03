@@ -298,6 +298,16 @@
                 </div>
             </div>
 
+            <!-- Gel 분석기 연동 (데이터 있을 때만 표시) -->
+            <div id="gelImportCard" style="display: none; background: linear-gradient(135deg, #6a1b9a 0%, #9c27b0 100%); color: white; padding: 15px; border-radius: 8px; margin: 12px 0;">
+                <h4 style="color: white; margin: 0 0 8px 0;">🔬 Gel 이미지 분석기 연동</h4>
+                <p style="opacity: 0.9; margin: 8px 0; font-size: 0.9em;" id="gelDataInfo">Gel 분석 결과가 준비되었습니다.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="importGelData()" style="background: white; color: #6a1b9a;">📥 Gel 데이터 가져오기</button>
+                    <button class="btn btn-sm" onclick="clearGelData()" style="background: rgba(255,255,255,0.2); color: white;">✕ 무시</button>
+                </div>
+            </div>
+
             <!-- 유전자형 직접 업로드 -->
             <div style="margin-top: 12px;">
                 <p style="color: #666; font-size: 0.9em; margin: 8px 0;">품종명과 마커별 유전자형(A/B/H/-)이 포함된 엑셀 파일을 업로드하세요.</p>
@@ -7464,6 +7474,127 @@ function clearKaspData() {
     localStorage.removeItem('kaspDataForSimulator');
 }
 
+// ==================== Gel 데이터 연동 ====================
+function checkGelData() {
+    const gelData = localStorage.getItem('gelDataForSimulator');
+    if (gelData) {
+        try {
+            const data = JSON.parse(gelData);
+            const card = document.getElementById('gelImportCard');
+            const info = document.getElementById('gelDataInfo');
+            if (card && info) {
+                const sampleCount = Object.keys(data.samples).length;
+                const geneCount = data.genes.length;
+                info.textContent = `Gel 분석 결과: ${sampleCount}개 시료, ${geneCount}개 마커 (${new Date(data.timestamp).toLocaleString()})`;
+                card.style.display = 'block';
+                log(`🔬 Gel 데이터 감지: ${sampleCount}개 시료, ${geneCount}개 마커`, 'info');
+            }
+        } catch (e) {
+            console.error('Gel 데이터 파싱 오류:', e);
+        }
+    }
+}
+
+function importGelData() {
+    const gelData = localStorage.getItem('gelDataForSimulator');
+    if (!gelData) {
+        alert('가져올 Gel 데이터가 없습니다.');
+        return;
+    }
+
+    try {
+        const data = JSON.parse(gelData);
+        const sampleNames = Object.keys(data.samples);
+        const geneList = data.genes;
+
+        log(`🔬 Gel 데이터 가져오기 시작: ${sampleNames.length}개 시료, ${geneList.length}개 마커`, 'info');
+
+        // Gel 데이터를 KASP 형식과 동일하게 변환
+        const gelGenotypes = sampleNames.map(sampleName => {
+            const row = { 'Variety': sampleName };
+            geneList.forEach(gene => {
+                row[gene] = data.samples[sampleName][gene];
+            });
+            return row;
+        });
+
+        // 기존 데이터와 병합 또는 새로 설정
+        if (genotypeData && genotypeData.length > 0) {
+            if (!confirm('기존 데이터가 있습니다. Gel 데이터로 대체하시겠습니까?\n(취소 시 기존 데이터에 추가됩니다)')) {
+                // 기존 데이터에 추가 - 품종명이 같으면 유전자만 추가
+                gelGenotypes.forEach(gelRow => {
+                    const variety = gelRow['Variety'];
+                    const existing = genotypeData.find(r => (r['Variety'] || r['품종명']) === variety);
+                    if (existing) {
+                        geneList.forEach(gene => {
+                            if (gelRow[gene] !== null && gelRow[gene] !== undefined) {
+                                existing[gene] = gelRow[gene];
+                            }
+                        });
+                    } else {
+                        genotypeData.push(gelRow);
+                    }
+                });
+                // 새 유전자 추가
+                geneList.forEach(g => {
+                    if (!geneNames.includes(g)) geneNames.push(g);
+                });
+                varietyNames = genotypeData.map(r => r['Variety'] || r['품종명'] || Object.values(r)[0]);
+                log(`✅ Gel 데이터 병합 완료: 총 ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'success');
+            } else {
+                // 대체
+                genotypeData = gelGenotypes;
+                geneNames = geneList;
+                varietyNames = sampleNames;
+                varietyTypes = varietyNames.map(() => 'Gel');
+                log(`✅ Gel 데이터로 대체 완료: ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'success');
+            }
+        } else {
+            // 새로 설정
+            genotypeData = gelGenotypes;
+            geneNames = geneList;
+            varietyNames = sampleNames;
+            varietyTypes = varietyNames.map(() => 'Gel');
+            log(`✅ Gel 데이터 로드 완료: ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'success');
+        }
+
+        // 품종 콤보박스 업데이트
+        updateVarietySelectors();
+
+        // 데이터 상태 표시
+        const statusDiv = document.getElementById('dataStatus');
+        if (statusDiv) {
+            statusDiv.innerHTML = `
+                <div class="info-box success">
+                    <h3>🔬 Gel 데이터 로드 완료</h3>
+                    <p><strong>시료:</strong> ${varietyNames.length}개 | <strong>마커:</strong> ${geneNames.length}개</p>
+                    <p style="font-size: 0.85em; color: #666; margin-top: 8px;">출처: ${data.source} (${new Date(data.timestamp).toLocaleString()})</p>
+                </div>
+            `;
+        }
+
+        // Gel 카드 숨기기
+        clearGelData();
+        dataLoaded = true;
+        updateDataClearButtons();
+
+        // 세션에 저장 (탭 이동해도 유지)
+        saveSimulatorDataToSession();
+
+        alert(`✅ Gel 데이터 가져오기 완료!\n\n• 시료 수: ${varietyNames.length}개\n• 마커 수: ${geneNames.length}개\n\n다른 탭에서 분석을 진행하세요.`);
+
+    } catch (e) {
+        console.error('Gel 데이터 가져오기 오류:', e);
+        alert('Gel 데이터 가져오기 중 오류가 발생했습니다: ' + e.message);
+    }
+}
+
+function clearGelData() {
+    const card = document.getElementById('gelImportCard');
+    if (card) card.style.display = 'none';
+    localStorage.removeItem('gelDataForSimulator');
+}
+
 // ==================== 표현형 데이터 연동 ====================
 function checkPhenotypeData() {
     const phenoData = localStorage.getItem('phenotypeDataForSimulator');
@@ -8150,6 +8281,7 @@ window.onload = function() {
 
     if (!restored) {
         checkKaspData(); // KASP 데이터 확인
+        checkGelData(); // Gel 데이터 확인
     }
 
     checkPhenotypeData(); // 표현형 데이터 확인
