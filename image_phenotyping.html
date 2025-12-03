@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이미지 표현형 분석 - 벼 육종 도구</title>
+    <link rel="icon" type="image/png" href="ssallogo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+    <style>
+        :root {
+            --primary: #0c3026;
+            --secondary: #017f97;
+            --accent: #00a1b8;
+            --bg: #f8faf9;
+            --card-bg: #ffffff;
+            --border: #d4e5df;
+            --text: #0c3026;
+            --text-light: #5a6b65;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 1.8em;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            font-size: 0.95em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .card-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab:hover {
+            border-color: var(--secondary);
+        }
+
+        .tab.active {
+            background: var(--secondary);
+            color: white;
+            border-color: var(--secondary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-zone {
+            border: 3px dashed var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg);
+        }
+
+        .upload-zone:hover {
+            border-color: var(--secondary);
+            background: #f0f8f8;
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: #e0f7fa;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            font-size: 1.1em;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            font-size: 0.9em;
+            color: var(--text-light);
+        }
+
+        .image-preview {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .image-preview.show {
+            display: block;
+        }
+
+        .preview-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .preview-image-container {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .analysis-results {
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .result-item {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .result-label {
+            font-size: 0.85em;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+
+        .result-value {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .result-unit {
+            font-size: 0.9em;
+            color: var(--text-light);
+            margin-left: 4px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--secondary);
+            border: 2px solid var(--secondary);
+        }
+
+        .btn-outline:hover {
+            background: #e0f7fa;
+        }
+
+        .btn-danger {
+            background: #e53935;
+        }
+
+        .btn-danger:hover {
+            background: #c62828;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .slider-container {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 16px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--border);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--secondary);
+            cursor: pointer;
+        }
+
+        .color-palette {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .color-swatch {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+
+        .color-swatch.selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px white, 0 0 0 4px var(--primary);
+        }
+
+        .histogram-container {
+            height: 150px;
+            margin-top: 16px;
+            display: flex;
+            align-items: flex-end;
+            gap: 1px;
+            background: var(--bg);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .histogram-bar {
+            flex: 1;
+            background: var(--secondary);
+            min-width: 2px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border);
+            border-top-color: var(--secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 200px;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            margin-top: 16px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--secondary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .reference-input {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .reference-input input {
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            width: 100px;
+            font-size: 1em;
+        }
+
+        .reference-input input:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .help-text {
+            font-size: 0.85em;
+            color: var(--text-light);
+            background: #fff9e6;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .batch-results {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .batch-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .batch-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .batch-item-info {
+            flex: 1;
+        }
+
+        .batch-item-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .batch-item-results {
+            font-size: 0.85em;
+            color: var(--text-light);
+        }
+
+        .export-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        @media (max-width: 768px) {
+            .preview-container {
+                flex-direction: column;
+            }
+
+            .reference-input {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 16px; color: var(--text-light);" id="loadingText">분석 중...</p>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>📸 이미지 표현형 분석 <span class="badge">오프라인 지원</span></h1>
+            <p class="subtitle">이미지에서 잎 면적, 종자 형태, 색상 분석을 자동으로 수행합니다</p>
+        </header>
+
+        <!-- 분석 유형 탭 -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('leaf')">
+                🍃 잎 분석
+            </button>
+            <button class="tab" onclick="showTab('seed')">
+                🌾 종자 분석
+            </button>
+            <button class="tab" onclick="showTab('color')">
+                🎨 색상 분석
+            </button>
+            <button class="tab" onclick="showTab('batch')">
+                📁 일괄 처리
+            </button>
+        </div>
+
+        <!-- 잎 분석 -->
+        <div class="tab-content active" id="leaf-tab">
+            <div class="card">
+                <div class="card-title">🍃 잎 면적 측정</div>
+
+                <div class="help-text">
+                    💡 정확한 측정을 위해 이미지에 기준 물체(예: 자, 동전)를 함께 촬영하세요.
+                    배경은 흰색 또는 대비가 큰 색상을 권장합니다.
+                </div>
+
+                <div class="reference-input">
+                    <label>기준 길이:</label>
+                    <input type="number" id="leafRefLength" value="10" step="0.1">
+                    <select id="leafRefUnit">
+                        <option value="cm">cm</option>
+                        <option value="mm">mm</option>
+                        <option value="inch">inch</option>
+                    </select>
+                    <span style="color: var(--text-light); font-size: 0.9em;">
+                        (이미지에서 기준선을 그려주세요)
+                    </span>
+                </div>
+
+                <div class="upload-zone" id="leafUploadZone" onclick="document.getElementById('leafFileInput').click()">
+                    <input type="file" id="leafFileInput" accept="image/*" style="display: none;" onchange="handleLeafUpload(event)">
+                    <div class="upload-icon">🍃</div>
+                    <div class="upload-text">클릭하거나 이미지를 드래그하세요</div>
+                    <div class="upload-hint">JPG, PNG 형식 지원</div>
+                </div>
+
+                <div class="image-preview" id="leafPreview">
+                    <div class="preview-container">
+                        <div class="preview-image-container">
+                            <img id="leafImage" class="preview-image">
+                            <canvas id="leafCanvas" class="canvas-overlay"></canvas>
+                        </div>
+                        <div class="analysis-results" id="leafResults">
+                            <div class="result-item">
+                                <div class="result-label">잎 면적</div>
+                                <div class="result-value" id="leafArea">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">잎 길이</div>
+                                <div class="result-value" id="leafLength">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">잎 폭</div>
+                                <div class="result-value" id="leafWidth">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">녹색 비율</div>
+                                <div class="result-value" id="leafGreenRatio">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">엽록소 지수 (추정)</div>
+                                <div class="result-value" id="leafChlorophyll">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>녹색 감지 민감도</span>
+                            <span id="leafSensitivityValue">50</span>
+                        </div>
+                        <input type="range" id="leafSensitivity" min="0" max="100" value="50" onchange="updateLeafAnalysis()">
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn" onclick="analyzeLeaf()">🔍 다시 분석</button>
+                        <button class="btn btn-outline" onclick="drawReferenceLine()">📏 기준선 그리기</button>
+                        <button class="btn btn-outline" onclick="exportLeafResults()">💾 결과 저장</button>
+                        <button class="btn btn-danger" onclick="clearLeaf()">🗑️ 초기화</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 종자 분석 -->
+        <div class="tab-content" id="seed-tab">
+            <div class="card">
+                <div class="card-title">🌾 종자 형태 측정</div>
+
+                <div class="help-text">
+                    💡 종자를 평평한 표면에 간격을 두고 배치하세요.
+                    스케일바 또는 기준 물체를 함께 촬영하면 실제 크기를 측정할 수 있습니다.
+                </div>
+
+                <div class="reference-input">
+                    <label>픽셀당 길이:</label>
+                    <input type="number" id="seedPixelRatio" value="0.1" step="0.01">
+                    <span>mm/pixel</span>
+                </div>
+
+                <div class="upload-zone" id="seedUploadZone" onclick="document.getElementById('seedFileInput').click()">
+                    <input type="file" id="seedFileInput" accept="image/*" style="display: none;" onchange="handleSeedUpload(event)">
+                    <div class="upload-icon">🌾</div>
+                    <div class="upload-text">종자 이미지를 업로드하세요</div>
+                    <div class="upload-hint">여러 종자가 포함된 이미지 권장</div>
+                </div>
+
+                <div class="image-preview" id="seedPreview">
+                    <div class="preview-container">
+                        <div class="preview-image-container">
+                            <img id="seedImage" class="preview-image">
+                            <canvas id="seedCanvas" class="canvas-overlay"></canvas>
+                        </div>
+                        <div class="analysis-results" id="seedResults">
+                            <div class="result-item">
+                                <div class="result-label">감지된 종자 수</div>
+                                <div class="result-value" id="seedCount">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">평균 길이</div>
+                                <div class="result-value" id="seedLength">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">평균 폭</div>
+                                <div class="result-value" id="seedWidth">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">평균 면적</div>
+                                <div class="result-value" id="seedArea">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">장폭비 (L/W)</div>
+                                <div class="result-value" id="seedRatio">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>종자 감지 임계값</span>
+                            <span id="seedThresholdValue">128</span>
+                        </div>
+                        <input type="range" id="seedThreshold" min="0" max="255" value="128" onchange="updateSeedAnalysis()">
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn" onclick="analyzeSeed()">🔍 다시 분석</button>
+                        <button class="btn btn-outline" onclick="exportSeedResults()">💾 결과 저장</button>
+                        <button class="btn btn-danger" onclick="clearSeed()">🗑️ 초기화</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 색상 분석 -->
+        <div class="tab-content" id="color-tab">
+            <div class="card">
+                <div class="card-title">🎨 색상 분석</div>
+
+                <div class="help-text">
+                    💡 잎, 종자, 줄기 등의 색상을 분석합니다.
+                    엽록소 함량 추정, 병해 진단, 성숙도 판단 등에 활용할 수 있습니다.
+                </div>
+
+                <div class="upload-zone" id="colorUploadZone" onclick="document.getElementById('colorFileInput').click()">
+                    <input type="file" id="colorFileInput" accept="image/*" style="display: none;" onchange="handleColorUpload(event)">
+                    <div class="upload-icon">🎨</div>
+                    <div class="upload-text">분석할 이미지를 업로드하세요</div>
+                    <div class="upload-hint">특정 영역을 선택하여 분석 가능</div>
+                </div>
+
+                <div class="image-preview" id="colorPreview">
+                    <div class="preview-container">
+                        <div class="preview-image-container">
+                            <img id="colorImage" class="preview-image">
+                            <canvas id="colorCanvas" class="canvas-overlay"></canvas>
+                        </div>
+                        <div class="analysis-results">
+                            <div class="result-item">
+                                <div class="result-label">평균 RGB</div>
+                                <div class="result-value" id="colorRGB">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">평균 HSV</div>
+                                <div class="result-value" id="colorHSV">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">녹색 지수 (GI)</div>
+                                <div class="result-value" id="colorGI">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">NDVI (추정)</div>
+                                <div class="result-value" id="colorNDVI">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">주요 색상</div>
+                                <div class="color-palette" id="dominantColors"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 16px;">
+                        <div class="result-label" style="margin-bottom: 8px;">색상 히스토그램</div>
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="font-size: 0.85em; color: #e53935; margin-bottom: 4px;">Red</div>
+                                <div class="histogram-container" id="histogramR"></div>
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="font-size: 0.85em; color: #43a047; margin-bottom: 4px;">Green</div>
+                                <div class="histogram-container" id="histogramG"></div>
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="font-size: 0.85em; color: #1e88e5; margin-bottom: 4px;">Blue</div>
+                                <div class="histogram-container" id="histogramB"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn" onclick="analyzeColor()">🔍 다시 분석</button>
+                        <button class="btn btn-outline" onclick="exportColorResults()">💾 결과 저장</button>
+                        <button class="btn btn-danger" onclick="clearColor()">🗑️ 초기화</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 일괄 처리 -->
+        <div class="tab-content" id="batch-tab">
+            <div class="card">
+                <div class="card-title">📁 일괄 처리</div>
+
+                <div class="help-text">
+                    💡 여러 이미지를 한 번에 분석합니다. 결과는 엑셀 파일로 내보낼 수 있습니다.
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px;">분석 유형:</label>
+                    <select id="batchAnalysisType" style="padding: 10px; border: 2px solid var(--border); border-radius: 8px; font-size: 1em;">
+                        <option value="leaf">잎 분석</option>
+                        <option value="seed">종자 분석</option>
+                        <option value="color">색상 분석</option>
+                    </select>
+                </div>
+
+                <div class="upload-zone" id="batchUploadZone" onclick="document.getElementById('batchFileInput').click()">
+                    <input type="file" id="batchFileInput" accept="image/*" multiple style="display: none;" onchange="handleBatchUpload(event)">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">여러 이미지를 선택하세요</div>
+                    <div class="upload-hint">Ctrl/Cmd + 클릭으로 다중 선택</div>
+                </div>
+
+                <div id="batchPreview" style="display: none; margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span id="batchCount">0개 이미지 선택됨</span>
+                        <button class="btn" onclick="runBatchAnalysis()">🚀 일괄 분석 시작</button>
+                    </div>
+
+                    <div class="batch-results" id="batchResults"></div>
+
+                    <div class="export-section" id="batchExport" style="display: none;">
+                        <button class="btn" onclick="exportBatchResults()">📥 엑셀로 내보내기</button>
+                        <button class="btn btn-outline" onclick="exportBatchJSON()">📥 JSON으로 내보내기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        // 상태
+        let currentLeafImage = null;
+        let currentSeedImage = null;
+        let currentColorImage = null;
+        let batchFiles = [];
+        let batchResults = [];
+        let referenceLineStart = null;
+        let referenceLineEnd = null;
+        let pixelsPerUnit = null;
+
+        // 드래그 앤 드롭 설정
+        ['leafUploadZone', 'seedUploadZone', 'colorUploadZone', 'batchUploadZone'].forEach(id => {
+            const zone = document.getElementById(id);
+            if (zone) {
+                zone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    zone.classList.add('dragover');
+                });
+                zone.addEventListener('dragleave', () => {
+                    zone.classList.remove('dragover');
+                });
+                zone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    zone.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        if (id === 'batchUploadZone') {
+                            handleBatchFiles(files);
+                        } else {
+                            handleImageFile(files[0], id.replace('UploadZone', ''));
+                        }
+                    }
+                });
+            }
+        });
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        function showLoading(text = '분석 중...') {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('show');
+            document.getElementById('progressFill').style.width = '0%';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('show');
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressFill').style.width = percent + '%';
+        }
+
+        // ==================== 잎 분석 ====================
+        function handleLeafUpload(event) {
+            const file = event.target.files[0];
+            if (file) handleImageFile(file, 'leaf');
+        }
+
+        function handleImageFile(file, type) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    if (type === 'leaf') {
+                        currentLeafImage = img;
+                        document.getElementById('leafImage').src = e.target.result;
+                        document.getElementById('leafPreview').classList.add('show');
+                        analyzeLeaf();
+                    } else if (type === 'seed') {
+                        currentSeedImage = img;
+                        document.getElementById('seedImage').src = e.target.result;
+                        document.getElementById('seedPreview').classList.add('show');
+                        analyzeSeed();
+                    } else if (type === 'color') {
+                        currentColorImage = img;
+                        document.getElementById('colorImage').src = e.target.result;
+                        document.getElementById('colorPreview').classList.add('show');
+                        analyzeColor();
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function analyzeLeaf() {
+            if (!currentLeafImage) return;
+
+            showLoading('잎 분석 중...');
+
+            const canvas = document.getElementById('leafCanvas');
+            const ctx = canvas.getContext('2d');
+            const img = currentLeafImage;
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            // 캔버스 크기를 이미지에 맞춤
+            const displayImg = document.getElementById('leafImage');
+            canvas.style.width = displayImg.offsetWidth + 'px';
+            canvas.style.height = displayImg.offsetHeight + 'px';
+
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            updateProgress(20);
+
+            // 녹색 감지
+            const sensitivity = parseInt(document.getElementById('leafSensitivity').value);
+            const threshold = 50 + (sensitivity - 50) * 0.5;
+
+            let greenPixels = 0;
+            let totalGreen = 0;
+            let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                // 녹색 판단 (G가 R, B보다 크고 일정 수준 이상)
+                const isGreen = g > r + threshold/3 && g > b + threshold/3 && g > 50;
+
+                if (isGreen) {
+                    greenPixels++;
+                    totalGreen += g;
+
+                    const x = (i / 4) % canvas.width;
+                    const y = Math.floor((i / 4) / canvas.width);
+
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+
+                    // 녹색 영역 표시
+                    data[i] = 0;
+                    data[i + 1] = 255;
+                    data[i + 2] = 0;
+                    data[i + 3] = 100;
+                } else {
+                    data[i + 3] = 0; // 투명하게
+                }
+            }
+
+            updateProgress(60);
+
+            ctx.putImageData(imageData, 0, 0);
+
+            // 결과 계산
+            const totalPixels = canvas.width * canvas.height;
+            const greenRatio = (greenPixels / totalPixels * 100).toFixed(1);
+
+            // 픽셀 -> 실제 크기 변환 (기준선이 있는 경우)
+            const refLength = parseFloat(document.getElementById('leafRefLength').value) || 10;
+            const unit = document.getElementById('leafRefUnit').value;
+
+            let areaValue, lengthValue, widthValue;
+
+            if (pixelsPerUnit) {
+                const pixelArea = greenPixels;
+                const realArea = pixelArea / (pixelsPerUnit * pixelsPerUnit);
+                areaValue = realArea.toFixed(2) + ' ' + unit + '²';
+
+                const pixelLength = maxY - minY;
+                const pixelWidth = maxX - minX;
+                lengthValue = (pixelLength / pixelsPerUnit).toFixed(2) + ' ' + unit;
+                widthValue = (pixelWidth / pixelsPerUnit).toFixed(2) + ' ' + unit;
+            } else {
+                areaValue = greenPixels + ' px²';
+                lengthValue = (maxY - minY) + ' px';
+                widthValue = (maxX - minX) + ' px';
+            }
+
+            // 엽록소 지수 추정 (녹색 평균 기반)
+            const avgGreen = totalGreen / greenPixels;
+            const chlorophyllIndex = ((avgGreen - 50) / 205 * 100).toFixed(1);
+
+            updateProgress(100);
+
+            document.getElementById('leafArea').innerHTML = areaValue;
+            document.getElementById('leafLength').innerHTML = lengthValue;
+            document.getElementById('leafWidth').innerHTML = widthValue;
+            document.getElementById('leafGreenRatio').innerHTML = greenRatio + '<span class="result-unit">%</span>';
+            document.getElementById('leafChlorophyll').innerHTML = chlorophyllIndex + '<span class="result-unit">SPAD 추정</span>';
+
+            hideLoading();
+        }
+
+        function updateLeafAnalysis() {
+            document.getElementById('leafSensitivityValue').textContent =
+                document.getElementById('leafSensitivity').value;
+            if (currentLeafImage) analyzeLeaf();
+        }
+
+        function drawReferenceLine() {
+            const canvas = document.getElementById('leafCanvas');
+            const ctx = canvas.getContext('2d');
+
+            alert('이미지에서 기준선의 시작점과 끝점을 클릭하세요.\n(예: 자의 0과 10cm 위치)');
+
+            let clickCount = 0;
+
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+
+            canvas.onclick = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (e.clientX - rect.left) * scaleX;
+                const y = (e.clientY - rect.top) * scaleY;
+
+                if (clickCount === 0) {
+                    referenceLineStart = { x, y };
+                    ctx.beginPath();
+                    ctx.arc(x, y, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#e53935';
+                    ctx.fill();
+                    clickCount++;
+                } else {
+                    referenceLineEnd = { x, y };
+                    ctx.beginPath();
+                    ctx.moveTo(referenceLineStart.x, referenceLineStart.y);
+                    ctx.lineTo(x, y);
+                    ctx.strokeStyle = '#e53935';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    // 픽셀당 길이 계산
+                    const pixelDistance = Math.sqrt(
+                        Math.pow(x - referenceLineStart.x, 2) +
+                        Math.pow(y - referenceLineStart.y, 2)
+                    );
+                    const refLength = parseFloat(document.getElementById('leafRefLength').value) || 10;
+                    pixelsPerUnit = pixelDistance / refLength;
+
+                    canvas.style.pointerEvents = 'none';
+                    canvas.style.cursor = 'default';
+                    canvas.onclick = null;
+
+                    alert(`기준선 설정 완료!\n${pixelDistance.toFixed(0)} 픽셀 = ${refLength} ${document.getElementById('leafRefUnit').value}`);
+                    analyzeLeaf();
+                }
+            };
+        }
+
+        function clearLeaf() {
+            currentLeafImage = null;
+            document.getElementById('leafPreview').classList.remove('show');
+            document.getElementById('leafFileInput').value = '';
+            pixelsPerUnit = null;
+            referenceLineStart = null;
+            referenceLineEnd = null;
+        }
+
+        function exportLeafResults() {
+            const results = {
+                area: document.getElementById('leafArea').textContent,
+                length: document.getElementById('leafLength').textContent,
+                width: document.getElementById('leafWidth').textContent,
+                greenRatio: document.getElementById('leafGreenRatio').textContent,
+                chlorophyll: document.getElementById('leafChlorophyll').textContent,
+                timestamp: new Date().toISOString()
+            };
+
+            downloadJSON(results, 'leaf_analysis_results.json');
+        }
+
+        // ==================== 종자 분석 ====================
+        function handleSeedUpload(event) {
+            const file = event.target.files[0];
+            if (file) handleImageFile(file, 'seed');
+        }
+
+        async function analyzeSeed() {
+            if (!currentSeedImage) return;
+
+            showLoading('종자 분석 중...');
+
+            const canvas = document.getElementById('seedCanvas');
+            const ctx = canvas.getContext('2d');
+            const img = currentSeedImage;
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            const displayImg = document.getElementById('seedImage');
+            canvas.style.width = displayImg.offsetWidth + 'px';
+            canvas.style.height = displayImg.offsetHeight + 'px';
+
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            updateProgress(20);
+
+            // 이진화
+            const threshold = parseInt(document.getElementById('seedThreshold').value);
+            const binaryData = new Uint8Array(canvas.width * canvas.height);
+
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const idx = i / 4;
+                binaryData[idx] = gray < threshold ? 1 : 0;
+            }
+
+            updateProgress(40);
+
+            // 연결 성분 분석 (간단한 구현)
+            const seeds = findConnectedComponents(binaryData, canvas.width, canvas.height);
+
+            updateProgress(70);
+
+            // 종자별 측정
+            const pixelRatio = parseFloat(document.getElementById('seedPixelRatio').value) || 0.1;
+            let totalLength = 0, totalWidth = 0, totalArea = 0;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            seeds.forEach((seed, idx) => {
+                if (seed.pixels.length < 100) return; // 노이즈 제거
+
+                // 바운딩 박스
+                const length = seed.maxY - seed.minY;
+                const width = seed.maxX - seed.minX;
+
+                totalLength += length;
+                totalWidth += width;
+                totalArea += seed.pixels.length;
+
+                // 시각화
+                ctx.strokeStyle = `hsl(${idx * 40}, 70%, 50%)`;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(seed.minX, seed.minY, width, length);
+
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.font = '14px sans-serif';
+                ctx.fillText(`#${idx + 1}`, seed.minX, seed.minY - 5);
+            });
+
+            updateProgress(100);
+
+            const validSeeds = seeds.filter(s => s.pixels.length >= 100);
+            const count = validSeeds.length;
+
+            if (count > 0) {
+                const avgLength = (totalLength / count * pixelRatio).toFixed(2);
+                const avgWidth = (totalWidth / count * pixelRatio).toFixed(2);
+                const avgArea = (totalArea / count * pixelRatio * pixelRatio).toFixed(2);
+                const ratio = (totalLength / totalWidth).toFixed(2);
+
+                document.getElementById('seedCount').innerHTML = count + '<span class="result-unit">개</span>';
+                document.getElementById('seedLength').innerHTML = avgLength + '<span class="result-unit">mm</span>';
+                document.getElementById('seedWidth').innerHTML = avgWidth + '<span class="result-unit">mm</span>';
+                document.getElementById('seedArea').innerHTML = avgArea + '<span class="result-unit">mm²</span>';
+                document.getElementById('seedRatio').innerHTML = ratio;
+            } else {
+                document.getElementById('seedCount').innerHTML = '0';
+                document.getElementById('seedLength').innerHTML = '-';
+                document.getElementById('seedWidth').innerHTML = '-';
+                document.getElementById('seedArea').innerHTML = '-';
+                document.getElementById('seedRatio').innerHTML = '-';
+            }
+
+            hideLoading();
+        }
+
+        function findConnectedComponents(binaryData, width, height) {
+            const visited = new Uint8Array(width * height);
+            const components = [];
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = y * width + x;
+                    if (binaryData[idx] === 1 && !visited[idx]) {
+                        const component = { pixels: [], minX: x, maxX: x, minY: y, maxY: y };
+                        const stack = [{ x, y }];
+
+                        while (stack.length > 0) {
+                            const { x: cx, y: cy } = stack.pop();
+                            const cidx = cy * width + cx;
+
+                            if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
+                            if (visited[cidx] || binaryData[cidx] !== 1) continue;
+
+                            visited[cidx] = 1;
+                            component.pixels.push({ x: cx, y: cy });
+                            component.minX = Math.min(component.minX, cx);
+                            component.maxX = Math.max(component.maxX, cx);
+                            component.minY = Math.min(component.minY, cy);
+                            component.maxY = Math.max(component.maxY, cy);
+
+                            stack.push({ x: cx + 1, y: cy });
+                            stack.push({ x: cx - 1, y: cy });
+                            stack.push({ x: cx, y: cy + 1 });
+                            stack.push({ x: cx, y: cy - 1 });
+                        }
+
+                        if (component.pixels.length > 0) {
+                            components.push(component);
+                        }
+                    }
+                }
+            }
+
+            return components;
+        }
+
+        function updateSeedAnalysis() {
+            document.getElementById('seedThresholdValue').textContent =
+                document.getElementById('seedThreshold').value;
+            if (currentSeedImage) analyzeSeed();
+        }
+
+        function clearSeed() {
+            currentSeedImage = null;
+            document.getElementById('seedPreview').classList.remove('show');
+            document.getElementById('seedFileInput').value = '';
+        }
+
+        function exportSeedResults() {
+            const results = {
+                count: document.getElementById('seedCount').textContent,
+                avgLength: document.getElementById('seedLength').textContent,
+                avgWidth: document.getElementById('seedWidth').textContent,
+                avgArea: document.getElementById('seedArea').textContent,
+                ratio: document.getElementById('seedRatio').textContent,
+                timestamp: new Date().toISOString()
+            };
+
+            downloadJSON(results, 'seed_analysis_results.json');
+        }
+
+        // ==================== 색상 분석 ====================
+        function handleColorUpload(event) {
+            const file = event.target.files[0];
+            if (file) handleImageFile(file, 'color');
+        }
+
+        async function analyzeColor() {
+            if (!currentColorImage) return;
+
+            showLoading('색상 분석 중...');
+
+            const canvas = document.getElementById('colorCanvas');
+            const ctx = canvas.getContext('2d');
+            const img = currentColorImage;
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            const displayImg = document.getElementById('colorImage');
+            canvas.style.width = displayImg.offsetWidth + 'px';
+            canvas.style.height = displayImg.offsetHeight + 'px';
+
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            updateProgress(20);
+
+            // 통계 계산
+            let totalR = 0, totalG = 0, totalB = 0;
+            const histogramR = new Array(256).fill(0);
+            const histogramG = new Array(256).fill(0);
+            const histogramB = new Array(256).fill(0);
+            const colorCounts = {};
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                totalR += r;
+                totalG += g;
+                totalB += b;
+
+                histogramR[r]++;
+                histogramG[g]++;
+                histogramB[b]++;
+
+                // 색상 양자화 (주요 색상 찾기)
+                const qr = Math.floor(r / 32) * 32;
+                const qg = Math.floor(g / 32) * 32;
+                const qb = Math.floor(b / 32) * 32;
+                const key = `${qr},${qg},${qb}`;
+                colorCounts[key] = (colorCounts[key] || 0) + 1;
+            }
+
+            updateProgress(60);
+
+            const pixelCount = data.length / 4;
+            const avgR = Math.round(totalR / pixelCount);
+            const avgG = Math.round(totalG / pixelCount);
+            const avgB = Math.round(totalB / pixelCount);
+
+            // RGB to HSV
+            const hsv = rgbToHsv(avgR, avgG, avgB);
+
+            // 녹색 지수 (Green Index)
+            const GI = (2 * avgG - avgR - avgB) / (avgR + avgG + avgB);
+
+            // NDVI 추정 (근적외선이 없으므로 대략적 추정)
+            const NDVI = (avgG - avgR) / (avgG + avgR + 1);
+
+            updateProgress(80);
+
+            // 주요 색상 찾기
+            const sortedColors = Object.entries(colorCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            // 결과 표시
+            document.getElementById('colorRGB').innerHTML = `R:${avgR} G:${avgG} B:${avgB}`;
+            document.getElementById('colorHSV').innerHTML = `H:${hsv.h}° S:${hsv.s}% V:${hsv.v}%`;
+            document.getElementById('colorGI').innerHTML = GI.toFixed(3);
+            document.getElementById('colorNDVI').innerHTML = NDVI.toFixed(3);
+
+            // 주요 색상 팔레트
+            const paletteDiv = document.getElementById('dominantColors');
+            paletteDiv.innerHTML = sortedColors.map(([color, count]) => {
+                const [r, g, b] = color.split(',').map(Number);
+                return `<div class="color-swatch" style="background: rgb(${r},${g},${b});" title="RGB(${r},${g},${b})"></div>`;
+            }).join('');
+
+            // 히스토그램 표시
+            displayHistogram('histogramR', histogramR, '#e53935');
+            displayHistogram('histogramG', histogramG, '#43a047');
+            displayHistogram('histogramB', histogramB, '#1e88e5');
+
+            updateProgress(100);
+            hideLoading();
+        }
+
+        function rgbToHsv(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, v = max;
+
+            const d = max - min;
+            s = max === 0 ? 0 : d / max;
+
+            if (max === min) {
+                h = 0;
+            } else {
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            return {
+                h: Math.round(h * 360),
+                s: Math.round(s * 100),
+                v: Math.round(v * 100)
+            };
+        }
+
+        function displayHistogram(containerId, data, color) {
+            const container = document.getElementById(containerId);
+            const max = Math.max(...data);
+
+            container.innerHTML = '';
+            for (let i = 0; i < 256; i += 4) {
+                const value = (data[i] + data[i+1] + data[i+2] + data[i+3]) / 4;
+                const height = (value / max * 100).toFixed(1);
+                const bar = document.createElement('div');
+                bar.className = 'histogram-bar';
+                bar.style.height = height + '%';
+                bar.style.background = color;
+                container.appendChild(bar);
+            }
+        }
+
+        function clearColor() {
+            currentColorImage = null;
+            document.getElementById('colorPreview').classList.remove('show');
+            document.getElementById('colorFileInput').value = '';
+        }
+
+        function exportColorResults() {
+            const results = {
+                rgb: document.getElementById('colorRGB').textContent,
+                hsv: document.getElementById('colorHSV').textContent,
+                greenIndex: document.getElementById('colorGI').textContent,
+                ndvi: document.getElementById('colorNDVI').textContent,
+                timestamp: new Date().toISOString()
+            };
+
+            downloadJSON(results, 'color_analysis_results.json');
+        }
+
+        // ==================== 일괄 처리 ====================
+        function handleBatchUpload(event) {
+            handleBatchFiles(event.target.files);
+        }
+
+        function handleBatchFiles(files) {
+            batchFiles = Array.from(files);
+            batchResults = [];
+
+            document.getElementById('batchPreview').style.display = 'block';
+            document.getElementById('batchCount').textContent = `${batchFiles.length}개 이미지 선택됨`;
+            document.getElementById('batchExport').style.display = 'none';
+
+            const resultsDiv = document.getElementById('batchResults');
+            resultsDiv.innerHTML = batchFiles.map((file, idx) => `
+                <div class="batch-item" id="batch-item-${idx}">
+                    <img src="${URL.createObjectURL(file)}">
+                    <div class="batch-item-info">
+                        <div class="batch-item-name">${file.name}</div>
+                        <div class="batch-item-results">대기 중...</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function runBatchAnalysis() {
+            if (batchFiles.length === 0) return;
+
+            const analysisType = document.getElementById('batchAnalysisType').value;
+            showLoading('일괄 분석 중...');
+            batchResults = [];
+
+            for (let i = 0; i < batchFiles.length; i++) {
+                updateProgress((i / batchFiles.length) * 100);
+                document.getElementById('loadingText').textContent =
+                    `분석 중... (${i + 1}/${batchFiles.length})`;
+
+                const file = batchFiles[i];
+                const img = await loadImage(file);
+                const result = await analyzeImage(img, analysisType);
+                result.filename = file.name;
+
+                batchResults.push(result);
+
+                // UI 업데이트
+                const itemDiv = document.getElementById(`batch-item-${i}`);
+                const resultsSpan = itemDiv.querySelector('.batch-item-results');
+                resultsSpan.textContent = formatBatchResult(result, analysisType);
+            }
+
+            updateProgress(100);
+            hideLoading();
+
+            document.getElementById('batchExport').style.display = 'block';
+        }
+
+        function loadImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function analyzeImage(img, type) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            if (type === 'leaf') {
+                let greenPixels = 0;
+                let totalGreen = 0;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i + 1], b = data[i + 2];
+                    if (g > r + 20 && g > b + 20 && g > 50) {
+                        greenPixels++;
+                        totalGreen += g;
+                    }
+                }
+
+                return {
+                    area: greenPixels,
+                    greenRatio: (greenPixels / (canvas.width * canvas.height) * 100).toFixed(1),
+                    chlorophyll: ((totalGreen / greenPixels - 50) / 205 * 100).toFixed(1)
+                };
+            } else if (type === 'seed') {
+                // 간단한 종자 분석
+                const threshold = 128;
+                let objectPixels = 0;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    if (gray < threshold) objectPixels++;
+                }
+
+                return {
+                    objectPixels: objectPixels,
+                    objectRatio: (objectPixels / (canvas.width * canvas.height) * 100).toFixed(1)
+                };
+            } else if (type === 'color') {
+                let totalR = 0, totalG = 0, totalB = 0;
+                const pixelCount = data.length / 4;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    totalR += data[i];
+                    totalG += data[i + 1];
+                    totalB += data[i + 2];
+                }
+
+                const avgR = Math.round(totalR / pixelCount);
+                const avgG = Math.round(totalG / pixelCount);
+                const avgB = Math.round(totalB / pixelCount);
+                const GI = (2 * avgG - avgR - avgB) / (avgR + avgG + avgB);
+
+                return {
+                    avgR, avgG, avgB,
+                    greenIndex: GI.toFixed(3)
+                };
+            }
+        }
+
+        function formatBatchResult(result, type) {
+            if (type === 'leaf') {
+                return `면적: ${result.area}px², 녹색비율: ${result.greenRatio}%`;
+            } else if (type === 'seed') {
+                return `객체비율: ${result.objectRatio}%`;
+            } else if (type === 'color') {
+                return `RGB(${result.avgR},${result.avgG},${result.avgB}), GI: ${result.greenIndex}`;
+            }
+        }
+
+        function exportBatchResults() {
+            const ws = XLSX.utils.json_to_sheet(batchResults);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '분석결과');
+            XLSX.writeFile(wb, 'batch_analysis_results.xlsx');
+        }
+
+        function exportBatchJSON() {
+            downloadJSON(batchResults, 'batch_analysis_results.json');
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
