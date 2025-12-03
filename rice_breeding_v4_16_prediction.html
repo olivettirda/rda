@@ -1574,6 +1574,9 @@ function processData() {
     updateAllSelects();
     updateDataClearButtons();
 
+    // 세션에 저장 (탭 이동해도 유지)
+    saveSimulatorDataToSession();
+
     log(`📊 상관행렬 계산 완료: ${phenotypeNames.length} x ${geneNames.length}`, 'info');
 }
 
@@ -7444,6 +7447,9 @@ function importKaspData() {
         dataLoaded = true;
         updateDataClearButtons();
 
+        // 세션에 저장 (탭 이동해도 유지)
+        saveSimulatorDataToSession();
+
         alert(`✅ KASP 데이터 가져오기 완료!\n\n• 품종 수: ${varietyNames.length}개\n• 유전자 수: ${geneNames.length}개\n\n다른 탭에서 분석을 진행하세요.`);
 
     } catch (e) {
@@ -8045,12 +8051,98 @@ function updateDataClearButtons() {
     }
 }
 
+// ==================== 세션 데이터 저장/복원 ====================
+function saveSimulatorDataToSession() {
+    try {
+        const dataToSave = {
+            dataLoaded: dataLoaded,
+            geneNames: geneNames,
+            varietyNames: varietyNames,
+            varietyTypes: varietyTypes,
+            phenotypeNames: phenotypeNames,
+            genotypeData: genotypeData,
+            phenotypeData: phenotypeData,
+            varietyInfoData: varietyInfoData,
+            markerInfo: markerInfo,
+            linkageData: linkageData,
+            imputedGenotypeData: imputedGenotypeData,
+            imputationDone: imputationDone,
+            timestamp: Date.now()
+        };
+        sessionStorage.setItem('simulatorData', JSON.stringify(dataToSave));
+        console.log('✅ 시뮬레이터 데이터 세션에 저장됨');
+    } catch (e) {
+        console.error('세션 데이터 저장 오류:', e);
+    }
+}
+
+function restoreSimulatorDataFromSession() {
+    try {
+        const savedData = sessionStorage.getItem('simulatorData');
+        if (!savedData) return false;
+
+        const data = JSON.parse(savedData);
+
+        // 1시간 이내의 데이터만 복원
+        if (Date.now() - data.timestamp > 3600000) {
+            sessionStorage.removeItem('simulatorData');
+            return false;
+        }
+
+        if (data.dataLoaded && data.geneNames && data.geneNames.length > 0) {
+            dataLoaded = data.dataLoaded;
+            geneNames = data.geneNames || [];
+            varietyNames = data.varietyNames || [];
+            varietyTypes = data.varietyTypes || [];
+            phenotypeNames = data.phenotypeNames || [];
+            genotypeData = data.genotypeData;
+            phenotypeData = data.phenotypeData;
+            varietyInfoData = data.varietyInfoData;
+            markerInfo = data.markerInfo || [];
+            linkageData = data.linkageData;
+            imputedGenotypeData = data.imputedGenotypeData;
+            imputationDone = data.imputationDone || false;
+
+            // UI 업데이트
+            const statusDiv = document.getElementById('dataStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = `
+                    <div class="info-box success">
+                        <h3>📂 세션 데이터 복원됨</h3>
+                        <p><strong>품종:</strong> ${varietyNames.length}개 | <strong>유전자:</strong> ${geneNames.length}개</p>
+                        <p style="font-size: 0.85em; color: #666; margin-top: 8px;">이전 세션에서 복원됨</p>
+                    </div>
+                `;
+            }
+
+            log(`📂 세션 데이터 복원: ${varietyNames.length}개 품종, ${geneNames.length}개 유전자`, 'info');
+            updateDataClearButtons();
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.error('세션 데이터 복원 오류:', e);
+        return false;
+    }
+}
+
+function clearSimulatorSessionData() {
+    sessionStorage.removeItem('simulatorData');
+}
+
 // ==================== 초기화 ====================
 window.onload = function() {
     initChromosomeViz();
     initGenerationTimeline();
     updateInteractionTab();
-    checkKaspData(); // KASP 데이터 확인
+
+    // 먼저 세션 데이터 복원 시도
+    const restored = restoreSimulatorDataFromSession();
+
+    if (!restored) {
+        checkKaspData(); // KASP 데이터 확인
+    }
+
     checkPhenotypeData(); // 표현형 데이터 확인
     updateDataClearButtons(); // 삭제 버튼 상태 업데이트
     log('🌾 벼 디지털육종 v4.16 로드 완료', 'success');
