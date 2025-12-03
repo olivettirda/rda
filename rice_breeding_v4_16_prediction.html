@@ -305,6 +305,7 @@
                     <input type="file" id="genotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectGenotypeUpload(event)">
                     <button class="btn" onclick="document.getElementById('genotypeFileInput').click()" style="background: #017f97; color: white;">📂 유전자형 엑셀 선택</button>
                     <button class="btn btn-secondary" onclick="downloadGenotypeTemplate()">📥 유전자형 양식 다운로드</button>
+                    <button class="btn" id="clearGenotypeBtn" onclick="clearGenotypeData()" style="display: none; background: #d32f2f; color: white;">🗑️ 유전자형 데이터 삭제</button>
                 </div>
                 <p id="genotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
             </div>
@@ -331,6 +332,7 @@
                     <input type="file" id="phenotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectPhenotypeUpload(event)">
                     <button class="btn" onclick="document.getElementById('phenotypeFileInput').click()" style="background: #4caf50; color: white;">📂 표현형 엑셀 선택</button>
                     <button class="btn btn-secondary" onclick="downloadPhenotypeTemplate()">📥 표현형 양식 다운로드</button>
+                    <button class="btn" id="clearPhenotypeBtn" onclick="clearUploadedPhenotypeData()" style="display: none; background: #d32f2f; color: white;">🗑️ 표현형 데이터 삭제</button>
                 </div>
                 <p id="phenotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
             </div>
@@ -1541,7 +1543,8 @@ function processData() {
     imputedGenotypeData = null;
     displayDataStatus();
     updateAllSelects();
-    
+    updateDataClearButtons();
+
     log(`📊 상관행렬 계산 완료: ${phenotypeNames.length} x ${geneNames.length}`, 'info');
 }
 
@@ -7372,6 +7375,7 @@ function importKaspData() {
         // KASP 카드 숨기기
         clearKaspData();
         dataLoaded = true;
+        updateDataClearButtons();
 
         alert(`✅ KASP 데이터 가져오기 완료!\n\n• 품종 수: ${varietyNames.length}개\n• 유전자 수: ${geneNames.length}개\n\n다른 탭에서 분석을 진행하세요.`);
 
@@ -7481,6 +7485,7 @@ function importPhenotypeData() {
         // 표현형 카드 숨기기
         clearPhenotypeData();
         dataLoaded = true;
+        updateDataClearButtons();
 
         alert(`✅ 표현형 데이터 가져오기 완료!\n\n• 품종 수: ${data.varieties.length}개\n• 형질 수: ${data.traits.length}개\n• 데이터: 각 품종의 형질별 평균값\n\n다른 탭에서 분석을 진행하세요.`);
 
@@ -7652,6 +7657,7 @@ function handleDirectPhenotypeUpload(event) {
             updateVarietySelectors();
             updateDataStatusDisplay();
             updateAllSelects();
+            updateDataClearButtons();
             dataLoaded = true;
 
             if (statusEl) {
@@ -7838,6 +7844,7 @@ function handleDirectGenotypeUpload(event) {
             updateVarietySelectors();
             updateDataStatusDisplay();
             updateAllSelects();
+            updateDataClearButtons();
             dataLoaded = true;
 
             if (statusEl) {
@@ -7856,6 +7863,79 @@ function handleDirectGenotypeUpload(event) {
     reader.readAsArrayBuffer(file);
 }
 
+// ==================== 데이터 삭제 기능 ====================
+
+function clearGenotypeData() {
+    if (!confirm('유전자형 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+
+    genotypeMatrix = [];
+    geneNames = [];
+    varietyNames = [];
+    varietyTypes = [];
+    imputedGenotypeMatrix = null;
+
+    const statusEl = document.getElementById('genotypeUploadStatus');
+    if (statusEl) {
+        statusEl.innerHTML = '';
+        statusEl.style.color = '#888';
+    }
+
+    const clearBtn = document.getElementById('clearGenotypeBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('genotypeFileInput');
+    if (fileInput) fileInput.value = '';
+
+    updateVarietySelectors();
+    updateDataStatusDisplay();
+    updateAllSelects();
+
+    log('🗑️ 유전자형 데이터가 삭제되었습니다.', 'warning');
+    alert('유전자형 데이터가 삭제되었습니다.');
+}
+
+function clearUploadedPhenotypeData() {
+    if (!confirm('표현형 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) return;
+
+    phenotypeData = [];
+    phenotypeNames = [];
+
+    const statusEl = document.getElementById('phenotypeUploadStatus');
+    if (statusEl) {
+        statusEl.innerHTML = '';
+        statusEl.style.color = '#888';
+    }
+
+    const clearBtn = document.getElementById('clearPhenotypeBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('phenotypeFileInput');
+    if (fileInput) fileInput.value = '';
+
+    updateVarietySelectors();
+    updateDataStatusDisplay();
+    updateAllSelects();
+
+    log('🗑️ 표현형 데이터가 삭제되었습니다.', 'warning');
+    alert('표현형 데이터가 삭제되었습니다.');
+}
+
+function updateDataClearButtons() {
+    // 유전자형 삭제 버튼 표시/숨김
+    const genoBtn = document.getElementById('clearGenotypeBtn');
+    if (genoBtn) {
+        genoBtn.style.display = (genotypeMatrix && genotypeMatrix.length > 0) ? 'inline-block' : 'none';
+    }
+
+    // 표현형 삭제 버튼 표시/숨김
+    const phenoBtn = document.getElementById('clearPhenotypeBtn');
+    if (phenoBtn) {
+        phenoBtn.style.display = (phenotypeData && phenotypeData.length > 0) ? 'inline-block' : 'none';
+    }
+}
+
 // ==================== 초기화 ====================
 window.onload = function() {
     initChromosomeViz();
@@ -7863,6 +7943,7 @@ window.onload = function() {
     updateInteractionTab();
     checkKaspData(); // KASP 데이터 확인
     checkPhenotypeData(); // 표현형 데이터 확인
+    updateDataClearButtons(); // 삭제 버튼 상태 업데이트
     log('🌾 벼 디지털육종 v4.16 로드 완료', 'success');
 };
 </script>
