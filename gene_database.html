@@ -877,26 +877,40 @@
             `;
         }
 
-        // RAP-DB 검색 - locus 페이지 직접 링크
-        function openRapdbWithId(geneId) {
-            // locus 페이지 형식 사용 (소문자 Os ID)
-            window.open(`https://rapdb.dna.affrc.go.jp/locus/?name=${geneId}`, '_blank');
+        // RAP-DB 검색 - Os ID 또는 별칭으로 검색
+        function openRapdbWithId(geneId, geneName) {
+            // Os ID가 있으면 사용, 없으면 별칭 사용
+            let searchId = geneId;
+            if (!geneId.startsWith('Os') && geneName) {
+                searchId = geneName; // 별칭 사용 (예: Sdr4)
+            }
+            window.open(`https://rapdb.dna.affrc.go.jp/locus/?name=${searchId}`, '_blank');
         }
 
-        // Gramene 검색 - Ensembl 직접 링크
-        function openGrameneWithId(geneId) {
-            window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${geneId}`, '_blank');
+        // Gramene 검색 - Os ID 또는 별칭으로 검색
+        function openGrameneWithId(geneId, geneName) {
+            // Os ID가 있으면 사용, 없으면 별칭 사용
+            let searchId = geneId;
+            if (!geneId.startsWith('Os') && geneName) {
+                searchId = geneName;
+            }
+            window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${searchId}`, '_blank');
         }
 
-        // RGAP 검색 - ID Converter 페이지로 이동 (API 불안정)
-        function openRgapWithId(geneId) {
+        // RGAP 검색 - ID Converter 페이지로 이동
+        function openRgapWithId(geneId, geneName) {
+            // Os ID 또는 별칭 사용
+            let searchId = geneId;
+            if (!geneId.startsWith('Os') && geneName) {
+                searchId = geneName;
+            }
             // ID Converter 페이지 열고 ID 복사
-            navigator.clipboard.writeText(geneId).then(() => {
+            navigator.clipboard.writeText(searchId).then(() => {
                 window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
-                showCopyToast(`${geneId} 복사됨! ID Converter에서 MSU ID 확인 후 RGAP 검색하세요.`);
+                showCopyToast(`${searchId} 복사됨! ID Converter에서 MSU ID 확인 후 RGAP 검색하세요.`);
             }).catch(() => {
                 window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
-                alert(`ID Converter에서 "${geneId}"를 검색하여 MSU ID(LOC_Os...)를 확인하세요.`);
+                alert(`ID Converter에서 "${searchId}"를 검색하여 MSU ID(LOC_Os...)를 확인하세요.`);
             });
         }
 
@@ -1409,9 +1423,9 @@
                     <div id="${cardId}-summary"></div>
 
                     <div class="gene-links">
-                        <a href="javascript:void(0)" onclick="openRapdbWithId('${gene.id}')" class="gene-link" title="RAP-DB에서 ${gene.id} 검색">📖 RAP-DB</a>
-                        <a href="javascript:void(0)" onclick="openGrameneWithId('${gene.id}')" class="gene-link" title="Gramene에서 ${gene.id} 검색">🌱 Gramene</a>
-                        <a href="javascript:void(0)" onclick="openRgapWithId('${gene.id}')" class="gene-link" title="RGAP에서 검색">🔬 RGAP</a>
+                        <a href="javascript:void(0)" onclick="openRapdbWithId('${gene.id}', '${gene.geneName || ''}')" class="gene-link" title="RAP-DB에서 검색">📖 RAP-DB</a>
+                        <a href="javascript:void(0)" onclick="openGrameneWithId('${gene.id}', '${gene.geneName || ''}')" class="gene-link" title="Gramene에서 검색">🌱 Gramene</a>
+                        <a href="javascript:void(0)" onclick="openRgapWithId('${gene.id}', '${gene.geneName || ''}')" class="gene-link" title="RGAP에서 검색">🔬 RGAP</a>
                         <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
                         ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
                         <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link">📚 논문검색</a>
