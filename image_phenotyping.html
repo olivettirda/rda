@@ -447,6 +447,182 @@
             border-top: 1px solid var(--border);
         }
 
+        .eyedropper-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .eyedropper-btn:hover {
+            border-color: var(--secondary);
+            background: #f0f8f8;
+        }
+
+        .eyedropper-btn.active {
+            border-color: var(--accent);
+            background: #e0f7fa;
+        }
+
+        .color-preview {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 2px solid var(--border);
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .color-picker-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .color-picker-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .seed-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .seed-item {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .seed-item.selected {
+            outline: 3px solid #e53935;
+        }
+
+        .seed-item.removed {
+            opacity: 0.3;
+        }
+
+        .mode-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--secondary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            z-index: 100;
+            display: none;
+            animation: pulse 1.5s infinite;
+        }
+
+        .mode-indicator.show {
+            display: block;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .tolerance-input {
+            width: 60px;
+            padding: 6px 10px;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+
+        .tolerance-input:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+
+        .color-breakdown {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .color-breakdown-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: var(--bg);
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+
+        .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .instruction-banner {
+            background: linear-gradient(135deg, #e8f5e9 0%, #e0f7fa 100%);
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            border-left: 4px solid var(--secondary);
+            font-size: 0.9em;
+        }
+
+        .seed-edit-mode {
+            background: #fff3e0;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .seed-edit-mode.active {
+            display: block;
+        }
+
+        .seed-action-btn {
+            padding: 6px 12px;
+            margin-right: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        .seed-action-btn.add {
+            background: #4caf50;
+            color: white;
+        }
+
+        .seed-action-btn.remove {
+            background: #f44336;
+            color: white;
+        }
+
+        .seed-action-btn.cancel {
+            background: #9e9e9e;
+            color: white;
+        }
+
         @media (max-width: 768px) {
             .preview-container {
                 flex-direction: column;
@@ -456,10 +632,17 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
+            .color-picker-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
+    <div class="mode-indicator" id="modeIndicator">스포이드 모드</div>
+
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <p style="margin-top: 16px; color: var(--text-light);" id="loadingText">분석 중...</p>
@@ -495,9 +678,8 @@
             <div class="card">
                 <div class="card-title">🍃 잎 면적 측정</div>
 
-                <div class="help-text">
-                    💡 정확한 측정을 위해 이미지에 기준 물체(예: 자, 동전)를 함께 촬영하세요.
-                    배경은 흰색 또는 대비가 큰 색상을 권장합니다.
+                <div class="instruction-banner">
+                    💡 <strong>사용 방법:</strong> 1) 이미지 업로드 → 2) 스포이드로 배경색 선택 → 3) 자동으로 잎 개수, 녹색/비녹색 면적 분석
                 </div>
 
                 <div class="reference-input">
@@ -521,28 +703,68 @@
                 </div>
 
                 <div class="image-preview" id="leafPreview">
+                    <!-- 배경색 선택 영역 -->
+                    <div class="color-picker-row">
+                        <div class="color-picker-item">
+                            <span>배경색:</span>
+                            <div class="color-preview" id="leafBgColorPreview" style="background: #ffffff;"></div>
+                            <button class="eyedropper-btn" id="leafBgEyedropper" onclick="startLeafBgEyedropper()">
+                                🔍 스포이드
+                            </button>
+                        </div>
+                        <div class="color-picker-item">
+                            <span>허용 오차:</span>
+                            <input type="number" id="leafBgTolerance" class="tolerance-input" value="30" min="0" max="100">
+                        </div>
+                    </div>
+
                     <div class="preview-container">
                         <div class="preview-image-container">
                             <img id="leafImage" class="preview-image">
                             <canvas id="leafCanvas" class="canvas-overlay"></canvas>
                         </div>
                         <div class="analysis-results" id="leafResults">
-                            <div class="result-item">
-                                <div class="result-label">잎 면적</div>
-                                <div class="result-value" id="leafArea">-</div>
+                            <div class="analysis-grid">
+                                <div class="result-item">
+                                    <div class="result-label">잎 개수</div>
+                                    <div class="result-value" id="leafCount">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">총 잎 면적</div>
+                                    <div class="result-value" id="leafArea">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">잎 평균 길이</div>
+                                    <div class="result-value" id="leafLength">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">잎 평균 폭</div>
+                                    <div class="result-value" id="leafWidth">-</div>
+                                </div>
                             </div>
-                            <div class="result-item">
-                                <div class="result-label">잎 길이</div>
-                                <div class="result-value" id="leafLength">-</div>
+
+                            <div class="result-item" style="margin-top: 16px;">
+                                <div class="result-label">잎 색상 분석 (배경 제외)</div>
+                                <div class="color-breakdown" id="leafColorBreakdown">
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #4caf50;"></div>
+                                        <span>녹색: <strong id="leafGreenRatio">-</strong></span>
+                                    </div>
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #ffeb3b;"></div>
+                                        <span>황색: <strong id="leafYellowRatio">-</strong></span>
+                                    </div>
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #8d6e63;"></div>
+                                        <span>갈색: <strong id="leafBrownRatio">-</strong></span>
+                                    </div>
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #9e9e9e;"></div>
+                                        <span>기타: <strong id="leafOtherRatio">-</strong></span>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="result-item">
-                                <div class="result-label">잎 폭</div>
-                                <div class="result-value" id="leafWidth">-</div>
-                            </div>
-                            <div class="result-item">
-                                <div class="result-label">녹색 비율</div>
-                                <div class="result-value" id="leafGreenRatio">-</div>
-                            </div>
+
                             <div class="result-item">
                                 <div class="result-label">엽록소 지수 (추정)</div>
                                 <div class="result-value" id="leafChlorophyll">-</div>
@@ -573,9 +795,8 @@
             <div class="card">
                 <div class="card-title">🌾 종자 형태 측정</div>
 
-                <div class="help-text">
-                    💡 종자를 평평한 표면에 간격을 두고 배치하세요.
-                    스케일바 또는 기준 물체를 함께 촬영하면 실제 크기를 측정할 수 있습니다.
+                <div class="instruction-banner">
+                    💡 <strong>사용 방법:</strong> 1) 이미지 업로드 → 2) 스포이드로 배경색/종자색 선택 → 3) 자동 분석 → 4) 필요시 종자 추가/제거
                 </div>
 
                 <div class="reference-input">
@@ -592,45 +813,107 @@
                 </div>
 
                 <div class="image-preview" id="seedPreview">
+                    <!-- 배경색/종자색 선택 영역 -->
+                    <div class="color-picker-row">
+                        <div class="color-picker-item">
+                            <span>배경색:</span>
+                            <div class="color-preview" id="seedBgColorPreview" style="background: #ffffff;"></div>
+                            <button class="eyedropper-btn" id="seedBgEyedropper" onclick="startSeedBgEyedropper()">
+                                🔍 스포이드
+                            </button>
+                        </div>
+                        <div class="color-picker-item">
+                            <span>종자색:</span>
+                            <div class="color-preview" id="seedColorPreview" style="background: #a67c52;"></div>
+                            <button class="eyedropper-btn" id="seedColorEyedropper" onclick="startSeedColorEyedropper()">
+                                🔍 스포이드
+                            </button>
+                        </div>
+                        <div class="color-picker-item">
+                            <span>허용 오차:</span>
+                            <input type="number" id="seedColorTolerance" class="tolerance-input" value="50" min="0" max="150">
+                        </div>
+                    </div>
+
                     <div class="preview-container">
                         <div class="preview-image-container">
                             <img id="seedImage" class="preview-image">
                             <canvas id="seedCanvas" class="canvas-overlay"></canvas>
                         </div>
                         <div class="analysis-results" id="seedResults">
-                            <div class="result-item">
-                                <div class="result-label">감지된 종자 수</div>
-                                <div class="result-value" id="seedCount">-</div>
+                            <div class="analysis-grid">
+                                <div class="result-item">
+                                    <div class="result-label">감지된 종자 수</div>
+                                    <div class="result-value" id="seedCount">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">평균 길이</div>
+                                    <div class="result-value" id="seedLength">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">평균 폭</div>
+                                    <div class="result-value" id="seedWidth">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">평균 면적</div>
+                                    <div class="result-value" id="seedArea">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">평균 장폭비 (L/W)</div>
+                                    <div class="result-value" id="seedRatio">-</div>
+                                </div>
+                                <div class="result-item">
+                                    <div class="result-label">평균 원형도</div>
+                                    <div class="result-value" id="seedCircularity">-</div>
+                                </div>
                             </div>
-                            <div class="result-item">
-                                <div class="result-label">평균 길이</div>
-                                <div class="result-value" id="seedLength">-</div>
+
+                            <div class="result-item" style="margin-top: 16px;">
+                                <div class="result-label">종자 품질 분석</div>
+                                <div class="color-breakdown" id="seedQualityBreakdown">
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #4caf50;"></div>
+                                        <span>정상: <strong id="seedNormalCount">-</strong></span>
+                                    </div>
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #ff9800;"></div>
+                                        <span>의심: <strong id="seedSuspectCount">-</strong></span>
+                                    </div>
+                                    <div class="color-breakdown-item">
+                                        <div class="color-dot" style="background: #f44336;"></div>
+                                        <span>깨진/불량: <strong id="seedBrokenCount">-</strong></span>
+                                    </div>
+                                </div>
                             </div>
+
                             <div class="result-item">
-                                <div class="result-label">평균 폭</div>
-                                <div class="result-value" id="seedWidth">-</div>
-                            </div>
-                            <div class="result-item">
-                                <div class="result-label">평균 면적</div>
-                                <div class="result-value" id="seedArea">-</div>
-                            </div>
-                            <div class="result-item">
-                                <div class="result-label">장폭비 (L/W)</div>
-                                <div class="result-value" id="seedRatio">-</div>
+                                <div class="result-label">녹색 면적 비율 (배경 제외)</div>
+                                <div class="result-value" id="seedGreenRatio">-</div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- 종자 편집 모드 -->
+                    <div class="seed-edit-mode" id="seedEditMode">
+                        <strong>📝 종자 편집 모드</strong>
+                        <p style="margin: 8px 0; font-size: 0.9em;">이미지를 클릭하여 종자를 추가/제거하세요</p>
+                        <button class="seed-action-btn add" onclick="setSeedEditAction('add')">➕ 추가</button>
+                        <button class="seed-action-btn remove" onclick="setSeedEditAction('remove')">➖ 제거</button>
+                        <button class="seed-action-btn cancel" onclick="endSeedEditMode()">✓ 완료</button>
+                        <span style="margin-left: 12px; font-size: 0.85em;" id="seedEditStatus">현재: 추가 모드</span>
                     </div>
 
                     <div class="slider-container">
                         <div class="slider-label">
-                            <span>종자 감지 임계값</span>
-                            <span id="seedThresholdValue">128</span>
+                            <span>최소 종자 크기 (픽셀)</span>
+                            <span id="seedMinSizeValue">100</span>
                         </div>
-                        <input type="range" id="seedThreshold" min="0" max="255" value="128" onchange="updateSeedAnalysis()">
+                        <input type="range" id="seedMinSize" min="20" max="500" value="100" onchange="updateSeedMinSize()">
                     </div>
 
                     <div class="controls">
                         <button class="btn" onclick="analyzeSeed()">🔍 다시 분석</button>
+                        <button class="btn btn-outline" onclick="startSeedEditMode()">✏️ 종자 편집</button>
                         <button class="btn btn-outline" onclick="exportSeedResults()">💾 결과 저장</button>
                         <button class="btn btn-danger" onclick="clearSeed()">🗑️ 초기화</button>
                     </div>
@@ -766,6 +1049,22 @@
         let referenceLineEnd = null;
         let pixelsPerUnit = null;
 
+        // 잎 분석용 상태
+        let leafBgColor = { r: 255, g: 255, b: 255 };
+        let leafEyedropperMode = false;
+        let leafComponents = [];
+
+        // 종자 분석용 상태
+        let seedBgColor = { r: 255, g: 255, b: 255 };
+        let seedColor = { r: 166, g: 124, b: 82 };
+        let seedEyedropperMode = null; // 'bg' or 'seed'
+        let seedComponents = [];
+        let removedSeeds = new Set();
+        let addedSeeds = [];
+        let seedEditMode = false;
+        let seedEditAction = 'add'; // 'add' or 'remove'
+        let seedMinSize = 100;
+
         // 드래그 앤 드롭 설정
         ['leafUploadZone', 'seedUploadZone', 'colorUploadZone', 'batchUploadZone'].forEach(id => {
             const zone = document.getElementById(id);
@@ -814,6 +1113,31 @@
             document.getElementById('progressFill').style.width = percent + '%';
         }
 
+        // ==================== 유틸리티 함수 ====================
+        function colorDistance(c1, c2) {
+            return Math.sqrt(
+                Math.pow(c1.r - c2.r, 2) +
+                Math.pow(c1.g - c2.g, 2) +
+                Math.pow(c1.b - c2.b, 2)
+            );
+        }
+
+        function classifyLeafColor(r, g, b) {
+            const hsv = rgbToHsv(r, g, b);
+            const h = hsv.h;
+            const s = hsv.s;
+            const v = hsv.v;
+
+            // 녹색: H 60-180, S > 20%, V > 20%
+            if (h >= 60 && h <= 180 && s > 20 && v > 20) return 'green';
+            // 황색: H 30-60, S > 20%, V > 30%
+            if (h >= 30 && h < 60 && s > 20 && v > 30) return 'yellow';
+            // 갈색: H 0-40, S 20-70%, V 20-60%
+            if (h >= 0 && h < 40 && s >= 20 && s <= 70 && v >= 20 && v <= 60) return 'brown';
+            // 기타
+            return 'other';
+        }
+
         // ==================== 잎 분석 ====================
         function handleLeafUpload(event) {
             const file = event.target.files[0];
@@ -834,6 +1158,8 @@
                         currentSeedImage = img;
                         document.getElementById('seedImage').src = e.target.result;
                         document.getElementById('seedPreview').classList.add('show');
+                        removedSeeds.clear();
+                        addedSeeds = [];
                         analyzeSeed();
                     } else if (type === 'color') {
                         currentColorImage = img;
@@ -845,6 +1171,55 @@
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
+        }
+
+        // 잎 배경색 스포이드 시작
+        function startLeafBgEyedropper() {
+            leafEyedropperMode = true;
+            document.getElementById('leafBgEyedropper').classList.add('active');
+            document.getElementById('modeIndicator').textContent = '🔍 배경색을 클릭하세요';
+            document.getElementById('modeIndicator').classList.add('show');
+
+            const canvas = document.getElementById('leafCanvas');
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+
+            canvas.onclick = handleLeafEyedropperClick;
+        }
+
+        function handleLeafEyedropperClick(e) {
+            if (!leafEyedropperMode) return;
+
+            const canvas = document.getElementById('leafCanvas');
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            // 원본 이미지에서 색상 추출
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = currentLeafImage.width;
+            tempCanvas.height = currentLeafImage.height;
+            tempCtx.drawImage(currentLeafImage, 0, 0);
+            const pixel = tempCtx.getImageData(x, y, 1, 1).data;
+
+            leafBgColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+            document.getElementById('leafBgColorPreview').style.background =
+                `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+
+            // 스포이드 모드 종료
+            leafEyedropperMode = false;
+            document.getElementById('leafBgEyedropper').classList.remove('active');
+            document.getElementById('modeIndicator').classList.remove('show');
+            canvas.style.pointerEvents = 'none';
+            canvas.style.cursor = 'default';
+            canvas.onclick = null;
+
+            // 자동으로 분석 실행
+            analyzeLeaf();
         }
 
         async function analyzeLeaf() {
@@ -859,7 +1234,6 @@
             canvas.width = img.width;
             canvas.height = img.height;
 
-            // 캔버스 크기를 이미지에 맞춤
             const displayImg = document.getElementById('leafImage');
             canvas.style.width = displayImg.offsetWidth + 'px';
             canvas.style.height = displayImg.offsetHeight + 'px';
@@ -870,83 +1244,134 @@
 
             updateProgress(20);
 
-            // 녹색 감지
+            const tolerance = parseInt(document.getElementById('leafBgTolerance').value) || 30;
             const sensitivity = parseInt(document.getElementById('leafSensitivity').value);
-            const threshold = 50 + (sensitivity - 50) * 0.5;
 
-            let greenPixels = 0;
+            // 배경이 아닌 픽셀을 마킹
+            const binaryData = new Uint8Array(canvas.width * canvas.height);
+            let leafPixels = 0;
+            let greenPixels = 0, yellowPixels = 0, brownPixels = 0, otherPixels = 0;
             let totalGreen = 0;
-            let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0;
 
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
+                const idx = i / 4;
 
-                // 녹색 판단 (G가 R, B보다 크고 일정 수준 이상)
-                const isGreen = g > r + threshold/3 && g > b + threshold/3 && g > 50;
+                const dist = colorDistance({ r, g, b }, leafBgColor);
 
-                if (isGreen) {
-                    greenPixels++;
-                    totalGreen += g;
+                if (dist > tolerance) {
+                    // 배경이 아닌 픽셀 (잎으로 간주)
+                    binaryData[idx] = 1;
+                    leafPixels++;
 
-                    const x = (i / 4) % canvas.width;
-                    const y = Math.floor((i / 4) / canvas.width);
-
-                    minX = Math.min(minX, x);
-                    maxX = Math.max(maxX, x);
-                    minY = Math.min(minY, y);
-                    maxY = Math.max(maxY, y);
-
-                    // 녹색 영역 표시
-                    data[i] = 0;
-                    data[i + 1] = 255;
-                    data[i + 2] = 0;
-                    data[i + 3] = 100;
-                } else {
-                    data[i + 3] = 0; // 투명하게
+                    const colorType = classifyLeafColor(r, g, b);
+                    if (colorType === 'green') {
+                        greenPixels++;
+                        totalGreen += g;
+                    } else if (colorType === 'yellow') {
+                        yellowPixels++;
+                    } else if (colorType === 'brown') {
+                        brownPixels++;
+                    } else {
+                        otherPixels++;
+                    }
                 }
             }
 
+            updateProgress(40);
+
+            // 연결 성분 분석으로 잎 개수 계산
+            leafComponents = findConnectedComponents(binaryData, canvas.width, canvas.height);
+            const minLeafSize = 500; // 최소 잎 크기 (노이즈 제거)
+            const validLeaves = leafComponents.filter(c => c.pixels.length >= minLeafSize);
+
             updateProgress(60);
 
-            ctx.putImageData(imageData, 0, 0);
+            // 시각화
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+
+            const overlayData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const overlay = overlayData.data;
+
+            validLeaves.forEach((leaf, idx) => {
+                const hue = (idx * 60) % 360;
+                leaf.pixels.forEach(p => {
+                    const i = (p.y * canvas.width + p.x) * 4;
+                    // 반투명 색상 오버레이
+                    overlay[i] = Math.floor(overlay[i] * 0.5 + (idx % 2 === 0 ? 100 : 50));
+                    overlay[i + 1] = Math.floor(overlay[i + 1] * 0.5 + 150);
+                    overlay[i + 2] = Math.floor(overlay[i + 2] * 0.5 + (idx % 2 === 0 ? 50 : 100));
+                    overlay[i + 3] = 200;
+                });
+            });
+            ctx.putImageData(overlayData, 0, 0);
+
+            // 바운딩 박스 그리기
+            validLeaves.forEach((leaf, idx) => {
+                ctx.strokeStyle = `hsl(${(idx * 60) % 360}, 70%, 50%)`;
+                ctx.lineWidth = 2;
+                const w = leaf.maxX - leaf.minX;
+                const h = leaf.maxY - leaf.minY;
+                ctx.strokeRect(leaf.minX, leaf.minY, w, h);
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillText(`#${idx + 1}`, leaf.minX, leaf.minY - 5);
+            });
+
+            updateProgress(80);
 
             // 결과 계산
-            const totalPixels = canvas.width * canvas.height;
-            const greenRatio = (greenPixels / totalPixels * 100).toFixed(1);
-
-            // 픽셀 -> 실제 크기 변환 (기준선이 있는 경우)
             const refLength = parseFloat(document.getElementById('leafRefLength').value) || 10;
             const unit = document.getElementById('leafRefUnit').value;
 
+            let totalArea = 0, totalLength = 0, totalWidth = 0;
+            validLeaves.forEach(leaf => {
+                totalArea += leaf.pixels.length;
+                totalLength += (leaf.maxY - leaf.minY);
+                totalWidth += (leaf.maxX - leaf.minX);
+            });
+
+            const count = validLeaves.length;
             let areaValue, lengthValue, widthValue;
 
-            if (pixelsPerUnit) {
-                const pixelArea = greenPixels;
-                const realArea = pixelArea / (pixelsPerUnit * pixelsPerUnit);
-                areaValue = realArea.toFixed(2) + ' ' + unit + '²';
-
-                const pixelLength = maxY - minY;
-                const pixelWidth = maxX - minX;
-                lengthValue = (pixelLength / pixelsPerUnit).toFixed(2) + ' ' + unit;
-                widthValue = (pixelWidth / pixelsPerUnit).toFixed(2) + ' ' + unit;
+            if (pixelsPerUnit && count > 0) {
+                areaValue = (totalArea / (pixelsPerUnit * pixelsPerUnit)).toFixed(2) + ' ' + unit + '²';
+                lengthValue = ((totalLength / count) / pixelsPerUnit).toFixed(2) + ' ' + unit;
+                widthValue = ((totalWidth / count) / pixelsPerUnit).toFixed(2) + ' ' + unit;
+            } else if (count > 0) {
+                areaValue = totalArea + ' px²';
+                lengthValue = (totalLength / count).toFixed(1) + ' px';
+                widthValue = (totalWidth / count).toFixed(1) + ' px';
             } else {
-                areaValue = greenPixels + ' px²';
-                lengthValue = (maxY - minY) + ' px';
-                widthValue = (maxX - minX) + ' px';
+                areaValue = '-';
+                lengthValue = '-';
+                widthValue = '-';
             }
 
-            // 엽록소 지수 추정 (녹색 평균 기반)
-            const avgGreen = totalGreen / greenPixels;
-            const chlorophyllIndex = ((avgGreen - 50) / 205 * 100).toFixed(1);
+            // 색상 비율 계산
+            const greenRatio = leafPixels > 0 ? (greenPixels / leafPixels * 100).toFixed(1) : 0;
+            const yellowRatio = leafPixels > 0 ? (yellowPixels / leafPixels * 100).toFixed(1) : 0;
+            const brownRatio = leafPixels > 0 ? (brownPixels / leafPixels * 100).toFixed(1) : 0;
+            const otherRatio = leafPixels > 0 ? (otherPixels / leafPixels * 100).toFixed(1) : 0;
+
+            // 엽록소 지수
+            const avgGreen = greenPixels > 0 ? totalGreen / greenPixels : 0;
+            const chlorophyllIndex = avgGreen > 0 ? ((avgGreen - 50) / 205 * 100).toFixed(1) : '-';
 
             updateProgress(100);
 
+            // 결과 표시
+            document.getElementById('leafCount').innerHTML = count + '<span class="result-unit">개</span>';
             document.getElementById('leafArea').innerHTML = areaValue;
             document.getElementById('leafLength').innerHTML = lengthValue;
             document.getElementById('leafWidth').innerHTML = widthValue;
-            document.getElementById('leafGreenRatio').innerHTML = greenRatio + '<span class="result-unit">%</span>';
+            document.getElementById('leafGreenRatio').textContent = greenRatio + '%';
+            document.getElementById('leafYellowRatio').textContent = yellowRatio + '%';
+            document.getElementById('leafBrownRatio').textContent = brownRatio + '%';
+            document.getElementById('leafOtherRatio').textContent = otherRatio + '%';
             document.getElementById('leafChlorophyll').innerHTML = chlorophyllIndex + '<span class="result-unit">SPAD 추정</span>';
 
             hideLoading();
@@ -992,7 +1417,6 @@
                     ctx.lineWidth = 3;
                     ctx.stroke();
 
-                    // 픽셀당 길이 계산
                     const pixelDistance = Math.sqrt(
                         Math.pow(x - referenceLineStart.x, 2) +
                         Math.pow(y - referenceLineStart.y, 2)
@@ -1012,19 +1436,26 @@
 
         function clearLeaf() {
             currentLeafImage = null;
+            leafComponents = [];
             document.getElementById('leafPreview').classList.remove('show');
             document.getElementById('leafFileInput').value = '';
             pixelsPerUnit = null;
             referenceLineStart = null;
             referenceLineEnd = null;
+            leafBgColor = { r: 255, g: 255, b: 255 };
+            document.getElementById('leafBgColorPreview').style.background = '#ffffff';
         }
 
         function exportLeafResults() {
             const results = {
+                leafCount: document.getElementById('leafCount').textContent,
                 area: document.getElementById('leafArea').textContent,
                 length: document.getElementById('leafLength').textContent,
                 width: document.getElementById('leafWidth').textContent,
                 greenRatio: document.getElementById('leafGreenRatio').textContent,
+                yellowRatio: document.getElementById('leafYellowRatio').textContent,
+                brownRatio: document.getElementById('leafBrownRatio').textContent,
+                otherRatio: document.getElementById('leafOtherRatio').textContent,
                 chlorophyll: document.getElementById('leafChlorophyll').textContent,
                 timestamp: new Date().toISOString()
             };
@@ -1036,6 +1467,289 @@
         function handleSeedUpload(event) {
             const file = event.target.files[0];
             if (file) handleImageFile(file, 'seed');
+        }
+
+        // 종자 배경색 스포이드
+        function startSeedBgEyedropper() {
+            seedEyedropperMode = 'bg';
+            document.getElementById('seedBgEyedropper').classList.add('active');
+            document.getElementById('seedColorEyedropper').classList.remove('active');
+            document.getElementById('modeIndicator').textContent = '🔍 배경색을 클릭하세요';
+            document.getElementById('modeIndicator').classList.add('show');
+
+            const canvas = document.getElementById('seedCanvas');
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+            canvas.onclick = handleSeedEyedropperClick;
+        }
+
+        // 종자색 스포이드
+        function startSeedColorEyedropper() {
+            seedEyedropperMode = 'seed';
+            document.getElementById('seedColorEyedropper').classList.add('active');
+            document.getElementById('seedBgEyedropper').classList.remove('active');
+            document.getElementById('modeIndicator').textContent = '🔍 종자색을 클릭하세요';
+            document.getElementById('modeIndicator').classList.add('show');
+
+            const canvas = document.getElementById('seedCanvas');
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+            canvas.onclick = handleSeedEyedropperClick;
+        }
+
+        function handleSeedEyedropperClick(e) {
+            if (!seedEyedropperMode) return;
+
+            const canvas = document.getElementById('seedCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            // 원본 이미지에서 색상 추출
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = currentSeedImage.width;
+            tempCanvas.height = currentSeedImage.height;
+            tempCtx.drawImage(currentSeedImage, 0, 0);
+            const pixel = tempCtx.getImageData(x, y, 1, 1).data;
+
+            if (seedEyedropperMode === 'bg') {
+                seedBgColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+                document.getElementById('seedBgColorPreview').style.background =
+                    `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+                document.getElementById('seedBgEyedropper').classList.remove('active');
+            } else {
+                seedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+                document.getElementById('seedColorPreview').style.background =
+                    `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+                document.getElementById('seedColorEyedropper').classList.remove('active');
+            }
+
+            seedEyedropperMode = null;
+            document.getElementById('modeIndicator').classList.remove('show');
+            canvas.style.pointerEvents = 'none';
+            canvas.style.cursor = 'default';
+            canvas.onclick = null;
+
+            analyzeSeed();
+        }
+
+        // 종자 편집 모드
+        function startSeedEditMode() {
+            seedEditMode = true;
+            seedEditAction = 'add';
+            document.getElementById('seedEditMode').classList.add('active');
+            document.getElementById('seedEditStatus').textContent = '현재: 추가 모드';
+            document.getElementById('modeIndicator').textContent = '✏️ 종자 편집 모드 - 클릭하여 추가';
+            document.getElementById('modeIndicator').classList.add('show');
+
+            const canvas = document.getElementById('seedCanvas');
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+            canvas.onclick = handleSeedEditClick;
+        }
+
+        function setSeedEditAction(action) {
+            seedEditAction = action;
+            if (action === 'add') {
+                document.getElementById('seedEditStatus').textContent = '현재: 추가 모드';
+                document.getElementById('modeIndicator').textContent = '✏️ 종자 편집 모드 - 클릭하여 추가';
+            } else {
+                document.getElementById('seedEditStatus').textContent = '현재: 제거 모드';
+                document.getElementById('modeIndicator').textContent = '✏️ 종자 편집 모드 - 클릭하여 제거';
+            }
+        }
+
+        function endSeedEditMode() {
+            seedEditMode = false;
+            document.getElementById('seedEditMode').classList.remove('active');
+            document.getElementById('modeIndicator').classList.remove('show');
+
+            const canvas = document.getElementById('seedCanvas');
+            canvas.style.pointerEvents = 'none';
+            canvas.style.cursor = 'default';
+            canvas.onclick = null;
+
+            // 결과 재계산
+            updateSeedResults();
+        }
+
+        function handleSeedEditClick(e) {
+            if (!seedEditMode) return;
+
+            const canvas = document.getElementById('seedCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.floor((e.clientX - rect.left) * scaleX);
+            const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+            if (seedEditAction === 'remove') {
+                // 클릭한 위치의 종자 찾기
+                for (let i = 0; i < seedComponents.length; i++) {
+                    const seed = seedComponents[i];
+                    if (x >= seed.minX && x <= seed.maxX && y >= seed.minY && y <= seed.maxY) {
+                        if (!removedSeeds.has(i)) {
+                            removedSeeds.add(i);
+                            redrawSeeds();
+                        }
+                        break;
+                    }
+                }
+            } else {
+                // 수동으로 종자 추가 (클릭 위치 주변 50px 영역)
+                const size = 30;
+                addedSeeds.push({
+                    centerX: x,
+                    centerY: y,
+                    minX: x - size,
+                    maxX: x + size,
+                    minY: y - size,
+                    maxY: y + size,
+                    pixels: [{ x, y }],
+                    manual: true
+                });
+                redrawSeeds();
+            }
+        }
+
+        function redrawSeeds() {
+            const canvas = document.getElementById('seedCanvas');
+            const ctx = canvas.getContext('2d');
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const pixelRatio = parseFloat(document.getElementById('seedPixelRatio').value) || 0.1;
+            let idx = 0;
+
+            // 기존 감지된 종자 그리기
+            seedComponents.forEach((seed, i) => {
+                if (removedSeeds.has(i)) return;
+                if (seed.pixels.length < seedMinSize) return;
+
+                const length = seed.maxY - seed.minY;
+                const width = seed.maxX - seed.minX;
+
+                // 품질 상태에 따른 색상
+                let strokeColor;
+                if (seed.quality === 'broken') {
+                    strokeColor = '#f44336';
+                } else if (seed.quality === 'suspect') {
+                    strokeColor = '#ff9800';
+                } else {
+                    strokeColor = '#4caf50';
+                }
+
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(seed.minX, seed.minY, width, length);
+
+                ctx.fillStyle = strokeColor;
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(`#${++idx}`, seed.minX, seed.minY - 5);
+            });
+
+            // 수동 추가된 종자 그리기
+            addedSeeds.forEach((seed) => {
+                ctx.strokeStyle = '#2196f3';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(seed.centerX, seed.centerY, 30, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = '#2196f3';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(`#${++idx}`, seed.centerX - 30, seed.centerY - 35);
+            });
+        }
+
+        function updateSeedResults() {
+            const pixelRatio = parseFloat(document.getElementById('seedPixelRatio').value) || 0.1;
+
+            // 유효한 종자만 계산
+            const validSeeds = seedComponents.filter((s, i) =>
+                !removedSeeds.has(i) && s.pixels.length >= seedMinSize
+            );
+
+            const totalCount = validSeeds.length + addedSeeds.length;
+
+            if (totalCount > 0) {
+                let totalLength = 0, totalWidth = 0, totalArea = 0;
+                let totalCircularity = 0;
+                let normalCount = 0, suspectCount = 0, brokenCount = 0;
+
+                validSeeds.forEach(seed => {
+                    totalLength += (seed.maxY - seed.minY);
+                    totalWidth += (seed.maxX - seed.minX);
+                    totalArea += seed.pixels.length;
+                    totalCircularity += seed.circularity || 0;
+
+                    if (seed.quality === 'normal') normalCount++;
+                    else if (seed.quality === 'suspect') suspectCount++;
+                    else if (seed.quality === 'broken') brokenCount++;
+                });
+
+                // 수동 추가된 종자는 기본값 사용
+                addedSeeds.forEach(seed => {
+                    totalLength += 60;
+                    totalWidth += 60;
+                    totalArea += 2800;
+                    normalCount++;
+                });
+
+                const avgLength = (totalLength / totalCount * pixelRatio).toFixed(2);
+                const avgWidth = (totalWidth / totalCount * pixelRatio).toFixed(2);
+                const avgArea = (totalArea / totalCount * pixelRatio * pixelRatio).toFixed(2);
+                const avgRatio = (totalLength / totalWidth).toFixed(2);
+                const avgCircularity = validSeeds.length > 0 ?
+                    (totalCircularity / validSeeds.length).toFixed(3) : '-';
+
+                document.getElementById('seedCount').innerHTML = totalCount + '<span class="result-unit">개</span>';
+                document.getElementById('seedLength').innerHTML = avgLength + '<span class="result-unit">mm</span>';
+                document.getElementById('seedWidth').innerHTML = avgWidth + '<span class="result-unit">mm</span>';
+                document.getElementById('seedArea').innerHTML = avgArea + '<span class="result-unit">mm²</span>';
+                document.getElementById('seedRatio').innerHTML = avgRatio;
+                document.getElementById('seedCircularity').innerHTML = avgCircularity;
+                document.getElementById('seedNormalCount').textContent = normalCount + '개';
+                document.getElementById('seedSuspectCount').textContent = suspectCount + '개';
+                document.getElementById('seedBrokenCount').textContent = brokenCount + '개';
+            }
+        }
+
+        function updateSeedMinSize() {
+            seedMinSize = parseInt(document.getElementById('seedMinSize').value);
+            document.getElementById('seedMinSizeValue').textContent = seedMinSize;
+            if (currentSeedImage) {
+                redrawSeeds();
+                updateSeedResults();
+            }
+        }
+
+        // 원형도(Circularity) 계산: 4π × Area / Perimeter²
+        function calculateCircularity(component, width) {
+            const area = component.pixels.length;
+            // 둘레 계산 (경계 픽셀 수)
+            let perimeter = 0;
+            const pixelSet = new Set();
+            component.pixels.forEach(p => pixelSet.add(`${p.x},${p.y}`));
+
+            component.pixels.forEach(p => {
+                const neighbors = [
+                    `${p.x-1},${p.y}`, `${p.x+1},${p.y}`,
+                    `${p.x},${p.y-1}`, `${p.x},${p.y+1}`
+                ];
+                for (const n of neighbors) {
+                    if (!pixelSet.has(n)) {
+                        perimeter++;
+                        break;
+                    }
+                }
+            });
+
+            if (perimeter === 0) return 1;
+            return (4 * Math.PI * area) / (perimeter * perimeter);
         }
 
         async function analyzeSeed() {
@@ -1060,72 +1774,167 @@
 
             updateProgress(20);
 
-            // 이진화
-            const threshold = parseInt(document.getElementById('seedThreshold').value);
+            const tolerance = parseInt(document.getElementById('seedColorTolerance').value) || 50;
+            seedMinSize = parseInt(document.getElementById('seedMinSize').value) || 100;
+
+            // 종자색과 유사한 픽셀 찾기 (배경 제외)
             const binaryData = new Uint8Array(canvas.width * canvas.height);
+            let greenPixels = 0, totalPixels = 0;
 
             for (let i = 0; i < data.length; i += 4) {
-                const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
                 const idx = i / 4;
-                binaryData[idx] = gray < threshold ? 1 : 0;
+
+                const bgDist = colorDistance({ r, g, b }, seedBgColor);
+                const seedDist = colorDistance({ r, g, b }, seedColor);
+
+                // 배경이 아니고 종자색에 가까운 픽셀
+                if (bgDist > 30 && seedDist < tolerance) {
+                    binaryData[idx] = 1;
+                    totalPixels++;
+
+                    // 녹색 체크
+                    const hsv = rgbToHsv(r, g, b);
+                    if (hsv.h >= 60 && hsv.h <= 180 && hsv.s > 20) {
+                        greenPixels++;
+                    }
+                }
             }
 
             updateProgress(40);
 
-            // 연결 성분 분석 (간단한 구현)
-            const seeds = findConnectedComponents(binaryData, canvas.width, canvas.height);
+            // 연결 성분 분석
+            seedComponents = findConnectedComponents(binaryData, canvas.width, canvas.height);
 
-            updateProgress(70);
+            updateProgress(60);
 
-            // 종자별 측정
-            const pixelRatio = parseFloat(document.getElementById('seedPixelRatio').value) || 0.1;
-            let totalLength = 0, totalWidth = 0, totalArea = 0;
+            // 각 종자의 품질 분석
+            seedComponents.forEach(seed => {
+                if (seed.pixels.length < seedMinSize) return;
 
+                // 원형도 계산
+                seed.circularity = calculateCircularity(seed, canvas.width);
+
+                // 장폭비 계산
+                const length = seed.maxY - seed.minY;
+                const width = seed.maxX - seed.minX;
+                seed.aspectRatio = length / width;
+
+                // 품질 판정 (원형도와 장폭비 기반)
+                // 원형도: 1에 가까울수록 원형, 낮을수록 불규칙
+                // 일반적인 종자는 0.6-0.9 정도
+                if (seed.circularity < 0.3 || seed.aspectRatio > 3 || seed.aspectRatio < 0.3) {
+                    seed.quality = 'broken';
+                } else if (seed.circularity < 0.5 || seed.aspectRatio > 2.5 || seed.aspectRatio < 0.4) {
+                    seed.quality = 'suspect';
+                } else {
+                    seed.quality = 'normal';
+                }
+            });
+
+            updateProgress(80);
+
+            // 시각화
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            seeds.forEach((seed, idx) => {
-                if (seed.pixels.length < 100) return; // 노이즈 제거
+            const pixelRatio = parseFloat(document.getElementById('seedPixelRatio').value) || 0.1;
+            let totalLength = 0, totalWidth = 0, totalArea = 0;
+            let totalCircularity = 0;
+            let normalCount = 0, suspectCount = 0, brokenCount = 0;
+            let idx = 0;
 
-                // 바운딩 박스
+            const validSeeds = seedComponents.filter((s, i) =>
+                !removedSeeds.has(i) && s.pixels.length >= seedMinSize
+            );
+
+            validSeeds.forEach((seed) => {
                 const length = seed.maxY - seed.minY;
                 const width = seed.maxX - seed.minX;
 
                 totalLength += length;
                 totalWidth += width;
                 totalArea += seed.pixels.length;
+                totalCircularity += seed.circularity || 0;
 
-                // 시각화
-                ctx.strokeStyle = `hsl(${idx * 40}, 70%, 50%)`;
+                if (seed.quality === 'normal') normalCount++;
+                else if (seed.quality === 'suspect') suspectCount++;
+                else if (seed.quality === 'broken') brokenCount++;
+
+                // 품질에 따른 색상
+                let strokeColor;
+                if (seed.quality === 'broken') {
+                    strokeColor = '#f44336';
+                } else if (seed.quality === 'suspect') {
+                    strokeColor = '#ff9800';
+                } else {
+                    strokeColor = '#4caf50';
+                }
+
+                ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = 2;
                 ctx.strokeRect(seed.minX, seed.minY, width, length);
 
-                ctx.fillStyle = ctx.strokeStyle;
-                ctx.font = '14px sans-serif';
-                ctx.fillText(`#${idx + 1}`, seed.minX, seed.minY - 5);
+                ctx.fillStyle = strokeColor;
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(`#${++idx}`, seed.minX, seed.minY - 5);
+            });
+
+            // 수동 추가된 종자도 포함
+            addedSeeds.forEach((seed) => {
+                totalLength += 60;
+                totalWidth += 60;
+                totalArea += 2800;
+                normalCount++;
+
+                ctx.strokeStyle = '#2196f3';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(seed.centerX, seed.centerY, 30, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = '#2196f3';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText(`#${++idx}`, seed.centerX - 30, seed.centerY - 35);
             });
 
             updateProgress(100);
 
-            const validSeeds = seeds.filter(s => s.pixels.length >= 100);
-            const count = validSeeds.length;
+            const totalCount = validSeeds.length + addedSeeds.length;
 
-            if (count > 0) {
-                const avgLength = (totalLength / count * pixelRatio).toFixed(2);
-                const avgWidth = (totalWidth / count * pixelRatio).toFixed(2);
-                const avgArea = (totalArea / count * pixelRatio * pixelRatio).toFixed(2);
-                const ratio = (totalLength / totalWidth).toFixed(2);
+            if (totalCount > 0) {
+                const avgLength = (totalLength / totalCount * pixelRatio).toFixed(2);
+                const avgWidth = (totalWidth / totalCount * pixelRatio).toFixed(2);
+                const avgArea = (totalArea / totalCount * pixelRatio * pixelRatio).toFixed(2);
+                const avgRatio = (totalLength / totalWidth).toFixed(2);
+                const avgCircularity = validSeeds.length > 0 ?
+                    (totalCircularity / validSeeds.length).toFixed(3) : '-';
 
-                document.getElementById('seedCount').innerHTML = count + '<span class="result-unit">개</span>';
+                // 녹색 비율 (배경 제외)
+                const greenRatio = totalPixels > 0 ? (greenPixels / totalPixels * 100).toFixed(1) : 0;
+
+                document.getElementById('seedCount').innerHTML = totalCount + '<span class="result-unit">개</span>';
                 document.getElementById('seedLength').innerHTML = avgLength + '<span class="result-unit">mm</span>';
                 document.getElementById('seedWidth').innerHTML = avgWidth + '<span class="result-unit">mm</span>';
                 document.getElementById('seedArea').innerHTML = avgArea + '<span class="result-unit">mm²</span>';
-                document.getElementById('seedRatio').innerHTML = ratio;
+                document.getElementById('seedRatio').innerHTML = avgRatio;
+                document.getElementById('seedCircularity').innerHTML = avgCircularity;
+                document.getElementById('seedNormalCount').textContent = normalCount + '개';
+                document.getElementById('seedSuspectCount').textContent = suspectCount + '개';
+                document.getElementById('seedBrokenCount').textContent = brokenCount + '개';
+                document.getElementById('seedGreenRatio').innerHTML = greenRatio + '<span class="result-unit">%</span>';
             } else {
                 document.getElementById('seedCount').innerHTML = '0';
                 document.getElementById('seedLength').innerHTML = '-';
                 document.getElementById('seedWidth').innerHTML = '-';
                 document.getElementById('seedArea').innerHTML = '-';
                 document.getElementById('seedRatio').innerHTML = '-';
+                document.getElementById('seedCircularity').innerHTML = '-';
+                document.getElementById('seedNormalCount').textContent = '-';
+                document.getElementById('seedSuspectCount').textContent = '-';
+                document.getElementById('seedBrokenCount').textContent = '-';
+                document.getElementById('seedGreenRatio').innerHTML = '-';
             }
 
             hideLoading();
@@ -1172,16 +1981,18 @@
             return components;
         }
 
-        function updateSeedAnalysis() {
-            document.getElementById('seedThresholdValue').textContent =
-                document.getElementById('seedThreshold').value;
-            if (currentSeedImage) analyzeSeed();
-        }
-
         function clearSeed() {
             currentSeedImage = null;
+            seedComponents = [];
+            removedSeeds.clear();
+            addedSeeds = [];
             document.getElementById('seedPreview').classList.remove('show');
             document.getElementById('seedFileInput').value = '';
+            document.getElementById('seedEditMode').classList.remove('active');
+            seedBgColor = { r: 255, g: 255, b: 255 };
+            seedColor = { r: 166, g: 124, b: 82 };
+            document.getElementById('seedBgColorPreview').style.background = '#ffffff';
+            document.getElementById('seedColorPreview').style.background = '#a67c52';
         }
 
         function exportSeedResults() {
@@ -1190,7 +2001,12 @@
                 avgLength: document.getElementById('seedLength').textContent,
                 avgWidth: document.getElementById('seedWidth').textContent,
                 avgArea: document.getElementById('seedArea').textContent,
-                ratio: document.getElementById('seedRatio').textContent,
+                aspectRatio: document.getElementById('seedRatio').textContent,
+                circularity: document.getElementById('seedCircularity').textContent,
+                normalCount: document.getElementById('seedNormalCount').textContent,
+                suspectCount: document.getElementById('seedSuspectCount').textContent,
+                brokenCount: document.getElementById('seedBrokenCount').textContent,
+                greenRatio: document.getElementById('seedGreenRatio').textContent,
                 timestamp: new Date().toISOString()
             };
 
