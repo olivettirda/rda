@@ -877,41 +877,42 @@
             `;
         }
 
-        // RAP-DB 검색 - ID 복사 후 페이지 열기
+        // RAP-DB 검색 - 직접 링크 (OS ID 대문자 또는 유전자 별칭)
         function openRapdbWithId(geneId) {
-            // 클립보드에 ID 복사
-            navigator.clipboard.writeText(geneId).then(() => {
-                // 팝업 창 열기
-                const popup = window.open('https://rapdb.dna.affrc.go.jp/', '_blank');
-                // 알림
-                showCopyToast(`${geneId} 복사됨! RAP-DB 검색창에 붙여넣기 하세요.`);
-            }).catch(() => {
-                window.open('https://rapdb.dna.affrc.go.jp/', '_blank');
-                alert(`RAP-DB 검색창에 "${geneId}"를 검색하세요.`);
-            });
+            // Os로 시작하면 대문자로 변환, 아니면 그대로 (별칭)
+            const searchId = geneId.startsWith('Os') ? geneId.toUpperCase() : geneId;
+            window.open(`https://rapdb.dna.affrc.go.jp/viewer/gbrowse_details/irgsp1?name=${searchId}`, '_blank');
         }
 
-        // Gramene 검색 - ID 복사 후 페이지 열기
+        // Gramene 검색 - Ensembl 직접 링크
         function openGrameneWithId(geneId) {
-            navigator.clipboard.writeText(geneId).then(() => {
-                window.open('https://www.gramene.org/', '_blank');
-                showCopyToast(`${geneId} 복사됨! Gramene 검색창에 붙여넣기 하세요.`);
-            }).catch(() => {
-                window.open('https://www.gramene.org/', '_blank');
-                alert(`Gramene 검색창에 "${geneId}"를 검색하세요.`);
-            });
+            window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${geneId}`, '_blank');
         }
 
-        // RGAP 검색 - LOC ID 변환 후 복사
-        function openRgapWithId(geneId) {
-            const locId = osIdToLoc(geneId);
-            navigator.clipboard.writeText(locId).then(() => {
-                window.open('https://rice.uga.edu/analyses_search_locus.shtml', '_blank');
-                showCopyToast(`${locId} 복사됨! RGAP Locus Search에 붙여넣기 하세요.`);
-            }).catch(() => {
-                window.open('https://rice.uga.edu/analyses_search_locus.shtml', '_blank');
-                alert(`RGAP Locus Search에 "${locId}"를 검색하세요.\n(원본 ID: ${geneId})`);
-            });
+        // RGAP 검색 - RAP-DB ID Converter로 LOC ID 변환 후 검색
+        async function openRgapWithId(geneId) {
+            // RAP-DB ID Converter API 시도
+            try {
+                const response = await fetch(`https://rapdb.dna.affrc.go.jp/converter/api/locus_search?keyword=${geneId}&type=all`);
+                const data = await response.json();
+
+                if (data && data.length > 0 && data[0].msu_id) {
+                    // LOC ID 찾음 - RGAP 직접 링크
+                    const locId = data[0].msu_id;
+                    window.open(`https://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${locId}`, '_blank');
+                    showCopyToast(`${locId} 로 RGAP 검색 중...`);
+                } else {
+                    throw new Error('LOC ID not found');
+                }
+            } catch (e) {
+                // API 실패시 ID Converter 페이지로 이동
+                navigator.clipboard.writeText(geneId).then(() => {
+                    window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
+                    showCopyToast(`${geneId} 복사됨! ID Converter에서 LOC ID 확인 후 RGAP 검색하세요.`);
+                }).catch(() => {
+                    window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
+                });
+            }
         }
 
         // 복사 완료 토스트 메시지
