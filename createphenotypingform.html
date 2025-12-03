@@ -2314,16 +2314,28 @@
         function handleSurveyExcelUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
+
             // 파일 업로드 표시 업데이트
             const label = document.querySelector('label[for="surveyExcelFile"]');
             if (label) {
                 const fileSize = (file.size / 1024).toFixed(1);
-                label.innerHTML = `<div style="color: #017f97; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small>`;
+                label.innerHTML = `<div style="color: #017f97; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small><button type="button" onclick="event.preventDefault(); event.stopPropagation(); clearSurveyFile();" style="margin-top: 8px; padding: 4px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em;">✕ 파일 삭제</button>`;
             }
-            
+
             // 품종 목록 로드
             loadVarietiesForSurvey(file);
+        }
+
+        function clearSurveyFile() {
+            // 파일 입력 초기화
+            const fileInput = document.getElementById('surveyExcelFile');
+            if (fileInput) fileInput.value = '';
+
+            // 라벨 복원
+            const label = document.querySelector('label[for="surveyExcelFile"]');
+            if (label) {
+                label.innerHTML = '📂 품종 목록 엑셀 업로드<br><small>품종명이 포함된 엑셀 파일</small>';
+            }
         }
 
         function clearSurveyForm() {
@@ -2331,6 +2343,7 @@
             document.getElementById('surveyTableOutput').innerHTML = '<div class="output-empty">조사 설정을 완료하고 \'조사표 생성\' 버튼을 클릭하세요</div>';
             document.getElementById('surveyActions').style.display = 'none';
             tableData = [];
+            clearSurveyFile();
             surveyItems = [];
         }
 
@@ -2384,7 +2397,7 @@
             if (!file) return;
             const label = document.getElementById('dataFileLabel');
             const fileSize = (file.size / 1024).toFixed(1);
-            label.innerHTML = `<div style="color: #017f97; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small>`;
+            label.innerHTML = `<div style="color: #017f97; font-weight: bold;">📄 ${file.name}</div><small style="color: #666;">${fileSize} KB 업로드됨</small><button type="button" onclick="event.preventDefault(); event.stopPropagation(); clearAnalysisData();" style="margin-top: 8px; padding: 4px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em;">✕ 파일 삭제</button>`;
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
