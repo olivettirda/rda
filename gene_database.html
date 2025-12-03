@@ -502,9 +502,147 @@
                 min-width: 100%;
             }
         }
+
+        /* 초기화 버튼 */
+        .reset-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 16px;
+            background: #ff5252;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: #ff1744;
+            transform: translateY(-2px);
+        }
+
+        /* 작업 로그 */
+        .work-log {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            max-height: 300px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .work-log.collapsed {
+            max-height: 48px;
+        }
+
+        .work-log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+        }
+
+        .work-log-header h4 {
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .work-log-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        .work-log-content {
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .work-log-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: var(--bg);
+            margin-bottom: 6px;
+            font-size: 0.85em;
+            display: flex;
+            gap: 8px;
+        }
+
+        .work-log-time {
+            color: var(--text-light);
+            font-size: 0.8em;
+            white-space: nowrap;
+        }
+
+        .work-log-message {
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .work-log-empty {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-light);
+            font-size: 0.9em;
+        }
+
+        .work-log-clear {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            background: none;
+            border: none;
+            border-top: 1px solid var(--border);
+            color: var(--text-light);
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+
+        .work-log-clear:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            .work-log {
+                width: calc(100% - 40px);
+                right: 20px;
+                left: 20px;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- 초기화 버튼 -->
+    <button class="reset-btn" onclick="resetAllData()">🔄 초기화</button>
+
+    <!-- 작업 로그 -->
+    <div class="work-log" id="workLog">
+        <div class="work-log-header" onclick="toggleWorkLog()">
+            <h4>📋 작업 로그</h4>
+            <button class="work-log-toggle" id="workLogToggle">▼</button>
+        </div>
+        <div class="work-log-content" id="workLogContent">
+            <div class="work-log-empty">작업 기록이 없습니다</div>
+        </div>
+        <button class="work-log-clear" onclick="clearWorkLog()">로그 지우기</button>
+    </div>
+
     <div class="container">
         <header>
             <h1>🔬 유전자 정보 조회</h1>
@@ -783,6 +921,53 @@
             }
         };
 
+        // 세션 데이터
+        let lastSearchResults = [];
+
+        // 세션 데이터 복원
+        function restoreSessionData() {
+            const savedQuery = sessionStorage.getItem('geneDB_lastQuery');
+            const savedSearchType = sessionStorage.getItem('geneDB_searchType');
+            const savedResults = sessionStorage.getItem('geneDB_results');
+
+            if (savedSearchType) {
+                currentSearchType = savedSearchType;
+                document.querySelectorAll('.search-tab').forEach(tab => {
+                    tab.classList.toggle('active', tab.dataset.type === savedSearchType);
+                });
+            }
+
+            if (savedQuery) {
+                document.getElementById('searchInput').value = savedQuery;
+
+                // 저장된 결과가 있으면 표시
+                if (savedResults) {
+                    lastSearchResults = JSON.parse(savedResults);
+                    displaySavedResults(lastSearchResults);
+                }
+            }
+        }
+
+        // 저장된 결과 표시
+        function displaySavedResults(results) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsCount = document.getElementById('resultsCount');
+
+            if (results.length === 0) return;
+
+            resultsSection.style.display = 'block';
+            resultsContainer.innerHTML = results.map(gene => createGeneCard(gene)).join('');
+            resultsCount.textContent = `${results.length}건`;
+        }
+
+        // 세션 데이터 저장
+        function saveSessionData(query, results) {
+            sessionStorage.setItem('geneDB_lastQuery', query);
+            sessionStorage.setItem('geneDB_searchType', currentSearchType);
+            sessionStorage.setItem('geneDB_results', JSON.stringify(results));
+        }
+
         // 초기화
         document.addEventListener('DOMContentLoaded', () => {
             updateNetworkStatus();
@@ -797,6 +982,9 @@
             document.getElementById('searchInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') performSearch();
             });
+
+            // 세션 데이터 복원
+            restoreSessionData();
         });
 
         function updateNetworkStatus() {
@@ -886,6 +1074,13 @@
                 resultsContainer.innerHTML = results.map(gene => createGeneCard(gene)).join('');
                 resultsCount.textContent = `${results.length}건`;
             }
+
+            // 세션에 저장
+            lastSearchResults = results;
+            saveSessionData(query, results);
+
+            // 작업 로그에 기록
+            addToWorkLog(`유전자 검색: "${query}" - ${results.length}건 결과`);
         }
 
         function searchLocalDatabase(query) {
@@ -1272,6 +1467,122 @@
             searchHistory = searchHistory.slice(0, 20);
             localStorage.setItem('geneSearchHistory', JSON.stringify(searchHistory));
         }
+
+        // ============ 작업 로그 기능 ============
+
+        // 전역 작업 로그 (sessionStorage 사용)
+        function getWorkLog() {
+            const log = sessionStorage.getItem('globalWorkLog');
+            return log ? JSON.parse(log) : [];
+        }
+
+        function saveWorkLogToStorage(logs) {
+            sessionStorage.setItem('globalWorkLog', JSON.stringify(logs));
+        }
+
+        function addToWorkLog(message) {
+            const logs = getWorkLog();
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+            logs.unshift({
+                time: timeStr,
+                message: message,
+                page: '유전자 검색',
+                timestamp: now.getTime()
+            });
+
+            // 최대 50개까지만 유지
+            if (logs.length > 50) {
+                logs.pop();
+            }
+
+            saveWorkLogToStorage(logs);
+            updateWorkLogDisplay();
+        }
+
+        function updateWorkLogDisplay() {
+            const content = document.getElementById('workLogContent');
+            const logs = getWorkLog();
+
+            if (logs.length === 0) {
+                content.innerHTML = '<div class="work-log-empty">작업 기록이 없습니다</div>';
+                return;
+            }
+
+            content.innerHTML = logs.map(log => `
+                <div class="work-log-item">
+                    <span class="work-log-time">${log.time}</span>
+                    <span class="work-log-message">${log.message}</span>
+                </div>
+            `).join('');
+        }
+
+        function toggleWorkLog() {
+            const logEl = document.getElementById('workLog');
+            const toggleBtn = document.getElementById('workLogToggle');
+
+            logEl.classList.toggle('collapsed');
+            toggleBtn.textContent = logEl.classList.contains('collapsed') ? '▲' : '▼';
+
+            sessionStorage.setItem('workLogCollapsed', logEl.classList.contains('collapsed'));
+        }
+
+        function clearWorkLog() {
+            if (confirm('작업 로그를 모두 지우시겠습니까?')) {
+                sessionStorage.removeItem('globalWorkLog');
+                updateWorkLogDisplay();
+            }
+        }
+
+        // 초기 로그 상태 복원
+        function initWorkLog() {
+            const collapsed = sessionStorage.getItem('workLogCollapsed') === 'true';
+            const logEl = document.getElementById('workLog');
+            const toggleBtn = document.getElementById('workLogToggle');
+
+            if (collapsed) {
+                logEl.classList.add('collapsed');
+                toggleBtn.textContent = '▲';
+            }
+
+            updateWorkLogDisplay();
+        }
+
+        // ============ 초기화 기능 ============
+
+        function resetAllData() {
+            if (!confirm('모든 작업 데이터를 초기화하시겠습니까?\n\n- 유전자 검색 기록\n- 포장환경 데이터\n- 작업 로그\n\n이 작업은 되돌릴 수 없습니다.')) {
+                return;
+            }
+
+            // 이 페이지의 세션 데이터
+            sessionStorage.removeItem('geneDB_lastQuery');
+            sessionStorage.removeItem('geneDB_searchType');
+            sessionStorage.removeItem('geneDB_results');
+
+            // 포장환경 세션 데이터
+            sessionStorage.removeItem('fieldEnv_location');
+            sessionStorage.removeItem('fieldEnv_weather');
+            sessionStorage.removeItem('fieldEnv_forecast');
+            sessionStorage.removeItem('fieldEnv_historical');
+            sessionStorage.removeItem('fieldEnv_region');
+            sessionStorage.removeItem('fieldEnv_city');
+
+            // 작업 로그
+            sessionStorage.removeItem('globalWorkLog');
+
+            // UI 초기화
+            document.getElementById('searchInput').value = '';
+            document.getElementById('resultsSection').style.display = 'none';
+            updateWorkLogDisplay();
+
+            alert('초기화가 완료되었습니다.');
+            addToWorkLog('전체 초기화 수행');
+        }
+
+        // 페이지 로드 시 작업 로그 초기화
+        document.addEventListener('DOMContentLoaded', initWorkLog);
     </script>
 </body>
 </html>
