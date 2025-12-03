@@ -1772,15 +1772,26 @@
             let categoryCol = null;
             if (sampleData.length > 0) {
                 const firstRow = sampleData[0];
-                for (const key of Object.keys(firstRow)) {
+                const allKeys = Object.keys(firstRow);
+                console.log('모든 열 이름:', allKeys);
+
+                for (const key of allKeys) {
                     const keyLower = key.toLowerCase().trim();
-                    if (key === '구분' || key === '분류' || key === '종류' ||
+                    const keyClean = key.trim();
+                    // 다양한 열 이름 패턴 지원
+                    if (keyClean === '구분' || keyClean === '분류' || keyClean === '종류' || keyClean === '타입' ||
                         keyLower === 'category' || keyLower === 'type' || keyLower === 'class' ||
-                        keyLower === 'classification' || keyLower === 'group' ||
-                        keyLower.includes('구분') || keyLower.includes('분류')) {
+                        keyLower === 'classification' || keyLower === 'group' || keyLower === 'control' ||
+                        keyClean.includes('구분') || keyClean.includes('분류') || keyClean.includes('종류') ||
+                        keyLower.includes('category') || keyLower.includes('type')) {
                         categoryCol = key;
+                        console.log('구분 열 찾음:', key);
                         break;
                     }
+                }
+
+                if (!categoryCol) {
+                    console.log('구분 열을 찾지 못함. 열 목록:', allKeys.join(', '));
                 }
             }
 
@@ -1815,26 +1826,37 @@
             // NTC, CK 등 대조구 제외 함수
             const isControlSample = (name, category) => {
                 if (!name) return true;
-                const upper = String(name).toUpperCase().trim();
+                const nameStr = String(name).trim();
+                const upper = nameStr.toUpperCase();
 
-                // 품종명 기준 제외
-                if (upper === 'NTC' || upper === 'CK' ||
-                    upper.startsWith('NTC') || upper.startsWith('CK') ||
-                    upper.includes('CONTROL') || upper === 'BLANK' ||
-                    upper === 'NC' || upper === 'PC') {
-                    return true;
+                // 품종명 기준 제외 (대소문자 무관)
+                const controlNamePatterns = [
+                    'NTC', 'CK', 'CHECK', 'CONTROL', 'BLANK', 'NC', 'PC',
+                    '대조', '체크', '컨트롤', '음성', '양성'
+                ];
+                for (const pattern of controlNamePatterns) {
+                    if (upper === pattern || upper.startsWith(pattern + ' ') ||
+                        upper.startsWith(pattern + '-') || upper.startsWith(pattern + '_') ||
+                        upper.endsWith(' ' + pattern) || upper.endsWith('-' + pattern) ||
+                        upper.includes(pattern)) {
+                        console.log(`품종명으로 제외: ${nameStr} (패턴: ${pattern})`);
+                        return true;
+                    }
                 }
 
                 // 구분 열에 CK나 NTC가 있으면 제외 (대소문자 무관)
                 if (category) {
-                    const catUpper = String(category).toUpperCase().trim();
-                    // 정확히 일치하거나 포함하는 경우 모두 체크
-                    if (catUpper === 'CK' || catUpper === 'NTC' ||
-                        catUpper === 'CHECK' || catUpper === 'CONTROL' ||
-                        catUpper.includes('CK') || catUpper.includes('NTC') ||
-                        catUpper.includes('CHECK') || catUpper.includes('CONTROL') ||
-                        catUpper.includes('대조') || catUpper.includes('체크')) {
-                        return true;
+                    const catStr = String(category).trim();
+                    const catUpper = catStr.toUpperCase();
+                    const controlCategoryPatterns = [
+                        'CK', 'NTC', 'CHECK', 'CONTROL', 'NEGATIVE', 'POSITIVE',
+                        '대조', '체크', '컨트롤', '음성', '양성', '대조구'
+                    ];
+                    for (const pattern of controlCategoryPatterns) {
+                        if (catUpper === pattern || catUpper.includes(pattern)) {
+                            console.log(`구분 열로 제외: ${nameStr}, 구분값: ${catStr} (패턴: ${pattern})`);
+                            return true;
+                        }
                     }
                 }
 
@@ -1843,15 +1865,17 @@
 
             // 필터링된 샘플 로그
             const filteredSamples = [];
+            const includedSamples = [];
 
             Object.values(wellData).forEach(item => {
                 if (!item.sampleName) return;
 
                 // NTC, CK 등 대조구 제외 (구분 열도 체크)
                 if (isControlSample(item.sampleName, item.category)) {
-                    filteredSamples.push({ name: item.sampleName, category: item.category });
+                    filteredSamples.push({ name: item.sampleName, category: item.category, reason: '대조구' });
                     return;
                 }
+                includedSamples.push({ name: item.sampleName, category: item.category });
 
                 const genotypeRow = { 'Variety': item.sampleName };
                 genes.forEach(g => {
@@ -1870,10 +1894,22 @@
             // localStorage에 저장
             localStorage.setItem('kaspDataForSimulator', JSON.stringify(simulatorData));
 
-            // 성공 알림
+            // 필터링 결과 로그 출력
+            console.log('=== 시뮬레이터 전송 결과 ===');
+            console.log('포함된 샘플:', includedSamples.map(s => s.name).join(', '));
+            console.log('제외된 샘플:', filteredSamples.map(s => `${s.name}(${s.category || '구분없음'})`).join(', '));
+
+            // 성공 알림 (제외된 샘플 정보 포함)
             const count = simulatorData.varieties.length;
             const geneCount = genes.length;
-            alert(`✅ 시뮬레이터로 전송 완료!\n\n• 품종 수: ${count}개\n• 유전자 수: ${geneCount}개\n\n시뮬레이터에서 'KASP 데이터 가져오기' 버튼을 클릭하세요.`);
+            let message = `✅ 시뮬레이터로 전송 완료!\n\n• 품종 수: ${count}개\n• 유전자 수: ${geneCount}개`;
+            if (filteredSamples.length > 0) {
+                const filteredNames = filteredSamples.slice(0, 5).map(s => s.name).join(', ');
+                const moreCount = filteredSamples.length > 5 ? ` 외 ${filteredSamples.length - 5}개` : '';
+                message += `\n\n🚫 제외된 대조구: ${filteredNames}${moreCount}`;
+            }
+            message += `\n\n시뮬레이터에서 'KASP 데이터 가져오기' 버튼을 클릭하세요.`;
+            alert(message);
 
             // 부모 창에 메시지 전송 (index.html의 iframe 환경일 경우)
             if (window.parent !== window) {
