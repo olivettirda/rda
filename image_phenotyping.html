@@ -695,6 +695,21 @@
                     </span>
                 </div>
 
+                <!-- 배경색 선택 영역 (항상 표시) -->
+                <div class="color-picker-row">
+                    <div class="color-picker-item">
+                        <span>배경색:</span>
+                        <div class="color-preview" id="leafBgColorPreview" style="background: #ffffff;"></div>
+                        <button class="eyedropper-btn" id="leafBgEyedropper" onclick="startLeafBgEyedropper()">
+                            🔍 스포이드
+                        </button>
+                    </div>
+                    <div class="color-picker-item">
+                        <span>허용 오차:</span>
+                        <input type="number" id="leafBgTolerance" class="tolerance-input" value="30" min="0" max="100">
+                    </div>
+                </div>
+
                 <div class="upload-zone" id="leafUploadZone" onclick="document.getElementById('leafFileInput').click()">
                     <input type="file" id="leafFileInput" accept="image/*" style="display: none;" onchange="handleLeafUpload(event)">
                     <div class="upload-icon">🍃</div>
@@ -703,21 +718,6 @@
                 </div>
 
                 <div class="image-preview" id="leafPreview">
-                    <!-- 배경색 선택 영역 -->
-                    <div class="color-picker-row">
-                        <div class="color-picker-item">
-                            <span>배경색:</span>
-                            <div class="color-preview" id="leafBgColorPreview" style="background: #ffffff;"></div>
-                            <button class="eyedropper-btn" id="leafBgEyedropper" onclick="startLeafBgEyedropper()">
-                                🔍 스포이드
-                            </button>
-                        </div>
-                        <div class="color-picker-item">
-                            <span>허용 오차:</span>
-                            <input type="number" id="leafBgTolerance" class="tolerance-input" value="30" min="0" max="100">
-                        </div>
-                    </div>
-
                     <div class="preview-container">
                         <div class="preview-image-container">
                             <img id="leafImage" class="preview-image">
@@ -805,6 +805,28 @@
                     <span>mm/pixel</span>
                 </div>
 
+                <!-- 배경색/종자색 선택 영역 (항상 표시) -->
+                <div class="color-picker-row">
+                    <div class="color-picker-item">
+                        <span>배경색:</span>
+                        <div class="color-preview" id="seedBgColorPreview" style="background: #ffffff;"></div>
+                        <button class="eyedropper-btn" id="seedBgEyedropper" onclick="startSeedBgEyedropper()">
+                            🔍 스포이드
+                        </button>
+                    </div>
+                    <div class="color-picker-item">
+                        <span>종자색:</span>
+                        <div class="color-preview" id="seedColorPreview" style="background: #a67c52;"></div>
+                        <button class="eyedropper-btn" id="seedColorEyedropper" onclick="startSeedColorEyedropper()">
+                            🔍 스포이드
+                        </button>
+                    </div>
+                    <div class="color-picker-item">
+                        <span>허용 오차:</span>
+                        <input type="number" id="seedColorTolerance" class="tolerance-input" value="50" min="0" max="150">
+                    </div>
+                </div>
+
                 <div class="upload-zone" id="seedUploadZone" onclick="document.getElementById('seedFileInput').click()">
                     <input type="file" id="seedFileInput" accept="image/*" style="display: none;" onchange="handleSeedUpload(event)">
                     <div class="upload-icon">🌾</div>
@@ -813,28 +835,6 @@
                 </div>
 
                 <div class="image-preview" id="seedPreview">
-                    <!-- 배경색/종자색 선택 영역 -->
-                    <div class="color-picker-row">
-                        <div class="color-picker-item">
-                            <span>배경색:</span>
-                            <div class="color-preview" id="seedBgColorPreview" style="background: #ffffff;"></div>
-                            <button class="eyedropper-btn" id="seedBgEyedropper" onclick="startSeedBgEyedropper()">
-                                🔍 스포이드
-                            </button>
-                        </div>
-                        <div class="color-picker-item">
-                            <span>종자색:</span>
-                            <div class="color-preview" id="seedColorPreview" style="background: #a67c52;"></div>
-                            <button class="eyedropper-btn" id="seedColorEyedropper" onclick="startSeedColorEyedropper()">
-                                🔍 스포이드
-                            </button>
-                        </div>
-                        <div class="color-picker-item">
-                            <span>허용 오차:</span>
-                            <input type="number" id="seedColorTolerance" class="tolerance-input" value="50" min="0" max="150">
-                        </div>
-                    </div>
-
                     <div class="preview-container">
                         <div class="preview-image-container">
                             <img id="seedImage" class="preview-image">
@@ -1175,6 +1175,12 @@
 
         // 잎 배경색 스포이드 시작
         function startLeafBgEyedropper() {
+            // 이미지가 로드되었는지 확인
+            if (!currentLeafImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+
             leafEyedropperMode = true;
             document.getElementById('leafBgEyedropper').classList.add('active');
             document.getElementById('modeIndicator').textContent = '🔍 배경색을 클릭하세요';
@@ -1471,6 +1477,12 @@
 
         // 종자 배경색 스포이드
         function startSeedBgEyedropper() {
+            // 이미지가 로드되었는지 확인
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+
             seedEyedropperMode = 'bg';
             document.getElementById('seedBgEyedropper').classList.add('active');
             document.getElementById('seedColorEyedropper').classList.remove('active');
@@ -1485,6 +1497,12 @@
 
         // 종자색 스포이드
         function startSeedColorEyedropper() {
+            // 이미지가 로드되었는지 확인
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+
             seedEyedropperMode = 'seed';
             document.getElementById('seedColorEyedropper').classList.add('active');
             document.getElementById('seedBgEyedropper').classList.remove('active');
