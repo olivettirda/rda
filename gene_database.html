@@ -877,11 +877,10 @@
             `;
         }
 
-        // RAP-DB 검색 - 직접 링크 (OS ID 대문자 또는 유전자 별칭)
+        // RAP-DB 검색 - locus 페이지 직접 링크
         function openRapdbWithId(geneId) {
-            // Os로 시작하면 대문자로 변환, 아니면 그대로 (별칭)
-            const searchId = geneId.startsWith('Os') ? geneId.toUpperCase() : geneId;
-            window.open(`https://rapdb.dna.affrc.go.jp/viewer/gbrowse_details/irgsp1?name=${searchId}`, '_blank');
+            // locus 페이지 형식 사용 (소문자 Os ID)
+            window.open(`https://rapdb.dna.affrc.go.jp/locus/?name=${geneId}`, '_blank');
         }
 
         // Gramene 검색 - Ensembl 직접 링크
@@ -889,30 +888,16 @@
             window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${geneId}`, '_blank');
         }
 
-        // RGAP 검색 - RAP-DB ID Converter로 LOC ID 변환 후 검색
-        async function openRgapWithId(geneId) {
-            // RAP-DB ID Converter API 시도
-            try {
-                const response = await fetch(`https://rapdb.dna.affrc.go.jp/converter/api/locus_search?keyword=${geneId}&type=all`);
-                const data = await response.json();
-
-                if (data && data.length > 0 && data[0].msu_id) {
-                    // LOC ID 찾음 - RGAP 직접 링크
-                    const locId = data[0].msu_id;
-                    window.open(`https://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${locId}`, '_blank');
-                    showCopyToast(`${locId} 로 RGAP 검색 중...`);
-                } else {
-                    throw new Error('LOC ID not found');
-                }
-            } catch (e) {
-                // API 실패시 ID Converter 페이지로 이동
-                navigator.clipboard.writeText(geneId).then(() => {
-                    window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
-                    showCopyToast(`${geneId} 복사됨! ID Converter에서 LOC ID 확인 후 RGAP 검색하세요.`);
-                }).catch(() => {
-                    window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
-                });
-            }
+        // RGAP 검색 - ID Converter 페이지로 이동 (API 불안정)
+        function openRgapWithId(geneId) {
+            // ID Converter 페이지 열고 ID 복사
+            navigator.clipboard.writeText(geneId).then(() => {
+                window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
+                showCopyToast(`${geneId} 복사됨! ID Converter에서 MSU ID 확인 후 RGAP 검색하세요.`);
+            }).catch(() => {
+                window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
+                alert(`ID Converter에서 "${geneId}"를 검색하여 MSU ID(LOC_Os...)를 확인하세요.`);
+            });
         }
 
         // 복사 완료 토스트 메시지
