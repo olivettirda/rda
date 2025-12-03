@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>포장환경 정보 - 벼 육종 도구</title>
+    <title>포장환경 정보 - 육종 도구 모음</title>
     <link rel="icon" type="image/png" href="ssallogo.png">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -554,6 +554,8 @@
                 <span class="quick-loc" onclick="setLocation(36.6424, 127.4890, '청주')">청주</span>
                 <span class="quick-loc" onclick="setLocation(37.4563, 126.7052, '인천')">인천</span>
                 <span class="quick-loc" onclick="setLocation(35.1595, 126.8526, '국립식량과학원')">국립식량과학원</span>
+                <span class="quick-loc" onclick="setLocation(36.0082, 126.9548, '밭작물개발부')">밭작물개발부</span>
+                <span class="quick-loc" onclick="setLocation(37.2536, 126.9714, '중북부작물연구센터')">중북부작물연구센터</span>
             </div>
 
             <div class="location-selector">
@@ -734,6 +736,25 @@
                     적산온도(Growing Degree Days)는 작물 생육 단계 예측에 사용됩니다.
                 </p>
 
+                <!-- 계산 방법 선택 -->
+                <div style="background: var(--bg); padding: 16px; border-radius: 10px; margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.9em; margin-bottom: 8px; font-weight: 500;">📐 계산 방법</label>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: white; border-radius: 8px; border: 2px solid var(--border);" class="gdd-method-label">
+                            <input type="radio" name="gddMethod" value="simple" checked onchange="updateGddMethodUI()">
+                            <span>단순 적산온도</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: white; border-radius: 8px; border: 2px solid var(--border);" class="gdd-method-label">
+                            <input type="radio" name="gddMethod" value="effective" onchange="updateGddMethodUI()">
+                            <span>유효적산온도</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: white; border-radius: 8px; border: 2px solid var(--border);" class="gdd-method-label">
+                            <input type="radio" name="gddMethod" value="modified" onchange="updateGddMethodUI()">
+                            <span>수정 적산온도</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end;">
                     <div>
                         <label style="display: block; font-size: 0.9em; margin-bottom: 4px;">시작일 (이앙일)</label>
@@ -744,10 +765,28 @@
                         <input type="date" id="gddEndDate">
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.9em; margin-bottom: 4px;">기준온도 (°C)</label>
-                        <input type="number" id="baseTemp" value="10" style="width: 80px;">
+                        <label style="display: block; font-size: 0.9em; margin-bottom: 4px;">기준온도 (Tbase, °C)</label>
+                        <input type="number" id="baseTemp" value="10" style="width: 80px;" title="작물이 생육을 시작하는 최저 온도">
+                    </div>
+                    <div id="upperTempDiv" style="display: none;">
+                        <label style="display: block; font-size: 0.9em; margin-bottom: 4px;">상한온도 (Tupper, °C)</label>
+                        <input type="number" id="upperTemp" value="30" style="width: 80px;" title="생육이 정지하거나 감소하는 고온 임계점">
                     </div>
                     <button class="btn" onclick="calculateGDD()">계산</button>
+                </div>
+
+                <!-- 계산 방법 설명 -->
+                <div id="gddMethodInfo" style="background: linear-gradient(135deg, #e8f5f2 0%, #d4ebe5 100%); padding: 16px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid var(--secondary);">
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);">📖 단순 적산온도 (Simple GDD)</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 0.9em; color: var(--text);">
+                        <strong>계산식:</strong> GDD = Σ max(0, Tavg - Tbase)
+                    </p>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.85em; color: var(--text-light);">
+                        <li><strong>Tavg</strong>: 일평균기온 = (최고기온 + 최저기온) / 2</li>
+                        <li><strong>Tbase</strong>: 기준온도 (벼: 10°C, 밀/보리: 0~5°C)</li>
+                        <li>일평균기온이 기준온도 이하이면 0으로 계산</li>
+                        <li>가장 널리 사용되는 기본적인 방법</li>
+                    </ul>
                 </div>
 
                 <div class="gdd-calculator" id="gddResult" style="display: none;">
@@ -1562,10 +1601,64 @@
             });
         }
 
+        // GDD 계산 방법 UI 업데이트
+        function updateGddMethodUI() {
+            const method = document.querySelector('input[name="gddMethod"]:checked').value;
+            const upperTempDiv = document.getElementById('upperTempDiv');
+            const methodInfo = document.getElementById('gddMethodInfo');
+
+            // 상한온도 입력 표시/숨김
+            upperTempDiv.style.display = (method === 'effective' || method === 'modified') ? 'block' : 'none';
+
+            // 계산 방법 설명 업데이트
+            if (method === 'simple') {
+                methodInfo.innerHTML = `
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);">📖 단순 적산온도 (Simple GDD)</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 0.9em; color: var(--text);">
+                        <strong>계산식:</strong> GDD = Σ max(0, Tavg - Tbase)
+                    </p>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.85em; color: var(--text-light);">
+                        <li><strong>Tavg</strong>: 일평균기온 = (최고기온 + 최저기온) / 2</li>
+                        <li><strong>Tbase</strong>: 기준온도 (벼: 10°C, 밀/보리: 0~5°C)</li>
+                        <li>일평균기온이 기준온도 이하이면 0으로 계산</li>
+                        <li>가장 널리 사용되는 기본적인 방법</li>
+                    </ul>
+                `;
+            } else if (method === 'effective') {
+                methodInfo.innerHTML = `
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);">📖 유효적산온도 (Effective GDD)</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 0.9em; color: var(--text);">
+                        <strong>계산식:</strong> GDD = Σ min(Tupper - Tbase, max(0, Tavg - Tbase))
+                    </p>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.85em; color: var(--text-light);">
+                        <li><strong>Tupper</strong>: 상한온도 (벼: 30~32°C) - 이 온도 이상에서는 생육 효율 감소</li>
+                        <li><strong>Tbase</strong>: 기준온도 (하한온도)</li>
+                        <li>고온에서 생육이 정체되거나 감소하는 것을 반영</li>
+                        <li>열대/아열대 지역이나 폭염 시기에 더 정확</li>
+                    </ul>
+                `;
+            } else if (method === 'modified') {
+                methodInfo.innerHTML = `
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);">📖 수정 적산온도 (Modified GDD)</h4>
+                    <p style="margin: 0 0 10px 0; font-size: 0.9em; color: var(--text);">
+                        <strong>계산식:</strong> 조건부 온도 보정 적용
+                    </p>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.85em; color: var(--text-light);">
+                        <li>최저기온 < Tbase → 최저기온 = Tbase로 보정</li>
+                        <li>최고기온 > Tupper → 최고기온 = Tupper로 보정</li>
+                        <li>보정된 온도로 평균 계산 후 GDD 산출</li>
+                        <li>극한 온도 조건에서 더 현실적인 결과</li>
+                    </ul>
+                `;
+            }
+        }
+
         async function calculateGDD() {
             const startDate = document.getElementById('gddStartDate').value;
             const endDate = document.getElementById('gddEndDate').value;
             const baseTemp = parseFloat(document.getElementById('baseTemp').value) || 10;
+            const upperTemp = parseFloat(document.getElementById('upperTemp').value) || 30;
+            const method = document.querySelector('input[name="gddMethod"]:checked').value;
 
             if (!startDate || !endDate) {
                 alert('시작일과 종료일을 선택하세요.');
@@ -1582,19 +1675,46 @@
                 const days = data.daily.time.length;
 
                 for (let i = 0; i < days; i++) {
-                    const maxT = data.daily.temperature_2m_max[i];
-                    const minT = data.daily.temperature_2m_min[i];
+                    let maxT = data.daily.temperature_2m_max[i];
+                    let minT = data.daily.temperature_2m_min[i];
+
                     if (maxT !== null && minT !== null) {
-                        const avgT = (maxT + minT) / 2;
-                        const dailyGDD = Math.max(0, avgT - baseTemp);
+                        let dailyGDD = 0;
+
+                        if (method === 'simple') {
+                            // 단순 적산온도
+                            const avgT = (maxT + minT) / 2;
+                            dailyGDD = Math.max(0, avgT - baseTemp);
+                        } else if (method === 'effective') {
+                            // 유효적산온도 - 상한온도 적용
+                            const avgT = (maxT + minT) / 2;
+                            const rawGDD = Math.max(0, avgT - baseTemp);
+                            const maxGDD = upperTemp - baseTemp;
+                            dailyGDD = Math.min(rawGDD, maxGDD);
+                        } else if (method === 'modified') {
+                            // 수정 적산온도 - 극한 온도 보정
+                            if (minT < baseTemp) minT = baseTemp;
+                            if (maxT > upperTemp) maxT = upperTemp;
+                            if (maxT < minT) maxT = minT; // 보정 후 역전 방지
+                            const avgT = (maxT + minT) / 2;
+                            dailyGDD = Math.max(0, avgT - baseTemp);
+                        }
+
                         gdd += dailyGDD;
                     }
                 }
 
+                // 방법명 표시
+                const methodNames = {
+                    simple: '단순',
+                    effective: '유효',
+                    modified: '수정'
+                };
+
                 // 결과 표시
                 document.getElementById('gddResult').style.display = 'block';
                 document.getElementById('gddValue').textContent = Math.round(gdd);
-                document.getElementById('gddDays').textContent = `${days}일 동안의 적산온도`;
+                document.getElementById('gddDays').textContent = `${days}일 동안의 ${methodNames[method]} 적산온도`;
 
                 // 생육 단계 추정
                 let stage = '';
@@ -1609,7 +1729,7 @@
                 document.getElementById('gddStage').textContent = `예상 생육 단계: ${stage}`;
 
                 // 작업 로그에 기록
-                addToWorkLog(`적산온도 계산: ${Math.round(gdd)}°C·일 (${stage})`);
+                addToWorkLog(`${methodNames[method]} 적산온도 계산: ${Math.round(gdd)}°C·일 (${stage})`);
 
             } catch (error) {
                 alert('적산온도 계산 중 오류가 발생했습니다.');
