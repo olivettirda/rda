@@ -284,29 +284,56 @@
             <h2 style="color: #0c3026;">📂 클릭하거나 파일을 드래그하세요</h2>
             <p style="color: #666;">지원 형식: .xlsx, .xls</p>
         </div>
-        <div class="result-card" id="kaspImportCard" style="display: none; background: linear-gradient(135deg, #017f97 0%, #00a1b8 100%); color: white; margin-top: 15px;">
-            <h3 style="color: white;">🧬 KASP 데이터 연동</h3>
-            <p style="opacity: 0.9; margin: 8px 0;" id="kaspDataInfo">KASP 분석 결과가 준비되었습니다.</p>
-            <button class="btn" onclick="importKaspData()" style="background: white; color: #017f97; margin-top: 10px;">📥 KASP 데이터 가져오기</button>
-            <button class="btn btn-sm" onclick="clearKaspData()" style="background: rgba(255,255,255,0.2); color: white; margin-left: 8px;">✕ 무시</button>
-        </div>
-        <div class="result-card" id="phenotypeImportCard" style="display: none; background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%); color: white; margin-top: 15px;">
-            <h3 style="color: white;">📊 표현형 데이터 연동</h3>
-            <p style="opacity: 0.9; margin: 8px 0;" id="phenotypeDataInfo">표현형 분석 결과가 준비되었습니다.</p>
-            <button class="btn" onclick="importPhenotypeData()" style="background: white; color: #2e7d32; margin-top: 10px;">📥 표현형 데이터 가져오기</button>
-            <button class="btn btn-sm" onclick="clearPhenotypeData()" style="background: rgba(255,255,255,0.2); color: white; margin-left: 8px;">✕ 무시</button>
+        <!-- ===== 유전자형 데이터 섹션 ===== -->
+        <div class="result-card" style="margin-top: 15px; border-left: 4px solid #017f97;">
+            <h3 style="color: #017f97;">🧬 유전자형 데이터</h3>
+
+            <!-- KASP 연동 (데이터 있을 때만 표시) -->
+            <div id="kaspImportCard" style="display: none; background: linear-gradient(135deg, #017f97 0%, #00a1b8 100%); color: white; padding: 15px; border-radius: 8px; margin: 12px 0;">
+                <h4 style="color: white; margin: 0 0 8px 0;">📡 KASP 분석기 연동</h4>
+                <p style="opacity: 0.9; margin: 8px 0; font-size: 0.9em;" id="kaspDataInfo">KASP 분석 결과가 준비되었습니다.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="importKaspData()" style="background: white; color: #017f97;">📥 KASP 데이터 가져오기</button>
+                    <button class="btn btn-sm" onclick="clearKaspData()" style="background: rgba(255,255,255,0.2); color: white;">✕ 무시</button>
+                </div>
+            </div>
+
+            <!-- 유전자형 직접 업로드 -->
+            <div style="margin-top: 12px;">
+                <p style="color: #666; font-size: 0.9em; margin: 8px 0;">품종명과 마커별 유전자형(A/B/H/-)이 포함된 엑셀 파일을 업로드하세요.</p>
+                <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+                    <input type="file" id="genotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectGenotypeUpload(event)">
+                    <button class="btn" onclick="document.getElementById('genotypeFileInput').click()" style="background: #017f97; color: white;">📂 유전자형 엑셀 선택</button>
+                    <button class="btn btn-secondary" onclick="downloadGenotypeTemplate()">📥 유전자형 양식 다운로드</button>
+                </div>
+                <p id="genotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
+            </div>
         </div>
 
-        <!-- 직접 표현형 업로드 -->
+        <!-- ===== 표현형 데이터 섹션 ===== -->
         <div class="result-card" style="margin-top: 15px; border-left: 4px solid #4caf50;">
-            <h3 style="color: #2e7d32;">📊 표현형 데이터 직접 업로드</h3>
-            <p style="color: #666; font-size: 0.9em; margin: 8px 0;">품종명과 형질 데이터만 포함된 간단한 엑셀 파일을 업로드하세요.</p>
-            <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
-                <input type="file" id="phenotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectPhenotypeUpload(event)">
-                <button class="btn" onclick="document.getElementById('phenotypeFileInput').click()" style="background: #4caf50; color: white;">📂 표현형 엑셀 선택</button>
-                <button class="btn btn-secondary" onclick="downloadPhenotypeTemplate()">📥 표현형 양식 다운로드</button>
+            <h3 style="color: #2e7d32;">📊 표현형 데이터</h3>
+
+            <!-- 표현형 연동 (데이터 있을 때만 표시) -->
+            <div id="phenotypeImportCard" style="display: none; background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%); color: white; padding: 15px; border-radius: 8px; margin: 12px 0;">
+                <h4 style="color: white; margin: 0 0 8px 0;">📡 표현형 조사양식 연동</h4>
+                <p style="opacity: 0.9; margin: 8px 0; font-size: 0.9em;" id="phenotypeDataInfo">표현형 분석 결과가 준비되었습니다.</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="importPhenotypeData()" style="background: white; color: #2e7d32;">📥 표현형 데이터 가져오기</button>
+                    <button class="btn btn-sm" onclick="clearPhenotypeData()" style="background: rgba(255,255,255,0.2); color: white;">✕ 무시</button>
+                </div>
             </div>
-            <p id="phenotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
+
+            <!-- 표현형 직접 업로드 -->
+            <div style="margin-top: 12px;">
+                <p style="color: #666; font-size: 0.9em; margin: 8px 0;">품종명과 형질 데이터만 포함된 간단한 엑셀 파일을 업로드하세요.</p>
+                <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+                    <input type="file" id="phenotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectPhenotypeUpload(event)">
+                    <button class="btn" onclick="document.getElementById('phenotypeFileInput').click()" style="background: #4caf50; color: white;">📂 표현형 엑셀 선택</button>
+                    <button class="btn btn-secondary" onclick="downloadPhenotypeTemplate()">📥 표현형 양식 다운로드</button>
+                </div>
+                <p id="phenotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
+            </div>
         </div>
 
         <div id="dataStatus"></div>
@@ -7636,6 +7663,192 @@ function handleDirectPhenotypeUpload(event) {
 
         } catch (error) {
             console.error('표현형 파일 읽기 오류:', error);
+            if (statusEl) statusEl.innerHTML = `❌ 오류: ${error.message}`;
+            alert('파일 읽기 오류: ' + error.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ==================== 직접 유전자형 업로드 ====================
+
+function downloadGenotypeTemplate() {
+    const wb = XLSX.utils.book_new();
+    const templateData = [
+        ['품종명', 'Marker1', 'Marker2', 'Marker3', 'Marker4', 'Marker5'],
+        ['삼광', 'A', 'B', 'H', 'A', '-'],
+        ['새일미', 'B', 'A', 'A', 'B', 'A'],
+        ['일품', 'A', 'H', 'B', '-', 'B'],
+        ['[안내]', '', '', '', '', ''],
+        ['품종명 열은 필수입니다.', '', '', '', '', ''],
+        ['유전자형 값: A(호모 1), B(호모 2), H(헤테로), -(결측)', '', '', '', '', ''],
+        ['마커명은 자유롭게 작성하세요.', '', '', '', '', '']
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(templateData), '유전자형');
+    XLSX.writeFile(wb, '유전자형_업로드_양식.xlsx');
+}
+
+function handleDirectGenotypeUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('genotypeUploadStatus');
+    if (statusEl) statusEl.innerHTML = '📂 파일 읽는 중...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+            if (jsonData.length === 0) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 데이터가 비어있습니다.';
+                return;
+            }
+
+            // 품종명 열 찾기
+            const varietyKey = Object.keys(jsonData[0]).find(k =>
+                ['품종명', 'Variety', 'variety', '품종', 'Name', 'name'].includes(k)
+            );
+
+            if (!varietyKey) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 품종명 열을 찾을 수 없습니다.';
+                alert('품종명 열을 찾을 수 없습니다.\n열 이름을 "품종명" 또는 "Variety"로 지정해주세요.');
+                return;
+            }
+
+            // 마커(유전자) 열 추출 (품종명 및 안내 제외)
+            const excludeKeys = [varietyKey, '시험번호', '재배형', 'Type', '교배조합'];
+            const isEmptyKey = (k) => {
+                if (!k || typeof k !== 'string') return true;
+                const lower = k.toLowerCase().trim();
+                return lower === '' || lower.includes('__empty') || lower.includes('empty') ||
+                       lower.startsWith('_') || lower.includes('[안내]');
+            };
+
+            // 유전자형 값인지 확인 (A, B, H, - 등)
+            const isGenotypeValue = (val) => {
+                if (val === null || val === undefined || val === '') return false;
+                const v = String(val).toUpperCase().trim();
+                return ['A', 'B', 'H', '-', 'AA', 'BB', 'AB', 'BA', 'NA', '?'].includes(v) ||
+                       /^[ATCG]\/[ATCG]$/.test(v) || /^[ATCG]{2}$/.test(v);
+            };
+
+            const geneKeys = Object.keys(jsonData[0]).filter(k => {
+                if (excludeKeys.includes(k) || isEmptyKey(k)) return false;
+                // 해당 열에 유전자형 값이 있는지 확인
+                return jsonData.some(row => isGenotypeValue(row[k]));
+            });
+
+            if (geneKeys.length === 0) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 유전자형 데이터를 찾을 수 없습니다.';
+                alert('유전자형 데이터를 찾을 수 없습니다.\n값은 A, B, H, - 형식이어야 합니다.');
+                return;
+            }
+
+            // 유전자형 값 정규화
+            const normalizeGenotype = (val) => {
+                if (val === null || val === undefined || val === '' || val === 'NA' || val === '?') return '-';
+                const v = String(val).toUpperCase().trim();
+                if (v === 'A' || v === 'AA') return 'A';
+                if (v === 'B' || v === 'BB') return 'B';
+                if (v === 'H' || v === 'AB' || v === 'BA') return 'H';
+                if (v === '-' || v === 'NA' || v === '?') return '-';
+                // SNP 형식 (예: A/T, G/C)
+                if (/^[ATCG]\/[ATCG]$/.test(v)) {
+                    const [a1, a2] = v.split('/');
+                    return a1 === a2 ? 'A' : 'H';
+                }
+                return '-';
+            };
+
+            // 품종 목록과 유전자형 매트릭스 생성
+            const varieties = jsonData.map(row => row[varietyKey]).filter(v => v && !String(v).includes('[안내]'));
+            const newGenotypeMatrix = varieties.map(variety => {
+                const row = jsonData.find(r => r[varietyKey] === variety);
+                return geneKeys.map(gene => normalizeGenotype(row ? row[gene] : '-'));
+            });
+
+            // 기존 데이터 처리
+            if (genotypeMatrix && genotypeMatrix.length > 0 && geneNames && geneNames.length > 0) {
+                const mergeChoice = confirm(`기존 유전자형 데이터가 있습니다.\n\n[확인] 기존 데이터에 병합 (새 품종/마커 추가)\n[취소] 새 데이터로 대체`);
+
+                if (mergeChoice) {
+                    // 기존 품종에 새 마커 추가, 새 품종도 추가
+                    const newGenes = geneKeys.filter(g => !geneNames.includes(g));
+
+                    // 기존 데이터에 새 마커 열 추가
+                    if (newGenes.length > 0) {
+                        genotypeMatrix.forEach(row => {
+                            newGenes.forEach(() => row.push('-'));
+                        });
+                        geneNames.push(...newGenes);
+                    }
+
+                    // 각 품종 처리
+                    varieties.forEach((variety, vIdx) => {
+                        const existingIdx = varietyNames.indexOf(variety);
+                        if (existingIdx >= 0) {
+                            // 기존 품종: 새 마커 데이터 업데이트
+                            geneKeys.forEach((gene, gIdx) => {
+                                const geneIdx = geneNames.indexOf(gene);
+                                if (geneIdx >= 0) {
+                                    const val = newGenotypeMatrix[vIdx][gIdx];
+                                    if (val !== '-') {
+                                        genotypeMatrix[existingIdx][geneIdx] = val;
+                                    }
+                                }
+                            });
+                        } else {
+                            // 새 품종 추가
+                            varietyNames.push(variety);
+                            varietyTypes.push('직접업로드');
+                            const newRow = new Array(geneNames.length).fill('-');
+                            geneKeys.forEach((gene, gIdx) => {
+                                const geneIdx = geneNames.indexOf(gene);
+                                if (geneIdx >= 0) {
+                                    newRow[geneIdx] = newGenotypeMatrix[vIdx][gIdx];
+                                }
+                            });
+                            genotypeMatrix.push(newRow);
+                        }
+                    });
+
+                    log(`✅ 유전자형 병합 완료: 총 ${varietyNames.length}개 품종, ${geneNames.length}개 마커`, 'success');
+                } else {
+                    // 새 데이터로 대체
+                    varietyNames = [...varieties];
+                    geneNames = [...geneKeys];
+                    genotypeMatrix = newGenotypeMatrix;
+                    varietyTypes = varieties.map(() => '직접업로드');
+                    log(`✅ 유전자형 대체 완료: ${varieties.length}개 품종, ${geneKeys.length}개 마커`, 'success');
+                }
+            } else {
+                // 새로 설정
+                varietyNames = [...varieties];
+                geneNames = [...geneKeys];
+                genotypeMatrix = newGenotypeMatrix;
+                varietyTypes = varieties.map(() => '직접업로드');
+                log(`✅ 유전자형 로드 완료: ${varieties.length}개 품종, ${geneKeys.length}개 마커`, 'success');
+            }
+
+            updateVarietySelectors();
+            updateDataStatusDisplay();
+            updateAllSelects();
+            dataLoaded = true;
+
+            if (statusEl) {
+                statusEl.innerHTML = `✅ <strong>${file.name}</strong> 로드 완료 - ${varieties.length}개 품종, ${geneKeys.length}개 마커`;
+                statusEl.style.color = '#017f97';
+            }
+
+            alert(`✅ 유전자형 데이터 업로드 완료!\n\n• 품종 수: ${varieties.length}개\n• 마커 수: ${geneKeys.length}개\n\n마커: ${geneKeys.slice(0, 5).join(', ')}${geneKeys.length > 5 ? '...' : ''}`);
+
+        } catch (error) {
+            console.error('유전자형 파일 읽기 오류:', error);
             if (statusEl) statusEl.innerHTML = `❌ 오류: ${error.message}`;
             alert('파일 읽기 오류: ' + error.message);
         }
