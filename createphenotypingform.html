@@ -670,6 +670,7 @@
                         <button class="btn btn-primary" onclick="downloadFullResultsZip()">📦 전체 다운로드 (엑셀+이미지)</button>
                         <button class="btn btn-secondary" onclick="downloadExcelReport()">📊 엑셀만 다운로드</button>
                         <button class="btn btn-info" onclick="downloadAllChartsZip()">🖼️ 이미지만 다운로드</button>
+                        <button class="btn" onclick="sendPhenotypeToSimulator()" style="background: linear-gradient(135deg, #017f97 0%, #00a1b8 100%); color: white;">🌾 시뮬레이터로 전송</button>
                     </div>
                 </div>
             </div>
@@ -4832,6 +4833,57 @@
 
         function exportAnalysisReport() {
             downloadFullResults();
+        }
+
+        // ========== 시뮬레이터 전송 기능 ==========
+
+        function sendPhenotypeToSimulator() {
+            if (!allTraitsResults || Object.keys(allTraitsResults).length === 0) {
+                alert('먼저 통계 분석을 수행해주세요.');
+                return;
+            }
+
+            const allTraits = Object.keys(allTraitsResults);
+
+            // 품종별 평균값 수집
+            const varietyMeans = {};
+            const traitList = [];
+
+            allTraits.forEach(trait => {
+                const result = allTraitsResults[trait];
+                if (result && result.dmrtResults) {
+                    traitList.push(trait);
+                    result.dmrtResults.forEach(r => {
+                        const variety = r.variety;
+                        if (!varietyMeans[variety]) {
+                            varietyMeans[variety] = { variety: variety };
+                        }
+                        varietyMeans[variety][trait] = r.mean;
+                    });
+                }
+            });
+
+            const varieties = Object.keys(varietyMeans);
+            if (varieties.length === 0) {
+                alert('전송할 품종 데이터가 없습니다.');
+                return;
+            }
+
+            // 전송 데이터 구성
+            const phenotypeDataForSimulator = {
+                timestamp: new Date().toISOString(),
+                source: '표현형 조사양식 - 통계분석',
+                traits: traitList,
+                varieties: varieties,
+                phenotypes: varieties.map(v => varietyMeans[v])
+            };
+
+            // localStorage에 저장
+            localStorage.setItem('phenotypeDataForSimulator', JSON.stringify(phenotypeDataForSimulator));
+
+            alert(`✅ 표현형 데이터가 시뮬레이터로 전송되었습니다!\n\n📊 전송 정보:\n• 품종 수: ${varieties.length}개\n• 형질 수: ${traitList.length}개\n• 데이터: 각 품종의 형질별 평균값\n\n💡 디지털육종 시뮬레이터의 '데이터 업로드' 탭에서\n'표현형 데이터 가져오기' 버튼을 클릭하세요.`);
+
+            console.log('📤 표현형 데이터 전송 완료:', phenotypeDataForSimulator);
         }
 
         // ========== 라벨 출력 기능 ==========
