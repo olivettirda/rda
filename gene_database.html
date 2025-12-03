@@ -877,22 +877,60 @@
             `;
         }
 
-        // RAP-DB 검색 - 메인 페이지에서 검색
-        function openRapdb(geneIdOrName) {
-            window.open('https://rapdb.dna.affrc.go.jp/', '_blank');
+        // RAP-DB 검색 - ID 복사 후 페이지 열기
+        function openRapdbWithId(geneId) {
+            // 클립보드에 ID 복사
+            navigator.clipboard.writeText(geneId).then(() => {
+                // 팝업 창 열기
+                const popup = window.open('https://rapdb.dna.affrc.go.jp/', '_blank');
+                // 알림
+                showCopyToast(`${geneId} 복사됨! RAP-DB 검색창에 붙여넣기 하세요.`);
+            }).catch(() => {
+                window.open('https://rapdb.dna.affrc.go.jp/', '_blank');
+                alert(`RAP-DB 검색창에 "${geneId}"를 검색하세요.`);
+            });
         }
 
-        // Gramene 검색 (gene name 또는 Os ID) - 메인 페이지에서 검색
-        function openGramene(geneNameOrId) {
-            // Gramene은 SPA라 직접 검색 URL이 안 됨 - 홈페이지로 이동
-            window.open('https://www.gramene.org/', '_blank');
+        // Gramene 검색 - ID 복사 후 페이지 열기
+        function openGrameneWithId(geneId) {
+            navigator.clipboard.writeText(geneId).then(() => {
+                window.open('https://www.gramene.org/', '_blank');
+                showCopyToast(`${geneId} 복사됨! Gramene 검색창에 붙여넣기 하세요.`);
+            }).catch(() => {
+                window.open('https://www.gramene.org/', '_blank');
+                alert(`Gramene 검색창에 "${geneId}"를 검색하세요.`);
+            });
         }
 
-        // RGAP 검색 (LOC ID) - Locus Search 페이지
-        function openRgap(locId) {
-            // LOC ID 검색 페이지로 이동
-            const url = `https://rice.uga.edu/analyses_search_locus.shtml`;
-            window.open(url, '_blank');
+        // RGAP 검색 - LOC ID 변환 후 복사
+        function openRgapWithId(geneId) {
+            const locId = osIdToLoc(geneId);
+            navigator.clipboard.writeText(locId).then(() => {
+                window.open('https://rice.uga.edu/analyses_search_locus.shtml', '_blank');
+                showCopyToast(`${locId} 복사됨! RGAP Locus Search에 붙여넣기 하세요.`);
+            }).catch(() => {
+                window.open('https://rice.uga.edu/analyses_search_locus.shtml', '_blank');
+                alert(`RGAP Locus Search에 "${locId}"를 검색하세요.\n(원본 ID: ${geneId})`);
+            });
+        }
+
+        // 복사 완료 토스트 메시지
+        function showCopyToast(message) {
+            // 기존 토스트 제거
+            const existing = document.getElementById('copy-toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'copy-toast';
+            toast.style.cssText = `
+                position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                background: #333; color: white; padding: 12px 24px; border-radius: 8px;
+                z-index: 10000; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: fadeInUp 0.3s ease;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
 
         // 외부 링크 새 탭으로 열기
@@ -1385,9 +1423,9 @@
                     <div id="${cardId}-summary"></div>
 
                     <div class="gene-links">
-                        <a href="https://rapdb.dna.affrc.go.jp/viewer/gbrowse_details/irgsp1?name=${encodeURIComponent(gene.id.toUpperCase())}" target="_blank" class="gene-link" title="RAP-DB에서 ${gene.id} 검색">📖 RAP-DB</a>
-                        <a href="https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link" title="Gramene에서 ${gene.id} 검색">🌱 Gramene</a>
-                        <a href="https://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${osIdToLoc(gene.id)}.1" target="_blank" class="gene-link" title="RGAP에서 ${osIdToLoc(gene.id)} 검색">🔬 RGAP</a>
+                        <a href="javascript:void(0)" onclick="openRapdbWithId('${gene.id}')" class="gene-link" title="RAP-DB에서 ${gene.id} 검색">📖 RAP-DB</a>
+                        <a href="javascript:void(0)" onclick="openGrameneWithId('${gene.id}')" class="gene-link" title="Gramene에서 ${gene.id} 검색">🌱 Gramene</a>
+                        <a href="javascript:void(0)" onclick="openRgapWithId('${gene.id}')" class="gene-link" title="RGAP에서 검색">🔬 RGAP</a>
                         <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
                         ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
                         <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link">📚 논문검색</a>
@@ -1627,6 +1665,12 @@
             } else if (proteinInfo) {
                 // 단백질 유형만 있으면
                 koreanDesc = `${proteinInfo.type}를 암호화하는 유전자. ${proteinInfo.desc} 기능을 수행함.`;
+            } else {
+                // 패턴이 안 맞으면 기본 키워드 추출
+                const keywords = extractKeywords(englishSummary);
+                if (keywords.length > 0) {
+                    koreanDesc = `${keywords.join(', ')} 관련 유전자.`;
+                }
             }
 
             // 결과 HTML 생성
@@ -1646,6 +1690,32 @@
             result += `<div style="color: #666; font-size: 0.9em; line-height: 1.4;"><strong>원문:</strong> ${truncated}</div>`;
 
             return result;
+        }
+
+        // 영어 텍스트에서 주요 키워드 추출
+        function extractKeywords(text) {
+            const keywordMap = {
+                'protein': '단백질', 'enzyme': '효소', 'receptor': '수용체',
+                'regulator': '조절인자', 'binding': '결합', 'transport': '수송',
+                'signal': '신호전달', 'development': '발달', 'growth': '생장',
+                'metabolism': '대사', 'biosynthesis': '생합성', 'degradation': '분해',
+                'response': '반응', 'stress': '스트레스', 'defense': '방어',
+                'membrane': '막', 'nucleus': '핵', 'cytoplasm': '세포질',
+                'chloroplast': '엽록체', 'mitochondria': '미토콘드리아',
+                'expressed': '발현', 'induced': '유도', 'repressed': '억제',
+                'seed': '종자', 'root': '뿌리', 'leaf': '잎', 'flower': '꽃',
+                'panicle': '이삭', 'stem': '줄기', 'grain': '종실'
+            };
+
+            const found = [];
+            const lower = text.toLowerCase();
+            for (const [eng, kor] of Object.entries(keywordMap)) {
+                if (lower.includes(eng) && !found.includes(kor)) {
+                    found.push(kor);
+                    if (found.length >= 3) break;
+                }
+            }
+            return found;
         }
 
         function toggleBookmark(id, name) {
