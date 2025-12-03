@@ -441,6 +441,58 @@
             color: #f9a825;
         }
 
+        .fetch-info-btn {
+            padding: 6px 12px;
+            background: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .fetch-info-btn:hover {
+            background: #f57c00;
+        }
+
+        .fetch-info-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .ai-summary {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+            border-left: 4px solid #7c4dff;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 12px;
+            font-size: 0.9em;
+        }
+
+        .ai-summary-label {
+            font-size: 0.75em;
+            color: #7c4dff;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ai-summary-text {
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .uncharacterized-notice {
+            color: #ff9800;
+            font-style: italic;
+        }
+
         @media (max-width: 768px) {
             .search-form {
                 flex-direction: column;
@@ -450,9 +502,147 @@
                 min-width: 100%;
             }
         }
+
+        /* 초기화 버튼 */
+        .reset-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 16px;
+            background: #ff5252;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: #ff1744;
+            transform: translateY(-2px);
+        }
+
+        /* 작업 로그 */
+        .work-log {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            max-height: 300px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .work-log.collapsed {
+            max-height: 48px;
+        }
+
+        .work-log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+        }
+
+        .work-log-header h4 {
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .work-log-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        .work-log-content {
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .work-log-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: var(--bg);
+            margin-bottom: 6px;
+            font-size: 0.85em;
+            display: flex;
+            gap: 8px;
+        }
+
+        .work-log-time {
+            color: var(--text-light);
+            font-size: 0.8em;
+            white-space: nowrap;
+        }
+
+        .work-log-message {
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .work-log-empty {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-light);
+            font-size: 0.9em;
+        }
+
+        .work-log-clear {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            background: none;
+            border: none;
+            border-top: 1px solid var(--border);
+            color: var(--text-light);
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+
+        .work-log-clear:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            .work-log {
+                width: calc(100% - 40px);
+                right: 20px;
+                left: 20px;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- 초기화 버튼 -->
+    <button class="reset-btn" onclick="resetAllData()">🔄 초기화</button>
+
+    <!-- 작업 로그 -->
+    <div class="work-log" id="workLog">
+        <div class="work-log-header" onclick="toggleWorkLog()">
+            <h4>📋 작업 로그</h4>
+            <button class="work-log-toggle" id="workLogToggle">▼</button>
+        </div>
+        <div class="work-log-content" id="workLogContent">
+            <div class="work-log-empty">작업 기록이 없습니다</div>
+        </div>
+        <button class="work-log-clear" onclick="clearWorkLog()">로그 지우기</button>
+    </div>
+
     <div class="container">
         <header>
             <h1>🔬 유전자 정보 조회</h1>
@@ -494,6 +684,22 @@
                 <div class="quick-link-text">
                     <h3>Gramene</h3>
                     <p>Comparative Plant Genomics</p>
+                </div>
+                <span class="online-badge">Online</span>
+            </a>
+            <a href="https://tasuke.dna.affrc.go.jp/" target="_blank" class="quick-link-card">
+                <div class="quick-link-icon">🔍</div>
+                <div class="quick-link-text">
+                    <h3>TASUKE+</h3>
+                    <p>Rice Genome Viewer & Haplotype</p>
+                </div>
+                <span class="online-badge">Online</span>
+            </a>
+            <a href="https://ricevarmap.ncpgr.cn/" target="_blank" class="quick-link-card">
+                <div class="quick-link-icon">🗺️</div>
+                <div class="quick-link-text">
+                    <h3>RiceVarMap</h3>
+                    <p>Rice Variation Database</p>
                 </div>
                 <span class="online-badge">Online</span>
             </a>
@@ -715,6 +921,53 @@
             }
         };
 
+        // 세션 데이터
+        let lastSearchResults = [];
+
+        // 세션 데이터 복원
+        function restoreSessionData() {
+            const savedQuery = sessionStorage.getItem('geneDB_lastQuery');
+            const savedSearchType = sessionStorage.getItem('geneDB_searchType');
+            const savedResults = sessionStorage.getItem('geneDB_results');
+
+            if (savedSearchType) {
+                currentSearchType = savedSearchType;
+                document.querySelectorAll('.search-tab').forEach(tab => {
+                    tab.classList.toggle('active', tab.dataset.type === savedSearchType);
+                });
+            }
+
+            if (savedQuery) {
+                document.getElementById('searchInput').value = savedQuery;
+
+                // 저장된 결과가 있으면 표시
+                if (savedResults) {
+                    lastSearchResults = JSON.parse(savedResults);
+                    displaySavedResults(lastSearchResults);
+                }
+            }
+        }
+
+        // 저장된 결과 표시
+        function displaySavedResults(results) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsCount = document.getElementById('resultsCount');
+
+            if (results.length === 0) return;
+
+            resultsSection.style.display = 'block';
+            resultsContainer.innerHTML = results.map(gene => createGeneCard(gene)).join('');
+            resultsCount.textContent = `${results.length}건`;
+        }
+
+        // 세션 데이터 저장
+        function saveSessionData(query, results) {
+            sessionStorage.setItem('geneDB_lastQuery', query);
+            sessionStorage.setItem('geneDB_searchType', currentSearchType);
+            sessionStorage.setItem('geneDB_results', JSON.stringify(results));
+        }
+
         // 초기화
         document.addEventListener('DOMContentLoaded', () => {
             updateNetworkStatus();
@@ -729,6 +982,9 @@
             document.getElementById('searchInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') performSearch();
             });
+
+            // 세션 데이터 복원
+            restoreSessionData();
         });
 
         function updateNetworkStatus() {
@@ -818,6 +1074,13 @@
                 resultsContainer.innerHTML = results.map(gene => createGeneCard(gene)).join('');
                 resultsCount.textContent = `${results.length}건`;
             }
+
+            // 세션에 저장
+            lastSearchResults = results;
+            saveSessionData(query, results);
+
+            // 작업 로그에 기록
+            addToWorkLog(`유전자 검색: "${query}" - ${results.length}건 결과`);
         }
 
         function searchLocalDatabase(query) {
@@ -907,9 +1170,13 @@
 
         function createGeneCard(gene) {
             const isBookmarked = bookmarks.some(b => b.id === gene.id);
+            const cardId = `gene-card-${gene.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+            // 정보가 부족한지 확인
+            const isUncharacterized = checkIfUncharacterized(gene);
 
             return `
-                <div class="result-card">
+                <div class="result-card" id="${cardId}">
                     <div class="result-header">
                         <div>
                             <span class="gene-id">${gene.geneName || gene.id}</span>
@@ -925,7 +1192,15 @@
                     </div>
 
                     <div class="gene-name">${gene.name}</div>
-                    <div class="gene-description">${gene.description}</div>
+                    <div class="gene-description ${isUncharacterized ? 'uncharacterized-notice' : ''}">${gene.description || '설명 없음'}</div>
+
+                    ${isUncharacterized && navigator.onLine ? `
+                        <div style="margin-top: 8px;">
+                            <button class="fetch-info-btn" onclick="fetchAdditionalInfo('${gene.id}', '${gene.geneName || gene.id}', '${cardId}')">
+                                🔍 추가 정보 검색
+                            </button>
+                        </div>
+                    ` : ''}
 
                     <div class="gene-meta">
                         ${gene.chromosome ? `<div class="meta-item"><span class="meta-label">염색체:</span><span class="meta-value">Chr ${gene.chromosome}</span></div>` : ''}
@@ -934,15 +1209,210 @@
                         ${gene.aliases && gene.aliases.length > 0 ? `<div class="meta-item"><span class="meta-label">별칭:</span><span class="meta-value">${gene.aliases.join(', ')}</span></div>` : ''}
                     </div>
 
+                    <div id="${cardId}-summary"></div>
+
                     <div class="gene-links">
-                        <a href="https://rapdb.dna.affrc.go.jp/locus/?name=${gene.id}" target="_blank" class="gene-link">📖 RAP-DB</a>
-                        <a href="https://www.ncbi.nlm.nih.gov/gene/?term=${encodeURIComponent(gene.geneName || gene.id)}+Oryza+sativa" target="_blank" class="gene-link">🧬 NCBI</a>
-                        <a href="https://snp-seek.irri.org/_locus.zul?locus=${gene.id}" target="_blank" class="gene-link">📊 SNP-Seek</a>
-                        <a href="https://www.gramene.org/search?query=${encodeURIComponent(gene.geneName || gene.id)}" target="_blank" class="gene-link">🌱 Gramene</a>
-                        ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI 상세</a>` : ''}
+                        <a href="https://rapdb.dna.affrc.go.jp/viewer/gbrowse_details/irgsp1?name=${gene.id}" target="_blank" class="gene-link">📖 RAP-DB</a>
+                        <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
+                        <a href="https://snp-seek.irri.org/_snpseek.zul?chrom=all&gene=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link">📊 SNP-Seek</a>
+                        <a href="https://www.gramene.org/search?fq=species:oryza_sativa&query=${encodeURIComponent(gene.geneName || gene.id)}" target="_blank" class="gene-link">🌱 Gramene</a>
+                        <a href="https://tasuke.dna.affrc.go.jp/viewer/gbrowse/irgsp1/?name=${gene.id}" target="_blank" class="gene-link">🔍 TASUKE</a>
+                        ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
+                        <a href="https://scholar.google.com/scholar?q=${encodeURIComponent((gene.geneName || gene.id) + ' rice Oryza sativa')}" target="_blank" class="gene-link">📚 논문검색</a>
+                    </div>
+
+                    <div class="gene-links" style="margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px;">
+                        <span style="font-size: 0.8em; color: var(--text-light); margin-right: 8px;">Haplotype:</span>
+                        <a href="https://snp-seek.irri.org/_haplotype.zul?gene=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link" style="background: #e8f5e9;">🧩 SNP-Seek Haplotype</a>
+                        <a href="https://ricevarmap.ncpgr.cn/search?query=${encodeURIComponent(gene.geneName || gene.id)}" target="_blank" class="gene-link" style="background: #e3f2fd;">🗺️ RiceVarMap</a>
+                        ${gene.chromosome ? `<a href="https://tasuke.dna.affrc.go.jp/viewer/gbrowse/irgsp1/?name=Chr${gene.chromosome}:${gene.position ? gene.position.split('-')[0].replace(/,/g, '') : ''}" target="_blank" class="gene-link" style="background: #fff3e0;">🔬 TASUKE 하플로타입</a>` : ''}
                     </div>
                 </div>
             `;
+        }
+
+        // 정보가 부족한지 확인
+        function checkIfUncharacterized(gene) {
+            const desc = (gene.description || '').toLowerCase();
+            const func = (gene.function || '').toLowerCase();
+            const name = (gene.name || '').toLowerCase();
+
+            const uncharacterizedTerms = [
+                'uncharacterized', 'hypothetical', 'unknown', 'putative',
+                'predicted', 'unnamed', 'similar to', 'probable',
+                '기능 미확인', '추정', '가상'
+            ];
+
+            // 설명이 없거나 너무 짧은 경우
+            if (!gene.description || gene.description.length < 20) return true;
+
+            // uncharacterized 관련 용어가 있는 경우
+            for (const term of uncharacterizedTerms) {
+                if (desc.includes(term) || func.includes(term) || name.includes(term)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // NCBI에서 추가 정보 검색
+        async function fetchAdditionalInfo(geneId, geneName, cardId) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 검색 중...';
+
+            const summaryDiv = document.getElementById(`${cardId}-summary`);
+
+            try {
+                // NCBI에서 유전자 검색
+                const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gene&term=${encodeURIComponent(geneName)}[Gene Name] AND Oryza sativa[Organism]&retmode=json&retmax=3`;
+                const searchRes = await fetch(searchUrl);
+                const searchData = await searchRes.json();
+
+                let summaryText = '';
+                let foundInfo = false;
+
+                if (searchData.esearchresult && searchData.esearchresult.idlist && searchData.esearchresult.idlist.length > 0) {
+                    // 첫 번째 결과의 상세 정보 가져오기
+                    const geneNcbiId = searchData.esearchresult.idlist[0];
+                    const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&id=${geneNcbiId}&retmode=json`;
+                    const summaryRes = await fetch(summaryUrl);
+                    const summaryData = await summaryRes.json();
+
+                    if (summaryData.result && summaryData.result[geneNcbiId]) {
+                        const geneInfo = summaryData.result[geneNcbiId];
+
+                        // 관련 정보 수집
+                        const infoItems = [];
+
+                        if (geneInfo.summary && geneInfo.summary.length > 10) {
+                            // 요약 정보가 있으면 한국어로 간략화
+                            summaryText = summarizeGeneInfo(geneInfo.summary);
+                            foundInfo = true;
+                        }
+
+                        if (geneInfo.description && !geneInfo.description.toLowerCase().includes('uncharacterized')) {
+                            infoItems.push(`기능: ${geneInfo.description}`);
+                            foundInfo = true;
+                        }
+
+                        if (geneInfo.otheraliases) {
+                            infoItems.push(`별칭: ${geneInfo.otheraliases}`);
+                        }
+
+                        if (geneInfo.maplocation) {
+                            infoItems.push(`위치: ${geneInfo.maplocation}`);
+                        }
+
+                        if (!summaryText && infoItems.length > 0) {
+                            summaryText = infoItems.join(' | ');
+                            foundInfo = true;
+                        }
+                    }
+                }
+
+                // UniProt에서도 검색 시도
+                if (!foundInfo) {
+                    try {
+                        const uniprotUrl = `https://rest.uniprot.org/uniprotkb/search?query=gene:${encodeURIComponent(geneName)}+AND+organism_id:39947&format=json&size=1`;
+                        const uniprotRes = await fetch(uniprotUrl);
+                        const uniprotData = await uniprotRes.json();
+
+                        if (uniprotData.results && uniprotData.results.length > 0) {
+                            const entry = uniprotData.results[0];
+                            if (entry.proteinDescription && entry.proteinDescription.recommendedName) {
+                                summaryText = `단백질: ${entry.proteinDescription.recommendedName.fullName.value}`;
+                                foundInfo = true;
+                            }
+                            if (entry.comments) {
+                                const funcComment = entry.comments.find(c => c.commentType === 'FUNCTION');
+                                if (funcComment && funcComment.texts) {
+                                    summaryText += ` | 기능: ${funcComment.texts[0].value.substring(0, 150)}...`;
+                                    foundInfo = true;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log('UniProt search failed:', e);
+                    }
+                }
+
+                if (foundInfo && summaryText) {
+                    summaryDiv.innerHTML = `
+                        <div class="ai-summary">
+                            <div class="ai-summary-label">🔬 온라인 검색 결과</div>
+                            <div class="ai-summary-text">${summaryText}</div>
+                        </div>
+                    `;
+                    btn.innerHTML = '✅ 완료';
+                } else {
+                    summaryDiv.innerHTML = `
+                        <div class="ai-summary" style="background: #fff3e0; border-left-color: #ff9800;">
+                            <div class="ai-summary-label" style="color: #e65100;">ℹ️ 검색 결과</div>
+                            <div class="ai-summary-text">NCBI/UniProt에서 추가 정보를 찾지 못했습니다. RAP-DB나 Gramene에서 직접 검색해보세요.</div>
+                        </div>
+                    `;
+                    btn.innerHTML = '❌ 정보 없음';
+                }
+
+            } catch (error) {
+                console.error('추가 정보 검색 오류:', error);
+                summaryDiv.innerHTML = `
+                    <div class="ai-summary" style="background: #ffebee; border-left-color: #f44336;">
+                        <div class="ai-summary-label" style="color: #c62828;">⚠️ 오류</div>
+                        <div class="ai-summary-text">정보 검색 중 오류가 발생했습니다: ${error.message}</div>
+                    </div>
+                `;
+                btn.innerHTML = '🔍 다시 시도';
+                btn.disabled = false;
+            }
+        }
+
+        // 영어 요약을 한국어로 간략화
+        function summarizeGeneInfo(englishSummary) {
+            // 주요 키워드 추출 및 번역
+            let summary = englishSummary;
+
+            // 너무 길면 첫 2문장만
+            const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            if (sentences.length > 2) {
+                summary = sentences.slice(0, 2).join('. ') + '.';
+            }
+
+            // 일부 용어 한국어화
+            const translations = {
+                'encodes': '암호화',
+                'involved in': '관여',
+                'required for': '필요',
+                'regulates': '조절',
+                'transcription factor': '전사인자',
+                'protein': '단백질',
+                'pathway': '경로',
+                'resistance': '저항성',
+                'response to': '반응',
+                'development': '발달',
+                'growth': '생장',
+                'flowering': '개화',
+                'grain': '종자/낟알',
+                'root': '뿌리',
+                'leaf': '잎',
+                'stress': '스트레스'
+            };
+
+            // 간단한 번역 힌트 추가
+            let koreanHint = '';
+            for (const [eng, kor] of Object.entries(translations)) {
+                if (summary.toLowerCase().includes(eng)) {
+                    koreanHint += `${kor}, `;
+                }
+            }
+
+            if (koreanHint) {
+                return `${summary.substring(0, 200)}${summary.length > 200 ? '...' : ''} <br><small style="color: #666;">📌 키워드: ${koreanHint.slice(0, -2)}</small>`;
+            }
+
+            return summary.substring(0, 250) + (summary.length > 250 ? '...' : '');
         }
 
         function toggleBookmark(id, name) {
@@ -997,6 +1467,122 @@
             searchHistory = searchHistory.slice(0, 20);
             localStorage.setItem('geneSearchHistory', JSON.stringify(searchHistory));
         }
+
+        // ============ 작업 로그 기능 ============
+
+        // 전역 작업 로그 (sessionStorage 사용)
+        function getWorkLog() {
+            const log = sessionStorage.getItem('globalWorkLog');
+            return log ? JSON.parse(log) : [];
+        }
+
+        function saveWorkLogToStorage(logs) {
+            sessionStorage.setItem('globalWorkLog', JSON.stringify(logs));
+        }
+
+        function addToWorkLog(message) {
+            const logs = getWorkLog();
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+            logs.unshift({
+                time: timeStr,
+                message: message,
+                page: '유전자 검색',
+                timestamp: now.getTime()
+            });
+
+            // 최대 50개까지만 유지
+            if (logs.length > 50) {
+                logs.pop();
+            }
+
+            saveWorkLogToStorage(logs);
+            updateWorkLogDisplay();
+        }
+
+        function updateWorkLogDisplay() {
+            const content = document.getElementById('workLogContent');
+            const logs = getWorkLog();
+
+            if (logs.length === 0) {
+                content.innerHTML = '<div class="work-log-empty">작업 기록이 없습니다</div>';
+                return;
+            }
+
+            content.innerHTML = logs.map(log => `
+                <div class="work-log-item">
+                    <span class="work-log-time">${log.time}</span>
+                    <span class="work-log-message">${log.message}</span>
+                </div>
+            `).join('');
+        }
+
+        function toggleWorkLog() {
+            const logEl = document.getElementById('workLog');
+            const toggleBtn = document.getElementById('workLogToggle');
+
+            logEl.classList.toggle('collapsed');
+            toggleBtn.textContent = logEl.classList.contains('collapsed') ? '▲' : '▼';
+
+            sessionStorage.setItem('workLogCollapsed', logEl.classList.contains('collapsed'));
+        }
+
+        function clearWorkLog() {
+            if (confirm('작업 로그를 모두 지우시겠습니까?')) {
+                sessionStorage.removeItem('globalWorkLog');
+                updateWorkLogDisplay();
+            }
+        }
+
+        // 초기 로그 상태 복원
+        function initWorkLog() {
+            const collapsed = sessionStorage.getItem('workLogCollapsed') === 'true';
+            const logEl = document.getElementById('workLog');
+            const toggleBtn = document.getElementById('workLogToggle');
+
+            if (collapsed) {
+                logEl.classList.add('collapsed');
+                toggleBtn.textContent = '▲';
+            }
+
+            updateWorkLogDisplay();
+        }
+
+        // ============ 초기화 기능 ============
+
+        function resetAllData() {
+            if (!confirm('모든 작업 데이터를 초기화하시겠습니까?\n\n- 유전자 검색 기록\n- 포장환경 데이터\n- 작업 로그\n\n이 작업은 되돌릴 수 없습니다.')) {
+                return;
+            }
+
+            // 이 페이지의 세션 데이터
+            sessionStorage.removeItem('geneDB_lastQuery');
+            sessionStorage.removeItem('geneDB_searchType');
+            sessionStorage.removeItem('geneDB_results');
+
+            // 포장환경 세션 데이터
+            sessionStorage.removeItem('fieldEnv_location');
+            sessionStorage.removeItem('fieldEnv_weather');
+            sessionStorage.removeItem('fieldEnv_forecast');
+            sessionStorage.removeItem('fieldEnv_historical');
+            sessionStorage.removeItem('fieldEnv_region');
+            sessionStorage.removeItem('fieldEnv_city');
+
+            // 작업 로그
+            sessionStorage.removeItem('globalWorkLog');
+
+            // UI 초기화
+            document.getElementById('searchInput').value = '';
+            document.getElementById('resultsSection').style.display = 'none';
+            updateWorkLogDisplay();
+
+            alert('초기화가 완료되었습니다.');
+            addToWorkLog('전체 초기화 수행');
+        }
+
+        // 페이지 로드 시 작업 로그 초기화
+        document.addEventListener('DOMContentLoaded', initWorkLog);
     </script>
 </body>
 </html>
