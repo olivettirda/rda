@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gel 전기영동 분석기</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary-dark: #0c3026;
+            --primary: #017f97;
+            --primary-light: #00a1b8;
+            --accent-light: #cce3dd;
+            --accent-lighter: #e8f4f0;
+            --bg: #f8fafa;
+            --card-bg: #ffffff;
+            --text: #1a1a1a;
+            --text-light: #666;
+            --border: #e0e0e0;
+            --success: #2e7d32;
+            --warning: #f57c00;
+            --error: #c62828;
+            --genotype-a: #1565c0;
+            --genotype-b: #e65100;
+            --genotype-h: #7b1fa2;
+            --genotype-unknown: #757575;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 20px 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(12, 48, 38, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left h1 { font-size: 1.6rem; font-weight: 600; }
+        .header-left p { font-size: 0.9rem; opacity: 0.9; }
+
+        .header-actions { display: flex; gap: 10px; }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover { background: var(--primary-dark); }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.5);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.25);
+            border-color: white;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn-success:hover { background: #1b5e20; }
+
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1000px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: var(--accent-lighter);
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-header h2 { font-size: 1rem; font-weight: 600; color: var(--primary-dark); }
+        .card-header .badge {
+            margin-left: auto;
+            padding: 4px 12px;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
+        .card-body { padding: 20px; }
+
+        /* Settings Panel */
+        .settings-group {
+            margin-bottom: 16px;
+        }
+
+        .settings-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-dark);
+            margin-bottom: 6px;
+        }
+
+        .settings-group input,
+        .settings-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .settings-group input:focus,
+        .settings-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(1, 127, 151, 0.1);
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 400;
+            cursor: pointer;
+        }
+
+        .range-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .range-group input[type="range"] {
+            flex: 1;
+        }
+
+        .range-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            border: 2px dashed var(--primary-light);
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            background: var(--accent-lighter);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary-dark);
+            background: var(--accent-light);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--primary);
+            background: var(--accent-light);
+            transform: scale(1.01);
+        }
+
+        .upload-zone.has-image {
+            border-style: solid;
+            border-color: var(--success);
+            background: #e8f5e9;
+        }
+
+        .upload-zone .icon { font-size: 48px; margin-bottom: 10px; }
+        .upload-zone h3 { color: var(--primary-dark); font-size: 1rem; margin-bottom: 5px; }
+        .upload-zone p { color: var(--text-light); font-size: 0.85rem; }
+
+        /* Canvas Container */
+        .canvas-container {
+            position: relative;
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .canvas-container canvas {
+            max-width: 100%;
+            max-height: 600px;
+        }
+
+        .canvas-placeholder {
+            color: #666;
+            text-align: center;
+        }
+
+        .canvas-placeholder .icon { font-size: 64px; opacity: 0.5; }
+
+        /* Canvas Controls */
+        .canvas-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .canvas-controls .btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+
+        /* Sample Names Input */
+        .sample-names-container {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .sample-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .sample-row .lane-num {
+            min-width: 60px;
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .sample-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .sample-row.ladder {
+            background: var(--accent-lighter);
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .sample-row.ladder input {
+            background: #e0e0e0;
+            color: var(--text-light);
+        }
+
+        /* Results Table */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .results-table th {
+            background: var(--primary-dark);
+            color: white;
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+        }
+
+        .results-table tr:nth-child(even) {
+            background: var(--accent-lighter);
+        }
+
+        .results-table tr:hover {
+            background: var(--accent-light);
+        }
+
+        .genotype-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .genotype-a { background: rgba(21, 101, 192, 0.15); color: var(--genotype-a); }
+        .genotype-b { background: rgba(230, 81, 0, 0.15); color: var(--genotype-b); }
+        .genotype-h { background: rgba(123, 31, 162, 0.15); color: var(--genotype-h); }
+        .genotype-unknown { background: rgba(117, 117, 117, 0.15); color: var(--genotype-unknown); }
+
+        .manual-buttons {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .manual-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .manual-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .manual-btn.btn-a { color: var(--genotype-a); }
+        .manual-btn.btn-a:hover, .manual-btn.btn-a.active { background: var(--genotype-a); color: white; }
+        .manual-btn.btn-b { color: var(--genotype-b); }
+        .manual-btn.btn-b:hover, .manual-btn.btn-b.active { background: var(--genotype-b); color: white; }
+        .manual-btn.btn-h { color: var(--genotype-h); }
+        .manual-btn.btn-h:hover, .manual-btn.btn-h.active { background: var(--genotype-h); color: white; }
+        .manual-btn.btn-x { color: var(--genotype-unknown); }
+        .manual-btn.btn-x:hover, .manual-btn.btn-x.active { background: var(--genotype-unknown); color: white; }
+
+        /* Band Info */
+        .band-info {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
+        .band-count { color: var(--success); font-weight: 500; }
+        .no-band { color: var(--error); }
+
+        /* Action Bar */
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            padding: 20px;
+            background: var(--accent-lighter);
+            border-radius: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .action-bar .btn {
+            padding: 12px 24px;
+            font-size: 1rem;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            background: var(--primary-dark);
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--error); }
+        .toast.warning { background: var(--warning); }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 16px;
+            font-size: 0.85rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        /* Analysis Progress */
+        .analysis-progress {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .analysis-progress.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Info Box */
+        .info-box {
+            background: var(--accent-lighter);
+            border-left: 4px solid var(--primary);
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+        }
+
+        .info-box.warning {
+            background: #fff3e0;
+            border-color: var(--warning);
+        }
+
+        /* Quick Fill */
+        .quick-fill {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .quick-fill .btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        /* Keyboard shortcuts */
+        .shortcuts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-top: 8px;
+        }
+
+        .shortcut {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .shortcut kbd {
+            background: var(--accent-lighter);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            font-family: monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header { padding: 15px 20px; flex-direction: column; gap: 10px; }
+            .container { padding: 16px; }
+            .main-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <h1>⚡ Gel 전기영동 분석기</h1>
+            <p>STS/CAPS 마커 자동 판독 및 시뮬레이터 연동</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="resetAll()">🔄 초기화</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="main-grid">
+            <!-- Left Panel: Settings -->
+            <div class="settings-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>⚙️ 분석 설정</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="settings-group">
+                            <label>마커명</label>
+                            <input type="text" id="markerName" value="Marker1" placeholder="분석할 마커 이름">
+                        </div>
+
+                        <div class="settings-group">
+                            <label>마커 타입</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="markerType" value="STS" checked> STS</label>
+                                <label><input type="radio" name="markerType" value="CAPS"> CAPS</label>
+                            </div>
+                        </div>
+
+                        <div class="settings-group" id="capsSettings" style="display:none;">
+                            <label>CAPS 절단 기준 bp</label>
+                            <input type="number" id="capsRefBp" value="500" placeholder="미절단 밴드 크기">
+                        </div>
+
+                        <div class="settings-group">
+                            <label>레인 수</label>
+                            <div class="range-group">
+                                <input type="range" id="laneCount" min="5" max="30" value="12">
+                                <span class="range-value" id="laneCountValue">12</span>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <label>Ladder 위치</label>
+                            <select id="ladderPosition">
+                                <option value="first">첫 번째 레인</option>
+                                <option value="last">마지막 레인</option>
+                                <option value="both">양쪽</option>
+                                <option value="none">없음</option>
+                            </select>
+                        </div>
+
+                        <div class="settings-group" id="ladderBpGroup">
+                            <label>Ladder bp (쉼표 구분)</label>
+                            <input type="text" id="ladderBp" value="100,200,300,400,500,750,1000" placeholder="100,200,300,500,1000">
+                        </div>
+
+                        <div class="settings-group">
+                            <label>검출 민감도</label>
+                            <div class="range-group">
+                                <input type="range" id="sensitivity" min="10" max="100" value="50">
+                                <span class="range-value" id="sensitivityValue">50</span>
+                            </div>
+                        </div>
+
+                        <div class="settings-group">
+                            <label>대비 조정</label>
+                            <div class="range-group">
+                                <input type="range" id="contrast" min="0.5" max="3" step="0.1" value="1.5">
+                                <span class="range-value" id="contrastValue">1.5</span>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" style="width:100%; margin-top:16px;" onclick="analyzeImage()">
+                            🔬 분석 시작
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📋 단축키</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="shortcuts">
+                            <div class="shortcut"><kbd>Space</kbd> 분석</div>
+                            <div class="shortcut"><kbd>R</kbd> 초기화</div>
+                            <div class="shortcut"><kbd>S</kbd> 전송</div>
+                            <div class="shortcut"><kbd>D</kbd> 다운로드</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Main Content -->
+            <div class="main-content">
+                <!-- Image Upload -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📷 이미지 업로드</h2>
+                        <span class="badge" id="imageStatus">대기중</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="upload-zone" id="uploadZone">
+                            <div class="icon">📁</div>
+                            <h3>이미지를 드래그하거나 클릭하여 업로드</h3>
+                            <p>PNG, JPG, JPEG 형식 지원</p>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+
+                        <!-- Canvas -->
+                        <div class="canvas-container" id="canvasContainer" style="display:none;">
+                            <canvas id="gelCanvas"></canvas>
+                        </div>
+
+                        <div class="canvas-controls" id="canvasControls" style="display:none;">
+                            <button class="btn btn-primary" onclick="analyzeImage()">🔬 재분석</button>
+                            <button class="btn" onclick="toggleOverlay()">👁️ 오버레이 토글</button>
+                            <button class="btn" onclick="resetCanvas()">↩️ 원본 보기</button>
+                            <button class="btn btn-warning" onclick="enterManualMode()">✏️ 수동 보정</button>
+                        </div>
+
+                        <div class="analysis-progress" id="analysisProgress">
+                            <div class="spinner"></div>
+                            <p>밴드 검출 중...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sample Names -->
+                <div class="card" id="sampleNamesCard" style="display:none;">
+                    <div class="card-header">
+                        <h2>🏷️ 품종명 입력</h2>
+                        <span class="badge" id="sampleCount">0개 레인</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="quick-fill">
+                            <button class="btn" onclick="autoFillSampleNames('순번')">순번 자동생성</button>
+                            <button class="btn" onclick="autoFillSampleNames('품종')">품종 + 순번</button>
+                            <button class="btn" onclick="bulkInputSamples()">일괄 입력</button>
+                        </div>
+                        <div class="sample-names-container" id="sampleNamesContainer">
+                            <!-- Generated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="card" id="resultsCard" style="display:none;">
+                    <div class="card-header">
+                        <h2>📊 분석 결과</h2>
+                        <span class="badge" id="resultStats">-</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-box">
+                            💡 <strong>유전자형 판정 기준</strong>:
+                            <span id="genotypeInfo">STS - A: 밴드 있음, B: 밴드 없음</span>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table class="results-table" id="resultsTable">
+                                <thead>
+                                    <tr>
+                                        <th>레인</th>
+                                        <th>품종명</th>
+                                        <th>밴드 검출</th>
+                                        <th>bp 크기</th>
+                                        <th>유전자형</th>
+                                        <th>수동 보정</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resultsBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="legend">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: var(--genotype-a);"></div>
+                                <span>A (밴드 있음/미절단)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: var(--genotype-b);"></div>
+                                <span>B (밴드 없음/절단)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: var(--genotype-h);"></div>
+                                <span>H (헤테로)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: var(--genotype-unknown);"></div>
+                                <span>- (판정불가)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Bar -->
+                <div class="action-bar" id="actionBar" style="display:none;">
+                    <button class="btn btn-primary" onclick="downloadExcel()">
+                        📥 엑셀 다운로드
+                    </button>
+                    <button class="btn btn-success" onclick="sendToSimulator()">
+                        📤 시뮬레이터로 전송
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Bulk Input Modal -->
+    <div id="bulkModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:24px; border-radius:12px; max-width:500px; width:90%;">
+            <h3 style="margin-bottom:16px;">품종명 일괄 입력</h3>
+            <p style="font-size:0.9rem; color:var(--text-light); margin-bottom:12px;">한 줄에 하나씩 품종명을 입력하세요 (레인 순서대로)</p>
+            <textarea id="bulkInput" style="width:100%; height:200px; padding:12px; border:1px solid var(--border); border-radius:8px; font-family:inherit; resize:vertical;"></textarea>
+            <div style="display:flex; gap:10px; margin-top:16px; justify-content:flex-end;">
+                <button class="btn" onclick="closeBulkModal()">취소</button>
+                <button class="btn btn-primary" onclick="applyBulkInput()">적용</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== State ====================
+        const state = {
+            image: null,
+            imageData: null,
+            originalImageData: null,
+            lanes: [],
+            results: [],
+            showOverlay: true,
+            manualMode: false
+        };
+
+        // ==================== DOM Elements ====================
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('gelCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // ==================== Event Listeners ====================
+
+        // File Upload
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                loadImage(e.target.files[0]);
+            }
+        });
+
+        // Range Inputs
+        document.getElementById('laneCount').addEventListener('input', (e) => {
+            document.getElementById('laneCountValue').textContent = e.target.value;
+            if (state.image) generateSampleInputs();
+        });
+        document.getElementById('sensitivity').addEventListener('input', (e) => {
+            document.getElementById('sensitivityValue').textContent = e.target.value;
+        });
+        document.getElementById('contrast').addEventListener('input', (e) => {
+            document.getElementById('contrastValue').textContent = e.target.value;
+        });
+
+        // Marker Type
+        document.querySelectorAll('input[name="markerType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('capsSettings').style.display =
+                    e.target.value === 'CAPS' ? 'block' : 'none';
+                updateGenotypeInfo();
+            });
+        });
+
+        // Ladder Position
+        document.getElementById('ladderPosition').addEventListener('change', (e) => {
+            document.getElementById('ladderBpGroup').style.display =
+                e.target.value === 'none' ? 'none' : 'block';
+            if (state.image) generateSampleInputs();
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    if (state.image) analyzeImage();
+                    break;
+                case 'KeyR':
+                    resetAll();
+                    break;
+                case 'KeyS':
+                    if (state.results.length > 0) sendToSimulator();
+                    break;
+                case 'KeyD':
+                    if (state.results.length > 0) downloadExcel();
+                    break;
+            }
+        });
+
+        // Canvas Click (Manual Mode)
+        canvas.addEventListener('click', (e) => {
+            if (!state.manualMode || !state.image) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            handleCanvasClick(x, y);
+        });
+
+        // ==================== Functions ====================
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.image = img;
+
+                    // Set canvas size
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+
+                    // Draw image
+                    ctx.drawImage(img, 0, 0);
+                    state.originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                    // Update UI
+                    uploadZone.classList.add('has-image');
+                    uploadZone.innerHTML = `
+                        <div class="icon">✅</div>
+                        <h3>${file.name}</h3>
+                        <p>${img.width} x ${img.height} px</p>
+                    `;
+
+                    document.getElementById('canvasContainer').style.display = 'flex';
+                    document.getElementById('canvasControls').style.display = 'flex';
+                    document.getElementById('sampleNamesCard').style.display = 'block';
+                    document.getElementById('imageStatus').textContent = '로드됨';
+
+                    // Generate sample inputs
+                    generateSampleInputs();
+
+                    showToast('이미지가 로드되었습니다', 'success');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function generateSampleInputs() {
+            const laneCount = parseInt(document.getElementById('laneCount').value);
+            const ladderPos = document.getElementById('ladderPosition').value;
+            const container = document.getElementById('sampleNamesContainer');
+
+            // Calculate actual sample lanes (excluding ladder)
+            let sampleCount = laneCount;
+            if (ladderPos === 'first' || ladderPos === 'last') sampleCount--;
+            else if (ladderPos === 'both') sampleCount -= 2;
+
+            container.innerHTML = '';
+
+            for (let i = 0; i < laneCount; i++) {
+                const isLadder =
+                    (ladderPos === 'first' && i === 0) ||
+                    (ladderPos === 'last' && i === laneCount - 1) ||
+                    (ladderPos === 'both' && (i === 0 || i === laneCount - 1));
+
+                const row = document.createElement('div');
+                row.className = `sample-row ${isLadder ? 'ladder' : ''}`;
+                row.innerHTML = `
+                    <span class="lane-num">레인 ${i + 1}</span>
+                    <input type="text"
+                           id="sample_${i}"
+                           value="${isLadder ? 'Ladder' : ''}"
+                           placeholder="${isLadder ? 'Ladder' : '품종명 입력'}"
+                           ${isLadder ? 'readonly' : ''}>
+                `;
+                container.appendChild(row);
+            }
+
+            document.getElementById('sampleCount').textContent = `${sampleCount}개 샘플`;
+        }
+
+        function autoFillSampleNames(type) {
+            const laneCount = parseInt(document.getElementById('laneCount').value);
+            const ladderPos = document.getElementById('ladderPosition').value;
+            let sampleNum = 1;
+
+            for (let i = 0; i < laneCount; i++) {
+                const input = document.getElementById(`sample_${i}`);
+                if (!input || input.readOnly) continue;
+
+                if (type === '순번') {
+                    input.value = `Sample_${sampleNum++}`;
+                } else if (type === '품종') {
+                    input.value = `품종${sampleNum++}`;
+                }
+            }
+        }
+
+        function bulkInputSamples() {
+            document.getElementById('bulkModal').style.display = 'flex';
+            document.getElementById('bulkInput').focus();
+        }
+
+        function closeBulkModal() {
+            document.getElementById('bulkModal').style.display = 'none';
+        }
+
+        function applyBulkInput() {
+            const input = document.getElementById('bulkInput').value;
+            const names = input.split('\n').map(n => n.trim()).filter(n => n);
+
+            const laneCount = parseInt(document.getElementById('laneCount').value);
+            const ladderPos = document.getElementById('ladderPosition').value;
+            let nameIdx = 0;
+
+            for (let i = 0; i < laneCount && nameIdx < names.length; i++) {
+                const inputEl = document.getElementById(`sample_${i}`);
+                if (!inputEl || inputEl.readOnly) continue;
+                inputEl.value = names[nameIdx++];
+            }
+
+            closeBulkModal();
+            showToast(`${nameIdx}개 품종명이 입력되었습니다`, 'success');
+        }
+
+        // ==================== Image Analysis ====================
+
+        function analyzeImage() {
+            if (!state.image) {
+                showToast('먼저 이미지를 업로드하세요', 'warning');
+                return;
+            }
+
+            // Show progress
+            document.getElementById('analysisProgress').classList.add('show');
+            document.getElementById('canvasContainer').style.display = 'none';
+
+            setTimeout(() => {
+                try {
+                    // 1. Preprocess
+                    preprocessImage();
+
+                    // 2. Detect lanes
+                    detectLanes();
+
+                    // 3. Detect bands
+                    detectBands();
+
+                    // 4. Determine genotypes
+                    determineGenotypes();
+
+                    // 5. Draw results
+                    drawResults();
+
+                    // 6. Update UI
+                    updateResultsTable();
+
+                    document.getElementById('analysisProgress').classList.remove('show');
+                    document.getElementById('canvasContainer').style.display = 'flex';
+                    document.getElementById('resultsCard').style.display = 'block';
+                    document.getElementById('actionBar').style.display = 'flex';
+
+                    showToast('분석이 완료되었습니다', 'success');
+                } catch (error) {
+                    console.error('Analysis error:', error);
+                    document.getElementById('analysisProgress').classList.remove('show');
+                    document.getElementById('canvasContainer').style.display = 'flex';
+                    showToast('분석 중 오류가 발생했습니다: ' + error.message, 'error');
+                }
+            }, 100);
+        }
+
+        function preprocessImage() {
+            // Get image data
+            ctx.drawImage(state.image, 0, 0);
+            state.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = state.imageData.data;
+
+            const contrast = parseFloat(document.getElementById('contrast').value);
+
+            // Convert to grayscale and apply contrast
+            for (let i = 0; i < data.length; i += 4) {
+                // Grayscale
+                const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+
+                // Contrast adjustment (simple method)
+                let adjusted = ((gray / 255 - 0.5) * contrast + 0.5) * 255;
+                adjusted = Math.max(0, Math.min(255, adjusted));
+
+                // Invert for easier band detection (bands become bright)
+                const inverted = 255 - adjusted;
+
+                data[i] = data[i+1] = data[i+2] = inverted;
+            }
+
+            ctx.putImageData(state.imageData, 0, 0);
+        }
+
+        function detectLanes() {
+            const laneCount = parseInt(document.getElementById('laneCount').value);
+            const ladderPos = document.getElementById('ladderPosition').value;
+
+            // Simple equal division for now
+            const laneWidth = canvas.width / laneCount;
+
+            state.lanes = [];
+
+            for (let i = 0; i < laneCount; i++) {
+                const isLadder =
+                    (ladderPos === 'first' && i === 0) ||
+                    (ladderPos === 'last' && i === laneCount - 1) ||
+                    (ladderPos === 'both' && (i === 0 || i === laneCount - 1));
+
+                const sampleName = document.getElementById(`sample_${i}`)?.value || `Lane ${i+1}`;
+
+                state.lanes.push({
+                    index: i,
+                    x: Math.floor(i * laneWidth),
+                    width: Math.floor(laneWidth),
+                    centerX: Math.floor(i * laneWidth + laneWidth / 2),
+                    isLadder: isLadder,
+                    sampleName: sampleName,
+                    bands: []
+                });
+            }
+        }
+
+        function detectBands() {
+            const sensitivity = parseInt(document.getElementById('sensitivity').value);
+            const threshold = 255 - (sensitivity * 2); // Higher sensitivity = lower threshold
+            const data = state.imageData.data;
+            const minBandHeight = 5;
+            const minBandWidth = Math.floor(canvas.width / state.lanes.length * 0.3);
+
+            for (const lane of state.lanes) {
+                // Get intensity profile for this lane
+                const profile = [];
+
+                for (let y = 0; y < canvas.height; y++) {
+                    let sum = 0;
+                    let count = 0;
+
+                    for (let x = lane.x + 5; x < lane.x + lane.width - 5; x++) {
+                        const idx = (y * canvas.width + x) * 4;
+                        sum += data[idx]; // Grayscale value
+                        count++;
+                    }
+
+                    profile.push(sum / count);
+                }
+
+                // Find peaks (bands)
+                const bands = findPeaks(profile, threshold, minBandHeight);
+
+                lane.bands = bands.map(peak => ({
+                    y: peak.position,
+                    intensity: peak.value,
+                    height: peak.width,
+                    bp: null // Will be calculated later
+                }));
+            }
+
+            // Calculate bp sizes if ladder exists
+            calculateBpSizes();
+        }
+
+        function findPeaks(profile, threshold, minWidth) {
+            const peaks = [];
+            let inPeak = false;
+            let peakStart = 0;
+            let peakMax = 0;
+            let peakMaxPos = 0;
+
+            for (let i = 0; i < profile.length; i++) {
+                if (profile[i] > threshold) {
+                    if (!inPeak) {
+                        inPeak = true;
+                        peakStart = i;
+                        peakMax = profile[i];
+                        peakMaxPos = i;
+                    } else if (profile[i] > peakMax) {
+                        peakMax = profile[i];
+                        peakMaxPos = i;
+                    }
+                } else if (inPeak) {
+                    const width = i - peakStart;
+                    if (width >= minWidth) {
+                        peaks.push({
+                            position: peakMaxPos,
+                            value: peakMax,
+                            width: width,
+                            start: peakStart,
+                            end: i
+                        });
+                    }
+                    inPeak = false;
+                }
+            }
+
+            return peaks;
+        }
+
+        function calculateBpSizes() {
+            const ladderPos = document.getElementById('ladderPosition').value;
+            if (ladderPos === 'none') return;
+
+            const ladderBpStr = document.getElementById('ladderBp').value;
+            const ladderBps = ladderBpStr.split(',').map(bp => parseInt(bp.trim())).sort((a, b) => b - a);
+
+            // Find ladder lane
+            const ladderLane = state.lanes.find(l => l.isLadder);
+            if (!ladderLane || ladderLane.bands.length === 0) return;
+
+            // Sort ladder bands by position (top to bottom = high to low bp)
+            const sortedLadderBands = [...ladderLane.bands].sort((a, b) => a.y - b.y);
+
+            // Match bands to bp values
+            const numMatches = Math.min(sortedLadderBands.length, ladderBps.length);
+            const calibrationPoints = [];
+
+            for (let i = 0; i < numMatches; i++) {
+                sortedLadderBands[i].bp = ladderBps[i];
+                calibrationPoints.push({
+                    y: sortedLadderBands[i].y,
+                    bp: ladderBps[i]
+                });
+            }
+
+            // Interpolate bp for sample bands (log scale)
+            if (calibrationPoints.length >= 2) {
+                for (const lane of state.lanes) {
+                    if (lane.isLadder) continue;
+
+                    for (const band of lane.bands) {
+                        band.bp = interpolateBp(band.y, calibrationPoints);
+                    }
+                }
+            }
+        }
+
+        function interpolateBp(y, calibrationPoints) {
+            // Sort by y position
+            const sorted = [...calibrationPoints].sort((a, b) => a.y - b.y);
+
+            // Find surrounding points
+            if (y <= sorted[0].y) {
+                return sorted[0].bp;
+            }
+            if (y >= sorted[sorted.length - 1].y) {
+                return sorted[sorted.length - 1].bp;
+            }
+
+            for (let i = 0; i < sorted.length - 1; i++) {
+                if (y >= sorted[i].y && y <= sorted[i + 1].y) {
+                    // Log-linear interpolation
+                    const logBp1 = Math.log10(sorted[i].bp);
+                    const logBp2 = Math.log10(sorted[i + 1].bp);
+                    const t = (y - sorted[i].y) / (sorted[i + 1].y - sorted[i].y);
+                    const logBp = logBp1 + t * (logBp2 - logBp1);
+                    return Math.round(Math.pow(10, logBp));
+                }
+            }
+
+            return null;
+        }
+
+        function determineGenotypes() {
+            const markerType = document.querySelector('input[name="markerType"]:checked').value;
+            const capsRefBp = parseInt(document.getElementById('capsRefBp').value) || 500;
+
+            state.results = [];
+
+            for (const lane of state.lanes) {
+                if (lane.isLadder) continue;
+
+                let genotype = '-';
+                const bandCount = lane.bands.length;
+
+                if (markerType === 'STS') {
+                    // STS: Band presence/absence
+                    if (bandCount === 0) {
+                        genotype = 'B'; // No band
+                    } else {
+                        genotype = 'A'; // Band present
+                    }
+                } else if (markerType === 'CAPS') {
+                    // CAPS: Cut pattern
+                    const hasUncut = lane.bands.some(b => b.bp && b.bp > capsRefBp * 0.8);
+                    const hasCut = lane.bands.some(b => b.bp && b.bp < capsRefBp * 0.6);
+
+                    if (hasUncut && hasCut) {
+                        genotype = 'H'; // Heterozygous
+                    } else if (hasUncut) {
+                        genotype = 'A'; // Uncut only
+                    } else if (hasCut) {
+                        genotype = 'B'; // Cut only
+                    } else if (bandCount > 0) {
+                        genotype = '?'; // Bands but unclear pattern
+                    }
+                }
+
+                state.results.push({
+                    laneIndex: lane.index,
+                    sampleName: lane.sampleName,
+                    bands: lane.bands,
+                    genotype: genotype,
+                    manualOverride: false
+                });
+            }
+        }
+
+        function drawResults() {
+            // Restore original image
+            ctx.putImageData(state.originalImageData, 0, 0);
+
+            if (!state.showOverlay) return;
+
+            // Draw lane boundaries
+            ctx.strokeStyle = 'rgba(1, 127, 151, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+
+            for (const lane of state.lanes) {
+                ctx.beginPath();
+                ctx.moveTo(lane.x, 0);
+                ctx.lineTo(lane.x, canvas.height);
+                ctx.stroke();
+            }
+
+            ctx.setLineDash([]);
+
+            // Draw detected bands
+            for (const lane of state.lanes) {
+                for (const band of lane.bands) {
+                    const color = lane.isLadder ? 'rgba(255, 193, 7, 0.6)' : 'rgba(46, 125, 50, 0.6)';
+                    ctx.fillStyle = color;
+                    ctx.fillRect(
+                        lane.x + 5,
+                        band.y - band.height / 2,
+                        lane.width - 10,
+                        band.height
+                    );
+
+                    // Draw bp label
+                    if (band.bp) {
+                        ctx.fillStyle = 'white';
+                        ctx.font = '10px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(
+                            `${band.bp}bp`,
+                            lane.centerX,
+                            band.y + 3
+                        );
+                    }
+                }
+
+                // Draw lane label
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(lane.x, canvas.height - 25, lane.width, 25);
+                ctx.fillStyle = 'white';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(
+                    lane.isLadder ? 'L' : (lane.index + 1).toString(),
+                    lane.centerX,
+                    canvas.height - 8
+                );
+            }
+        }
+
+        function updateResultsTable() {
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = '';
+
+            let aCount = 0, bCount = 0, hCount = 0, unknownCount = 0;
+
+            for (const result of state.results) {
+                const bandInfo = result.bands.length > 0
+                    ? `<span class="band-count">${result.bands.length}개 밴드</span>`
+                    : `<span class="no-band">없음</span>`;
+
+                const bpInfo = result.bands.map(b => b.bp ? `${b.bp}bp` : '?').join(', ') || '-';
+
+                const genotypeClass = {
+                    'A': 'genotype-a',
+                    'B': 'genotype-b',
+                    'H': 'genotype-h'
+                }[result.genotype] || 'genotype-unknown';
+
+                // Count genotypes
+                if (result.genotype === 'A') aCount++;
+                else if (result.genotype === 'B') bCount++;
+                else if (result.genotype === 'H') hCount++;
+                else unknownCount++;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${result.laneIndex + 1}</td>
+                    <td><strong>${result.sampleName}</strong></td>
+                    <td>${bandInfo}</td>
+                    <td class="band-info">${bpInfo}</td>
+                    <td><span class="genotype-badge ${genotypeClass}">${result.genotype}</span></td>
+                    <td>
+                        <div class="manual-buttons">
+                            <button class="manual-btn btn-a ${result.genotype === 'A' ? 'active' : ''}"
+                                    onclick="setGenotype(${result.laneIndex}, 'A')">A</button>
+                            <button class="manual-btn btn-b ${result.genotype === 'B' ? 'active' : ''}"
+                                    onclick="setGenotype(${result.laneIndex}, 'B')">B</button>
+                            <button class="manual-btn btn-h ${result.genotype === 'H' ? 'active' : ''}"
+                                    onclick="setGenotype(${result.laneIndex}, 'H')">H</button>
+                            <button class="manual-btn btn-x ${result.genotype === '-' ? 'active' : ''}"
+                                    onclick="setGenotype(${result.laneIndex}, '-')">-</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            }
+
+            document.getElementById('resultStats').textContent =
+                `A:${aCount} B:${bCount} H:${hCount} ?:${unknownCount}`;
+        }
+
+        function setGenotype(laneIndex, genotype) {
+            const result = state.results.find(r => r.laneIndex === laneIndex);
+            if (result) {
+                result.genotype = genotype;
+                result.manualOverride = true;
+                updateResultsTable();
+            }
+        }
+
+        function toggleOverlay() {
+            state.showOverlay = !state.showOverlay;
+            drawResults();
+        }
+
+        function resetCanvas() {
+            if (state.originalImageData) {
+                ctx.putImageData(state.originalImageData, 0, 0);
+            }
+        }
+
+        function enterManualMode() {
+            state.manualMode = !state.manualMode;
+            showToast(state.manualMode ? '수동 보정 모드: 캔버스 클릭으로 밴드 추가/제거' : '수동 보정 모드 종료',
+                      state.manualMode ? 'warning' : 'success');
+        }
+
+        function handleCanvasClick(x, y) {
+            // Find which lane was clicked
+            const lane = state.lanes.find(l => x >= l.x && x < l.x + l.width);
+            if (!lane || lane.isLadder) return;
+
+            // Check if clicking on existing band (remove it)
+            const existingBand = lane.bands.findIndex(b =>
+                Math.abs(b.y - y) < b.height
+            );
+
+            if (existingBand >= 0) {
+                lane.bands.splice(existingBand, 1);
+                showToast('밴드가 제거되었습니다');
+            } else {
+                // Add new band
+                lane.bands.push({
+                    y: y,
+                    intensity: 200,
+                    height: 10,
+                    bp: null
+                });
+                calculateBpSizes();
+                showToast('밴드가 추가되었습니다');
+            }
+
+            determineGenotypes();
+            drawResults();
+            updateResultsTable();
+        }
+
+        function updateGenotypeInfo() {
+            const markerType = document.querySelector('input[name="markerType"]:checked').value;
+            const infoEl = document.getElementById('genotypeInfo');
+
+            if (markerType === 'STS') {
+                infoEl.textContent = 'STS - A: 밴드 있음, B: 밴드 없음';
+            } else {
+                infoEl.textContent = 'CAPS - A: 미절단, B: 절단, H: 둘 다 (헤테로)';
+            }
+        }
+
+        // ==================== Export Functions ====================
+
+        function downloadExcel() {
+            if (state.results.length === 0) {
+                showToast('먼저 분석을 실행하세요', 'warning');
+                return;
+            }
+
+            const markerName = document.getElementById('markerName').value || 'Marker1';
+
+            // Prepare data
+            const data = [
+                ['Sample', markerName, 'Band Count', 'bp Size']
+            ];
+
+            for (const result of state.results) {
+                data.push([
+                    result.sampleName,
+                    result.genotype,
+                    result.bands.length,
+                    result.bands.map(b => b.bp || '?').join(', ')
+                ]);
+            }
+
+            // Create workbook
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Gel Analysis');
+
+            // Download
+            const filename = `gel_analysis_${markerName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(wb, filename);
+
+            showToast('엑셀 파일이 다운로드되었습니다', 'success');
+        }
+
+        function sendToSimulator() {
+            if (state.results.length === 0) {
+                showToast('먼저 분석을 실행하세요', 'warning');
+                return;
+            }
+
+            const markerName = document.getElementById('markerName').value || 'Marker1';
+
+            // Convert genotype to simulator format
+            const genotypeMap = {
+                'A': 2,  // CK1
+                'B': 0,  // CK2
+                'H': 1,  // Het
+                '-': null,
+                '?': null
+            };
+
+            const varieties = state.results.map(r => r.sampleName);
+            const genes = [markerName];
+            const genotypes = state.results.map(r => {
+                const obj = { 'Variety': r.sampleName };
+                obj[markerName] = genotypeMap[r.genotype];
+                return obj;
+            });
+
+            const simulatorData = {
+                timestamp: new Date().toISOString(),
+                source: 'Gel Electrophoresis Analyzer',
+                genes: genes,
+                varieties: varieties,
+                genotypes: genotypes,
+                metadata: {
+                    markerType: document.querySelector('input[name="markerType"]:checked').value,
+                    bandInfo: state.results.map(r => ({
+                        sample: r.sampleName,
+                        bands: r.bands.map(b => ({ bp: b.bp }))
+                    }))
+                }
+            };
+
+            // Save to localStorage
+            localStorage.setItem('gelDataForSimulator', JSON.stringify(simulatorData));
+
+            // Notify parent if in iframe
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'gelDataReady',
+                    count: varieties.length,
+                    geneCount: genes.length
+                }, '*');
+            }
+
+            showToast(`${varieties.length}개 품종 데이터가 시뮬레이터로 전송되었습니다`, 'success');
+
+            // Ask if want to navigate
+            setTimeout(() => {
+                if (confirm('시뮬레이터 페이지로 이동하시겠습니까?')) {
+                    if (window.parent !== window) {
+                        window.parent.postMessage({ type: 'navigate', page: 'simulator' }, '*');
+                    } else {
+                        window.location.href = 'rice_breeding_v4_16_prediction.html';
+                    }
+                }
+            }, 500);
+        }
+
+        function resetAll() {
+            if (!confirm('모든 데이터를 초기화하시겠습니까?')) return;
+
+            state.image = null;
+            state.imageData = null;
+            state.originalImageData = null;
+            state.lanes = [];
+            state.results = [];
+            state.showOverlay = true;
+            state.manualMode = false;
+
+            // Reset UI
+            uploadZone.classList.remove('has-image');
+            uploadZone.innerHTML = `
+                <div class="icon">📁</div>
+                <h3>이미지를 드래그하거나 클릭하여 업로드</h3>
+                <p>PNG, JPG, JPEG 형식 지원</p>
+            `;
+
+            document.getElementById('canvasContainer').style.display = 'none';
+            document.getElementById('canvasControls').style.display = 'none';
+            document.getElementById('sampleNamesCard').style.display = 'none';
+            document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('actionBar').style.display = 'none';
+            document.getElementById('imageStatus').textContent = '대기중';
+
+            fileInput.value = '';
+
+            showToast('초기화되었습니다');
+        }
+
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // ==================== Init ====================
+        updateGenotypeInfo();
+    </script>
+</body>
+</html>
