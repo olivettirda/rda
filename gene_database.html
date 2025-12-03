@@ -1385,9 +1385,9 @@
                     <div id="${cardId}-summary"></div>
 
                     <div class="gene-links">
-                        <a href="https://rapdb.dna.affrc.go.jp/" target="_blank" class="gene-link" title="RAP-DB 홈에서 검색">📖 RAP-DB</a>
-                        <a href="https://www.gramene.org/" target="_blank" class="gene-link" title="Gramene 홈에서 검색">🌱 Gramene</a>
-                        <a href="https://rice.uga.edu/analyses_search_locus.shtml" target="_blank" class="gene-link" title="LOC ID로 RGAP 검색 (${osIdToLoc(gene.id)})">🔬 RGAP</a>
+                        <a href="https://rapdb.dna.affrc.go.jp/locus/?name=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link" title="RAP-DB에서 ${gene.id} 검색">📖 RAP-DB</a>
+                        <a href="https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link" title="Gramene에서 ${gene.id} 검색">🌱 Gramene</a>
+                        <a href="https://n2t.net/ricegap:${osIdToLoc(gene.id)}" target="_blank" class="gene-link" title="RGAP에서 ${osIdToLoc(gene.id)} 검색">🔬 RGAP</a>
                         <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
                         ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
                         <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link">📚 논문검색</a>
@@ -1534,63 +1534,118 @@
             }
         }
 
-        // 영어 요약을 한국어로 간략화
+        // 영어 요약을 한국어로 상세하게 변환
         function summarizeGeneInfo(englishSummary) {
-            const text = englishSummary.toLowerCase();
-
-            // 기능별 패턴 매칭으로 한국어 요약 생성
-            const patterns = [
+            // 기능 카테고리 패턴
+            const functionPatterns = [
                 // 저항성 관련
-                { match: /blast resistance|resistance to blast/i, kr: '도열병 저항성' },
-                { match: /bacterial blight resistance|resistance to.*xanthomonas/i, kr: '흰잎마름병 저항성' },
-                { match: /disease resistance|pathogen resistance/i, kr: '병 저항성' },
-                { match: /insect resistance|pest resistance/i, kr: '해충 저항성' },
-                { match: /drought (resistance|tolerance)/i, kr: '가뭄 저항성/내성' },
-                { match: /salt (tolerance|resistance)/i, kr: '염 내성' },
-                { match: /cold (tolerance|resistance)/i, kr: '저온 내성' },
-                { match: /heat (tolerance|resistance)/i, kr: '고온 내성' },
+                { match: /blast resistance|resistance to blast|pyricularia/i, category: '도열병 저항성', detail: '도열병균에 대한 저항성을 부여' },
+                { match: /bacterial blight|resistance to.*xanthomonas|xa\d+/i, category: '흰잎마름병 저항성', detail: '흰잎마름병균(Xoo)에 대한 저항성 부여' },
+                { match: /brown planthopper|bph resistance/i, category: '벼멸구 저항성', detail: '벼멸구에 대한 저항성 조절' },
+                { match: /disease resistance|pathogen resistance|immunity/i, category: '병 저항성', detail: '병원균에 대한 면역 반응 조절' },
+                { match: /drought (resistance|tolerance)|water deficit/i, category: '가뭄 내성', detail: '수분 부족 스트레스 반응 조절' },
+                { match: /salt (tolerance|resistance)|salinity/i, category: '염 내성', detail: '염분 스트레스에 대한 내성 부여' },
+                { match: /cold (tolerance|resistance)|chilling/i, category: '저온 내성', detail: '저온 스트레스 반응 조절' },
+                { match: /heat (tolerance|resistance)|thermotolerance/i, category: '고온 내성', detail: '고온 스트레스 내성 조절' },
+                { match: /submergence|flooding tolerance/i, category: '침수 내성', detail: '침수 조건에서 생존 능력 부여' },
                 // 생장/발달 관련
-                { match: /flowering time|heading date/i, kr: '출수기/개화시기 조절' },
-                { match: /plant height|semi-dwarf|dwarfism/i, kr: '초장/왜성 관련' },
-                { match: /grain (size|weight|length|width)/i, kr: '종자 크기/중량 관련' },
-                { match: /yield|grain number/i, kr: '수량/이삭당립수 관련' },
-                { match: /tiller|tillering/i, kr: '분얼 관련' },
-                { match: /root (development|growth|architecture)/i, kr: '뿌리 발달' },
-                { match: /leaf (development|morphology)/i, kr: '잎 발달/형태' },
+                { match: /flowering time|heading date|photoperiod/i, category: '출수기 조절', detail: '광주기 반응을 조절하여 개화 시기 결정' },
+                { match: /plant height|semi-dwarf|dwarfism|gibberellin/i, category: '초장 조절', detail: '식물체 높이 및 지베렐린 대사 조절' },
+                { match: /grain (size|weight|length|width)|seed size/i, category: '종실 크기 조절', detail: '종실 크기와 무게 결정' },
+                { match: /yield|grain number|spikelet/i, category: '수량 관련', detail: '이삭당 영화수 및 수량 조절' },
+                { match: /tiller|tillering|axillary/i, category: '분얼 조절', detail: '분얼수 및 분얼각 조절' },
+                { match: /root (development|growth|architecture)/i, category: '뿌리 발달', detail: '뿌리 구조 및 발달 조절' },
+                { match: /leaf (development|morphology)|lamina/i, category: '잎 발달', detail: '잎 형태 및 발달 조절' },
+                { match: /panicle|inflorescence/i, category: '이삭 발달', detail: '이삭 구조 및 발달 조절' },
                 // 품질 관련
-                { match: /amylose|starch (content|synthesis)/i, kr: '아밀로스/전분 함량' },
-                { match: /eating quality|cooking quality/i, kr: '밥맛/식미' },
-                { match: /protein (content|quality)/i, kr: '단백질 함량/품질' },
-                { match: /aroma|fragrance/i, kr: '향기 성분' },
-                { match: /gelatinization|pasting/i, kr: '호화 특성' },
+                { match: /amylose|starch (content|synthesis)|waxy/i, category: '전분 품질', detail: '아밀로스 함량 및 전분 합성 조절' },
+                { match: /eating quality|cooking quality|texture/i, category: '식미 품질', detail: '밥맛 및 식감 결정' },
+                { match: /protein (content|quality)/i, category: '단백질 품질', detail: '종실 단백질 함량 조절' },
+                { match: /aroma|fragrance|2-acetyl-1-pyrroline/i, category: '향기 성분', detail: '향기 물질 생합성 조절' },
+                { match: /gelatinization|pasting/i, category: '호화 특성', detail: '전분 호화 온도 결정' },
                 // 기타 기능
-                { match: /transcription factor/i, kr: '전사인자' },
-                { match: /signal(ing|ling)? (pathway|transduction)/i, kr: '신호전달' },
-                { match: /hormone/i, kr: '호르몬 관련' },
-                { match: /photosynthesis/i, kr: '광합성 관련' },
-                { match: /cell wall/i, kr: '세포벽 관련' },
-                { match: /metabolism/i, kr: '대사 관련' }
+                { match: /nitrogen|nitrate/i, category: '질소 대사', detail: '질소 흡수 및 이용 효율 조절' },
+                { match: /phosphate|phosphorus/i, category: '인산 대사', detail: '인산 흡수 및 이용 조절' },
+                { match: /iron|fe(rric|rrous)/i, category: '철 대사', detail: '철분 항상성 조절' },
+                { match: /photosynthesis|chlorophyll/i, category: '광합성', detail: '광합성 효율 및 엽록소 대사 조절' },
+                { match: /senescence|aging/i, category: '노화 조절', detail: '식물체 노화 과정 조절' },
+                { match: /cell wall|cellulose|lignin/i, category: '세포벽 형성', detail: '세포벽 구성 성분 합성' },
+                { match: /hormone|auxin|cytokinin|ethylene|aba|brassinosteroid/i, category: '호르몬 신호', detail: '식물 호르몬 신호전달 조절' }
             ];
 
-            // 매칭되는 패턴들 수집
-            const matched = [];
-            for (const p of patterns) {
+            // 단백질 유형 패턴
+            const proteinPatterns = [
+                { match: /transcription factor|TF\b|DNA.binding/i, type: '전사인자', desc: '유전자 발현을 조절하는 전사인자로' },
+                { match: /receptor.like kinase|RLK|receptor kinase/i, type: '수용체 키나제', desc: '세포막 수용체 키나제로' },
+                { match: /NBS.LRR|NB.ARC|resistance protein|R protein/i, type: 'NBS-LRR 단백질', desc: '병 저항성 NBS-LRR 단백질로' },
+                { match: /F.box|ubiquitin ligase|E3 ligase/i, type: '유비퀴틴 리가제', desc: '단백질 분해 조절 E3 유비퀴틴 리가제로' },
+                { match: /kinase|phosphorylat/i, type: '키나제', desc: '단백질 인산화 효소로' },
+                { match: /phosphatase/i, type: '포스파타제', desc: '단백질 탈인산화 효소로' },
+                { match: /synthase|synthetase/i, type: '합성효소', desc: '생합성 효소로' },
+                { match: /oxidase|reductase|dehydrogenase/i, type: '산화환원효소', desc: '산화환원 반응을 촉매하는 효소로' },
+                { match: /transferase/i, type: '전이효소', desc: '작용기 전이를 촉매하는 효소로' },
+                { match: /transporter|channel|permease/i, type: '수송체', desc: '물질 수송을 담당하는 수송체로' },
+                { match: /MADS.box|homeodomain|HD.ZIP/i, type: 'MADS-box 전사인자', desc: '발달 조절 MADS-box 전사인자로' },
+                { match: /MYB|bHLH|WRKY|NAC|AP2|ERF/i, type: '전사인자', desc: (m) => `${m[0].toUpperCase()} 계열 전사인자로` },
+                { match: /cytochrome|P450|CYP/i, type: '시토크롬 P450', desc: '시토크롬 P450 효소로' },
+                { match: /G.protein|GTP.binding|GTPase/i, type: 'G 단백질', desc: 'G 단백질 신호전달에 관여하여' },
+                { match: /histone|chromatin|methyltransferase/i, type: '후성유전 조절자', desc: '염색질 구조 조절을 통해' },
+                { match: /heat shock|HSP|chaperone/i, type: '샤페론', desc: '단백질 접힘을 돕는 샤페론으로' },
+                { match: /aquaporin|water channel/i, type: '아쿠아포린', desc: '물 수송 채널로' }
+            ];
+
+            // 기능 찾기
+            let functionInfo = null;
+            for (const p of functionPatterns) {
                 if (p.match.test(englishSummary)) {
-                    matched.push(p.kr);
+                    functionInfo = p;
+                    break;
                 }
             }
 
-            // 한국어 요약 생성
-            let koreanSummary = '';
-            if (matched.length > 0) {
-                koreanSummary = `<div style="background: #e3f2fd; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 0.95em;"><strong>🇰🇷 요약:</strong> ${matched.slice(0, 3).join(', ')} 유전자</div>`;
+            // 단백질 유형 찾기
+            let proteinInfo = null;
+            for (const p of proteinPatterns) {
+                const m = englishSummary.match(p.match);
+                if (m) {
+                    proteinInfo = {
+                        type: p.type,
+                        desc: typeof p.desc === 'function' ? p.desc(m) : p.desc
+                    };
+                    break;
+                }
             }
 
-            // 영어 원문 (첫 문장만)
-            const firstSentence = englishSummary.split(/[.!?]/)[0];
-            const shortEnglish = firstSentence.length > 150 ? firstSentence.substring(0, 150) + '...' : firstSentence + '.';
+            // 한국어 요약 문장 생성
+            let koreanDesc = '';
+            if (functionInfo && proteinInfo) {
+                // 기능 + 단백질 유형 모두 있으면 자세한 문장 생성
+                koreanDesc = `${functionInfo.category} 유전자. ${proteinInfo.desc} ${functionInfo.detail}함.`;
+            } else if (functionInfo) {
+                // 기능만 있으면
+                koreanDesc = `${functionInfo.category} 유전자. ${functionInfo.detail}함.`;
+            } else if (proteinInfo) {
+                // 단백질 유형만 있으면
+                koreanDesc = `${proteinInfo.type}를 암호화하는 유전자. ${proteinInfo.desc} 기능을 수행함.`;
+            }
 
-            return koreanSummary + `<span style="color: #666; font-size: 0.9em;">${shortEnglish}</span>`;
+            // 결과 HTML 생성
+            let result = '';
+            if (koreanDesc) {
+                result = `<div style="background: #e3f2fd; padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #1976d2;">
+                    <div style="font-weight: 600; color: #1565c0; margin-bottom: 4px;">🇰🇷 한국어 요약</div>
+                    <div style="color: #333; line-height: 1.5;">${koreanDesc}</div>
+                </div>`;
+            }
+
+            // 영어 원문 (첫 2문장)
+            const sentences = englishSummary.split(/(?<=[.!?])\s+/);
+            const shortEnglish = sentences.slice(0, 2).join(' ');
+            const truncated = shortEnglish.length > 200 ? shortEnglish.substring(0, 200) + '...' : shortEnglish;
+
+            result += `<div style="color: #666; font-size: 0.9em; line-height: 1.4;"><strong>원문:</strong> ${truncated}</div>`;
+
+            return result;
         }
 
         function toggleBookmark(id, name) {
