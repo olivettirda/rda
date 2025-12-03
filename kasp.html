@@ -1768,11 +1768,29 @@
         function sendToSimulator() {
             const genes = Object.keys(geneResults).sort();
 
+            // "구분" 열 찾기
+            let categoryCol = null;
+            if (sampleData.length > 0) {
+                const firstRow = sampleData[0];
+                for (const key of Object.keys(firstRow)) {
+                    const keyLower = key.toLowerCase();
+                    if (key === '구분' || keyLower === 'category' || keyLower === 'type' || keyLower === 'class') {
+                        categoryCol = key;
+                        break;
+                    }
+                }
+            }
+
             // 시료별 데이터 구성
             const wellData = {};
             sampleData.forEach(row => {
                 const well = normalizeWell(String(row[wellCol] || ''));
-                wellData[well] = { well, sampleName: row[sampleCol] || '', genes: {} };
+                wellData[well] = {
+                    well,
+                    sampleName: row[sampleCol] || '',
+                    category: categoryCol ? String(row[categoryCol] || '').toUpperCase().trim() : '',
+                    genes: {}
+                };
             });
 
             genes.forEach(geneName => {
@@ -1792,20 +1810,31 @@
             };
 
             // NTC, CK 등 대조구 제외 함수
-            const isControlSample = (name) => {
+            const isControlSample = (name, category) => {
                 if (!name) return true;
                 const upper = String(name).toUpperCase().trim();
-                return upper === 'NTC' || upper === 'CK' ||
-                       upper.startsWith('NTC') || upper.startsWith('CK') ||
-                       upper.includes('CONTROL') || upper === 'BLANK' ||
-                       upper === 'NC' || upper === 'PC';
+
+                // 품종명 기준 제외
+                if (upper === 'NTC' || upper === 'CK' ||
+                    upper.startsWith('NTC') || upper.startsWith('CK') ||
+                    upper.includes('CONTROL') || upper === 'BLANK' ||
+                    upper === 'NC' || upper === 'PC') {
+                    return true;
+                }
+
+                // 구분 열에 CK가 있으면 제외
+                if (category === 'CK' || category === 'CHECK' || category === 'CONTROL') {
+                    return true;
+                }
+
+                return false;
             };
 
             Object.values(wellData).forEach(item => {
                 if (!item.sampleName) return;
 
-                // NTC, CK 등 대조구 제외
-                if (isControlSample(item.sampleName)) return;
+                // NTC, CK 등 대조구 제외 (구분 열도 체크)
+                if (isControlSample(item.sampleName, item.category)) return;
 
                 const genotypeRow = { 'Variety': item.sampleName };
                 genes.forEach(g => {
