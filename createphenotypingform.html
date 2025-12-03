@@ -643,23 +643,89 @@
                         <label class="setting-label">채우기 스타일</label>
                         <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="patternMode" value="solid" checked onchange="updateChart()"> 단색 채우기
+                                <input type="radio" name="patternMode" value="solid" checked onchange="updatePatternOptions()"> 단색 채우기
                             </label>
                             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="patternMode" value="pattern" onchange="updateChart()"> 패턴 채우기
+                                <input type="radio" name="patternMode" value="pattern" onchange="updatePatternOptions()"> 패턴 채우기
                             </label>
                         </div>
                         <div id="patternTypeSelector" style="display: none; margin-top: 10px;">
                             <label class="setting-label">패턴 종류</label>
                             <select id="patternType" onchange="updateChart()" style="width: 100%; max-width: 200px;">
-                                <option value="mixed">혼합 (자동)</option>
-                                <option value="diagonal">대각선</option>
-                                <option value="cross">십자</option>
-                                <option value="dots">점</option>
-                                <option value="horizontal">수평선</option>
-                                <option value="vertical">수직선</option>
+                                <option value="mixed">혼합 (자동 - 품종별 다른 패턴)</option>
+                                <option value="diagonal">대각선 (/)</option>
+                                <option value="diagonal2">대각선 (\)</option>
+                                <option value="cross">십자 (X)</option>
+                                <option value="dots">점 (●)</option>
+                                <option value="horizontal">수평선 (─)</option>
+                                <option value="vertical">수직선 (│)</option>
+                                <option value="grid">격자 (┼)</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- 흑백 모드 명도 설정 -->
+                    <div id="grayscaleOptions" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
+                        <label class="setting-label">흑백 명도 설정</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                시작 명도:
+                                <input type="range" id="grayscaleStart" min="0" max="100" value="90" onchange="updateGrayscalePreview(); updateChart()">
+                                <span id="grayscaleStartValue">90%</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                끝 명도:
+                                <input type="range" id="grayscaleEnd" min="0" max="100" value="20" onchange="updateGrayscalePreview(); updateChart()">
+                                <span id="grayscaleEndValue">20%</span>
+                            </label>
+                        </div>
+                        <div id="grayscalePreview" style="margin-top: 10px; display: flex; gap: 3px;"></div>
+                    </div>
+
+                    <!-- 선 그래프/정규분포 선 스타일 -->
+                    <div id="lineStyleOptions" style="display: none; margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
+                        <label class="setting-label">선 스타일 (선그래프/정규분포)</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="lineStyle" value="solid" checked onchange="updateChart()"> 단일 스타일
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="lineStyle" value="mixed" onchange="updateChart()"> 혼합 스타일 (실선/점선/대시)
+                            </label>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                선 두께:
+                                <input type="number" id="lineWidth" value="2" min="1" max="6" onchange="updateChart()" style="width: 60px;">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 색상 팔레트 선택 -->
+                    <div id="colorPaletteOptions" style="margin-top: 15px; padding: 15px; background: var(--bg-section); border-radius: 8px;">
+                        <label class="setting-label">색상 팔레트</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="colorPalette" value="default" checked onchange="updateChart()"> 기본 (청록)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="colorPalette" value="warm" onchange="updateChart()"> 따뜻한 색
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="colorPalette" value="cool" onchange="updateChart()"> 차가운 색
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="colorPalette" value="rainbow" onchange="updateChart()"> 무지개
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="radio" name="colorPalette" value="custom" onchange="updateChart()"> 사용자 정의
+                            </label>
+                        </div>
+                        <div id="customColorInputs" style="display: none; margin-top: 10px;">
+                            <p style="font-size: 0.85em; color: #666; margin-bottom: 8px;">품종별 색상 지정 (쉼표로 구분, 예: #FF0000, #00FF00, #0000FF)</p>
+                            <input type="text" id="customColors" placeholder="#cce3dd, #00a1b8, #0c3026" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateChart()">
+                        </div>
+                        <div id="palettePreview" style="margin-top: 10px; display: flex; gap: 3px;"></div>
                     </div>
 
                     <div class="chart-container" id="chartWrapper">
@@ -1091,12 +1157,30 @@
             return ctx.createPattern(canvas, 'repeat');
         }
 
-        function getContrastColor(hexColor) {
-            // 16진수 색상에서 밝기 계산
-            const hex = hexColor.replace('#', '');
-            const r = parseInt(hex.substr(0, 2), 16);
-            const g = parseInt(hex.substr(2, 2), 16);
-            const b = parseInt(hex.substr(4, 2), 16);
+        function getContrastColor(color) {
+            // 색상에서 밝기 계산 (hex 또는 rgb 형식 지원)
+            let r, g, b;
+
+            if (color.startsWith('#')) {
+                // 16진수 색상
+                const hex = color.replace('#', '');
+                r = parseInt(hex.substr(0, 2), 16);
+                g = parseInt(hex.substr(2, 2), 16);
+                b = parseInt(hex.substr(4, 2), 16);
+            } else if (color.startsWith('rgb')) {
+                // RGB 색상 (예: "rgb(128, 128, 128)")
+                const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (match) {
+                    r = parseInt(match[1]);
+                    g = parseInt(match[2]);
+                    b = parseInt(match[3]);
+                } else {
+                    return '#333333'; // 기본값
+                }
+            } else {
+                return '#333333'; // 알 수 없는 형식
+            }
+
             const brightness = (r * 299 + g * 587 + b * 114) / 1000;
             return brightness > 128 ? '#333333' : '#ffffff';
         }
@@ -1107,7 +1191,128 @@
             }
             return selectedType;
         }
-        
+
+        // 색상 팔레트 정의
+        const COLOR_PALETTES = {
+            default: ['#cce3dd', '#b2d9d8', '#8dccd3', '#54b7c6', '#00a1b8', '#017f97', '#0c3026'],
+            warm: ['#ffebee', '#ffcdd2', '#ef9a9a', '#e57373', '#ef5350', '#d32f2f', '#b71c1c'],
+            cool: ['#e3f2fd', '#bbdefb', '#90caf9', '#64b5f6', '#42a5f5', '#1e88e5', '#0d47a1'],
+            rainbow: ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#3498db', '#9b59b6', '#34495e']
+        };
+
+        // 선 스타일 배열 (혼합 모드용)
+        const LINE_STYLES = [
+            [],           // 실선
+            [5, 5],       // 점선
+            [10, 5],      // 대시
+            [10, 5, 2, 5], // 대시-점
+            [2, 2],       // 짧은 점선
+            [15, 5],      // 긴 대시
+            [10, 5, 5, 5]  // 대시-짧은대시
+        ];
+
+        // UI 업데이트 함수들
+        function updatePatternOptions() {
+            const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
+            const patternTypeSelector = document.getElementById('patternTypeSelector');
+            if (patternTypeSelector) {
+                patternTypeSelector.style.display = patternMode === 'pattern' ? 'block' : 'none';
+            }
+            updateChart();
+        }
+
+        function updateGrayscalePreview() {
+            const start = parseInt(document.getElementById('grayscaleStart')?.value || 90);
+            const end = parseInt(document.getElementById('grayscaleEnd')?.value || 20);
+            document.getElementById('grayscaleStartValue').textContent = start + '%';
+            document.getElementById('grayscaleEndValue').textContent = end + '%';
+
+            const preview = document.getElementById('grayscalePreview');
+            if (preview) {
+                preview.innerHTML = '';
+                for (let i = 0; i < 7; i++) {
+                    const pct = start - (start - end) * (i / 6);
+                    const grayVal = Math.round(pct * 2.55);
+                    const color = `rgb(${grayVal}, ${grayVal}, ${grayVal})`;
+                    const box = document.createElement('div');
+                    box.style.cssText = `width: 30px; height: 20px; background: ${color}; border: 1px solid #999;`;
+                    preview.appendChild(box);
+                }
+            }
+        }
+
+        function updatePalettePreview() {
+            const palette = document.querySelector('input[name="colorPalette"]:checked')?.value || 'default';
+            const preview = document.getElementById('palettePreview');
+            const customInputs = document.getElementById('customColorInputs');
+
+            if (customInputs) {
+                customInputs.style.display = palette === 'custom' ? 'block' : 'none';
+            }
+
+            if (preview) {
+                preview.innerHTML = '';
+                const colors = getSelectedPalette();
+                colors.forEach(color => {
+                    const box = document.createElement('div');
+                    box.style.cssText = `width: 30px; height: 20px; background: ${color}; border: 1px solid #999;`;
+                    preview.appendChild(box);
+                });
+            }
+        }
+
+        function getSelectedPalette() {
+            const palette = document.querySelector('input[name="colorPalette"]:checked')?.value || 'default';
+            if (palette === 'custom') {
+                const customStr = document.getElementById('customColors')?.value || '';
+                const colors = customStr.split(',').map(c => c.trim()).filter(c => c.match(/^#[0-9A-Fa-f]{6}$/));
+                return colors.length > 0 ? colors : COLOR_PALETTES.default;
+            }
+            return COLOR_PALETTES[palette] || COLOR_PALETTES.default;
+        }
+
+        function getGrayscalePalette(count) {
+            const start = parseInt(document.getElementById('grayscaleStart')?.value || 90);
+            const end = parseInt(document.getElementById('grayscaleEnd')?.value || 20);
+            const palette = [];
+            for (let i = 0; i < count; i++) {
+                const pct = start - (start - end) * (i / Math.max(count - 1, 1));
+                const grayVal = Math.round(pct * 2.55);
+                palette.push(`rgb(${grayVal}, ${grayVal}, ${grayVal})`);
+            }
+            return palette;
+        }
+
+        function getLineStyleForIndex(index) {
+            return LINE_STYLES[index % LINE_STYLES.length];
+        }
+
+        function updateChartOptionsVisibility() {
+            const chartType = document.getElementById('chartType')?.value;
+            const useGrayscale = document.getElementById('useGrayscale')?.checked;
+
+            // 흑백 모드 옵션
+            const grayscaleOptions = document.getElementById('grayscaleOptions');
+            if (grayscaleOptions) {
+                grayscaleOptions.style.display = useGrayscale ? 'block' : 'none';
+            }
+
+            // 선 스타일 옵션 (선그래프, 정규분포)
+            const lineStyleOptions = document.getElementById('lineStyleOptions');
+            if (lineStyleOptions) {
+                lineStyleOptions.style.display = (chartType === 'line' || chartType === 'normal') ? 'block' : 'none';
+            }
+
+            // 색상 팔레트 옵션 (흑백 모드가 아닐 때)
+            const colorPaletteOptions = document.getElementById('colorPaletteOptions');
+            if (colorPaletteOptions) {
+                colorPaletteOptions.style.display = useGrayscale ? 'none' : 'block';
+            }
+
+            updatePalettePreview();
+            if (useGrayscale) updateGrayscalePreview();
+        }
+
         // Duncan's q값 테이블 (α = 0.05)
         const qTable = {
             0.05: {
@@ -3541,8 +3746,8 @@
             const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
             const patternType = document.getElementById('patternType')?.value || 'mixed';
 
-            // 색상 팔레트 선택
-            const basePalette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+            // 새로운 팔레트 시스템 사용
+            const basePalette = useGrayscale ? getGrayscalePalette(varieties.length) : getSelectedPalette();
 
             // 전체 데이터 범위 계산
             let allValues = [];
@@ -3623,7 +3828,8 @@
             const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
             const patternType = document.getElementById('patternType')?.value || 'mixed';
 
-            const basePalette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+            // 새로운 팔레트 시스템 사용
+            const basePalette = useGrayscale ? getGrayscalePalette(varieties.length) : getSelectedPalette();
 
             const canvas = document.getElementById('analysisChart');
             const ctx = canvas.getContext('2d');
@@ -3720,8 +3926,13 @@
         function drawNormalDistributionChart(item) {
             const varieties = Object.keys(surveyData);
             const useGrayscale = document.getElementById('useGrayscale').checked;
+            const lineStyle = document.querySelector('input[name="lineStyle"]:checked')?.value || 'solid';
+            const lineWidth = parseInt(document.getElementById('lineWidth')?.value) || 2;
+            const patternMode = document.querySelector('input[name="patternMode"]:checked')?.value || 'solid';
+            const patternType = document.getElementById('patternType')?.value || 'mixed';
 
-            const basePalette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+            // 새로운 팔레트 시스템 사용
+            const basePalette = useGrayscale ? getGrayscalePalette(varieties.length) : getSelectedPalette();
 
             const datasets = [];
             let globalMin = Infinity, globalMax = -Infinity;
@@ -3734,6 +3945,9 @@
                 globalMin = Math.min(globalMin, stats.mean - 4 * stats.std);
                 globalMax = Math.max(globalMax, stats.mean + 4 * stats.std);
             });
+
+            const canvas = document.getElementById('analysisChart');
+            const ctx = canvas.getContext('2d');
 
             // 정규분포 곡선 생성
             varieties.forEach((variety, idx) => {
@@ -3754,19 +3968,39 @@
                 const colorIdx = idx % basePalette.length;
                 const baseColor = basePalette[colorIdx];
 
+                // 선 스타일 결정
+                const dashPattern = (lineStyle === 'mixed') ? getLineStyleForIndex(idx) : [];
+
+                // 패턴 채우기 또는 반투명 색상
+                let fillColor;
+                if (patternMode === 'pattern') {
+                    const pType = getPatternTypeForIndex(idx, patternType);
+                    fillColor = createPattern(ctx, pType, baseColor, idx);
+                } else {
+                    // 반투명 색상 (16진수 색상에서 RGB 추출)
+                    const hex = baseColor.replace('#', '');
+                    if (hex.length === 6) {
+                        const r = parseInt(hex.substr(0, 2), 16);
+                        const g = parseInt(hex.substr(2, 2), 16);
+                        const b = parseInt(hex.substr(4, 2), 16);
+                        fillColor = `rgba(${r}, ${g}, ${b}, 0.15)`;
+                    } else {
+                        fillColor = baseColor + '20';
+                    }
+                }
+
                 datasets.push({
                     label: `${variety} (μ=${stats.mean.toFixed(1)}, σ=${stats.std.toFixed(1)})`,
                     data: points,
-                    borderColor: useGrayscale ? darkenColor(baseColor, 0.2) : baseColor,
-                    backgroundColor: baseColor + '20',
+                    borderColor: useGrayscale ? darkenColor(baseColor, 0.3) : baseColor,
+                    backgroundColor: fillColor,
+                    borderWidth: lineWidth,
+                    borderDash: dashPattern,
                     fill: true,
                     tension: 0.4,
                     pointRadius: 0
                 });
             });
-
-            const canvas = document.getElementById('analysisChart');
-            const ctx = canvas.getContext('2d');
 
             if (currentChart) currentChart.destroy();
 
@@ -3814,15 +4048,18 @@
             const item = document.getElementById('analysisItem').value;
             const chartType = document.getElementById('chartType').value;
             const errorBarType = document.getElementById('errorBar').value;
-            
+
             if (!item || !surveyData || Object.keys(surveyData).length === 0) return;
-            
+
+            // 차트 옵션 가시성 업데이트
+            updateChartOptionsVisibility();
+
             // 히스토그램 구간 수 옵션 표시/숨기기
             const histogramBinsItem = document.getElementById('histogramBinsItem');
             if (histogramBinsItem) {
                 histogramBinsItem.style.display = (chartType === 'histogram') ? 'block' : 'none';
             }
-            
+
             // 분포도 차트 유형인 경우 별도 함수 호출
             if (chartType === 'histogram') {
                 drawHistogramChart(item);
@@ -3834,7 +4071,7 @@
                 drawNormalDistributionChart(item);
                 return;
             }
-            
+
             // 옵션 읽기
             const widthMM = parseFloat(document.getElementById('chartWidthMM').value) || 170;
             const heightMM = parseFloat(document.getElementById('chartHeightMM').value) || 120;
@@ -3914,22 +4151,26 @@
             
             // 그룹별 색상 결정
             let baseColors, borderColors;
+            const numGroups = [...new Set(groups)].length;
+
             if (useGroupColors && dmrtResults) {
                 const uniqueGroups = [...new Set(groups)].sort();
                 const groupColorMap = {};
-                const palette = useGrayscale ? GRAYSCALE_FILLS : COLOR_PALETTE;
+                // 새로운 팔레트 시스템 사용
+                const palette = useGrayscale ? getGrayscalePalette(uniqueGroups.length) : getSelectedPalette();
 
                 uniqueGroups.forEach((g, i) => {
                     const colorIdx = Math.floor(i * (palette.length - 1) / Math.max(uniqueGroups.length - 1, 1));
-                    groupColorMap[g] = palette[colorIdx];
+                    groupColorMap[g] = palette[colorIdx % palette.length];
                 });
 
                 baseColors = groups.map(g => groupColorMap[g]);
                 borderColors = useGrayscale ? baseColors.map(() => '#333333') : baseColors.map(c => darkenColor(c, 0.3));
             } else {
-                const baseColor = useGrayscale ? '#808080' : '#00a1b8';
+                const palette = useGrayscale ? getGrayscalePalette(1) : getSelectedPalette();
+                const baseColor = palette[0] || '#00a1b8';
                 baseColors = means.map(() => baseColor);
-                borderColors = means.map(() => useGrayscale ? '#333333' : '#017f97');
+                borderColors = means.map(() => useGrayscale ? '#333333' : darkenColor(baseColor, 0.3));
             }
 
             // 패턴 적용
@@ -4105,10 +4346,31 @@
         
         // 색상 어둡게 만들기
         function darkenColor(color, amount) {
-            const hex = color.replace('#', '');
-            const r = Math.max(0, parseInt(hex.slice(0, 2), 16) - Math.round(255 * amount));
-            const g = Math.max(0, parseInt(hex.slice(2, 4), 16) - Math.round(255 * amount));
-            const b = Math.max(0, parseInt(hex.slice(4, 6), 16) - Math.round(255 * amount));
+            let r, g, b;
+
+            if (color.startsWith('#')) {
+                // 16진수 색상
+                const hex = color.replace('#', '');
+                r = parseInt(hex.slice(0, 2), 16);
+                g = parseInt(hex.slice(2, 4), 16);
+                b = parseInt(hex.slice(4, 6), 16);
+            } else if (color.startsWith('rgb')) {
+                // RGB 색상 (예: "rgb(128, 128, 128)")
+                const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (match) {
+                    r = parseInt(match[1]);
+                    g = parseInt(match[2]);
+                    b = parseInt(match[3]);
+                } else {
+                    return '#333333'; // 기본값
+                }
+            } else {
+                return '#333333'; // 알 수 없는 형식
+            }
+
+            r = Math.max(0, r - Math.round(255 * amount));
+            g = Math.max(0, g - Math.round(255 * amount));
+            b = Math.max(0, b - Math.round(255 * amount));
             return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
         }
 
