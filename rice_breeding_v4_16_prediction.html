@@ -290,6 +290,25 @@
             <button class="btn" onclick="importKaspData()" style="background: white; color: #017f97; margin-top: 10px;">📥 KASP 데이터 가져오기</button>
             <button class="btn btn-sm" onclick="clearKaspData()" style="background: rgba(255,255,255,0.2); color: white; margin-left: 8px;">✕ 무시</button>
         </div>
+        <div class="result-card" id="phenotypeImportCard" style="display: none; background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%); color: white; margin-top: 15px;">
+            <h3 style="color: white;">📊 표현형 데이터 연동</h3>
+            <p style="opacity: 0.9; margin: 8px 0;" id="phenotypeDataInfo">표현형 분석 결과가 준비되었습니다.</p>
+            <button class="btn" onclick="importPhenotypeData()" style="background: white; color: #2e7d32; margin-top: 10px;">📥 표현형 데이터 가져오기</button>
+            <button class="btn btn-sm" onclick="clearPhenotypeData()" style="background: rgba(255,255,255,0.2); color: white; margin-left: 8px;">✕ 무시</button>
+        </div>
+
+        <!-- 직접 표현형 업로드 -->
+        <div class="result-card" style="margin-top: 15px; border-left: 4px solid #4caf50;">
+            <h3 style="color: #2e7d32;">📊 표현형 데이터 직접 업로드</h3>
+            <p style="color: #666; font-size: 0.9em; margin: 8px 0;">품종명과 형질 데이터만 포함된 간단한 엑셀 파일을 업로드하세요.</p>
+            <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+                <input type="file" id="phenotypeFileInput" accept=".xlsx,.xls" style="display: none;" onchange="handleDirectPhenotypeUpload(event)">
+                <button class="btn" onclick="document.getElementById('phenotypeFileInput').click()" style="background: #4caf50; color: white;">📂 표현형 엑셀 선택</button>
+                <button class="btn btn-secondary" onclick="downloadPhenotypeTemplate()">📥 표현형 양식 다운로드</button>
+            </div>
+            <p id="phenotypeUploadStatus" style="margin-top: 10px; font-size: 0.85em; color: #888;"></p>
+        </div>
+
         <div id="dataStatus"></div>
     </div>
     <!-- Tab 1: 결측치 예측 (순서 변경) -->
@@ -539,15 +558,33 @@
             <h3>🗺️ 마커 위치 설정 (Tab 9 시뮬레이션에 자동 연동)</h3>
             <p>벼 12개 염색체별 마커 물리적 위치. 여기서 설정한 정보가 연관 교배 시뮬레이션에 적용됩니다.</p>
         </div>
+
+        <!-- 용어 설명 추가 -->
+        <div class="result-card" style="background: #e3f2fd; border-left: 4px solid #2196F3;">
+            <h3>📖 용어 설명</h3>
+            <table class="data-table" style="margin-top: 10px; font-size: 0.9em;">
+                <thead><tr><th style="width: 120px;">항목</th><th>설명</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>염색체 (Chr)</strong></td><td>유전자가 위치한 염색체 번호. 벼는 1~12번까지 12개의 염색체를 가집니다.</td></tr>
+                    <tr><td><strong>위치 (bp)</strong></td><td>염색체 상의 물리적 위치 (염기쌍 단위). 동원체로부터의 거리를 계산하는데 사용됩니다.</td></tr>
+                    <tr><td><strong>동원체</strong></td><td>염색체 중간의 잘록한 부분. 세포분열 시 방추사가 부착되는 영역으로, 이 근처에서는 재조합이 억제됩니다.</td></tr>
+                    <tr><td><strong>억제 계수</strong></td><td>동원체 근처의 재조합 억제 정도 (0~1). 0에 가까울수록 재조합이 거의 일어나지 않습니다.</td></tr>
+                    <tr><td><strong>cM (센티모르간)</strong></td><td>유전적 거리 단위. 1cM = 1% 재조합률. 물리적 거리와 달리 재조합 빈도를 반영합니다.</td></tr>
+                    <tr><td><strong>연관 (Linkage)</strong></td><td>같은 염색체에 있는 유전자들이 함께 유전되는 현상. 거리가 가까울수록 연관이 강합니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <div class="result-card" style="background: #ffebee; border-left: 4px solid #e74c3c;">
             <h3>🎯 동원체 재조합 억제 영역</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 10px;">💡 동원체 근처 유전자들은 서로 분리되기 어려워 함께 유전됩니다. 이를 "억제"라고 표현합니다.</p>
             <table class="data-table" style="margin-top: 10px;">
-                <thead><tr><th>영역</th><th>동원체 거리</th><th>억제 계수</th><th>실제 재조합률</th></tr></thead>
+                <thead><tr><th>영역</th><th>동원체 거리</th><th>억제 계수</th><th>실제 재조합률</th><th>의미</th></tr></thead>
                 <tbody>
-                    <tr><td><span class="quality-badge suppression-high">동원체 내부</span></td><td>0-750kb</td><td>0.1 (90%억제)</td><td>거의 0</td></tr>
-                    <tr><td><span class="quality-badge suppression-medium">근동원체</span></td><td>750kb-2Mb</td><td>0.5 (50%억제)</td><td>~0.25 cM/Mb</td></tr>
-                    <tr><td><span class="quality-badge suppression-low">경계 영역</span></td><td>2-3Mb</td><td>0.7 (30%억제)</td><td>~0.35 cM/Mb</td></tr>
-                    <tr><td><span class="quality-badge suppression-none">염색체 팔</span></td><td>>3Mb</td><td>1.0 (정상)</td><td>~0.5 cM/Mb</td></tr>
+                    <tr><td><span class="quality-badge suppression-high">동원체 내부</span></td><td>0-750kb</td><td>0.1 (90%억제)</td><td>거의 0</td><td>유전자가 거의 분리되지 않음</td></tr>
+                    <tr><td><span class="quality-badge suppression-medium">근동원체</span></td><td>750kb-2Mb</td><td>0.5 (50%억제)</td><td>~0.25 cM/Mb</td><td>절반 정도로 분리 억제</td></tr>
+                    <tr><td><span class="quality-badge suppression-low">경계 영역</span></td><td>2-3Mb</td><td>0.7 (30%억제)</td><td>~0.35 cM/Mb</td><td>약간 억제</td></tr>
+                    <tr><td><span class="quality-badge suppression-none">염색체 팔</span></td><td>>3Mb</td><td>1.0 (정상)</td><td>~0.5 cM/Mb</td><td>정상적인 재조합 발생</td></tr>
                 </tbody>
             </table>
             <p style="font-size: 0.8em; color: #636e72; margin-top: 8px;">📚 Si et al. (2015), Chen et al. (2002)</p>
@@ -556,7 +593,7 @@
             <h3>📍 염색체 맵</h3>
             <div class="chromosome-container" id="chromosomeContainer"></div>
             <p style="margin-top: 30px; font-size: 0.85em; color: #666;">
-                <strong>마커:</strong> <span id="loadedMarkerCount">0</span>개 | 
+                <strong>마커:</strong> <span id="loadedMarkerCount">0</span>개 |
                 <strong>Build:</strong> IRGSP-1.0 |
                 🔴 억제 높음 🟡 억제 중간 🟢 억제 낮음 🔵 정상
             </p>
@@ -574,8 +611,43 @@
             <h3>🔗 유전자 상호작용 분석</h3>
             <p>문헌 검증 시너지/길항 효과 + 데이터 기반 상호작용 분석</p>
         </div>
+
+        <!-- 상호작용 유형 설명 추가 -->
+        <div class="result-card" style="background: #e3f2fd; border-left: 4px solid #2196F3;">
+            <h3>📖 상호작용 유형 해설</h3>
+            <table class="data-table" style="margin-top: 10px; font-size: 0.9em;">
+                <thead><tr><th style="width: 130px;">유형</th><th>설명</th><th>예시</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="quality-badge quality-high">🚀 시너지 (Synergy)</span></td>
+                        <td>두 유전자가 함께 있을 때 효과가 <strong>증폭</strong>됨. 1+1 > 2의 효과.</td>
+                        <td>Pi-ta + Pib → 도열병 저항성 강화</td>
+                    </tr>
+                    <tr>
+                        <td><span class="quality-badge quality-low">⚠️ 길항 (Antagonism)</span></td>
+                        <td>두 유전자가 서로 <strong>억제</strong>하거나 효과를 감소시킴.</td>
+                        <td>일부 저항성 유전자 조합 시 효과 감소</td>
+                    </tr>
+                    <tr>
+                        <td><span class="quality-badge quality-medium">📊 데이터 기반</span></td>
+                        <td>문헌 없이 <strong>통계적 분석</strong>으로 발견된 상호작용.</td>
+                        <td>ML 모델의 feature interaction 분석</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 15px; padding: 12px; background: #fff8e1; border-radius: 8px;">
+                <strong>💡 활용 가이드:</strong>
+                <ul style="margin: 8px 0 0 20px; font-size: 0.9em;">
+                    <li><strong>시너지 조합 우선 선발:</strong> 함께 있을 때 효과가 증폭되는 유전자 조합을 교배 계획에 반영</li>
+                    <li><strong>길항 조합 회피:</strong> 서로 효과를 감소시키는 유전자 조합은 피하는 것이 유리</li>
+                    <li><strong>상호작용 점수:</strong> 값이 클수록 상호작용 효과가 강함 (양수=시너지, 음수=길항)</li>
+                </ul>
+            </div>
+        </div>
+
         <div class="result-card" style="background: #e8f5e9; border-left: 4px solid #00b894;">
             <h3>📚 문헌 검증 상호작용</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 10px;">학술 논문에서 검증된 유전자 간 상호작용 정보입니다.</p>
             <div id="knownInteractionsDisplay"></div>
         </div>
         <div class="result-card">
@@ -592,25 +664,44 @@
             <h3>🧬 연관 기반 교배 시뮬레이션 - v4.16 핵심 기능!</h3>
             <p>실제 교배처럼 연관 유전을 반영한 세대 진전 시뮬레이션. 같은 염색체 마커는 재조합률에 따라 함께/분리 유전됩니다.</p>
         </div>
+
+        <!-- 용어 및 항목 설명 -->
+        <div class="result-card" style="background: #e3f2fd; border-left: 4px solid #2196F3;">
+            <h3>📖 시뮬레이션 용어 해설</h3>
+            <table class="data-table" style="margin-top: 10px; font-size: 0.9em;">
+                <thead><tr><th style="width: 130px;">항목</th><th>설명</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>교배 조합</strong></td><td>시뮬레이션할 두 부모 품종. 이 조합으로 F1을 만들고 후대를 진전시킵니다.</td></tr>
+                    <tr><td><strong>목표 형질</strong></td><td>선발 및 분석할 형질 목록. 체크한 형질에 대해 예측과 고정률을 계산합니다.</td></tr>
+                    <tr><td><strong>반복 횟수</strong></td><td>몬테카를로 시뮬레이션 반복 수. 높을수록 정확하지만 시간이 오래 걸립니다.</td></tr>
+                    <tr><td><strong>최종 세대</strong></td><td>시뮬레이션 종료 세대 (F2~F10). 일반적으로 F6~F7에서 계통이 고정됩니다.</td></tr>
+                    <tr><td><strong>자연 분리</strong></td><td>선발 없이 자연스러운 분리만 시뮬레이션. 분리비 예측에 사용.</td></tr>
+                    <tr><td><strong>표현형 선발</strong></td><td>각 세대에서 목표 표현형이 우수한 개체만 선발하여 다음 세대로 진전.</td></tr>
+                    <tr><td><strong>MAS (분자마커선발)</strong></td><td>목표 유전자 마커가 있는 개체만 선발. 유전자형 기반 조기 선발.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <div class="result-card" style="background: #fff3e0; border-left: 4px solid #ff9800;">
             <h3>🔬 시뮬레이션 원리</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px;">
                 <div style="background: white; padding: 12px; border-radius: 8px;">
-                    <strong>1️⃣ Haplotype 생성</strong><br><small>부모의 두 염색체 분리</small>
+                    <strong>1️⃣ Haplotype 생성</strong><br><small>부모의 두 염색체를 분리하여 각 반수체(n) 배우자 생성</small>
                 </div>
                 <div style="background: white; padding: 12px; border-radius: 8px;">
-                    <strong>2️⃣ 감수분열</strong><br><small>재조합 이벤트 시뮬레이션</small>
+                    <strong>2️⃣ 감수분열</strong><br><small>염색체 사이 교차(Crossing-over) 발생 → 재조합체 생성</small>
                 </div>
                 <div style="background: white; padding: 12px; border-radius: 8px;">
-                    <strong>3️⃣ 동원체 억제</strong><br><small>중심체 근처 재조합↓</small>
+                    <strong>3️⃣ 동원체 억제</strong><br><small>동원체 근처는 재조합 억제 → 유전자 함께 이동</small>
                 </div>
                 <div style="background: white; padding: 12px; border-radius: 8px;">
-                    <strong>4️⃣ 연관 유전</strong><br><small>같은 chr 마커 함께 이동</small>
+                    <strong>4️⃣ 연관 유전</strong><br><small>같은 염색체의 가까운 마커는 높은 확률로 함께 유전</small>
                 </div>
             </div>
         </div>
         <div class="result-card">
             <h3>🌱 세대 타임라인</h3>
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 10px;">클릭하여 세대별 상세 정보를 확인하세요.</p>
             <div class="generation-timeline" id="generationTimeline"></div>
         </div>
         <div class="result-card">
@@ -622,22 +713,22 @@
                 <span id="simDataStatus" style="margin-left: 15px; font-size: 0.9em; color: #666;"></span>
             </div>
             <div style="margin: 10px 0;">
-                <label><strong>교배 조합:</strong></label>
+                <label><strong>교배 조합:</strong> <span style="font-size: 0.85em; color: #666;">(두 부모 품종 선택)</span></label>
                 <select id="simCrossCombo" style="width: 100%;"><option value="">-- 데이터 업로드 후 선택 --</option></select>
             </div>
             <div style="margin: 10px 0;">
-                <label><strong>목표 형질:</strong></label>
+                <label><strong>목표 형질:</strong> <span style="font-size: 0.85em; color: #666;">(예측 및 선발할 형질)</span></label>
                 <div id="simTargetTraits"></div>
             </div>
             <div style="margin: 10px 0;">
-                <label>반복 횟수: <input type="number" id="simIterations" value="500" min="100" max="5000"></label>
-                <label>최종 세대: <input type="number" id="simFinalGen" value="7" min="2" max="10"></label>
+                <label>반복 횟수: <input type="number" id="simIterations" value="500" min="100" max="5000"> <span style="font-size: 0.85em; color: #666;">(높을수록 정확, 권장: 500~1000)</span></label>
+                <label style="margin-left: 20px;">최종 세대: <input type="number" id="simFinalGen" value="7" min="2" max="10"> <span style="font-size: 0.85em; color: #666;">(F2~F10)</span></label>
             </div>
-            <div style="margin: 10px 0;">
+            <div style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 8px;">
                 <label><strong>선발 전략:</strong></label><br>
-                <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="none"> 자연 분리</label>
-                <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="phenotype" checked> 표현형 선발</label>
-                <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="marker"> MAS</label>
+                <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="none"> 자연 분리 <span style="font-size: 0.85em; color: #888;">(선발 없음)</span></label>
+                <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="phenotype" checked> 표현형 선발 <span style="font-size: 0.85em; color: #888;">(권장)</span></label>
+                <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="marker"> MAS <span style="font-size: 0.85em; color: #888;">(마커 기반)</span></label>
             </div>
             <button class="btn btn-success" onclick="runLinkageSimulation()" style="font-size: 1.1em; padding: 15px 40px;">🚀 연관 시뮬레이션 실행</button>
         </div>
@@ -1376,12 +1467,23 @@ function processData() {
     });
     
     const excludeKeys = ['Variety', '품종명', 'Type', '재배형', '시험번호', '교배조합', '영문품종명'];
-    geneNames = Object.keys(genotypeData[0]).filter(k => !excludeKeys.includes(k) && 
-        genotypeData.some(r => [0, 1, '0', '1', 'R', 'S', 'X', 'x', null, '', 'NA', '-'].includes(r[k])));
-    
-    // 표현형: 제외 키 + 숫자 데이터가 하나라도 있는 열만 선택
+
+    // EMPTY 및 __EMPTY 패턴 필터 함수
+    const isEmptyKey = (k) => {
+        if (!k || typeof k !== 'string') return true;
+        const lower = k.toLowerCase().trim();
+        return lower === '' || lower.includes('__empty') || lower.includes('empty') ||
+               lower.startsWith('_') || /^column\d*$/i.test(lower);
+    };
+
+    geneNames = Object.keys(genotypeData[0]).filter(k => {
+        if (excludeKeys.includes(k) || isEmptyKey(k)) return false;
+        return genotypeData.some(r => [0, 1, '0', '1', 'R', 'S', 'X', 'x', null, '', 'NA', '-'].includes(r[k]));
+    });
+
+    // 표현형: 제외 키 + EMPTY 패턴 제외 + 숫자 데이터가 하나라도 있는 열만 선택
     phenotypeNames = Object.keys(phenotypeData[0]).filter(k => {
-        if (excludeKeys.includes(k)) return false;
+        if (excludeKeys.includes(k) || isEmptyKey(k)) return false;
         // 해당 열에 숫자 데이터가 하나라도 있는지 확인
         return phenotypeData.some(row => {
             const val = row[k];
@@ -3812,6 +3914,7 @@ async function predictOffspring() {
         pyodide.globals.set('parent2_idx', p2Idx);
         pyodide.globals.set('method', method);
         pyodide.globals.set('model_info_dict', modelInfoForPython);
+        pyodide.globals.set('phenotype_names', phenotypeNames);
         pyodide.globals.set('genotype_matrix', activeData.map(row => {
             return geneNames.map(gene => {
                 const val = row[gene];
@@ -3819,7 +3922,7 @@ async function predictOffspring() {
                 return 0;
             });
         }));
-        
+
         const pythonCode = `
 import numpy as np
 import random
@@ -3846,17 +3949,24 @@ else:
 X_offspring = np.array(offspring_genos, dtype=float)
 predictions = {}
 
+# models가 정의되어 있는지 확인
+if 'models' not in dir() or not models:
+    models = {}
+
 for pheno_name in phenotype_names:
     if pheno_name not in models:
         continue
     model = models[pheno_name]
-    pred = model.predict(X_offspring)
-    predictions[pheno_name] = {
-        'mean': float(np.mean(pred)),
-        'std': float(np.std(pred)),
-        'min': float(np.min(pred)),
-        'max': float(np.max(pred))
-    }
+    try:
+        pred = model.predict(X_offspring)
+        predictions[pheno_name] = {
+            'mean': float(np.mean(pred)),
+            'std': float(np.std(pred)),
+            'min': float(np.min(pred)),
+            'max': float(np.max(pred))
+        }
+    except Exception as e:
+        print(f"예측 오류 ({pheno_name}): {e}")
 
 {'genotypes': [list(map(float, g)) for g in offspring_genos], 'predictions': predictions, 'model_info': model_info_dict}
         `;
@@ -7250,6 +7360,135 @@ function clearKaspData() {
     localStorage.removeItem('kaspDataForSimulator');
 }
 
+// ==================== 표현형 데이터 연동 ====================
+function checkPhenotypeData() {
+    const phenoData = localStorage.getItem('phenotypeDataForSimulator');
+    if (phenoData) {
+        try {
+            const data = JSON.parse(phenoData);
+            const card = document.getElementById('phenotypeImportCard');
+            const info = document.getElementById('phenotypeDataInfo');
+            if (card && info) {
+                info.textContent = `표현형 분석 결과: ${data.varieties.length}개 품종, ${data.traits.length}개 형질 (${new Date(data.timestamp).toLocaleString()})`;
+                card.style.display = 'block';
+                log(`📊 표현형 데이터 감지: ${data.varieties.length}개 품종, ${data.traits.length}개 형질`, 'info');
+            }
+        } catch (e) {
+            console.error('표현형 데이터 파싱 오류:', e);
+        }
+    }
+}
+
+function importPhenotypeData() {
+    const phenoData = localStorage.getItem('phenotypeDataForSimulator');
+    if (!phenoData) {
+        alert('가져올 표현형 데이터가 없습니다.');
+        return;
+    }
+
+    try {
+        const data = JSON.parse(phenoData);
+        log(`📊 표현형 데이터 가져오기 시작: ${data.varieties.length}개 품종, ${data.traits.length}개 형질`, 'info');
+
+        // 기존 데이터와 병합 또는 새로 설정
+        if (phenotypeData && phenotypeData.length > 0) {
+            const mergeChoice = confirm('기존 표현형 데이터가 있습니다.\n\n[확인] 기존 데이터에 병합\n[취소] 새 데이터로 대체');
+
+            if (mergeChoice) {
+                // 기존 데이터에 병합 - 품종명이 같으면 형질 추가/업데이트
+                data.phenotypes.forEach(phenoRow => {
+                    const variety = phenoRow.variety;
+                    const existing = phenotypeData.find(r => (r['Variety'] || r['품종명'] || r.variety) === variety);
+                    if (existing) {
+                        data.traits.forEach(trait => {
+                            if (phenoRow[trait] !== null && phenoRow[trait] !== undefined) {
+                                existing[trait] = phenoRow[trait];
+                            }
+                        });
+                    } else {
+                        // 새 품종 추가
+                        const newRow = { '품종명': variety };
+                        data.traits.forEach(trait => {
+                            newRow[trait] = phenoRow[trait];
+                        });
+                        phenotypeData.push(newRow);
+                    }
+                });
+                // 새 형질 추가
+                data.traits.forEach(t => {
+                    if (!phenotypeNames.includes(t)) phenotypeNames.push(t);
+                });
+                log(`✅ 표현형 데이터 병합 완료: 총 ${phenotypeData.length}개 품종, ${phenotypeNames.length}개 형질`, 'success');
+            } else {
+                // 대체
+                phenotypeData = data.phenotypes.map(p => {
+                    const row = { '품종명': p.variety };
+                    data.traits.forEach(t => { row[t] = p[t]; });
+                    return row;
+                });
+                phenotypeNames = [...data.traits];
+                log(`✅ 표현형 데이터 대체 완료: ${data.varieties.length}개 품종, ${data.traits.length}개 형질`, 'success');
+            }
+        } else {
+            // 새로 설정
+            phenotypeData = data.phenotypes.map(p => {
+                const row = { '품종명': p.variety };
+                data.traits.forEach(t => { row[t] = p[t]; });
+                return row;
+            });
+            phenotypeNames = [...data.traits];
+            log(`✅ 표현형 데이터 로드 완료: ${data.varieties.length}개 품종, ${data.traits.length}개 형질`, 'success');
+        }
+
+        // 품종명 업데이트 (기존 유전자형 데이터가 없을 경우)
+        if (!varietyNames || varietyNames.length === 0) {
+            varietyNames = data.varieties;
+        }
+
+        // 품종 콤보박스 업데이트
+        updateVarietySelectors();
+
+        // 데이터 상태 표시 업데이트
+        updateDataStatusDisplay();
+
+        // 표현형 카드 숨기기
+        clearPhenotypeData();
+        dataLoaded = true;
+
+        alert(`✅ 표현형 데이터 가져오기 완료!\n\n• 품종 수: ${data.varieties.length}개\n• 형질 수: ${data.traits.length}개\n• 데이터: 각 품종의 형질별 평균값\n\n다른 탭에서 분석을 진행하세요.`);
+
+    } catch (e) {
+        console.error('표현형 데이터 가져오기 오류:', e);
+        alert('표현형 데이터 가져오기 중 오류가 발생했습니다: ' + e.message);
+    }
+}
+
+function clearPhenotypeData() {
+    const card = document.getElementById('phenotypeImportCard');
+    if (card) card.style.display = 'none';
+    localStorage.removeItem('phenotypeDataForSimulator');
+}
+
+function updateDataStatusDisplay() {
+    const statusDiv = document.getElementById('dataStatus');
+    if (statusDiv) {
+        let html = '<div class="info-box success"><h3>📊 데이터 로드 현황</h3>';
+
+        if (varietyNames && varietyNames.length > 0) {
+            html += `<p><strong>품종:</strong> ${varietyNames.length}개</p>`;
+        }
+        if (geneNames && geneNames.length > 0) {
+            html += `<p><strong>유전자:</strong> ${geneNames.length}개</p>`;
+        }
+        if (phenotypeNames && phenotypeNames.length > 0) {
+            html += `<p><strong>표현형:</strong> ${phenotypeNames.length}개</p>`;
+        }
+
+        html += '</div>';
+        statusDiv.innerHTML = html;
+    }
+}
+
 function updateVarietySelectors() {
     // 품종 선택 콤보박스들 업데이트
     const selectors = ['simCrossCombo', 'parent1', 'parent2', 'simP1', 'simP2'];
@@ -7266,12 +7505,151 @@ function updateVarietySelectors() {
     });
 }
 
+// ==================== 직접 표현형 업로드 ====================
+
+function downloadPhenotypeTemplate() {
+    const wb = XLSX.utils.book_new();
+    const templateData = [
+        ['품종명', '형질1', '형질2', '형질3', '형질4'],
+        ['삼광', 85.2, 120, 25.3, 7.5],
+        ['새일미', 90.1, 115, 24.8, 8.0],
+        ['[안내] 품종명 열은 필수입니다. 형질명은 자유롭게 작성하세요.', '', '', '', '']
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(templateData), '표현형');
+    XLSX.writeFile(wb, '표현형_업로드_양식.xlsx');
+}
+
+function handleDirectPhenotypeUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('phenotypeUploadStatus');
+    if (statusEl) statusEl.innerHTML = '📂 파일 읽는 중...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+            if (jsonData.length === 0) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 데이터가 비어있습니다.';
+                return;
+            }
+
+            // 품종명 열 찾기
+            const varietyKey = Object.keys(jsonData[0]).find(k =>
+                ['품종명', 'Variety', 'variety', '품종', 'Name', 'name'].includes(k)
+            );
+
+            if (!varietyKey) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 품종명 열을 찾을 수 없습니다.';
+                alert('품종명 열을 찾을 수 없습니다.\n열 이름을 "품종명" 또는 "Variety"로 지정해주세요.');
+                return;
+            }
+
+            // 형질 열 추출 (품종명 제외, EMPTY 제외)
+            const excludeKeys = [varietyKey, '시험번호', '재배형', 'Type', '교배조합'];
+            const isEmptyKey = (k) => {
+                if (!k || typeof k !== 'string') return true;
+                const lower = k.toLowerCase().trim();
+                return lower === '' || lower.includes('__empty') || lower.includes('empty') ||
+                       lower.startsWith('_') || lower.includes('[안내]');
+            };
+
+            const traitKeys = Object.keys(jsonData[0]).filter(k => {
+                if (excludeKeys.includes(k) || isEmptyKey(k)) return false;
+                return jsonData.some(row => {
+                    const val = row[k];
+                    if (val === null || val === undefined || val === '' || val === 'NA') return false;
+                    return !isNaN(parseFloat(val));
+                });
+            });
+
+            if (traitKeys.length === 0) {
+                if (statusEl) statusEl.innerHTML = '⚠️ 숫자형 형질 데이터를 찾을 수 없습니다.';
+                return;
+            }
+
+            // 기존 데이터에 병합 또는 새로 설정
+            const varieties = jsonData.map(row => row[varietyKey]).filter(v => v);
+            const newPhenotypeData = jsonData.filter(row => row[varietyKey]).map(row => {
+                const newRow = { '품종명': row[varietyKey] };
+                traitKeys.forEach(k => {
+                    const val = parseFloat(row[k]);
+                    if (!isNaN(val)) newRow[k] = val;
+                });
+                return newRow;
+            });
+
+            if (phenotypeData && phenotypeData.length > 0) {
+                const mergeChoice = confirm(`기존 표현형 데이터가 있습니다.\n\n[확인] 기존 데이터에 병합\n[취소] 새 데이터로 대체`);
+
+                if (mergeChoice) {
+                    newPhenotypeData.forEach(phenoRow => {
+                        const variety = phenoRow['품종명'];
+                        const existing = phenotypeData.find(r => (r['Variety'] || r['품종명']) === variety);
+                        if (existing) {
+                            traitKeys.forEach(trait => {
+                                if (phenoRow[trait] !== undefined) {
+                                    existing[trait] = phenoRow[trait];
+                                }
+                            });
+                        } else {
+                            phenotypeData.push(phenoRow);
+                        }
+                    });
+                    traitKeys.forEach(t => {
+                        if (!phenotypeNames.includes(t)) phenotypeNames.push(t);
+                    });
+                    log(`✅ 표현형 병합 완료: 총 ${phenotypeData.length}개 품종, ${phenotypeNames.length}개 형질`, 'success');
+                } else {
+                    phenotypeData = newPhenotypeData;
+                    phenotypeNames = [...traitKeys];
+                    log(`✅ 표현형 대체 완료: ${varieties.length}개 품종, ${traitKeys.length}개 형질`, 'success');
+                }
+            } else {
+                phenotypeData = newPhenotypeData;
+                phenotypeNames = [...traitKeys];
+                log(`✅ 표현형 로드 완료: ${varieties.length}개 품종, ${traitKeys.length}개 형질`, 'success');
+            }
+
+            // 품종명 업데이트 (유전자형 데이터가 없을 경우)
+            if (!varietyNames || varietyNames.length === 0) {
+                varietyNames = varieties;
+            }
+
+            updateVarietySelectors();
+            updateDataStatusDisplay();
+            updateAllSelects();
+            dataLoaded = true;
+
+            if (statusEl) {
+                statusEl.innerHTML = `✅ <strong>${file.name}</strong> 로드 완료 - ${varieties.length}개 품종, ${traitKeys.length}개 형질`;
+                statusEl.style.color = '#2e7d32';
+            }
+
+            alert(`✅ 표현형 데이터 업로드 완료!\n\n• 품종 수: ${varieties.length}개\n• 형질 수: ${traitKeys.length}개\n\n형질: ${traitKeys.slice(0, 5).join(', ')}${traitKeys.length > 5 ? '...' : ''}`);
+
+        } catch (error) {
+            console.error('표현형 파일 읽기 오류:', error);
+            if (statusEl) statusEl.innerHTML = `❌ 오류: ${error.message}`;
+            alert('파일 읽기 오류: ' + error.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
 // ==================== 초기화 ====================
 window.onload = function() {
     initChromosomeViz();
     initGenerationTimeline();
     updateInteractionTab();
     checkKaspData(); // KASP 데이터 확인
+    checkPhenotypeData(); // 표현형 데이터 확인
     log('🌾 벼 디지털육종 v4.16 로드 완료', 'success');
 };
 </script>
