@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>유전자 정보 조회 - 벼 육종 도구</title>
+    <title>유전자 정보 조회 - 육종 도구 모음</title>
     <link rel="icon" type="image/png" href="ssallogo.png">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -646,7 +646,7 @@
     <div class="container">
         <header>
             <h1>🔬 유전자 정보 조회</h1>
-            <p class="subtitle">RAP-DB, NCBI, Rice SNP-Seek 데이터베이스 통합 검색</p>
+            <p class="subtitle">RAP-DB, NCBI, Gramene 데이터베이스 통합 검색</p>
         </header>
 
         <div class="network-status" id="networkStatus">
@@ -671,14 +671,6 @@
                 </div>
                 <span class="online-badge">Online</span>
             </a>
-            <a href="https://snp-seek.irri.org/" target="_blank" class="quick-link-card">
-                <div class="quick-link-icon">📊</div>
-                <div class="quick-link-text">
-                    <h3>Rice SNP-Seek</h3>
-                    <p>IRRI SNP Database</p>
-                </div>
-                <span class="online-badge">Online</span>
-            </a>
             <a href="https://www.gramene.org/" target="_blank" class="quick-link-card">
                 <div class="quick-link-icon">🌱</div>
                 <div class="quick-link-text">
@@ -687,19 +679,11 @@
                 </div>
                 <span class="online-badge">Online</span>
             </a>
-            <a href="https://tasuke.dna.affrc.go.jp/" target="_blank" class="quick-link-card">
-                <div class="quick-link-icon">🔍</div>
+            <a href="https://scholar.google.com/" target="_blank" class="quick-link-card">
+                <div class="quick-link-icon">📚</div>
                 <div class="quick-link-text">
-                    <h3>TASUKE+</h3>
-                    <p>Rice Genome Viewer & Haplotype</p>
-                </div>
-                <span class="online-badge">Online</span>
-            </a>
-            <a href="https://ricevarmap.ncpgr.cn/" target="_blank" class="quick-link-card">
-                <div class="quick-link-icon">🗺️</div>
-                <div class="quick-link-text">
-                    <h3>RiceVarMap</h3>
-                    <p>Rice Variation Database</p>
+                    <h3>Google Scholar</h3>
+                    <p>논문 검색</p>
                 </div>
                 <span class="online-badge">Online</span>
             </a>
@@ -1214,18 +1198,9 @@
                     <div class="gene-links">
                         <a href="https://rapdb.dna.affrc.go.jp/viewer/gbrowse_details/irgsp1?name=${gene.id}" target="_blank" class="gene-link">📖 RAP-DB</a>
                         <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
-                        <a href="https://snp-seek.irri.org/_snpseek.zul?chrom=all&gene=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link">📊 SNP-Seek</a>
                         <a href="https://www.gramene.org/search?fq=species:oryza_sativa&query=${encodeURIComponent(gene.geneName || gene.id)}" target="_blank" class="gene-link">🌱 Gramene</a>
-                        <a href="https://tasuke.dna.affrc.go.jp/viewer/gbrowse/irgsp1/?name=${gene.id}" target="_blank" class="gene-link">🔍 TASUKE</a>
                         ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
                         <a href="https://scholar.google.com/scholar?q=${encodeURIComponent((gene.geneName || gene.id) + ' rice Oryza sativa')}" target="_blank" class="gene-link">📚 논문검색</a>
-                    </div>
-
-                    <div class="gene-links" style="margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px;">
-                        <span style="font-size: 0.8em; color: var(--text-light); margin-right: 8px;">Haplotype:</span>
-                        <a href="https://snp-seek.irri.org/_haplotype.zul?gene=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link" style="background: #e8f5e9;">🧩 SNP-Seek Haplotype</a>
-                        <a href="https://ricevarmap.ncpgr.cn/search?query=${encodeURIComponent(gene.geneName || gene.id)}" target="_blank" class="gene-link" style="background: #e3f2fd;">🗺️ RiceVarMap</a>
-                        ${gene.chromosome ? `<a href="https://tasuke.dna.affrc.go.jp/viewer/gbrowse/irgsp1/?name=Chr${gene.chromosome}:${gene.position ? gene.position.split('-')[0].replace(/,/g, '') : ''}" target="_blank" class="gene-link" style="background: #fff3e0;">🔬 TASUKE 하플로타입</a>` : ''}
                     </div>
                 </div>
             `;
@@ -1371,48 +1346,61 @@
 
         // 영어 요약을 한국어로 간략화
         function summarizeGeneInfo(englishSummary) {
-            // 주요 키워드 추출 및 번역
-            let summary = englishSummary;
+            const text = englishSummary.toLowerCase();
 
-            // 너무 길면 첫 2문장만
-            const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 0);
-            if (sentences.length > 2) {
-                summary = sentences.slice(0, 2).join('. ') + '.';
-            }
+            // 기능별 패턴 매칭으로 한국어 요약 생성
+            const patterns = [
+                // 저항성 관련
+                { match: /blast resistance|resistance to blast/i, kr: '도열병 저항성' },
+                { match: /bacterial blight resistance|resistance to.*xanthomonas/i, kr: '흰잎마름병 저항성' },
+                { match: /disease resistance|pathogen resistance/i, kr: '병 저항성' },
+                { match: /insect resistance|pest resistance/i, kr: '해충 저항성' },
+                { match: /drought (resistance|tolerance)/i, kr: '가뭄 저항성/내성' },
+                { match: /salt (tolerance|resistance)/i, kr: '염 내성' },
+                { match: /cold (tolerance|resistance)/i, kr: '저온 내성' },
+                { match: /heat (tolerance|resistance)/i, kr: '고온 내성' },
+                // 생장/발달 관련
+                { match: /flowering time|heading date/i, kr: '출수기/개화시기 조절' },
+                { match: /plant height|semi-dwarf|dwarfism/i, kr: '초장/왜성 관련' },
+                { match: /grain (size|weight|length|width)/i, kr: '종자 크기/중량 관련' },
+                { match: /yield|grain number/i, kr: '수량/이삭당립수 관련' },
+                { match: /tiller|tillering/i, kr: '분얼 관련' },
+                { match: /root (development|growth|architecture)/i, kr: '뿌리 발달' },
+                { match: /leaf (development|morphology)/i, kr: '잎 발달/형태' },
+                // 품질 관련
+                { match: /amylose|starch (content|synthesis)/i, kr: '아밀로스/전분 함량' },
+                { match: /eating quality|cooking quality/i, kr: '밥맛/식미' },
+                { match: /protein (content|quality)/i, kr: '단백질 함량/품질' },
+                { match: /aroma|fragrance/i, kr: '향기 성분' },
+                { match: /gelatinization|pasting/i, kr: '호화 특성' },
+                // 기타 기능
+                { match: /transcription factor/i, kr: '전사인자' },
+                { match: /signal(ing|ling)? (pathway|transduction)/i, kr: '신호전달' },
+                { match: /hormone/i, kr: '호르몬 관련' },
+                { match: /photosynthesis/i, kr: '광합성 관련' },
+                { match: /cell wall/i, kr: '세포벽 관련' },
+                { match: /metabolism/i, kr: '대사 관련' }
+            ];
 
-            // 일부 용어 한국어화
-            const translations = {
-                'encodes': '암호화',
-                'involved in': '관여',
-                'required for': '필요',
-                'regulates': '조절',
-                'transcription factor': '전사인자',
-                'protein': '단백질',
-                'pathway': '경로',
-                'resistance': '저항성',
-                'response to': '반응',
-                'development': '발달',
-                'growth': '생장',
-                'flowering': '개화',
-                'grain': '종자/낟알',
-                'root': '뿌리',
-                'leaf': '잎',
-                'stress': '스트레스'
-            };
-
-            // 간단한 번역 힌트 추가
-            let koreanHint = '';
-            for (const [eng, kor] of Object.entries(translations)) {
-                if (summary.toLowerCase().includes(eng)) {
-                    koreanHint += `${kor}, `;
+            // 매칭되는 패턴들 수집
+            const matched = [];
+            for (const p of patterns) {
+                if (p.match.test(englishSummary)) {
+                    matched.push(p.kr);
                 }
             }
 
-            if (koreanHint) {
-                return `${summary.substring(0, 200)}${summary.length > 200 ? '...' : ''} <br><small style="color: #666;">📌 키워드: ${koreanHint.slice(0, -2)}</small>`;
+            // 한국어 요약 생성
+            let koreanSummary = '';
+            if (matched.length > 0) {
+                koreanSummary = `<div style="background: #e3f2fd; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 0.95em;"><strong>🇰🇷 요약:</strong> ${matched.slice(0, 3).join(', ')} 유전자</div>`;
             }
 
-            return summary.substring(0, 250) + (summary.length > 250 ? '...' : '');
+            // 영어 원문 (첫 문장만)
+            const firstSentence = englishSummary.split(/[.!?]/)[0];
+            const shortEnglish = firstSentence.length > 150 ? firstSentence.substring(0, 150) + '...' : firstSentence + '.';
+
+            return koreanSummary + `<span style="color: #666; font-size: 0.9em;">${shortEnglish}</span>`;
         }
 
         function toggleBookmark(id, name) {
