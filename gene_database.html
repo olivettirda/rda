@@ -896,11 +896,9 @@
             window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${geneId}`, '_blank');
         }
 
-        // RGAP 검색 - LOC_Os ID로 직접 검색
-        function openRgapWithId(geneId) {
-            // Os ID를 LOC_Os 형식으로 변환
-            const locId = osIdToLoc(geneId);
-            // RGAP ORF 정보 페이지로 직접 이동
+        // RGAP 검색 - LOC_Os ID가 있을 때만 사용
+        function openRgapWithId(locId) {
+            // LOC_Os ID로 직접 RGAP ORF 정보 페이지 이동
             window.open(`http://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${locId}`, '_blank');
         }
 
@@ -926,24 +924,6 @@
         // 외부 링크 새 탭으로 열기
         function openExternal(url) {
             window.open(url, '_blank');
-        }
-
-        // Os ID를 LOC ID로 변환 (예: Os01g0197700 → LOC_Os01g19770)
-        function osIdToLoc(osId) {
-            if (!osId) return osId;
-            // Os로 시작하지 않으면 그대로 반환
-            if (!osId.startsWith('Os')) return osId;
-
-            // Os01g0197700 형식에서 LOC_Os01g19770 형식으로 변환
-            const match = osId.match(/Os(\d{2})g(\d+)/);
-            if (match) {
-                const chr = match[1];
-                const num = match[2];
-                // 마지막 두 자리 제거하고 앞의 0 제거
-                const locNum = num.slice(0, -2).replace(/^0+/, '') || '0';
-                return `LOC_Os${chr}g${locNum.padStart(5, '0')}`;
-            }
-            return osId;
         }
 
         // 상태 관리
@@ -1415,7 +1395,7 @@
                     <div class="gene-links">
                         <a href="javascript:void(0)" onclick="openRapdbWithId('${gene.id}')" class="gene-link" title="RAP-DB에서 ${gene.id} 검색">📖 RAP-DB</a>
                         <a href="javascript:void(0)" onclick="openGrameneWithId('${gene.id}')" class="gene-link" title="Gramene에서 ${gene.id} 검색">🌱 Gramene</a>
-                        <a href="javascript:void(0)" onclick="openRgapWithId('${gene.id}')" class="gene-link" title="RGAP에서 검색">🔬 RGAP</a>
+                        ${gene.locId ? `<a href="javascript:void(0)" onclick="openRgapWithId('${gene.locId}')" class="gene-link" title="RGAP에서 ${gene.locId} 검색">🔬 RGAP</a>` : ''}
                         <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
                         ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
                         <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.id)}" target="_blank" class="gene-link">📚 논문검색</a>
