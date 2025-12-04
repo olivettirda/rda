@@ -4498,14 +4498,15 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
         <h3>✅ 선택한 최적해 일괄 예측 결과</h3>
         <p>선택한 최적해: <strong>${selectedIndices.length}개</strong> (${selectedIndices.map(i => `#${i+1}`).join(', ')})</p>
         <p>총 <strong>${predictions.length}개</strong> 교배 조합의 후대가 예측되었습니다.</p>
+        <button class="btn" onclick="downloadOffspringPredictionsExcel()" style="margin-top: 10px;">📥 후대 예측 결과 엑셀 다운로드</button>
     </div>`;
-    
+
     if (predictions.length === 0) {
         html += `<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #ffc107;">
             <h4 style="color: #856404; margin-top: 0;">⚠️ 예측된 조합이 없습니다</h4>
         </div>`;
     }
-    
+
     // 최적해별로 그룹화
     const groupedByOptimal = {};
     predictions.forEach(pred => {
@@ -4513,11 +4514,14 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
         if (!groupedByOptimal[key]) groupedByOptimal[key] = [];
         groupedByOptimal[key].push(pred);
     });
-    
+
     // 표시할 유전자 수 (처음 15개)
     const displayGeneCount = Math.min(15, geneNames.length);
     const displayGenes = geneNames.slice(0, displayGeneCount);
-    
+
+    // 전체 형질 목록 사용 (일부가 아닌 전체)
+    const allPhenoList = phenotypeNames;
+
     for (const [solIdx, preds] of Object.entries(groupedByOptimal)) {
         const fitnessSum = preds[0]?.optimalFitness?.toFixed(3) || 'N/A';
         html += `<div class="result-card">
@@ -4525,35 +4529,38 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
             <div style="overflow-x: auto;">
             <table class="data-table"><thead><tr>
                 <th>부모1</th><th>재배형</th><th>부모2</th><th>재배형</th><th>유사도</th>`;
-        
-        // 형질 헤더
-        const phenoList = preds[0]?.predictions ? Object.keys(preds[0].predictions) : [];
-        phenoList.forEach(p => html += `<th>${p}</th>`);
-        
+
+        // 전체 형질 헤더
+        allPhenoList.forEach(p => html += `<th style="background: #00b894; color: white;">${p}</th>`);
+
         // 유전자 헤더 (DMRT 청록색 배경)
         displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${gene}</th>`);
         if (geneNames.length > displayGeneCount) html += `<th style="background: #017f97; color: white;">...</th>`;
-        
+
         html += '</tr></thead><tbody>';
-        
+
         preds.forEach(pred => {
             html += `<tr><td>${pred.parent1}</td><td>${pred.parent1Type}</td><td>${pred.parent2}</td><td>${pred.parent2Type}</td>
                 <td>${(pred.similarity * 100).toFixed(1)}%</td>`;
-            
-            // 형질 예측값
-            phenoList.forEach(p => {
-                const predValue = pred.predictions[p];
-                let val = 0;
-                if (predValue && typeof predValue === 'object') {
-                    val = predValue.mean !== undefined ? predValue.mean : 0;
-                } else if (typeof predValue === 'number') {
-                    val = predValue;
+
+            // 전체 형질 예측값 (없으면 '-' 표시)
+            allPhenoList.forEach(p => {
+                const predValue = pred.predictions ? pred.predictions[p] : null;
+                if (predValue === null || predValue === undefined) {
+                    html += `<td><span style="color: #999;">-</span></td>`;
+                } else {
+                    let val = 0;
+                    if (typeof predValue === 'object') {
+                        val = predValue.mean !== undefined ? predValue.mean : 0;
+                    } else if (typeof predValue === 'number') {
+                        val = predValue;
+                    }
+                    const displayVal = val >= 0.5 ? '1' : '0';
+                    const badge = val >= 0.5 ? 'quality-high' : 'quality-low';
+                    html += `<td><span class="quality-badge ${badge}">${displayVal}</span></td>`;
                 }
-                const displayVal = val >= 0.5 ? '1' : '0';
-                const badge = val >= 0.5 ? 'quality-high' : 'quality-low';
-                html += `<td><span class="quality-badge ${badge}">${displayVal}</span></td>`;
             });
-            
+
             // 후대 유전자형
             const geno = pred.genotype || [];
             displayGenes.forEach((gene, idx) => {
@@ -4572,23 +4579,116 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
                 html += `<td><span class="quality-badge ${genoClass}">${displayGeno}</span></td>`;
             });
             if (geneNames.length > displayGeneCount) html += '<td>...</td>';
-            
+
             html += '</tr>';
         });
         html += '</tbody></table></div></div>';
     }
-    
+
     html += `<div class="result-card" style="background: var(--dmrt-bg-light); border-left: 4px solid var(--dmrt-success);">
-        <p>💾 총 ${offspringPredictions.length}개 예측 저장됨 (종합 리포트 탭에서 엑셀로 다운로드 가능)</p>
+        <p>💾 총 ${offspringPredictions.length}개 예측 저장됨</p>
+        <button class="btn btn-success" onclick="downloadOffspringPredictionsExcel()">📥 후대 예측 결과 엑셀 다운로드</button>
     </div>`;
-    
+
     document.getElementById('offspringPrediction').innerHTML = html;
-    
+
     // Tab 6으로 이동하고 결과로 스크롤
     switchTab(6);
     setTimeout(() => {
         document.getElementById('offspringPrediction').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
+}
+
+// 후대 예측 결과 별도 엑셀 다운로드
+function downloadOffspringPredictionsExcel() {
+    if (offspringPredictions.length === 0) {
+        alert('후대 예측 결과가 없습니다.');
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+    // 1. 요약 시트
+    const summaryData = [
+        ['항목', '값'],
+        ['생성 날짜', new Date().toLocaleString()],
+        ['총 예측 수', offspringPredictions.length],
+        ['형질 수', phenotypeNames.length],
+        ['유전자 수', geneNames.length]
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), '요약');
+
+    // 2. 후대 예측 결과 (전체 형질 + 전체 유전자)
+    const predData = offspringPredictions.map((p, idx) => {
+        const row = {
+            '번호': idx + 1,
+            '최적해': p.optimalSolution || '-',
+            '부모1': p.parent1,
+            '부모1_재배형': p.parent1Type || '-',
+            '부모2': p.parent2,
+            '부모2_재배형': p.parent2Type || '-',
+            '유사도': p.similarity ? (p.similarity * 100).toFixed(2) + '%' : '-',
+            '예측방식': p.method || '-',
+            '예측시간': p.timestamp || '-'
+        };
+
+        // 모든 형질 예측값
+        phenotypeNames.forEach(trait => {
+            const predValue = p.predictions ? p.predictions[trait] : null;
+            if (predValue === null || predValue === undefined) {
+                row[`${trait}_예측`] = '-';
+                row[`${trait}_확률`] = '-';
+            } else {
+                const val = typeof predValue === 'object' ? predValue.mean : predValue;
+                row[`${trait}_예측`] = val >= 0.5 ? 1 : 0;
+                row[`${trait}_확률`] = typeof val === 'number' ? val.toFixed(4) : '-';
+            }
+        });
+
+        // 모든 유전자형
+        geneNames.forEach((gene, gIdx) => {
+            const gVal = p.genotype ? p.genotype[gIdx] : null;
+            if (gVal === null || gVal === undefined) {
+                row[gene] = '-';
+            } else {
+                row[gene] = gVal >= 0.5 ? 1 : 0;
+            }
+        });
+
+        return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(predData), '후대예측결과');
+
+    // 3. 최적해별 요약
+    const optimalGroups = {};
+    offspringPredictions.forEach(p => {
+        const key = p.optimalSolution || 'unknown';
+        if (!optimalGroups[key]) optimalGroups[key] = [];
+        optimalGroups[key].push(p);
+    });
+
+    const optSummary = Object.entries(optimalGroups).map(([solIdx, preds]) => {
+        const row = {
+            '최적해': solIdx,
+            '교배조합수': preds.length,
+            '평균유사도': (preds.reduce((s, p) => s + (p.similarity || 0), 0) / preds.length * 100).toFixed(2) + '%'
+        };
+        // 각 형질별 평균 예측 확률
+        phenotypeNames.forEach(trait => {
+            const vals = preds.map(p => {
+                const v = p.predictions ? p.predictions[trait] : null;
+                return v ? (typeof v === 'object' ? v.mean : v) : null;
+            }).filter(v => v !== null);
+            row[`${trait}_평균확률`] = vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(4) : '-';
+        });
+        return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(optSummary), '최적해별요약');
+
+    // 다운로드
+    XLSX.writeFile(wb, `offspring_predictions_${timestamp}.xlsx`);
+    log(`✅ 후대 예측 결과 엑셀 다운로드: ${offspringPredictions.length}개 조합`, 'success');
 }
 
 // === 모든 최적해 일괄 예측 ===
