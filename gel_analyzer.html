@@ -666,8 +666,13 @@
                         <div class="sidebar-section">
                             <h4>📐 래더 설정</h4>
                             <div class="form-group">
-                                <label>래더 레인 번호</label>
+                                <label>첫 번째 래더 레인</label>
                                 <input type="number" id="ladderLane" min="1" value="1" placeholder="래더 위치">
+                            </div>
+                            <div class="form-group">
+                                <label>마지막 래더 레인 (선택)</label>
+                                <input type="number" id="ladderLane2" min="0" value="0" placeholder="0 = 없음">
+                                <span style="font-size: 0.75rem; color: #666;">양 끝에 래더가 있으면 입력</span>
                             </div>
                             <div class="form-group">
                                 <label>래더 유형</label>
@@ -1121,10 +1126,10 @@
             console.log(`프로파일 통계: min=${minVal.toFixed(1)}, max=${maxVal.toFixed(1)}, range=${range.toFixed(1)}`);
 
             // For bright bands, lanes have higher intensity; for dark bands, lower intensity
-            // 더 낮은 threshold 사용 (0.2)
+            // 더 낮은 threshold 사용 (0.15)
             const threshold = bandPolarity === 'bright'
-                ? minVal + range * 0.2  // Look for bright regions
-                : maxVal - range * 0.2; // Look for dark regions
+                ? minVal + range * 0.15  // Look for bright regions
+                : maxVal - range * 0.15; // Look for dark regions
 
             console.log(`Threshold: ${threshold.toFixed(1)}`);
 
@@ -1132,7 +1137,9 @@
             let inLane = false;
             let laneStart = 0;
 
-            for (let i = 10; i < profileLength - 10; i++) {
+            // 마진을 줄여서 가장자리 레인도 감지
+            const margin = 5;
+            for (let i = margin; i < profileLength - margin; i++) {
                 const isLane = bandPolarity === 'bright'
                     ? smoothed[i] > threshold
                     : smoothed[i] < threshold;
@@ -1146,6 +1153,13 @@
                     lanePositions.push(laneCenter);
                     console.log(`레인 감지: 시작=${laneStart}, 끝=${i}, 중심=${laneCenter}`);
                 }
+            }
+
+            // 마지막 레인이 이미지 끝까지 이어지는 경우 처리
+            if (inLane) {
+                const laneCenter = Math.round((laneStart + profileLength - margin) / 2);
+                lanePositions.push(laneCenter);
+                console.log(`마지막 레인 감지: 시작=${laneStart}, 끝=${profileLength - margin}, 중심=${laneCenter}`);
             }
 
             console.log(`총 ${lanePositions.length}개 레인 위치 감지`);
@@ -1333,9 +1347,13 @@
 
         function clearBands() {
             bands = [];
+            ladderBandPositions = [];
             drawBands();
             updateLaneBandList();
         }
+
+        // 래더 밴드 정보 저장
+        let ladderBandPositions = [];
 
         function autoDetectBands() {
             // 현재 설정 새로 읽기
@@ -1360,96 +1378,97 @@
             const sensitivity = parseInt(document.getElementById('bandSensitivity').value) / 100;
             const minDistance = parseInt(document.getElementById('minBandDistance').value);
             const bandWidth = parseInt(document.getElementById('bandSampleWidth').value);
+            const ladderLaneNum1 = parseInt(document.getElementById('ladderLane').value) - 1;
+            const ladderLaneNum2Input = document.getElementById('ladderLane2').value;
+            const ladderLaneNum2 = ladderLaneNum2Input ? parseInt(ladderLaneNum2Input) - 1 : -1;
 
             // Clear existing bands
             bands = [];
+            ladderBandPositions = [];
 
-            console.log('=== 밴드 자동 감지 시작 ===');
+            console.log('=== 밴드 자동 감지 시작 (래더 기반) ===');
             console.log(`이미지 크기: ${imgWidth} x ${imgHeight}`);
             console.log(`설정: sensitivity=${sensitivity}, minDistance=${minDistance}, bandWidth=${bandWidth}`);
             console.log(`레인 방향: ${laneOrientation}, 밴드 극성: ${bandPolarity}`);
-            console.log(`레인 수: ${lanes.length}`);
+            console.log(`레인 수: ${lanes.length}, 래더 레인1: ${ladderLaneNum1 + 1}, 래더 레인2: ${ladderLaneNum2 >= 0 ? ladderLaneNum2 + 1 : '없음'}`);
 
-            // For each lane, analyze profile along the band direction
+            // 래더 레인 목록
+            const ladderLanes = [ladderLaneNum1];
+            if (ladderLaneNum2 >= 0 && ladderLaneNum2 < lanes.length && ladderLaneNum2 !== ladderLaneNum1) {
+                ladderLanes.push(ladderLaneNum2);
+            }
+
+            // 1단계: 래더 레인에서 먼저 밴드 감지
+            ladderLanes.forEach(ladderLaneNum => {
+                if (ladderLaneNum >= 0 && ladderLaneNum < lanes.length) {
+                    console.log(`=== 래더 레인 ${ladderLaneNum + 1} 분석 ===`);
+                    const ladderProfile = getLaneProfile(ladderLaneNum, data, imgWidth, imgHeight, bandWidth);
+                    const ladderPeaks = detectPeaksInProfile(ladderProfile, sensitivity, minDistance);
+
+                    // 첫 번째 래더만 참조점으로 사용
+                    if (ladderLaneNum === ladderLaneNum1) {
+                        ladderBandPositions = ladderPeaks;
+                    }
+                    console.log(`래더 ${ladderLaneNum + 1}에서 ${ladderPeaks.length}개 밴드 위치 감지: ${ladderPeaks.join(', ')}`);
+
+                    // 래더 밴드 추가
+                    ladderPeaks.forEach(peakPos => {
+                        if (laneOrientation === 'horizontal') {
+                            bands.push({
+                                laneIdx: ladderLaneNum,
+                                x: peakPos,
+                                y: lanes[ladderLaneNum].pos,
+                                lanePos: lanes[ladderLaneNum].pos,
+                                size: estimateBandSize(peakPos, lanes[ladderLaneNum].pos),
+                                isLadder: true
+                            });
+                        } else {
+                            bands.push({
+                                laneIdx: ladderLaneNum,
+                                x: lanes[ladderLaneNum].pos,
+                                y: peakPos,
+                                lanePos: lanes[ladderLaneNum].pos,
+                                size: estimateBandSize(lanes[ladderLaneNum].pos, peakPos),
+                                isLadder: true
+                            });
+                        }
+                    });
+                }
+            });
+
+            // 래더 밴드의 범위 계산 (밴드 탐색 영역 제한)
+            let bandSearchMin = 0;
+            let bandSearchMax = laneOrientation === 'horizontal' ? imgWidth : imgHeight;
+
+            if (ladderBandPositions.length >= 2) {
+                const sortedPositions = [...ladderBandPositions].sort((a, b) => a - b);
+                // 래더 밴드 영역 + 약간의 마진
+                const margin = 10;
+                bandSearchMin = Math.max(0, sortedPositions[0] - margin);
+                bandSearchMax = Math.min(bandSearchMax, sortedPositions[sortedPositions.length - 1] + margin);
+                console.log(`밴드 탐색 영역: ${bandSearchMin} ~ ${bandSearchMax} (래더 기준)`);
+            }
+
+            // 2단계: 다른 레인에서 밴드 감지 (래더 영역 내에서만)
             lanes.forEach((lane, laneIdx) => {
-                const lanePos = Math.round(lane.pos);
-                const profile = [];
+                if (ladderLanes.includes(laneIdx)) return; // 래더는 이미 처리됨
 
+                const lanePos = Math.round(lane.pos);
                 console.log(`Lane ${laneIdx + 1}: lanePos=${lanePos}`);
 
-                if (laneOrientation === 'horizontal') {
-                    // Horizontal lanes: scan along x-axis to find bands
-                    for (let x = 0; x < imgWidth; x++) {
-                        let sum = 0;
-                        let count = 0;
+                const profile = getLaneProfile(laneIdx, data, imgWidth, imgHeight, bandWidth);
 
-                        for (let dy = -bandWidth; dy <= bandWidth; dy++) {
-                            const py = lanePos + dy;
-                            if (py >= 0 && py < imgHeight) {
-                                const idx = (py * imgWidth + x) * 4;
-                                const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                                const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
-                                sum += intensity;
-                                count++;
-                            }
-                        }
-                        profile.push(count > 0 ? sum / count : 0);
-                    }
-                } else {
-                    // Vertical lanes: scan along y-axis to find bands
-                    for (let y = 0; y < imgHeight; y++) {
-                        let sum = 0;
-                        let count = 0;
+                // 래더 영역 내의 프로파일만 사용
+                const limitedProfile = profile.slice(bandSearchMin, bandSearchMax);
+                const peaks = detectPeaksInProfile(limitedProfile, sensitivity, minDistance);
 
-                        for (let dx = -bandWidth; dx <= bandWidth; dx++) {
-                            const px = lanePos + dx;
-                            if (px >= 0 && px < imgWidth) {
-                                const idx = (y * imgWidth + px) * 4;
-                                const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                                const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
-                                sum += intensity;
-                                count++;
-                            }
-                        }
-                        profile.push(count > 0 ? sum / count : 0);
-                    }
-                }
+                // 위치를 원래 좌표로 변환
+                const adjustedPeaks = peaks.map(p => p + bandSearchMin);
 
-                console.log(`Lane ${laneIdx + 1}: 프로파일 길이=${profile.length}, 범위=[${Math.min(...profile).toFixed(1)}, ${Math.max(...profile).toFixed(1)}]`);
+                console.log(`Lane ${laneIdx + 1}: ${adjustedPeaks.length}개 피크 발견 (영역: ${bandSearchMin}-${bandSearchMax})`);
 
-                // === 개선된 Peak 검출 알고리즘 ===
-
-                // 1. Gaussian-like smoothing (더 강한 스무딩)
-                const smoothed = gaussianSmooth(profile, 5);
-
-                // 2. 기본 통계 계산
-                const sortedProfile = [...smoothed].sort((a, b) => a - b);
-                const q1 = sortedProfile[Math.floor(sortedProfile.length * 0.25)];
-                const q3 = sortedProfile[Math.floor(sortedProfile.length * 0.75)];
-                const iqr = q3 - q1;
-                const median = sortedProfile[Math.floor(sortedProfile.length * 0.5)];
-                const maxVal = Math.max(...smoothed);
-                const minVal = Math.min(...smoothed);
-                const range = maxVal - minVal;
-
-                // 3. 동적 threshold 계산 (sensitivity 기반)
-                // sensitivity가 낮으면 threshold가 낮아져서 더 많은 피크 감지
-                const baseThreshold = median + iqr * 0.5;
-                const dynamicThreshold = minVal + range * sensitivity;
-                const threshold = Math.max(baseThreshold, dynamicThreshold);
-
-                // 4. 최소 prominence (피크가 주변보다 얼마나 높아야 하는지)
-                const minProminence = range * 0.15;
-
-                console.log(`Lane ${laneIdx + 1}: median=${median.toFixed(1)}, threshold=${threshold.toFixed(1)}, minProminence=${minProminence.toFixed(1)}`);
-
-                // 5. 피크 검출 with prominence check
-                const peaks = findPeaksWithProminence(smoothed, threshold, minProminence, minDistance);
-
-                console.log(`Lane ${laneIdx + 1}: ${peaks.length}개 피크 발견`);
-
-                // 6. 밴드로 추가
-                peaks.forEach(peakPos => {
+                // 밴드로 추가
+                adjustedPeaks.forEach(peakPos => {
                     if (laneOrientation === 'horizontal') {
                         bands.push({
                             laneIdx: laneIdx,
@@ -1470,10 +1489,126 @@
                 });
             });
 
+            // 3단계: 래더 기반으로 밴드 크기 보정
+            if (ladderBandPositions.length > 0) {
+                calibrateBandSizesWithLadder();
+            }
+
             drawBands();
             updateLaneBandList();
 
-            alert(`${bands.length}개의 밴드가 자동 감지되었습니다.\n\n밴드가 제대로 감지되지 않았다면:\n• 감도를 낮춰보세요 (현재: ${Math.round(sensitivity * 100)}%)\n• 이미지 밝기/대비를 조정하세요\n• 수동으로 밴드를 클릭해서 추가하세요`);
+            const ladderInfo = ladderLanes.length > 1 ?
+                `래더 레인: ${ladderLanes.map(l => l + 1).join(', ')}` :
+                `래더 레인: ${ladderLaneNum1 + 1}`;
+
+            alert(`${bands.length}개의 밴드가 자동 감지되었습니다.\n${ladderInfo}\n(래더 기준 ${ladderBandPositions.length}개 참조점)\n\n밴드가 제대로 감지되지 않았다면:\n• 감도를 낮춰보세요 (현재: ${Math.round(sensitivity * 100)}%)\n• 이미지 밝기/대비를 조정하세요\n• 수동으로 밴드를 클릭해서 추가하세요`);
+        }
+
+        // 레인의 intensity 프로파일 추출
+        function getLaneProfile(laneIdx, data, imgWidth, imgHeight, bandWidth) {
+            const lanePos = Math.round(lanes[laneIdx].pos);
+            const profile = [];
+
+            if (laneOrientation === 'horizontal') {
+                for (let x = 0; x < imgWidth; x++) {
+                    let sum = 0, count = 0;
+                    for (let dy = -bandWidth; dy <= bandWidth; dy++) {
+                        const py = lanePos + dy;
+                        if (py >= 0 && py < imgHeight) {
+                            const idx = (py * imgWidth + x) * 4;
+                            const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                            const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
+                            sum += intensity;
+                            count++;
+                        }
+                    }
+                    profile.push(count > 0 ? sum / count : 0);
+                }
+            } else {
+                for (let y = 0; y < imgHeight; y++) {
+                    let sum = 0, count = 0;
+                    for (let dx = -bandWidth; dx <= bandWidth; dx++) {
+                        const px = lanePos + dx;
+                        if (px >= 0 && px < imgWidth) {
+                            const idx = (y * imgWidth + px) * 4;
+                            const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                            const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
+                            sum += intensity;
+                            count++;
+                        }
+                    }
+                    profile.push(count > 0 ? sum / count : 0);
+                }
+            }
+
+            return profile;
+        }
+
+        // 프로파일에서 피크 감지
+        function detectPeaksInProfile(profile, sensitivity, minDistance) {
+            const smoothed = gaussianSmooth(profile, 5);
+            const sortedProfile = [...smoothed].sort((a, b) => a - b);
+            const q1 = sortedProfile[Math.floor(sortedProfile.length * 0.25)];
+            const q3 = sortedProfile[Math.floor(sortedProfile.length * 0.75)];
+            const iqr = q3 - q1;
+            const median = sortedProfile[Math.floor(sortedProfile.length * 0.5)];
+            const maxVal = Math.max(...smoothed);
+            const minVal = Math.min(...smoothed);
+            const range = maxVal - minVal;
+
+            const baseThreshold = median + iqr * 0.5;
+            const dynamicThreshold = minVal + range * sensitivity;
+            const threshold = Math.max(baseThreshold, dynamicThreshold);
+            const minProminence = range * 0.15;
+
+            return findPeaksWithProminence(smoothed, threshold, minProminence, minDistance);
+        }
+
+        // 래더 기반 밴드 크기 보정
+        function calibrateBandSizesWithLadder() {
+            if (ladderBandPositions.length < 2) return;
+
+            const ladderType = document.getElementById('ladderType').value;
+            let ladderSizes = ladderDefs[ladderType] || [100, 500, 1000];
+
+            if (ladderType === 'custom') {
+                const customInput = document.getElementById('customLadderBands').value;
+                if (customInput) {
+                    ladderSizes = customInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                }
+            }
+
+            // 래더 위치와 크기 매핑 (위치 오름차순 = 크기 내림차순)
+            const sortedLadderPos = [...ladderBandPositions].sort((a, b) => a - b);
+            const sortedLadderSizes = [...ladderSizes].sort((a, b) => b - a); // 내림차순 (위에서 아래로 크기 감소)
+
+            console.log('래더 보정:', sortedLadderPos.length, '위치,', sortedLadderSizes.length, '크기');
+
+            // 각 밴드의 크기를 래더 기준으로 보정
+            bands.forEach(band => {
+                const bandPos = laneOrientation === 'horizontal' ? band.x : band.y;
+
+                // 가장 가까운 래더 위치 두 개 찾기
+                let lower = null, upper = null;
+                for (let i = 0; i < sortedLadderPos.length; i++) {
+                    if (sortedLadderPos[i] <= bandPos) {
+                        lower = { pos: sortedLadderPos[i], size: sortedLadderSizes[Math.min(i, sortedLadderSizes.length - 1)] };
+                    }
+                    if (sortedLadderPos[i] >= bandPos && upper === null) {
+                        upper = { pos: sortedLadderPos[i], size: sortedLadderSizes[Math.min(i, sortedLadderSizes.length - 1)] };
+                    }
+                }
+
+                // 선형 보간으로 크기 추정
+                if (lower && upper && lower.pos !== upper.pos) {
+                    const ratio = (bandPos - lower.pos) / (upper.pos - lower.pos);
+                    band.size = Math.round(lower.size + ratio * (upper.size - lower.size));
+                } else if (lower) {
+                    band.size = lower.size;
+                } else if (upper) {
+                    band.size = upper.size;
+                }
+            });
         }
 
         // Gaussian-like smoothing 함수
@@ -1741,8 +1876,14 @@
 
             // Draw bands
             bands.forEach((band, idx) => {
-                ctx.fillStyle = 'rgba(255, 235, 59, 0.7)';
-                ctx.strokeStyle = '#ffc107';
+                // 래더 밴드는 다른 색상으로 표시
+                if (band.isLadder) {
+                    ctx.fillStyle = 'rgba(76, 175, 80, 0.7)';
+                    ctx.strokeStyle = '#388e3c';
+                } else {
+                    ctx.fillStyle = 'rgba(255, 235, 59, 0.7)';
+                    ctx.strokeStyle = '#ffc107';
+                }
                 ctx.lineWidth = 2;
 
                 if (laneOrientation === 'horizontal') {
@@ -1768,7 +1909,68 @@
                 }
             });
 
+            // 수평 정렬 라인 그리기 (같은 크기의 밴드들을 연결)
+            drawAlignmentLines(ctx, canvas);
+
             document.getElementById('bandCount').textContent = `${bands.length}개 밴드`;
+        }
+
+        // 수평 정렬 라인 그리기
+        function drawAlignmentLines(ctx, canvas) {
+            if (bands.length < 2) return;
+
+            const tolerance = 15; // 같은 높이로 간주할 허용 범위 (px)
+            const sampleBands = bands.filter(b => !b.isLadder);
+
+            // 밴드를 위치별로 그룹화
+            const groups = [];
+            sampleBands.forEach(band => {
+                const bandPos = laneOrientation === 'horizontal' ? band.x : band.y;
+
+                let foundGroup = null;
+                for (const group of groups) {
+                    const groupAvgPos = group.reduce((sum, b) => {
+                        return sum + (laneOrientation === 'horizontal' ? b.x : b.y);
+                    }, 0) / group.length;
+
+                    if (Math.abs(bandPos - groupAvgPos) <= tolerance) {
+                        foundGroup = group;
+                        break;
+                    }
+                }
+
+                if (foundGroup) {
+                    foundGroup.push(band);
+                } else {
+                    groups.push([band]);
+                }
+            });
+
+            // 각 그룹에 대해 정렬 라인 그리기
+            groups.forEach((group, gIdx) => {
+                if (group.length < 2) return;
+
+                // 레인 순서대로 정렬
+                group.sort((a, b) => a.laneIdx - b.laneIdx);
+
+                // 라인 색상 (그룹별로 다르게)
+                const colors = ['rgba(255, 82, 82, 0.5)', 'rgba(33, 150, 243, 0.5)', 'rgba(156, 39, 176, 0.5)', 'rgba(255, 152, 0, 0.5)'];
+                ctx.strokeStyle = colors[gIdx % colors.length];
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+
+                ctx.beginPath();
+                for (let i = 0; i < group.length; i++) {
+                    const band = group[i];
+                    if (i === 0) {
+                        ctx.moveTo(band.x, band.y);
+                    } else {
+                        ctx.lineTo(band.x, band.y);
+                    }
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
         }
 
         function updateImageAdjustments() {
@@ -1819,12 +2021,37 @@
 
         function generateResults() {
             const markerName = document.getElementById('markerName').value || 'Marker';
-            const ladderLane = parseInt(document.getElementById('ladderLane').value) - 1;
+            const ladderLane1 = parseInt(document.getElementById('ladderLane').value) - 1;
+            const ladderLane2Input = document.getElementById('ladderLane2').value;
+            const ladderLane2 = ladderLane2Input ? parseInt(ladderLane2Input) - 1 : -1;
+
+            // 래더 레인 목록
+            const ladderLanes = [ladderLane1];
+            if (ladderLane2 >= 0 && ladderLane2 !== ladderLane1) {
+                ladderLanes.push(ladderLane2);
+            }
+
+            console.log('=== 결과 생성 시작 ===');
+            console.log(`래더 레인: ${ladderLanes.map(l => l + 1).join(', ')}`);
+
+            // 1. 수평 밴드 그룹 분석 (같은 높이의 밴드들을 그룹화)
+            const bandGroups = analyzeBandAlignment();
+
+            // 2. 체크 레인 분석 (1번 레인의 1, 2번째 밴드가 체크)
+            const checkLane = 0; // 첫 번째 레인이 체크
+            const checkBands = bands.filter(b => b.laneIdx === checkLane && !b.isLadder)
+                .sort((a, b) => {
+                    const posA = laneOrientation === 'horizontal' ? a.x : a.y;
+                    const posB = laneOrientation === 'horizontal' ? b.x : b.y;
+                    return posA - posB;
+                });
+
+            console.log(`체크 레인(${checkLane + 1}) 밴드 수: ${checkBands.length}`);
 
             // Group bands by lane
             const results = lanes.map((lane, laneIdx) => {
-                if (laneIdx === ladderLane) {
-                    return { lane: laneIdx + 1, name: lane.name, genotype: 'Ladder', bands: [], bandSizes: [] };
+                if (ladderLanes.includes(laneIdx)) {
+                    return { lane: laneIdx + 1, name: lane.name, genotype: 'Ladder', bands: [], bandSizes: [], bandPattern: 'Ladder' };
                 }
 
                 const laneBands = bands.filter(b => b.laneIdx === laneIdx)
@@ -1832,28 +2059,38 @@
 
                 const bandSizes = laneBands.map(b => b.size);
                 let genotype = '-';
+                let bandPattern = '';
 
                 if (markerType === 'codominant') {
                     // Codominant: 2 bands = Het, 1 band = Homo
                     if (laneBands.length === 0) {
                         genotype = '-';
+                        bandPattern = '없음';
                     } else if (laneBands.length === 1) {
-                        // Single band - need to determine if P1 or P2 based on size
-                        genotype = 'Homo';
+                        // 밴드 패턴 분석으로 P1/P2 결정
+                        const patternType = determineBandPatternType(laneIdx, bandGroups, checkBands);
+                        genotype = patternType === 'P1' ? 'Homo(P1)' : patternType === 'P2' ? 'Homo(P2)' : 'Homo';
+                        bandPattern = `1밴드 (${patternType || '?'})`;
                     } else if (laneBands.length >= 2) {
                         genotype = 'Het';
+                        bandPattern = `${laneBands.length}밴드`;
                     }
                 } else if (markerType === 'dominant') {
                     // Dominant: band present = 1, absent = 0
                     genotype = laneBands.length > 0 ? '1' : '0';
+                    bandPattern = laneBands.length > 0 ? '밴드 있음' : '밴드 없음';
                 } else if (markerType === 'snp') {
                     // SNP/CAPS: similar to codominant
                     if (laneBands.length === 0) {
                         genotype = '-';
+                        bandPattern = '없음';
                     } else if (laneBands.length === 1) {
-                        genotype = 'Homo';
+                        const patternType = determineBandPatternType(laneIdx, bandGroups, checkBands);
+                        genotype = patternType === 'P1' ? 'Homo(P1)' : patternType === 'P2' ? 'Homo(P2)' : 'Homo';
+                        bandPattern = `1밴드`;
                     } else {
                         genotype = 'Het';
+                        bandPattern = `${laneBands.length}밴드`;
                     }
                 }
 
@@ -1862,20 +2099,28 @@
                     name: lane.name,
                     genotype: genotype,
                     bands: laneBands,
-                    bandSizes: bandSizes
+                    bandSizes: bandSizes,
+                    bandPattern: bandPattern
                 };
             }).filter(r => r.genotype !== 'Ladder');
+
+            // 3. 인접 레인 비교로 패턴 변화 감지
+            detectPatternChanges(results, bandGroups);
 
             // Render results table
             renderResultsTable(results, markerName);
 
             // Update summary
-            const counts = { Homo: 0, Het: 0, '-': 0 };
+            const counts = { 'P1': 0, 'P2': 0, Het: 0, '-': 0 };
             results.forEach(r => {
-                if (r.genotype === 'Homo' || r.genotype === '0' || r.genotype === '1') {
-                    counts['Homo']++;
+                if (r.genotype.includes('P1') || r.genotype === '1') {
+                    counts['P1']++;
+                } else if (r.genotype.includes('P2') || r.genotype === '0') {
+                    counts['P2']++;
                 } else if (r.genotype === 'Het') {
                     counts['Het']++;
+                } else if (r.genotype === 'Homo') {
+                    counts['P1']++; // 기본값으로 P1
                 } else {
                     counts['-']++;
                 }
@@ -1884,7 +2129,8 @@
             document.getElementById('summaryText').innerHTML = `
                 <strong>${markerName}</strong> 마커 분석 결과<br>
                 총 ${results.length}개 시료 |
-                동형접합: ${counts['Homo']}개 |
+                P1형: ${counts['P1']}개 |
+                P2형: ${counts['P2']}개 |
                 이형접합: ${counts['Het']}개 |
                 미판정: ${counts['-']}개
             `;
@@ -1892,6 +2138,127 @@
             // Store for export
             window.analysisResults = results;
             window.markerName = markerName;
+        }
+
+        // 수평 밴드 정렬 분석 - 같은 높이의 밴드들을 그룹화
+        function analyzeBandAlignment() {
+            const tolerance = 15; // 같은 높이로 간주할 허용 범위 (px)
+            const groups = [];
+
+            // 래더 레인 제외한 밴드들
+            const sampleBands = bands.filter(b => !b.isLadder);
+
+            sampleBands.forEach(band => {
+                const bandPos = laneOrientation === 'horizontal' ? band.x : band.y;
+
+                // 기존 그룹에 속하는지 확인
+                let foundGroup = null;
+                for (const group of groups) {
+                    const groupAvgPos = group.bands.reduce((sum, b) => {
+                        return sum + (laneOrientation === 'horizontal' ? b.x : b.y);
+                    }, 0) / group.bands.length;
+
+                    if (Math.abs(bandPos - groupAvgPos) <= tolerance) {
+                        foundGroup = group;
+                        break;
+                    }
+                }
+
+                if (foundGroup) {
+                    foundGroup.bands.push(band);
+                } else {
+                    groups.push({
+                        avgPosition: bandPos,
+                        bands: [band]
+                    });
+                }
+            });
+
+            // 각 그룹의 평균 위치 업데이트
+            groups.forEach(group => {
+                group.avgPosition = group.bands.reduce((sum, b) => {
+                    return sum + (laneOrientation === 'horizontal' ? b.x : b.y);
+                }, 0) / group.bands.length;
+
+                // 그룹에 속한 레인들
+                group.laneIndices = [...new Set(group.bands.map(b => b.laneIdx))].sort((a, b) => a - b);
+            });
+
+            console.log(`밴드 그룹 ${groups.length}개 발견`);
+            groups.forEach((g, i) => {
+                console.log(`  그룹 ${i + 1}: 위치=${g.avgPosition.toFixed(0)}, 레인=[${g.laneIndices.map(l => l + 1).join(',')}]`);
+            });
+
+            return groups;
+        }
+
+        // 밴드 패턴 타입 결정 (체크 밴드와 비교)
+        function determineBandPatternType(laneIdx, bandGroups, checkBands) {
+            if (checkBands.length < 2) return null;
+
+            const laneBands = bands.filter(b => b.laneIdx === laneIdx && !b.isLadder);
+            if (laneBands.length === 0) return null;
+
+            // 체크 밴드 위치
+            const check1Pos = laneOrientation === 'horizontal' ? checkBands[0].x : checkBands[0].y;
+            const check2Pos = checkBands.length > 1 ?
+                (laneOrientation === 'horizontal' ? checkBands[1].x : checkBands[1].y) : null;
+
+            // 현재 레인 밴드 위치
+            const tolerance = 20; // 같은 위치로 간주할 허용 범위
+
+            for (const band of laneBands) {
+                const bandPos = laneOrientation === 'horizontal' ? band.x : band.y;
+
+                // 체크1과 같은 위치면 P1
+                if (Math.abs(bandPos - check1Pos) <= tolerance) {
+                    return 'P1';
+                }
+
+                // 체크2와 같은 위치면 P2
+                if (check2Pos && Math.abs(bandPos - check2Pos) <= tolerance) {
+                    return 'P2';
+                }
+            }
+
+            return null;
+        }
+
+        // 인접 레인 비교로 패턴 변화 감지
+        function detectPatternChanges(results, bandGroups) {
+            const tolerance = 15;
+
+            for (let i = 1; i < results.length; i++) {
+                const prevResult = results[i - 1];
+                const currResult = results[i];
+
+                // 이전 레인과 현재 레인의 밴드 위치 비교
+                const prevBands = bands.filter(b => b.laneIdx === prevResult.lane - 1 && !b.isLadder);
+                const currBands = bands.filter(b => b.laneIdx === currResult.lane - 1 && !b.isLadder);
+
+                // 밴드 수가 다르면 패턴 변화
+                if (prevBands.length !== currBands.length) {
+                    currResult.patternChange = true;
+                    console.log(`패턴 변화 감지: Lane ${prevResult.lane} -> ${currResult.lane} (밴드 수 차이)`);
+                    continue;
+                }
+
+                // 밴드 위치 비교 (중심선이 꺾이는지)
+                const prevPositions = prevBands.map(b => laneOrientation === 'horizontal' ? b.x : b.y).sort((a, b) => a - b);
+                const currPositions = currBands.map(b => laneOrientation === 'horizontal' ? b.x : b.y).sort((a, b) => a - b);
+
+                let maxDiff = 0;
+                for (let j = 0; j < prevPositions.length && j < currPositions.length; j++) {
+                    const diff = Math.abs(prevPositions[j] - currPositions[j]);
+                    maxDiff = Math.max(maxDiff, diff);
+                }
+
+                // 중심선이 크게 꺾이면 패턴 변화
+                if (maxDiff > tolerance * 2) {
+                    currResult.patternChange = true;
+                    console.log(`패턴 변화 감지: Lane ${prevResult.lane} -> ${currResult.lane} (위치 차이 ${maxDiff}px)`);
+                }
+            }
         }
 
         function renderResultsTable(results, markerName) {
@@ -1903,30 +2270,53 @@
                     <th>레인</th>
                     <th>시료명</th>
                     <th>밴드 크기 (bp)</th>
+                    <th>패턴</th>
                     <th>유전자형</th>
                     <th>수동 수정</th>
                 </tr>
             `;
 
-            tbody.innerHTML = results.map((r, idx) => `
-                <tr>
-                    <td>${r.lane}</td>
-                    <td>${r.name}</td>
-                    <td>${r.bandSizes.length > 0 ? r.bandSizes.join(', ') : '-'}</td>
-                    <td>
-                        <span class="genotype-badge genotype-${r.genotype === 'Het' ? 'het' : r.genotype === 'Homo' ? 'p1' : 'null'}">${r.genotype}</span>
-                    </td>
-                    <td>
-                        <select onchange="updateGenotype(${idx}, this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border);">
-                            <option value="${r.genotype}" selected>${r.genotype}</option>
-                            <option value="Homo(P1)">Homo(P1)</option>
-                            <option value="Homo(P2)">Homo(P2)</option>
-                            <option value="Het">Het</option>
-                            <option value="-">미판정</option>
-                        </select>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = results.map((r, idx) => {
+                // 유전자형에 따른 배지 색상 결정
+                let badgeClass = 'genotype-null';
+                if (r.genotype.includes('P1') || r.genotype === '1') {
+                    badgeClass = 'genotype-p1';
+                } else if (r.genotype.includes('P2') || r.genotype === '0') {
+                    badgeClass = 'genotype-p2';
+                } else if (r.genotype === 'Het') {
+                    badgeClass = 'genotype-het';
+                } else if (r.genotype === 'Homo') {
+                    badgeClass = 'genotype-p1';
+                }
+
+                // 패턴 변화 표시
+                const patternChangeStyle = r.patternChange ?
+                    'background: #fff3e0; border-left: 3px solid #ff9800;' : '';
+
+                return `
+                    <tr style="${patternChangeStyle}">
+                        <td>${r.lane}</td>
+                        <td>${r.name}</td>
+                        <td>${r.bandSizes.length > 0 ? r.bandSizes.join(', ') : '-'}</td>
+                        <td>
+                            ${r.bandPattern || '-'}
+                            ${r.patternChange ? '<span style="color: #ff9800; font-weight: bold;" title="이전 레인과 패턴 변화">⚠️</span>' : ''}
+                        </td>
+                        <td>
+                            <span class="genotype-badge ${badgeClass}">${r.genotype}</span>
+                        </td>
+                        <td>
+                            <select onchange="updateGenotype(${idx}, this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border);">
+                                <option value="${r.genotype}" selected>${r.genotype}</option>
+                                <option value="Homo(P1)">Homo(P1)</option>
+                                <option value="Homo(P2)">Homo(P2)</option>
+                                <option value="Het">Het</option>
+                                <option value="-">미판정</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         function updateGenotype(idx, value) {
@@ -2022,6 +2412,7 @@
                 originalImageData = null;
                 lanes = [];
                 bands = [];
+                ladderBandPositions = [];
                 sampleInfo = {};
                 currentStep = 1;
 
