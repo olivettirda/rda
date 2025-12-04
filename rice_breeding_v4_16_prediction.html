@@ -8339,6 +8339,7 @@ function saveSimulatorDataToSession() {
             linkageData: linkageData,
             imputedGenotypeData: imputedGenotypeData,
             imputationDone: imputationDone,
+            traitGeneMapping: traitGeneMapping,  // 표현형별 유전자 매핑 추가
             timestamp: Date.now()
         };
         sessionStorage.setItem('simulatorData', JSON.stringify(dataToSave));
@@ -8374,6 +8375,15 @@ function restoreSimulatorDataFromSession() {
             linkageData = data.linkageData;
             imputedGenotypeData = data.imputedGenotypeData;
             imputationDone = data.imputationDone || false;
+
+            // 표현형별 유전자 매핑 복원 (const 객체이므로 속성 복사)
+            if (data.traitGeneMapping) {
+                // 기존 키 유지하면서 저장된 키 추가/덮어쓰기
+                for (const [key, value] of Object.entries(data.traitGeneMapping)) {
+                    traitGeneMapping[key] = value;
+                }
+                console.log(`✅ 표현형별 유전자 매핑 복원: ${Object.keys(data.traitGeneMapping).length}개 형질`);
+            }
 
             // UI 업데이트
             const statusDiv = document.getElementById('dataStatus');
