@@ -523,10 +523,10 @@
 <body>
     <header class="header">
         <div class="header-left">
-            <h1>🧬 Gel 이미지 분석기</h1>
+            <h1>Gel 이미지 분석기</h1>
             <p>전기영동 젤 이미지 분석 및 유전자형 판독</p>
         </div>
-        <button class="reset-btn" onclick="resetAll()">🔄 처음부터 다시</button>
+        <button class="reset-btn" onclick="resetAll()">처음부터 다시</button>
     </header>
 
     <div class="container">
@@ -558,7 +558,7 @@
             </div>
             <div class="card-body">
                 <div class="info-box">
-                    <h3>💡 지원 형식</h3>
+                    <h3>지원 형식</h3>
                     <p>JPG, PNG, GIF, BMP 형식의 젤 이미지를 업로드하세요. 선명한 이미지일수록 정확한 분석이 가능합니다.</p>
                 </div>
 
@@ -739,6 +739,26 @@
                         </div>
 
                         <div class="sidebar-section">
+                            <h4>⚙️ 밴드 감지 설정</h4>
+                            <div class="form-group">
+                                <label>감도 (낮을수록 더 많은 밴드 감지)</label>
+                                <input type="range" class="adjustment-slider" id="bandSensitivity" min="10" max="80" value="35" style="width: 100%;" oninput="document.getElementById('sensitivityValue').textContent=this.value+'%'">
+                                <span id="sensitivityValue" style="font-size: 0.8rem; color: #666;">35%</span>
+                            </div>
+                            <div class="form-group">
+                                <label>최소 밴드 간격 (px)</label>
+                                <input type="number" id="minBandDistance" value="15" min="5" max="100" style="width: 80px;">
+                            </div>
+                            <div class="form-group">
+                                <label>밴드 샘플링 폭 (px)</label>
+                                <input type="number" id="bandSampleWidth" value="15" min="5" max="50" style="width: 80px;">
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="showProfileDebug()" style="margin-top: 8px; font-size: 0.75rem;">
+                                📈 프로파일 미리보기
+                            </button>
+                        </div>
+
+                        <div class="sidebar-section">
                             <h4>📊 레인별 밴드</h4>
                             <div id="laneBandList" style="max-height: 300px; overflow-y: auto;"></div>
                         </div>
@@ -780,7 +800,7 @@
 
                 <div class="btn-group" style="margin-top: 20px;">
                     <button class="btn btn-secondary" onclick="backToBands()">← 밴드 수정</button>
-                    <button class="btn btn-primary" onclick="resetAll()">🔄 새 분석 시작</button>
+                    <button class="btn btn-primary" onclick="resetAll()">새 분석 시작</button>
                 </div>
             </div>
         </div>
@@ -1283,14 +1303,22 @@
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
 
+            // 사용자 설정 읽기
+            const sensitivity = parseInt(document.getElementById('bandSensitivity').value) / 100;
+            const minDistance = parseInt(document.getElementById('minBandDistance').value);
+            const bandWidth = parseInt(document.getElementById('bandSampleWidth').value);
+
             // Clear existing bands
             bands = [];
+
+            console.log('=== 밴드 자동 감지 시작 ===');
+            console.log(`설정: sensitivity=${sensitivity}, minDistance=${minDistance}, bandWidth=${bandWidth}`);
+            console.log(`레인 방향: ${laneOrientation}, 밴드 극성: ${bandPolarity}`);
 
             // For each lane, analyze profile along the band direction
             lanes.forEach((lane, laneIdx) => {
                 const lanePos = Math.round(lane.pos);
                 const profile = [];
-                const bandWidth = 20; // sample width around lane center
 
                 if (laneOrientation === 'horizontal') {
                     // Horizontal lanes: scan along x-axis to find bands
@@ -1303,45 +1331,12 @@
                             if (py >= 0 && py < canvas.height) {
                                 const idx = (py * canvas.width + x) * 4;
                                 const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-                                // For bright bands, use raw intensity; for dark bands, invert
                                 const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
                                 sum += intensity;
                                 count++;
                             }
                         }
-                        profile.push(sum / count);
-                    }
-
-                    // Smooth and find peaks
-                    const smoothed = smoothArray(profile, 3);
-                    const maxVal = Math.max(...smoothed);
-                    const minVal = Math.min(...smoothed);
-                    const threshold = minVal + (maxVal - minVal) * 0.4;
-
-                    let inPeak = false;
-                    let peakStart = 0;
-                    let peakMax = 0;
-                    let peakMaxX = 0;
-
-                    for (let x = 5; x < canvas.width - 5; x++) {
-                        if (smoothed[x] > threshold && !inPeak) {
-                            inPeak = true;
-                            peakStart = x;
-                            peakMax = smoothed[x];
-                            peakMaxX = x;
-                        } else if (inPeak && smoothed[x] > peakMax) {
-                            peakMax = smoothed[x];
-                            peakMaxX = x;
-                        } else if (smoothed[x] <= threshold && inPeak) {
-                            inPeak = false;
-                            bands.push({
-                                laneIdx: laneIdx,
-                                x: peakMaxX,
-                                y: lanePos,
-                                lanePos: lanePos,
-                                size: estimateBandSize(peakMaxX, lanePos)
-                            });
-                        }
+                        profile.push(count > 0 ? sum / count : 0);
                     }
                 } else {
                     // Vertical lanes: scan along y-axis to find bands
@@ -1359,47 +1354,265 @@
                                 count++;
                             }
                         }
-                        profile.push(sum / count);
-                    }
-
-                    // Smooth and find peaks
-                    const smoothed = smoothArray(profile, 3);
-                    const maxVal = Math.max(...smoothed);
-                    const minVal = Math.min(...smoothed);
-                    const threshold = minVal + (maxVal - minVal) * 0.4;
-
-                    let inPeak = false;
-                    let peakStart = 0;
-                    let peakMax = 0;
-                    let peakMaxY = 0;
-
-                    for (let y = 5; y < canvas.height - 5; y++) {
-                        if (smoothed[y] > threshold && !inPeak) {
-                            inPeak = true;
-                            peakStart = y;
-                            peakMax = smoothed[y];
-                            peakMaxY = y;
-                        } else if (inPeak && smoothed[y] > peakMax) {
-                            peakMax = smoothed[y];
-                            peakMaxY = y;
-                        } else if (smoothed[y] <= threshold && inPeak) {
-                            inPeak = false;
-                            bands.push({
-                                laneIdx: laneIdx,
-                                x: lanePos,
-                                y: peakMaxY,
-                                lanePos: lanePos,
-                                size: estimateBandSize(lanePos, peakMaxY)
-                            });
-                        }
+                        profile.push(count > 0 ? sum / count : 0);
                     }
                 }
+
+                // === 개선된 Peak 검출 알고리즘 ===
+
+                // 1. Gaussian-like smoothing (더 강한 스무딩)
+                const smoothed = gaussianSmooth(profile, 5);
+
+                // 2. 기본 통계 계산
+                const sortedProfile = [...smoothed].sort((a, b) => a - b);
+                const q1 = sortedProfile[Math.floor(sortedProfile.length * 0.25)];
+                const q3 = sortedProfile[Math.floor(sortedProfile.length * 0.75)];
+                const iqr = q3 - q1;
+                const median = sortedProfile[Math.floor(sortedProfile.length * 0.5)];
+                const maxVal = Math.max(...smoothed);
+                const minVal = Math.min(...smoothed);
+                const range = maxVal - minVal;
+
+                // 3. 동적 threshold 계산 (sensitivity 기반)
+                // sensitivity가 낮으면 threshold가 낮아져서 더 많은 피크 감지
+                const baseThreshold = median + iqr * 0.5;
+                const dynamicThreshold = minVal + range * sensitivity;
+                const threshold = Math.max(baseThreshold, dynamicThreshold);
+
+                // 4. 최소 prominence (피크가 주변보다 얼마나 높아야 하는지)
+                const minProminence = range * 0.15;
+
+                console.log(`Lane ${laneIdx + 1}: median=${median.toFixed(1)}, threshold=${threshold.toFixed(1)}, minProminence=${minProminence.toFixed(1)}`);
+
+                // 5. 피크 검출 with prominence check
+                const peaks = findPeaksWithProminence(smoothed, threshold, minProminence, minDistance);
+
+                console.log(`Lane ${laneIdx + 1}: ${peaks.length}개 피크 발견`);
+
+                // 6. 밴드로 추가
+                peaks.forEach(peakPos => {
+                    if (laneOrientation === 'horizontal') {
+                        bands.push({
+                            laneIdx: laneIdx,
+                            x: peakPos,
+                            y: lanePos,
+                            lanePos: lanePos,
+                            size: estimateBandSize(peakPos, lanePos)
+                        });
+                    } else {
+                        bands.push({
+                            laneIdx: laneIdx,
+                            x: lanePos,
+                            y: peakPos,
+                            lanePos: lanePos,
+                            size: estimateBandSize(lanePos, peakPos)
+                        });
+                    }
+                });
             });
 
             drawBands();
             updateLaneBandList();
 
-            alert(`${bands.length}개의 밴드가 자동 감지되었습니다.`);
+            alert(`${bands.length}개의 밴드가 자동 감지되었습니다.\n\n밴드가 제대로 감지되지 않았다면:\n• 감도를 낮춰보세요 (현재: ${Math.round(sensitivity * 100)}%)\n• 이미지 밝기/대비를 조정하세요\n• 수동으로 밴드를 클릭해서 추가하세요`);
+        }
+
+        // Gaussian-like smoothing 함수
+        function gaussianSmooth(arr, radius) {
+            const result = [];
+            const weights = [];
+            let weightSum = 0;
+
+            // Gaussian weights 계산
+            for (let i = -radius; i <= radius; i++) {
+                const w = Math.exp(-(i * i) / (2 * (radius / 2) * (radius / 2)));
+                weights.push(w);
+                weightSum += w;
+            }
+
+            for (let i = 0; i < arr.length; i++) {
+                let sum = 0;
+                let wSum = 0;
+
+                for (let j = -radius; j <= radius; j++) {
+                    const idx = i + j;
+                    if (idx >= 0 && idx < arr.length) {
+                        sum += arr[idx] * weights[j + radius];
+                        wSum += weights[j + radius];
+                    }
+                }
+                result.push(sum / wSum);
+            }
+            return result;
+        }
+
+        // Prominence 기반 피크 검출
+        function findPeaksWithProminence(arr, threshold, minProminence, minDistance) {
+            const peaks = [];
+            const n = arr.length;
+            const margin = 5;
+
+            // 먼저 모든 로컬 피크 찾기
+            const localPeaks = [];
+            for (let i = margin; i < n - margin; i++) {
+                // 로컬 최대값인지 확인
+                let isMax = true;
+                for (let j = i - 3; j <= i + 3; j++) {
+                    if (j !== i && arr[j] >= arr[i]) {
+                        isMax = false;
+                        break;
+                    }
+                }
+
+                if (isMax && arr[i] > threshold) {
+                    // Prominence 계산: 좌우 10픽셀 내 최소값 찾기
+                    let leftMin = arr[i];
+                    let rightMin = arr[i];
+
+                    for (let j = Math.max(0, i - 20); j < i; j++) {
+                        leftMin = Math.min(leftMin, arr[j]);
+                    }
+                    for (let j = i + 1; j < Math.min(n, i + 20); j++) {
+                        rightMin = Math.min(rightMin, arr[j]);
+                    }
+
+                    const prominence = arr[i] - Math.max(leftMin, rightMin);
+
+                    if (prominence >= minProminence) {
+                        localPeaks.push({ pos: i, value: arr[i], prominence: prominence });
+                    }
+                }
+            }
+
+            // 최소 간격 적용하여 필터링
+            localPeaks.sort((a, b) => b.prominence - a.prominence);  // prominence 높은 순
+
+            for (const peak of localPeaks) {
+                // 이미 선택된 피크들과 거리 확인
+                let tooClose = false;
+                for (const selectedPos of peaks) {
+                    if (Math.abs(peak.pos - selectedPos) < minDistance) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+
+                if (!tooClose) {
+                    peaks.push(peak.pos);
+                }
+            }
+
+            return peaks.sort((a, b) => a - b);  // 위치 순으로 정렬
+        }
+
+        // 프로파일 디버그 표시
+        function showProfileDebug() {
+            if (lanes.length === 0) {
+                alert('먼저 레인을 설정하세요.');
+                return;
+            }
+
+            const canvas = document.getElementById('gelCanvas2');
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            const bandWidth = parseInt(document.getElementById('bandSampleWidth').value);
+            const sensitivity = parseInt(document.getElementById('bandSensitivity').value) / 100;
+
+            // 첫 번째 레인의 프로파일 생성
+            const lane = lanes[0];
+            const lanePos = Math.round(lane.pos);
+            const profile = [];
+
+            if (laneOrientation === 'horizontal') {
+                for (let x = 0; x < canvas.width; x++) {
+                    let sum = 0, count = 0;
+                    for (let dy = -bandWidth; dy <= bandWidth; dy++) {
+                        const py = lanePos + dy;
+                        if (py >= 0 && py < canvas.height) {
+                            const idx = (py * canvas.width + x) * 4;
+                            const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                            const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
+                            sum += intensity;
+                            count++;
+                        }
+                    }
+                    profile.push(count > 0 ? sum / count : 0);
+                }
+            } else {
+                for (let y = 0; y < canvas.height; y++) {
+                    let sum = 0, count = 0;
+                    for (let dx = -bandWidth; dx <= bandWidth; dx++) {
+                        const px = lanePos + dx;
+                        if (px >= 0 && px < canvas.width) {
+                            const idx = (y * canvas.width + px) * 4;
+                            const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                            const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
+                            sum += intensity;
+                            count++;
+                        }
+                    }
+                    profile.push(count > 0 ? sum / count : 0);
+                }
+            }
+
+            const smoothed = gaussianSmooth(profile, 5);
+            const maxVal = Math.max(...smoothed);
+            const minVal = Math.min(...smoothed);
+            const range = maxVal - minVal;
+            const threshold = minVal + range * sensitivity;
+
+            // 프로파일 시각화 팝업
+            const popup = window.open('', 'Profile Debug', 'width=800,height=400');
+            popup.document.write(`
+                <html>
+                <head><title>Lane 1 프로파일</title></head>
+                <body style="margin: 0; padding: 20px; font-family: sans-serif;">
+                <h3>Lane 1 Intensity Profile</h3>
+                <p>Min: ${minVal.toFixed(1)}, Max: ${maxVal.toFixed(1)}, Threshold (${Math.round(sensitivity*100)}%): ${threshold.toFixed(1)}</p>
+                <canvas id="profileCanvas" width="760" height="250" style="border:1px solid #ccc;"></canvas>
+                <script>
+                    const canvas = document.getElementById('profileCanvas');
+                    const ctx = canvas.getContext('2d');
+                    const profile = ${JSON.stringify(smoothed)};
+                    const threshold = ${threshold};
+                    const maxVal = ${maxVal};
+                    const minVal = ${minVal};
+
+                    // 배경
+                    ctx.fillStyle = '#f8f8f8';
+                    ctx.fillRect(0, 0, 760, 250);
+
+                    // Threshold 라인
+                    const threshY = 230 - ((threshold - minVal) / (maxVal - minVal)) * 200;
+                    ctx.strokeStyle = '#e53935';
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(0, threshY);
+                    ctx.lineTo(760, threshY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // 프로파일 그리기
+                    ctx.strokeStyle = '#017f97';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    for (let i = 0; i < profile.length; i++) {
+                        const x = (i / profile.length) * 760;
+                        const y = 230 - ((profile[i] - minVal) / (maxVal - minVal)) * 200;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+
+                    // 레이블
+                    ctx.fillStyle = '#e53935';
+                    ctx.font = '12px sans-serif';
+                    ctx.fillText('Threshold', 5, threshY - 5);
+                </script>
+                </body></html>
+            `);
         }
 
         function drawBands() {
@@ -1730,7 +1943,7 @@
 
             // Show confirmation
             const count = Object.keys(simulatorData.samples).length;
-            alert(`✅ 시뮬레이터로 전송 완료!\n\n• 시료 수: ${count}개\n• 마커: ${markerName}\n\n시뮬레이터에서 'Gel 데이터 가져오기' 버튼을 클릭하세요.`);
+            alert(`시뮬레이터로 전송 완료!\n\n• 시료 수: ${count}개\n• 마커: ${markerName}\n\n시뮬레이터에서 'Gel 데이터 가져오기' 버튼을 클릭하세요.`);
 
             console.log('=== Gel 분석 데이터 전송 ===');
             console.log(simulatorData);
