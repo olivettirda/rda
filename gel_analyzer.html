@@ -609,14 +609,14 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div class="form-group" style="margin: 0;">
                             <label>레인 방향</label>
-                            <select id="laneOrientation">
-                                <option value="horizontal">가로 (레인이 가로로)</option>
-                                <option value="vertical">세로 (레인이 세로로)</option>
+                            <select id="laneOrientation" onchange="updateOrientation()">
+                                <option value="vertical">세로 (일반적인 젤)</option>
+                                <option value="horizontal">가로 (회전된 젤)</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin: 0;">
                             <label>밴드 색상</label>
-                            <select id="bandPolarity">
+                            <select id="bandPolarity" onchange="updatePolarity()">
                                 <option value="bright">밝은 밴드 (어두운 배경)</option>
                                 <option value="dark">어두운 밴드 (밝은 배경)</option>
                             </select>
@@ -817,8 +817,19 @@
         let markerType = 'codominant';
         let currentTool = 'lane';
         let zoom = 100;
-        let laneOrientation = 'horizontal'; // 'horizontal' or 'vertical'
+        let laneOrientation = 'vertical'; // 'vertical' (일반적인 젤) or 'horizontal'
         let bandPolarity = 'bright'; // 'bright' (bright bands on dark bg) or 'dark'
+
+        // 설정 변경 함수
+        function updateOrientation() {
+            laneOrientation = document.getElementById('laneOrientation').value;
+            console.log('레인 방향 변경:', laneOrientation);
+        }
+
+        function updatePolarity() {
+            bandPolarity = document.getElementById('bandPolarity').value;
+            console.log('밴드 극성 변경:', bandPolarity);
+        }
 
         // Ladder definitions
         const ladderDefs = {
@@ -1053,39 +1064,53 @@
         }
 
         function autoDetectLanes() {
-            const canvas = document.getElementById('gelCanvas');
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            // 현재 설정 새로 읽기
+            laneOrientation = document.getElementById('laneOrientation').value;
+            bandPolarity = document.getElementById('bandPolarity').value;
+
+            if (!originalImageData) {
+                alert('이미지를 먼저 업로드하세요.');
+                return;
+            }
+
+            const imgWidth = originalImageData.width;
+            const imgHeight = originalImageData.height;
+            const data = originalImageData.data;
 
             let profile;
             let profileLength;
 
+            console.log('=== 레인 자동 감지 시작 ===');
+            console.log(`이미지 크기: ${imgWidth} x ${imgHeight}`);
+            console.log(`레인 방향: ${laneOrientation}, 밴드 극성: ${bandPolarity}`);
+
             if (laneOrientation === 'horizontal') {
                 // For horizontal lanes, create horizontal profile (average intensity per row)
-                profileLength = canvas.height;
+                profileLength = imgHeight;
                 profile = new Array(profileLength).fill(0);
-                for (let y = 0; y < canvas.height; y++) {
-                    for (let x = 0; x < canvas.width; x++) {
-                        const idx = (y * canvas.width + x) * 4;
+                for (let y = 0; y < imgHeight; y++) {
+                    for (let x = 0; x < imgWidth; x++) {
+                        const idx = (y * imgWidth + x) * 4;
                         const intensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
                         profile[y] += intensity;
                     }
-                    profile[y] /= canvas.width;
+                    profile[y] /= imgWidth;
                 }
             } else {
                 // For vertical lanes, create vertical profile (average intensity per column)
-                profileLength = canvas.width;
+                profileLength = imgWidth;
                 profile = new Array(profileLength).fill(0);
-                for (let x = 0; x < canvas.width; x++) {
-                    for (let y = 0; y < canvas.height; y++) {
-                        const idx = (y * canvas.width + x) * 4;
+                for (let x = 0; x < imgWidth; x++) {
+                    for (let y = 0; y < imgHeight; y++) {
+                        const idx = (y * imgWidth + x) * 4;
                         const intensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
                         profile[x] += intensity;
                     }
-                    profile[x] /= canvas.height;
+                    profile[x] /= imgHeight;
                 }
             }
+
+            console.log(`프로파일 길이: ${profileLength}, 샘플값: ${profile.slice(0, 10).map(v => v.toFixed(1)).join(', ')}...`);
 
             // Find lane positions based on intensity profile
             const smoothed = smoothArray(profile, 10);
@@ -1093,10 +1118,15 @@
             const maxVal = Math.max(...smoothed);
             const range = maxVal - minVal;
 
+            console.log(`프로파일 통계: min=${minVal.toFixed(1)}, max=${maxVal.toFixed(1)}, range=${range.toFixed(1)}`);
+
             // For bright bands, lanes have higher intensity; for dark bands, lower intensity
+            // 더 낮은 threshold 사용 (0.2)
             const threshold = bandPolarity === 'bright'
-                ? minVal + range * 0.3  // Look for bright regions
-                : maxVal - range * 0.3; // Look for dark regions
+                ? minVal + range * 0.2  // Look for bright regions
+                : maxVal - range * 0.2; // Look for dark regions
+
+            console.log(`Threshold: ${threshold.toFixed(1)}`);
 
             const lanePositions = [];
             let inLane = false;
@@ -1114,8 +1144,11 @@
                     inLane = false;
                     const laneCenter = Math.round((laneStart + i) / 2);
                     lanePositions.push(laneCenter);
+                    console.log(`레인 감지: 시작=${laneStart}, 끝=${i}, 중심=${laneCenter}`);
                 }
             }
+
+            console.log(`총 ${lanePositions.length}개 레인 위치 감지`);
 
             // Clear and add detected lanes
             lanes = [];
@@ -1127,7 +1160,11 @@
             updateLaneList();
             drawLanes();
 
-            alert(`${lanes.length}개의 레인이 자동 감지되었습니다.`);
+            if (lanes.length === 0) {
+                alert(`레인을 자동 감지하지 못했습니다.\n\n다음을 확인해주세요:\n• 레인 방향 설정 (현재: ${laneOrientation === 'vertical' ? '세로' : '가로'})\n• 밴드 색상 설정 (현재: ${bandPolarity === 'bright' ? '밝은 밴드' : '어두운 밴드'})\n\n수동으로 레인을 클릭하여 추가할 수 있습니다.`);
+            } else {
+                alert(`${lanes.length}개의 레인이 자동 감지되었습니다.`);
+            }
         }
 
         function smoothArray(arr, window) {
@@ -1271,20 +1308,23 @@
 
         function estimateBandSize(x, y) {
             // Simple linear estimation based on ladder
-            const canvas = document.getElementById('gelCanvas2');
             const ladderType = document.getElementById('ladderType').value;
             const ladderBands = ladderDefs[ladderType] || [100, 500, 1000];
 
             const maxSize = Math.max(...ladderBands);
             const minSize = Math.min(...ladderBands);
 
+            // 이미지 크기 사용
+            const imgWidth = gelImage ? gelImage.width : 800;
+            const imgHeight = gelImage ? gelImage.height : 600;
+
             // For horizontal lanes, x determines size (left = larger, right = smaller)
             // For vertical lanes, y determines size (top = larger, bottom = smaller)
             let ratio;
             if (laneOrientation === 'horizontal') {
-                ratio = x / canvas.width;
+                ratio = x / imgWidth;
             } else {
-                ratio = y / canvas.height;
+                ratio = y / imgHeight;
             }
 
             // Higher ratio = smaller size
@@ -1298,10 +1338,23 @@
         }
 
         function autoDetectBands() {
-            const canvas = document.getElementById('gelCanvas2');
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            // 현재 설정 새로 읽기
+            laneOrientation = document.getElementById('laneOrientation').value;
+            bandPolarity = document.getElementById('bandPolarity').value;
+
+            if (!originalImageData) {
+                alert('이미지를 먼저 업로드하세요.');
+                return;
+            }
+
+            if (lanes.length === 0) {
+                alert('먼저 레인을 설정하세요.');
+                return;
+            }
+
+            const imgWidth = originalImageData.width;
+            const imgHeight = originalImageData.height;
+            const data = originalImageData.data;
 
             // 사용자 설정 읽기
             const sensitivity = parseInt(document.getElementById('bandSensitivity').value) / 100;
@@ -1312,24 +1365,28 @@
             bands = [];
 
             console.log('=== 밴드 자동 감지 시작 ===');
+            console.log(`이미지 크기: ${imgWidth} x ${imgHeight}`);
             console.log(`설정: sensitivity=${sensitivity}, minDistance=${minDistance}, bandWidth=${bandWidth}`);
             console.log(`레인 방향: ${laneOrientation}, 밴드 극성: ${bandPolarity}`);
+            console.log(`레인 수: ${lanes.length}`);
 
             // For each lane, analyze profile along the band direction
             lanes.forEach((lane, laneIdx) => {
                 const lanePos = Math.round(lane.pos);
                 const profile = [];
 
+                console.log(`Lane ${laneIdx + 1}: lanePos=${lanePos}`);
+
                 if (laneOrientation === 'horizontal') {
                     // Horizontal lanes: scan along x-axis to find bands
-                    for (let x = 0; x < canvas.width; x++) {
+                    for (let x = 0; x < imgWidth; x++) {
                         let sum = 0;
                         let count = 0;
 
                         for (let dy = -bandWidth; dy <= bandWidth; dy++) {
                             const py = lanePos + dy;
-                            if (py >= 0 && py < canvas.height) {
-                                const idx = (py * canvas.width + x) * 4;
+                            if (py >= 0 && py < imgHeight) {
+                                const idx = (py * imgWidth + x) * 4;
                                 const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
                                 const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
                                 sum += intensity;
@@ -1340,14 +1397,14 @@
                     }
                 } else {
                     // Vertical lanes: scan along y-axis to find bands
-                    for (let y = 0; y < canvas.height; y++) {
+                    for (let y = 0; y < imgHeight; y++) {
                         let sum = 0;
                         let count = 0;
 
                         for (let dx = -bandWidth; dx <= bandWidth; dx++) {
                             const px = lanePos + dx;
-                            if (px >= 0 && px < canvas.width) {
-                                const idx = (y * canvas.width + px) * 4;
+                            if (px >= 0 && px < imgWidth) {
+                                const idx = (y * imgWidth + px) * 4;
                                 const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
                                 const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
                                 sum += intensity;
@@ -1357,6 +1414,8 @@
                         profile.push(count > 0 ? sum / count : 0);
                     }
                 }
+
+                console.log(`Lane ${laneIdx + 1}: 프로파일 길이=${profile.length}, 범위=[${Math.min(...profile).toFixed(1)}, ${Math.max(...profile).toFixed(1)}]`);
 
                 // === 개선된 Peak 검출 알고리즘 ===
 
@@ -1512,10 +1571,18 @@
                 return;
             }
 
-            const canvas = document.getElementById('gelCanvas2');
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            if (!originalImageData) {
+                alert('이미지를 먼저 업로드하세요.');
+                return;
+            }
+
+            // 현재 설정 새로 읽기
+            laneOrientation = document.getElementById('laneOrientation').value;
+            bandPolarity = document.getElementById('bandPolarity').value;
+
+            const imgWidth = originalImageData.width;
+            const imgHeight = originalImageData.height;
+            const data = originalImageData.data;
 
             const bandWidth = parseInt(document.getElementById('bandSampleWidth').value);
             const sensitivity = parseInt(document.getElementById('bandSensitivity').value) / 100;
@@ -1526,12 +1593,12 @@
             const profile = [];
 
             if (laneOrientation === 'horizontal') {
-                for (let x = 0; x < canvas.width; x++) {
+                for (let x = 0; x < imgWidth; x++) {
                     let sum = 0, count = 0;
                     for (let dy = -bandWidth; dy <= bandWidth; dy++) {
                         const py = lanePos + dy;
-                        if (py >= 0 && py < canvas.height) {
-                            const idx = (py * canvas.width + x) * 4;
+                        if (py >= 0 && py < imgHeight) {
+                            const idx = (py * imgWidth + x) * 4;
                             const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
                             const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
                             sum += intensity;
@@ -1541,12 +1608,12 @@
                     profile.push(count > 0 ? sum / count : 0);
                 }
             } else {
-                for (let y = 0; y < canvas.height; y++) {
+                for (let y = 0; y < imgHeight; y++) {
                     let sum = 0, count = 0;
                     for (let dx = -bandWidth; dx <= bandWidth; dx++) {
                         const px = lanePos + dx;
-                        if (px >= 0 && px < canvas.width) {
-                            const idx = (y * canvas.width + px) * 4;
+                        if (px >= 0 && px < imgWidth) {
+                            const idx = (y * imgWidth + px) * 4;
                             const rawIntensity = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
                             const intensity = bandPolarity === 'bright' ? rawIntensity : (255 - rawIntensity);
                             sum += intensity;
