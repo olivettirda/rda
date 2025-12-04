@@ -1852,6 +1852,11 @@
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     excelData = XLSX.utils.sheet_to_json(sheet);
                     alert('엑셀 파일이 로드되었습니다. "품종 목록 생성" 버튼을 클릭하세요.');
+                    // 다음 작동 카드로 스크롤
+                    setTimeout(() => {
+                        const listOutput = document.getElementById('listOutput');
+                        if (listOutput) listOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
                 } catch (error) {
                     alert('엑셀 파일 읽기 오류: ' + error.message);
                     excelData = null;
@@ -2324,6 +2329,12 @@
 
             // 품종 목록 로드
             loadVarietiesForSurvey(file);
+
+            // 다음 작동 카드로 스크롤
+            setTimeout(() => {
+                const surveyTableOutput = document.getElementById('surveyTableOutput');
+                if (surveyTableOutput) surveyTableOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 500);
         }
 
         function clearSurveyFile() {
@@ -2608,7 +2619,13 @@
                         itemSelect.value = numericTraits[0];
                         updateAnalysis();
                     }
-                    
+
+                    // 다음 작동 카드로 스크롤
+                    setTimeout(() => {
+                        const basicStatsTable = document.getElementById('basicStatsTable');
+                        if (basicStatsTable) basicStatsTable.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+
                 } catch (error) {
                     alert('데이터 파일 읽기 오류: ' + error.message);
                     label.innerHTML = `📂 클릭하여 데이터 파일 선택<br><small>생육조사 데이터가 입력된 엑셀 파일</small>`;
@@ -6368,6 +6385,17 @@
                         
                         const uniqueCount = originalData.length;
                         alert(`${uniqueCount}개 품종 로드 완료!\n(${repeatCount}세트 반복 설정)\n\n'라벨 생성' 버튼을 클릭하세요.`);
+
+                        // 다음 작동 카드로 스크롤
+                        setTimeout(() => {
+                            const datatransSection = document.getElementById('datatransSection');
+                            if (datatransSection && datatransSection.style.display !== 'none') {
+                                datatransSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            } else {
+                                const startPositionPanel = document.getElementById('startPositionPanel');
+                                if (startPositionPanel) startPositionPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }, 100);
                     } else {
                         alert('인식 가능한 데이터를 찾지 못했습니다.\n\n필요한 열: 연도, 실험실, 시험번호, 품종 및 계통');
                     }
@@ -7151,7 +7179,7 @@
                 const wb = XLSX.utils.book_new();
                 
                 // datatrans 입력 양식 헤더
-                const headers = ['시료번호', '시험번호', '품종 및 계통', '대비품종', '재배구분', '담당자', '시험구분', '포장위치', '세부과제번호', '연구실', '수확주수', '조간(cm)', '주간(cm)', '면적(㎡)', '작성일자'];
+                const headers = ['시료번호', '시험번호', '품종 및 계통', '대비품종', '재배구분', '담당자', '시험구분', '포장위치', '세부과제번호', '연구실', '수확주수', '조간(cm)', '주간(cm)', '면적(㎡)'];
                 const data = [headers];
                 
                 uniqueData.forEach(item => {
@@ -7172,8 +7200,7 @@
                         '',                     // 수확주수
                         '',                     // 조간(cm)
                         '',                     // 주간(cm)
-                        '',                     // 면적(㎡)
-                        ''                      // 작성일자
+                        ''                      // 면적(㎡)
                     ]);
                 });
                 
@@ -7194,8 +7221,7 @@
                     { wch: 10 },  // 수확주수
                     { wch: 10 },  // 조간(cm)
                     { wch: 10 },  // 주간(cm)
-                    { wch: 10 },  // 면적(㎡)
-                    { wch: 12 }   // 작성일자
+                    { wch: 10 }   // 면적(㎡)
                 ];
                 
                 XLSX.utils.book_append_sheet(wb, ws, 'datatrans입력');

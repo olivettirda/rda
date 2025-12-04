@@ -776,6 +776,14 @@
                 </div>
                 <span class="online-badge">Online</span>
             </a>
+            <a href="https://rapdb.dna.affrc.go.jp/converter/" target="_blank" class="quick-link-card">
+                <div class="quick-link-icon">🔄</div>
+                <div class="quick-link-text">
+                    <h3>유전자 ID 변환</h3>
+                    <p>RAP-DB ID Converter (Os ↔ LOC_Os)</p>
+                </div>
+                <span class="online-badge">Online</span>
+            </a>
         </div>
 
         <!-- 북마크 섹션 -->
@@ -888,16 +896,12 @@
             window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${geneId}`, '_blank');
         }
 
-        // RGAP 검색 - ID Converter 페이지로 이동 (API 불안정)
+        // RGAP 검색 - LOC_Os ID로 직접 검색
         function openRgapWithId(geneId) {
-            // ID Converter 페이지 열고 ID 복사
-            navigator.clipboard.writeText(geneId).then(() => {
-                window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
-                showCopyToast(`${geneId} 복사됨! ID Converter에서 MSU ID 확인 후 RGAP 검색하세요.`);
-            }).catch(() => {
-                window.open('https://rapdb.dna.affrc.go.jp/converter/', '_blank');
-                alert(`ID Converter에서 "${geneId}"를 검색하여 MSU ID(LOC_Os...)를 확인하세요.`);
-            });
+            // Os ID를 LOC_Os 형식으로 변환
+            const locId = osIdToLoc(geneId);
+            // RGAP ORF 정보 페이지로 직접 이동
+            window.open(`http://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${locId}`, '_blank');
         }
 
         // 복사 완료 토스트 메시지
