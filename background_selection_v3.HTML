@@ -285,7 +285,7 @@
         height: var(--viz-chr-h);
     }
     
-    /* p-arm (단완) */
+    /* p-arm (단완) - 왼쪽만 둥근 모서리, 전체 테두리 */
     .chr-p-arm {
         height: 100%;
         min-width: 4px;
@@ -294,10 +294,9 @@
         position: relative;
         overflow: hidden;
         border: var(--viz-chr-border) solid var(--viz-chr-border-color);
-        border-right: none;
     }
-    
-    /* q-arm (장완) */
+
+    /* q-arm (장완) - 오른쪽만 둥근 모서리, 전체 테두리 */
     .chr-q-arm {
         height: 100%;
         min-width: 4px;
@@ -306,10 +305,9 @@
         position: relative;
         overflow: hidden;
         border: var(--viz-chr-border) solid var(--viz-chr-border-color);
-        border-left: none;
     }
-    
-    /* 동원체 (원형) */
+
+    /* 동원체 (원형) - 단완/장완 사이에 위치 */
     .chr-centromere {
         width: var(--viz-centromere-w);
         height: var(--viz-centromere-w);
@@ -318,7 +316,7 @@
         border-radius: 50%;
         z-index: 10;
         flex-shrink: 0;
-        box-shadow: 0 0 0 2px var(--viz-bg);
+        margin: 0 -2px; /* 단완/장완과 살짝 겹치게 */
     }
     
     /* 동원체 (선 형태 - 분리 안할 때) */
@@ -1115,8 +1113,6 @@
             <div class="preset-btns">
                 <button class="preset-btn active" onclick="applyPreset('color',this)">컬러</button>
                 <button class="preset-btn" onclick="applyPreset('grayscale',this)">흑백</button>
-                <button class="preset-btn" onclick="applyPreset('publication',this)">논문용</button>
-                <button class="preset-btn" onclick="applyPreset('highContrast',this)">고대비</button>
             </div>
             <div class="divider"></div>
             
@@ -1455,39 +1451,15 @@ SSIIa,6,6749554"></textarea>
             label: '#0c3026'
         },
         grayscale: {
-            donor: 'rgba(60, 60, 60, 0.85)',
-            recurrent: 'rgba(220, 220, 220, 0.95)',
-            het: 'rgba(140, 140, 140, 0.8)',
-            centromere: '#000000',
+            donor: 'rgba(50, 50, 50, 0.95)',
+            recurrent: 'rgba(255, 255, 255, 0.95)',
+            het: 'rgba(150, 150, 150, 0.9)',
+            centromere: '#333333',
             centromereW: 8,
             chrH: 28,
             chrRadius: 4,
             chrBorder: 1,
-            track: '#f0f0f0',
-            label: '#333333'
-        },
-        publication: {
-            donor: 'rgba(0, 0, 0, 0.9)',
-            recurrent: 'rgba(255, 255, 255, 0.95)',
-            het: 'rgba(128, 128, 128, 0.8)',
-            centromere: '#333333',
-            centromereW: 6,
-            chrH: 24,
-            chrRadius: 2,
-            chrBorder: 1,
             track: '#ffffff',
-            label: '#000000'
-        },
-        highContrast: {
-            donor: 'rgba(220, 20, 60, 0.85)',
-            recurrent: 'rgba(30, 144, 255, 0.85)',
-            het: 'rgba(255, 215, 0, 0.85)',
-            centromere: '#000000',
-            centromereW: 10,
-            chrH: 32,
-            chrRadius: 6,
-            chrBorder: 2,
-            track: '#f8f8f8',
             label: '#000000'
         }
     };
@@ -2485,13 +2457,13 @@ SSIIa,6,6749554"></textarea>
         });
         vizClone.querySelectorAll('.chr-p-arm').forEach(el => {
             const grow = el.style.flexGrow || 1;
-            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px 0 0 ${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};border-right:none;`;
+            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px 0 0 ${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};`;
         });
         vizClone.querySelectorAll('.chr-q-arm').forEach(el => {
             const grow = el.style.flexGrow || 1;
-            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:0 ${vizStyles.chrRadius}px ${vizStyles.chrRadius}px 0;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};border-left:none;`;
+            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:0 ${vizStyles.chrRadius}px ${vizStyles.chrRadius}px 0;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};`;
         });
-        vizClone.querySelectorAll('.chr-centromere').forEach(el => el.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;`);
+        vizClone.querySelectorAll('.chr-centromere').forEach(el => el.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -2px;`);
         
         // 기존 bar 형태
         vizClone.querySelectorAll('.chr-bar-container').forEach(el => {
@@ -2581,18 +2553,21 @@ SSIIa,6,6749554"></textarea>
             svg += `<text x="${labelW}" y="${cy + chrH/2 + 4}" text-anchor="end" class="lbl">${name}</text>`;
             
             if (vizOptions.splitArms) {
-                // 분리 모드
+                // 분리 모드 - 세 개의 도형이 붙어있음 (단완, 동원체, 장완)
                 const pArmWidth = (info.centromere / info.length) * totalChrWidth;
                 const qArmWidth = totalChrWidth - pArmWidth;
                 const pArmX = labelW + 10;
-                const centX = pArmX + pArmWidth;
-                const qArmX = vizOptions.showCentromere ? centX + vizStyles.centromereW : centX;
-                
-                // p-arm
-                svg += `<rect x="${pArmX}" y="${cy}" width="${pArmWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
-                
-                // q-arm
-                svg += `<rect x="${qArmX}" y="${cy}" width="${qArmWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
+                const centX = pArmX + pArmWidth - 2; // 동원체가 단완과 살짝 겹침
+                const qArmX = vizOptions.showCentromere ? centX + vizStyles.centromereW - 2 : pArmX + pArmWidth;
+
+                // p-arm (단완) - 왼쪽만 둥근 모서리, 전체 테두리
+                const pRadius = vizStyles.chrRadius;
+                svg += `<path d="M${pArmX + pRadius},${cy} L${pArmX + pArmWidth},${cy} L${pArmX + pArmWidth},${cy + chrH} L${pArmX + pRadius},${cy + chrH} Q${pArmX},${cy + chrH} ${pArmX},${cy + chrH - pRadius} L${pArmX},${cy + pRadius} Q${pArmX},${cy} ${pArmX + pRadius},${cy} Z" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
+
+                // q-arm (장완) - 오른쪽만 둥근 모서리, 전체 테두리
+                const qRadius = vizStyles.chrRadius;
+                const qEndX = qArmX + qArmWidth;
+                svg += `<path d="M${qArmX},${cy} L${qEndX - qRadius},${cy} Q${qEndX},${cy} ${qEndX},${cy + qRadius} L${qEndX},${cy + chrH - qRadius} Q${qEndX},${cy + chrH} ${qEndX - qRadius},${cy + chrH} L${qArmX},${cy + chrH} Z" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
                 
                 // 마커 그리기
                 if (chrRes && chrRes.markers.length > 0) {
