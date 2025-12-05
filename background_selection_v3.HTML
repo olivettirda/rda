@@ -1,0 +1,2593 @@
+ <!DOCTYPE html>
+
+<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <style> @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8fafa;
+        --bg-card: #ffffff;
+        --header-bg: #0c3026;
+        --header-text: #ffffff;
+        --accent-light: #cce3dd;
+        --accent-mid: #00a1b8;
+        --accent-dark: #017f97;
+        --accent-darker: #0c3026;
+        --text-primary: #1a2e28;
+        --text-secondary: #4a5f58;
+        --border-color: #d4e5e0;
+        --shadow: 0 2px 8px rgba(12, 48, 38, 0.08);
+        --shadow-hover: 0 4px 16px rgba(12, 48, 38, 0.12);
+        
+        /* 동적 시각화 변수 */
+        --viz-donor: rgba(1, 127, 151, 0.7);
+        --viz-recurrent: rgba(204, 227, 221, 0.9);
+        --viz-het: rgba(184, 134, 11, 0.7);
+        --viz-centromere: #0c3026;
+        --viz-centromere-w: 8px;
+        --viz-chr-h: 28px;
+        --viz-chr-radius: 4px;
+        --viz-chr-border: 0px;
+        --viz-chr-border-color: #0c3026;
+        --viz-track: #e8eeec;
+        --viz-bg: #ffffff;
+        --viz-label: #0c3026;
+    }
+    
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        line-height: 1.6;
+        min-height: 100vh;
+    }
+    
+    /* Header */
+    header {
+        background: linear-gradient(135deg, var(--header-bg) 0%, #0a4035 100%);
+        color: var(--header-text);
+        padding: 1.5rem 2rem;
+        box-shadow: var(--shadow);
+    }
+    
+    header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    
+    header p {
+        font-size: 0.875rem;
+        opacity: 0.85;
+    }
+    
+    /* Main Layout */
+    .container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 1.5rem;
+    }
+    
+    .grid-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 1.5rem;
+    }
+    
+    @media (max-width: 1024px) {
+        .grid-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    /* Cards */
+    .card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+    
+    .card-header {
+        background: linear-gradient(135deg, var(--accent-light) 0%, #e8f5f2 100%);
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .card-header h2 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--accent-darker);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .card-body {
+        padding: 1.25rem;
+    }
+    
+    /* Sidebar Controls */
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-group:last-child {
+        margin-bottom: 0;
+    }
+    
+    label {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+    
+    select, input[type="number"], input[type="text"] {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-family: inherit;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        transition: all 0.2s;
+    }
+    
+    select:focus, input:focus {
+        outline: none;
+        border-color: var(--accent-mid);
+        box-shadow: 0 0 0 3px rgba(0, 161, 184, 0.15);
+    }
+    
+    input[type="file"] {
+        display: none;
+    }
+    
+    .file-upload-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.875rem;
+        background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent-mid) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .file-upload-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, var(--header-bg) 0%, #0a4035 100%);
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+    
+    .btn-secondary:hover {
+        background: var(--accent-light);
+    }
+    
+    .btn-block {
+        width: 100%;
+    }
+    
+    /* Genome Build Info */
+    .genome-info {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 0.75rem;
+        font-size: 0.75rem;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .genome-info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+        border-bottom: 1px dashed var(--border-color);
+    }
+    
+    .genome-info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .genome-info-chr {
+        color: var(--accent-dark);
+        font-weight: 500;
+    }
+    
+    .genome-info-len {
+        color: var(--text-secondary);
+    }
+    
+    /* Main Content */
+    .main-content {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    
+    /* Chromosome Visualization - 실제 염색체 형태 */
+    .chromosome-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        background: var(--viz-bg);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+    
+    .chromosome-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .chr-label {
+        width: 60px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--viz-label);
+        text-align: right;
+        flex-shrink: 0;
+    }
+    
+    /* 염색체 전체 구조 */
+    .chr-structure {
+        display: flex;
+        align-items: center;
+        height: var(--viz-chr-h);
+    }
+    
+    /* p-arm (단완) */
+    .chr-p-arm {
+        height: 100%;
+        min-width: 4px;
+        background: var(--viz-track);
+        border-radius: var(--viz-chr-radius) 0 0 var(--viz-chr-radius);
+        position: relative;
+        overflow: hidden;
+        border: var(--viz-chr-border) solid var(--viz-chr-border-color);
+        border-right: none;
+    }
+    
+    /* q-arm (장완) */
+    .chr-q-arm {
+        height: 100%;
+        min-width: 4px;
+        background: var(--viz-track);
+        border-radius: 0 var(--viz-chr-radius) var(--viz-chr-radius) 0;
+        position: relative;
+        overflow: hidden;
+        border: var(--viz-chr-border) solid var(--viz-chr-border-color);
+        border-left: none;
+    }
+    
+    /* 동원체 (원형) */
+    .chr-centromere {
+        width: var(--viz-centromere-w);
+        height: var(--viz-centromere-w);
+        min-width: var(--viz-centromere-w);
+        background: var(--viz-centromere);
+        border-radius: 50%;
+        z-index: 10;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 2px var(--viz-bg);
+    }
+    
+    /* 동원체 (선 형태 - 분리 안할 때) */
+    .chr-centromere-line {
+        position: absolute;
+        top: 0;
+        width: var(--viz-centromere-w);
+        height: 100%;
+        background: var(--viz-centromere);
+        transform: translateX(-50%);
+        z-index: 10;
+    }
+    
+    /* 기존 bar 형태 (분리 안할 때) */
+    .chr-bar-container {
+        flex: 1;
+        height: var(--viz-chr-h);
+        background: var(--viz-track);
+        border-radius: var(--viz-chr-radius);
+        position: relative;
+        overflow: hidden;
+        border: var(--viz-chr-border) solid var(--viz-chr-border-color);
+    }
+    
+    .chr-bar {
+        height: 100%;
+        border-radius: var(--viz-chr-radius);
+        position: relative;
+    }
+    
+    .marker-region {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .marker-region.donor {
+        background: var(--viz-donor);
+    }
+    
+    .marker-region.recurrent {
+        background: var(--viz-recurrent);
+    }
+    
+    .marker-region.heterozygous {
+        background: var(--viz-het);
+    }
+    
+    .marker-region:hover {
+        filter: brightness(0.9);
+    }
+    
+    .chr-length {
+        width: 80px;
+        font-size: 0.75rem;
+        color: var(--viz-label);
+        font-family: 'JetBrains Mono', monospace;
+        flex-shrink: 0;
+    }
+    
+    /* Legend */
+    .legend {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8125rem;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 14px;
+        border-radius: 3px;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+    
+    .legend-color.donor {
+        background: var(--viz-donor);
+    }
+    
+    .legend-color.recurrent {
+        background: var(--viz-recurrent);
+    }
+    
+    .legend-color.heterozygous {
+        background: var(--viz-het);
+    }
+    
+    .legend-color.centromere {
+        background: var(--viz-centromere);
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+    
+    .stat-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--accent-dark);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+    
+    /* Data Table */
+    .table-container {
+        overflow-x: auto;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+    
+    th {
+        position: sticky;
+        top: 0;
+        background: var(--header-bg);
+        color: white;
+        font-weight: 500;
+        padding: 0.75rem;
+        text-align: left;
+        white-space: nowrap;
+    }
+    
+    td {
+        padding: 0.625rem 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+    }
+    
+    tr:hover td {
+        background: var(--accent-light);
+    }
+    
+    .genotype-cell {
+        font-weight: 600;
+    }
+    
+    .genotype-cell.donor {
+        color: var(--accent-dark);
+    }
+    
+    .genotype-cell.recurrent {
+        color: var(--text-secondary);
+    }
+    
+    .genotype-cell.het {
+        color: #b8860b;
+    }
+    
+    /* Sample Tabs */
+    .sample-tabs {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+    
+    .sample-tab {
+        padding: 0.5rem 1rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .sample-tab:hover {
+        background: var(--accent-light);
+    }
+    
+    .sample-tab.active {
+        background: var(--header-bg);
+        color: white;
+        border-color: var(--header-bg);
+    }
+    
+    /* Tooltip */
+    .tooltip {
+        position: fixed;
+        background: var(--header-bg);
+        color: white;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-family: 'JetBrains Mono', monospace;
+        pointer-events: none;
+        z-index: 1000;
+        max-width: 300px;
+        box-shadow: var(--shadow-hover);
+        display: none;
+    }
+    
+    /* Chart Container */
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+    
+    /* Notifications */
+    .notification {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        background: var(--header-bg);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: var(--shadow-hover);
+        display: none;
+        animation: slideIn 0.3s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+    
+    .empty-state svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .empty-state h3 {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .empty-state p {
+        font-size: 0.875rem;
+    }
+    
+    /* Range Slider */
+    input[type="range"] {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border-color);
+        outline: none;
+        -webkit-appearance: none;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent-dark);
+        cursor: pointer;
+    }
+    
+    /* Tab Panels */
+    .tab-panels {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 1rem;
+    }
+    
+    .tab-panel-btn {
+        padding: 0.75rem 1.25rem;
+        background: transparent;
+        border: none;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+    }
+    
+    .tab-panel-btn:hover {
+        color: var(--text-primary);
+    }
+    
+    .tab-panel-btn.active {
+        color: var(--accent-dark);
+        border-bottom-color: var(--accent-dark);
+    }
+    
+    .panel-content {
+        display: none;
+    }
+    
+    .panel-content.active {
+        display: block;
+    }
+    
+    /* Selection Analysis */
+    .selection-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+        .selection-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .selection-card {
+        background: linear-gradient(135deg, var(--accent-light) 0%, #e8f5f2 100%);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    .selection-card h4 {
+        font-size: 0.8125rem;
+        color: var(--accent-darker);
+        margin-bottom: 0.5rem;
+    }
+    
+    .selection-card .value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--accent-dark);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    
+    /* Progress bar for background recovery */
+    .progress-container {
+        background: #e8eeec;
+        border-radius: 8px;
+        height: 24px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent-light) 0%, var(--accent-mid) 100%);
+        transition: width 0.5s ease;
+    }
+    
+    .progress-label {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--accent-darker);
+    }
+    
+    /* 모달 */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+        background: var(--bg-card);
+        border-radius: 12px;
+        max-width: 520px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-hover);
+    }
+    .modal-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .modal-header h3 { font-size: 1.1rem; color: var(--accent-darker); }
+    .modal-close {
+        background: none; border: none;
+        font-size: 1.5rem; cursor: pointer;
+        color: var(--text-secondary); line-height: 1;
+    }
+    .modal-close:hover { color: var(--text-primary); }
+    .modal-body { padding: 1.25rem; }
+    
+    /* 시각화 설정 UI */
+    .color-row {
+        display: grid;
+        grid-template-columns: 1fr 44px;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    input[type="color"] {
+        width: 100%; height: 34px;
+        padding: 2px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+    .preset-btns {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+    .preset-btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-card);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .preset-btn:hover { background: var(--accent-light); }
+    .preset-btn.active {
+        background: var(--header-bg);
+        color: white;
+        border-color: var(--header-bg);
+    }
+    .divider {
+        height: 1px;
+        background: var(--border-color);
+        margin: 1rem 0;
+    }
+    .form-group-sm { margin-bottom: 0.75rem; }
+    .form-group-sm label {
+        font-size: 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+</style>
+
+</head> <body> <header> <h1>🌾 벼 백그라운드 셀렉션 분석기</h1> <p>Target Capture Sequencing 기반 유전체 회복률 분석 및 시각화</p> </header>
+<div class="container">
+    <div class="grid-layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- File Upload -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>📂 데이터 입력</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>마커 데이터 (CSV/TSV)</label>
+                        <label class="file-upload-btn" for="markerFile">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            파일 선택
+                        </label>
+                        <input type="file" id="markerFile" accept=".csv,.tsv,.txt">
+                        <div id="fileName" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>데이터 형식</label>
+                        <select id="dataFormat">
+                            <option value="auto">자동 감지</option>
+                            <option value="hapmap">HapMap</option>
+                            <option value="vcf">VCF-like</option>
+                            <option value="custom">사용자 정의</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-secondary btn-block" onclick="loadDemoData()">
+                        📊 데모 데이터 로드
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Genome Build -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🧬 게놈 빌드</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>Reference Build</label>
+                        <select id="genomeBuild" onchange="updateGenomeBuild()">
+                            <option value="IRGSP-1.0">IRGSP-1.0 (Nipponbare)</option>
+                            <option value="MSU7">MSU Rice Genome v7</option>
+                            <option value="Os-Nipponbare-Reference-IRGSP-1.0">Os-Nipponbare-Reference-IRGSP-1.0</option>
+                            <option value="Indica-IR8">Indica IR8 Reference</option>
+                            <option value="Indica-9311">Indica 9311 Reference</option>
+                            <option value="Aus-N22">Aus N22 Reference</option>
+                        </select>
+                    </div>
+                    
+                    <div class="genome-info" id="genomeInfo">
+                        <!-- Chromosome lengths will be populated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Analysis Settings -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>⚙️ 분석 설정</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>공여친(Donor)</label>
+                        <select id="donorParent">
+                            <option value="">선택...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>반복친(Recurrent)</label>
+                        <select id="recurrentParent">
+                            <option value="">선택...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>회복률 기준 (%)</label>
+                        <input type="range" id="recoveryThreshold" min="80" max="99" value="95" oninput="updateThresholdLabel()">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                            <span>80%</span>
+                            <span id="thresholdValue">95%</span>
+                            <span>99%</span>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary btn-block" onclick="runAnalysis()">
+                        🔬 분석 실행
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Export -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>💾 내보내기</h2>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-secondary btn-block" onclick="exportCSV()" style="margin-bottom: 0.5rem;">
+                        📄 CSV 내보내기
+                    </button>
+                    <button class="btn btn-secondary btn-block" onclick="openExportModal()" style="margin-bottom: 0.5rem;">
+                        🖼️ 이미지 저장
+                    </button>
+                    <button class="btn btn-secondary btn-block" onclick="openStyleModal()">
+                        🎨 시각화 설정
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Tab Navigation -->
+            <div class="card">
+                <div class="tab-panels">
+                    <button class="tab-panel-btn active" onclick="switchPanel('visualization')">염색체 시각화</button>
+                    <button class="tab-panel-btn" onclick="switchPanel('statistics')">통계 분석</button>
+                    <button class="tab-panel-btn" onclick="switchPanel('comparison')">샘플 비교</button>
+                    <button class="tab-panel-btn" onclick="switchPanel('data')">원시 데이터</button>
+                </div>
+                
+                <!-- Visualization Panel -->
+                <div class="panel-content active" id="panel-visualization">
+                    <div class="card-body">
+                        <div class="sample-tabs" id="sampleTabs">
+                            <!-- Sample tabs will be populated here -->
+                        </div>
+                        
+                        <div class="legend">
+                            <div class="legend-item">
+                                <div class="legend-color donor"></div>
+                                <span>공여친(Donor)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color recurrent"></div>
+                                <span>반복친(Recurrent)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color heterozygous"></div>
+                                <span>이형접합(Heterozygous)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color centromere"></div>
+                                <span>동원체(Centromere)</span>
+                            </div>
+                        </div>
+                        
+                        <div class="chromosome-container" id="chromosomeViz">
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07"/>
+                                </svg>
+                                <h3>데이터를 불러와주세요</h3>
+                                <p>마커 데이터 파일을 업로드하거나 데모 데이터를 로드하세요</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Statistics Panel -->
+                <div class="panel-content" id="panel-statistics">
+                    <div class="card-body">
+                        <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--accent-darker);">샘플별 유전체 회복률</h3>
+                        
+                        <div class="stats-grid" id="statsGrid">
+                            <!-- Stats will be populated here -->
+                        </div>
+                        
+                        <div style="margin-top: 1.5rem;">
+                            <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--accent-darker);">염색체별 회복률 분포</h3>
+                            <div class="chart-container">
+                                <canvas id="recoveryChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 1.5rem;">
+                            <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--accent-darker);">백그라운드 셀렉션 요약</h3>
+                            <div class="selection-grid" id="selectionSummary">
+                                <!-- Selection summary will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Comparison Panel -->
+                <div class="panel-content" id="panel-comparison">
+                    <div class="card-body">
+                        <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--accent-darker);">샘플 간 회복률 비교</h3>
+                        <div class="chart-container" style="height: 400px;">
+                            <canvas id="comparisonChart"></canvas>
+                        </div>
+                        
+                        <div style="margin-top: 1.5rem;">
+                            <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--accent-darker);">선발 추천</h3>
+                            <div id="selectionRecommendation" class="selection-grid">
+                                <!-- Recommendations will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Data Panel -->
+                <div class="panel-content" id="panel-data">
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table id="dataTable">
+                                <thead>
+                                    <tr>
+                                        <th>Marker</th>
+                                        <th>Chr</th>
+                                        <th>Position</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="3" style="text-align: center; color: var(--text-secondary);">
+                                            데이터가 없습니다
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<!-- Notification -->
+<div class="notification" id="notification"></div>
+
+<!-- 이미지 내보내기 모달 -->
+<div class="modal-overlay" id="exportModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>🖼️ 이미지 내보내기</h3>
+            <button class="modal-close" onclick="closeExportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>파일 형식</label>
+                <select id="exportFormat">
+                    <option value="png">PNG</option>
+                    <option value="svg">SVG (벡터)</option>
+                    <option value="jpeg">JPEG</option>
+                </select>
+            </div>
+            <div class="two-col">
+                <div class="form-group">
+                    <label>너비 (px)</label>
+                    <input type="number" id="exportWidth" value="1200" min="400" max="4000">
+                </div>
+                <div class="form-group">
+                    <label>DPI</label>
+                    <select id="exportDPI">
+                        <option value="72">72</option>
+                        <option value="150">150</option>
+                        <option value="300" selected>300</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>배경색</label>
+                <div class="color-row">
+                    <input type="text" id="exportBgColor" value="#ffffff">
+                    <input type="color" id="exportBgPicker" value="#ffffff" onchange="document.getElementById('exportBgColor').value=this.value">
+                </div>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="exportLegend" checked> 범례 포함
+                </label>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="exportTitle" checked> 제목 포함
+                </label>
+            </div>
+            <div class="form-group">
+                <label>제목</label>
+                <input type="text" id="exportTitleText" value="Background Selection Analysis">
+            </div>
+            <div class="divider"></div>
+            <button class="btn btn-primary btn-block" onclick="executeExport()">💾 내보내기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 시각화 설정 모달 -->
+<div class="modal-overlay" id="styleModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>🎨 시각화 설정</h3>
+            <button class="modal-close" onclick="closeStyleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="preset-btns">
+                <button class="preset-btn active" onclick="applyPreset('color',this)">컬러</button>
+                <button class="preset-btn" onclick="applyPreset('grayscale',this)">흑백</button>
+                <button class="preset-btn" onclick="applyPreset('publication',this)">논문용</button>
+                <button class="preset-btn" onclick="applyPreset('highContrast',this)">고대비</button>
+            </div>
+            <div class="divider"></div>
+            
+            <!-- 염색체 구조 옵션 -->
+            <div class="form-group-sm">
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="vizSplitArms" checked onchange="applyVizStyles()"> 단완/장완 분리 (실제 염색체 형태)
+                </label>
+            </div>
+            <div class="form-group-sm">
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="vizShowCentromere" checked onchange="applyVizStyles()"> 동원체 표시
+                </label>
+            </div>
+            <div class="form-group-sm">
+                <label>배경 투명도</label>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="range" id="vizBgOpacity" min="0" max="100" value="100" style="flex:1" oninput="updateOpacityLabel();applyVizStyles()">
+                    <span id="vizBgOpacityLabel" style="width:40px;text-align:right;font-size:0.75rem;">100%</span>
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="form-group-sm">
+                <label>공여친(Donor) 색상</label>
+                <div class="color-row">
+                    <input type="text" id="vizDonor" value="rgba(1, 127, 151, 0.7)" onchange="applyVizStyles()">
+                    <input type="color" id="vizDonorPicker" value="#017f97" onchange="syncPicker('Donor')">
+                </div>
+            </div>
+            <div class="form-group-sm">
+                <label>반복친(Recurrent) 색상</label>
+                <div class="color-row">
+                    <input type="text" id="vizRecurrent" value="rgba(204, 227, 221, 0.9)" onchange="applyVizStyles()">
+                    <input type="color" id="vizRecurrentPicker" value="#cce3dd" onchange="syncPicker('Recurrent')">
+                </div>
+            </div>
+            <div class="form-group-sm">
+                <label>이형접합(Het) 색상</label>
+                <div class="color-row">
+                    <input type="text" id="vizHet" value="rgba(184, 134, 11, 0.7)" onchange="applyVizStyles()">
+                    <input type="color" id="vizHetPicker" value="#b8860b" onchange="syncPicker('Het')">
+                </div>
+            </div>
+            <div class="form-group-sm">
+                <label>동원체(Centromere) 색상</label>
+                <div class="color-row">
+                    <input type="text" id="vizCentromere" value="#0c3026" onchange="applyVizStyles()">
+                    <input type="color" id="vizCentromerePicker" value="#0c3026" onchange="syncPicker('Centromere')">
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="two-col">
+                <div class="form-group-sm">
+                    <label>동원체 너비 (px)</label>
+                    <input type="number" id="vizCentromereW" value="8" min="2" max="20" onchange="applyVizStyles()">
+                </div>
+                <div class="form-group-sm">
+                    <label>염색체 높이 (px)</label>
+                    <input type="number" id="vizChrH" value="28" min="16" max="48" onchange="applyVizStyles()">
+                </div>
+            </div>
+            <div class="two-col">
+                <div class="form-group-sm">
+                    <label>모서리 반경 (px)</label>
+                    <input type="number" id="vizChrRadius" value="4" min="0" max="20" onchange="applyVizStyles()">
+                </div>
+                <div class="form-group-sm">
+                    <label>테두리 너비 (px)</label>
+                    <input type="number" id="vizChrBorder" value="0" min="0" max="5" onchange="applyVizStyles()">
+                </div>
+            </div>
+            <div class="form-group-sm">
+                <label>트랙 배경색</label>
+                <div class="color-row">
+                    <input type="text" id="vizTrack" value="#e8eeec" onchange="applyVizStyles()">
+                    <input type="color" id="vizTrackPicker" value="#e8eeec" onchange="syncPicker('Track')">
+                </div>
+            </div>
+            <div class="form-group-sm">
+                <label>라벨 색상</label>
+                <div class="color-row">
+                    <input type="text" id="vizLabel" value="#0c3026" onchange="applyVizStyles()">
+                    <input type="color" id="vizLabelPicker" value="#0c3026" onchange="syncPicker('Label')">
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            <button class="btn btn-secondary btn-block" onclick="resetVizStyles()">🔄 기본값 복원</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // =====================================================
+    // 벼 게놈 빌드 정보 (하드코딩)
+    // =====================================================
+    const GENOME_BUILDS = {
+        'IRGSP-1.0': {
+            name: 'IRGSP-1.0 (Nipponbare)',
+            species: 'Oryza sativa japonica',
+            description: 'International Rice Genome Sequencing Project Build 1.0',
+            totalLength: 373245519,
+            chromosomes: {
+                'Chr01': { length: 43270923, centromere: 17100000 },
+                'Chr02': { length: 35937250, centromere: 14200000 },
+                'Chr03': { length: 36413819, centromere: 19500000 },
+                'Chr04': { length: 35502694, centromere: 8700000 },
+                'Chr05': { length: 29958434, centromere: 12300000 },
+                'Chr06': { length: 31248787, centromere: 15400000 },
+                'Chr07': { length: 29697621, centromere: 12100000 },
+                'Chr08': { length: 28443022, centromere: 13200000 },
+                'Chr09': { length: 23012720, centromere: 2900000 },
+                'Chr10': { length: 23207287, centromere: 8000000 },
+                'Chr11': { length: 29021106, centromere: 12100000 },
+                'Chr12': { length: 27531856, centromere: 11700000 }
+            }
+        },
+        'MSU7': {
+            name: 'MSU Rice Genome Annotation Project v7',
+            species: 'Oryza sativa japonica',
+            description: 'Michigan State University Rice Genome Annotation v7.0',
+            totalLength: 372077801,
+            chromosomes: {
+                'Chr01': { length: 43268879, centromere: 17000000 },
+                'Chr02': { length: 35930381, centromere: 14100000 },
+                'Chr03': { length: 36406689, centromere: 19400000 },
+                'Chr04': { length: 35278225, centromere: 8600000 },
+                'Chr05': { length: 29894789, centromere: 12200000 },
+                'Chr06': { length: 31246789, centromere: 15300000 },
+                'Chr07': { length: 29652789, centromere: 12000000 },
+                'Chr08': { length: 28439308, centromere: 13100000 },
+                'Chr09': { length: 23008056, centromere: 2850000 },
+                'Chr10': { length: 23134759, centromere: 7900000 },
+                'Chr11': { length: 28512666, centromere: 12000000 },
+                'Chr12': { length: 27497471, centromere: 11600000 }
+            }
+        },
+        'Os-Nipponbare-Reference-IRGSP-1.0': {
+            name: 'Os-Nipponbare-Reference-IRGSP-1.0',
+            species: 'Oryza sativa japonica',
+            description: 'NCBI RefSeq Assembly (GCF_001433935.1)',
+            totalLength: 373245519,
+            chromosomes: {
+                'Chr01': { length: 43270923, centromere: 17100000 },
+                'Chr02': { length: 35937250, centromere: 14200000 },
+                'Chr03': { length: 36413819, centromere: 19500000 },
+                'Chr04': { length: 35502694, centromere: 8700000 },
+                'Chr05': { length: 29958434, centromere: 12300000 },
+                'Chr06': { length: 31248787, centromere: 15400000 },
+                'Chr07': { length: 29697621, centromere: 12100000 },
+                'Chr08': { length: 28443022, centromere: 13200000 },
+                'Chr09': { length: 23012720, centromere: 2900000 },
+                'Chr10': { length: 23207287, centromere: 8000000 },
+                'Chr11': { length: 29021106, centromere: 12100000 },
+                'Chr12': { length: 27531856, centromere: 11700000 }
+            }
+        },
+        'Indica-IR8': {
+            name: 'Indica IR8 Reference',
+            species: 'Oryza sativa indica',
+            description: 'IR8 Reference Genome (Green Revolution variety)',
+            totalLength: 380000000,
+            chromosomes: {
+                'Chr01': { length: 44200000, centromere: 17500000 },
+                'Chr02': { length: 36500000, centromere: 14500000 },
+                'Chr03': { length: 37200000, centromere: 19800000 },
+                'Chr04': { length: 36100000, centromere: 8900000 },
+                'Chr05': { length: 30500000, centromere: 12500000 },
+                'Chr06': { length: 31800000, centromere: 15600000 },
+                'Chr07': { length: 30200000, centromere: 12300000 },
+                'Chr08': { length: 29000000, centromere: 13400000 },
+                'Chr09': { length: 23500000, centromere: 3000000 },
+                'Chr10': { length: 23700000, centromere: 8200000 },
+                'Chr11': { length: 29600000, centromere: 12300000 },
+                'Chr12': { length: 28000000, centromere: 11900000 }
+            }
+        },
+        'Indica-9311': {
+            name: 'Indica 9311 Reference',
+            species: 'Oryza sativa indica',
+            description: '9311 Reference Genome (BGI Assembly)',
+            totalLength: 382000000,
+            chromosomes: {
+                'Chr01': { length: 44500000, centromere: 17600000 },
+                'Chr02': { length: 36800000, centromere: 14600000 },
+                'Chr03': { length: 37500000, centromere: 20000000 },
+                'Chr04': { length: 36400000, centromere: 9000000 },
+                'Chr05': { length: 30800000, centromere: 12600000 },
+                'Chr06': { length: 32000000, centromere: 15700000 },
+                'Chr07': { length: 30500000, centromere: 12400000 },
+                'Chr08': { length: 29300000, centromere: 13500000 },
+                'Chr09': { length: 23800000, centromere: 3100000 },
+                'Chr10': { length: 24000000, centromere: 8300000 },
+                'Chr11': { length: 29900000, centromere: 12400000 },
+                'Chr12': { length: 28300000, centromere: 12000000 }
+            }
+        },
+        'Aus-N22': {
+            name: 'Aus N22 Reference',
+            species: 'Oryza sativa aus',
+            description: 'N22 (Nagina 22) Drought tolerant aus variety',
+            totalLength: 377000000,
+            chromosomes: {
+                'Chr01': { length: 43800000, centromere: 17300000 },
+                'Chr02': { length: 36200000, centromere: 14300000 },
+                'Chr03': { length: 36800000, centromere: 19600000 },
+                'Chr04': { length: 35800000, centromere: 8800000 },
+                'Chr05': { length: 30200000, centromere: 12400000 },
+                'Chr06': { length: 31500000, centromere: 15500000 },
+                'Chr07': { length: 29900000, centromere: 12200000 },
+                'Chr08': { length: 28700000, centromere: 13300000 },
+                'Chr09': { length: 23300000, centromere: 2950000 },
+                'Chr10': { length: 23500000, centromere: 8100000 },
+                'Chr11': { length: 29300000, centromere: 12200000 },
+                'Chr12': { length: 27800000, centromere: 11800000 }
+            }
+        }
+    };
+    
+    // =====================================================
+    // 전역 변수
+    // =====================================================
+    let currentBuild = 'IRGSP-1.0';
+    let markerData = [];
+    let sampleNames = [];
+    let currentSample = null;
+    let analysisResults = {};
+    let recoveryChart = null;
+    let comparisonChart = null;
+    
+    // 시각화 스타일 프리셋
+    const PRESETS = {
+        color: {
+            donor: 'rgba(1, 127, 151, 0.7)',
+            recurrent: 'rgba(204, 227, 221, 0.9)',
+            het: 'rgba(184, 134, 11, 0.7)',
+            centromere: '#0c3026',
+            centromereW: 8,
+            chrH: 28,
+            chrRadius: 4,
+            chrBorder: 0,
+            track: '#e8eeec',
+            label: '#0c3026'
+        },
+        grayscale: {
+            donor: 'rgba(60, 60, 60, 0.85)',
+            recurrent: 'rgba(220, 220, 220, 0.95)',
+            het: 'rgba(140, 140, 140, 0.8)',
+            centromere: '#000000',
+            centromereW: 8,
+            chrH: 28,
+            chrRadius: 4,
+            chrBorder: 1,
+            track: '#f0f0f0',
+            label: '#333333'
+        },
+        publication: {
+            donor: 'rgba(0, 0, 0, 0.9)',
+            recurrent: 'rgba(255, 255, 255, 0.95)',
+            het: 'rgba(128, 128, 128, 0.8)',
+            centromere: '#333333',
+            centromereW: 6,
+            chrH: 24,
+            chrRadius: 2,
+            chrBorder: 1,
+            track: '#ffffff',
+            label: '#000000'
+        },
+        highContrast: {
+            donor: 'rgba(220, 20, 60, 0.85)',
+            recurrent: 'rgba(30, 144, 255, 0.85)',
+            het: 'rgba(255, 215, 0, 0.85)',
+            centromere: '#000000',
+            centromereW: 10,
+            chrH: 32,
+            chrRadius: 6,
+            chrBorder: 2,
+            track: '#f8f8f8',
+            label: '#000000'
+        }
+    };
+    
+    let vizStyles = { ...PRESETS.color };
+    
+    // 추가 옵션
+    let vizOptions = {
+        splitArms: true,      // 단완/장완 분리
+        showCentromere: true, // 동원체 표시
+        bgOpacity: 100        // 배경 투명도 (0-100)
+    };
+    
+    // =====================================================
+    // 초기화
+    // =====================================================
+    document.addEventListener('DOMContentLoaded', () => {
+        updateGenomeBuild();
+        setupFileUpload();
+    });
+    
+    // =====================================================
+    // 게놈 빌드 관련 함수
+    // =====================================================
+    function updateGenomeBuild() {
+        currentBuild = document.getElementById('genomeBuild').value;
+        const build = GENOME_BUILDS[currentBuild];
+        
+        let html = `<div style="margin-bottom: 0.5rem; font-weight: 600; color: var(--accent-darker);">
+            ${build.name}
+        </div>
+        <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            Total: ${formatBp(build.totalLength)}
+        </div>`;
+        
+        for (const [chr, info] of Object.entries(build.chromosomes)) {
+            html += `<div class="genome-info-row">
+                <span class="genome-info-chr">${chr}</span>
+                <span class="genome-info-len">${formatBp(info.length)}</span>
+            </div>`;
+        }
+        
+        document.getElementById('genomeInfo').innerHTML = html;
+        
+        // 분석 결과가 있으면 다시 그리기
+        if (markerData.length > 0 && currentSample) {
+            visualizeChromosome(currentSample);
+        }
+    }
+    
+    function formatBp(bp) {
+        if (bp >= 1000000) {
+            return (bp / 1000000).toFixed(2) + ' Mb';
+        } else if (bp >= 1000) {
+            return (bp / 1000).toFixed(1) + ' kb';
+        }
+        return bp + ' bp';
+    }
+    
+    // =====================================================
+    // 파일 업로드
+    // =====================================================
+    function setupFileUpload() {
+        const fileInput = document.getElementById('markerFile');
+        fileInput.addEventListener('change', handleFileUpload);
+    }
+    
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        document.getElementById('fileName').textContent = `📎 ${file.name}`;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            parseMarkerData(e.target.result, file.name);
+        };
+        reader.readAsText(file);
+    }
+    
+    function parseMarkerData(content, filename) {
+        // 구분자 감지
+        let delimiter = '\t';
+        if (filename.endsWith('.csv')) {
+            delimiter = ',';
+        }
+        
+        const result = Papa.parse(content, {
+            delimiter: delimiter,
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: true
+        });
+        
+        if (result.errors.length > 0) {
+            showNotification('파일 파싱 중 오류가 발생했습니다', 'error');
+            console.error(result.errors);
+            return;
+        }
+        
+        markerData = result.data;
+        
+        // 컬럼 분석
+        const headers = result.meta.fields;
+        
+        // 샘플 컬럼 추출 (Chr, Position, Marker 등 제외)
+        const excludePatterns = /^(marker|chr|chromosome|pos|position|ref|alt|allele|rs|snp)/i;
+        sampleNames = headers.filter(h => !excludePatterns.test(h));
+        
+        // 부모 선택 드롭다운 업데이트
+        updateParentSelects();
+        
+        // 데이터 테이블 업데이트
+        updateDataTable();
+        
+        showNotification(`${markerData.length}개 마커, ${sampleNames.length}개 샘플 로드 완료`, 'success');
+    }
+    
+    function updateParentSelects() {
+        const donorSelect = document.getElementById('donorParent');
+        const recurrentSelect = document.getElementById('recurrentParent');
+        
+        let options = '<option value="">선택...</option>';
+        sampleNames.forEach(name => {
+            options += `<option value="${name}">${name}</option>`;
+        });
+        
+        donorSelect.innerHTML = options;
+        recurrentSelect.innerHTML = options;
+    }
+    
+    // =====================================================
+    // 데모 데이터
+    // =====================================================
+    function loadDemoData() {
+        // 데모용 마커 데이터 생성
+        const build = GENOME_BUILDS[currentBuild];
+        markerData = [];
+        
+        // 각 염색체에 마커 배치
+        Object.entries(build.chromosomes).forEach(([chr, info]) => {
+            const numMarkers = Math.floor(info.length / 2000000); // 약 2Mb당 1개 마커
+            for (let i = 0; i < numMarkers; i++) {
+                const pos = Math.floor((i + 0.5) * (info.length / numMarkers));
+                const marker = {
+                    Marker: `${chr}_${pos}`,
+                    Chr: chr.replace('Chr', ''),
+                    Position: pos,
+                    Donor: Math.random() > 0.5 ? 'A' : 'B',
+                    Recurrent: 'A',
+                    Sample1: generateGenotype(0.12), // ~88% 회복
+                    Sample2: generateGenotype(0.08), // ~92% 회복
+                    Sample3: generateGenotype(0.05), // ~95% 회복
+                    Sample4: generateGenotype(0.15), // ~85% 회복
+                    Sample5: generateGenotype(0.03)  // ~97% 회복
+                };
+                markerData.push(marker);
+            }
+        });
+        
+        sampleNames = ['Donor', 'Recurrent', 'Sample1', 'Sample2', 'Sample3', 'Sample4', 'Sample5'];
+        
+        updateParentSelects();
+        
+        // 기본 부모 설정
+        document.getElementById('donorParent').value = 'Donor';
+        document.getElementById('recurrentParent').value = 'Recurrent';
+        
+        updateDataTable();
+        showNotification('데모 데이터 로드 완료', 'success');
+    }
+    
+    function generateGenotype(donorProb) {
+        const r = Math.random();
+        if (r < donorProb) return 'B';  // Donor allele
+        if (r < donorProb + 0.05) return 'H';  // Heterozygous
+        return 'A';  // Recurrent allele
+    }
+    
+    // =====================================================
+    // 분석 실행
+    // =====================================================
+    function runAnalysis() {
+        const donor = document.getElementById('donorParent').value;
+        const recurrent = document.getElementById('recurrentParent').value;
+        
+        if (!donor || !recurrent) {
+            showNotification('공여친과 반복친을 선택해주세요', 'error');
+            return;
+        }
+        
+        if (markerData.length === 0) {
+            showNotification('마커 데이터를 먼저 로드해주세요', 'error');
+            return;
+        }
+        
+        // 분석 대상 샘플 (부모 제외)
+        const targetSamples = sampleNames.filter(s => s !== donor && s !== recurrent);
+        
+        if (targetSamples.length === 0) {
+            showNotification('분석할 샘플이 없습니다', 'error');
+            return;
+        }
+        
+        analysisResults = {};
+        
+        targetSamples.forEach(sample => {
+            analysisResults[sample] = analyzeRecovery(sample, donor, recurrent);
+        });
+        
+        // 샘플 탭 생성
+        createSampleTabs(targetSamples);
+        
+        // 첫 번째 샘플 시각화
+        currentSample = targetSamples[0];
+        visualizeChromosome(currentSample);
+        
+        // 통계 업데이트
+        updateStatistics();
+        
+        // 비교 차트 업데이트
+        updateComparisonChart(targetSamples);
+        
+        showNotification('분석 완료', 'success');
+    }
+    
+    function analyzeRecovery(sample, donor, recurrent) {
+        const build = GENOME_BUILDS[currentBuild];
+        const result = {
+            totalMarkers: 0,
+            recurrentMarkers: 0,
+            donorMarkers: 0,
+            heterozygousMarkers: 0,
+            chromosomes: {},
+            regions: []
+        };
+        
+        // 염색체별 초기화
+        Object.keys(build.chromosomes).forEach(chr => {
+            const chrNum = chr.replace('Chr', '');
+            result.chromosomes[chrNum] = {
+                total: 0,
+                recurrent: 0,
+                donor: 0,
+                heterozygous: 0,
+                markers: []
+            };
+        });
+        
+        // 마커별 분석
+        markerData.forEach(marker => {
+            const chr = marker.Chr.toString().padStart(2, '0');
+            const sampleGenotype = marker[sample];
+            const donorGenotype = marker[donor];
+            const recurrentGenotype = marker[recurrent];
+            
+            if (!result.chromosomes[chr]) return;
+            
+            result.totalMarkers++;
+            result.chromosomes[chr].total++;
+            
+            let genotypeType = 'unknown';
+            
+            if (sampleGenotype === recurrentGenotype) {
+                result.recurrentMarkers++;
+                result.chromosomes[chr].recurrent++;
+                genotypeType = 'recurrent';
+            } else if (sampleGenotype === donorGenotype) {
+                result.donorMarkers++;
+                result.chromosomes[chr].donor++;
+                genotypeType = 'donor';
+            } else if (sampleGenotype === 'H' || 
+                      (sampleGenotype !== donorGenotype && sampleGenotype !== recurrentGenotype)) {
+                result.heterozygousMarkers++;
+                result.chromosomes[chr].heterozygous++;
+                genotypeType = 'heterozygous';
+            }
+            
+            result.chromosomes[chr].markers.push({
+                name: marker.Marker,
+                position: marker.Position,
+                genotype: sampleGenotype,
+                type: genotypeType
+            });
+        });
+        
+        // 회복률 계산
+        result.recoveryRate = result.totalMarkers > 0 
+            ? (result.recurrentMarkers / result.totalMarkers * 100) 
+            : 0;
+        
+        // 염색체별 회복률 계산
+        Object.keys(result.chromosomes).forEach(chr => {
+            const chrData = result.chromosomes[chr];
+            chrData.recoveryRate = chrData.total > 0 
+                ? (chrData.recurrent / chrData.total * 100) 
+                : 0;
+        });
+        
+        return result;
+    }
+    
+    // =====================================================
+    // 시각화
+    // =====================================================
+    function createSampleTabs(samples) {
+        const container = document.getElementById('sampleTabs');
+        container.innerHTML = samples.map((sample, index) => {
+            const result = analysisResults[sample];
+            const recovery = result ? result.recoveryRate.toFixed(1) : '?';
+            return `<button class="sample-tab ${index === 0 ? 'active' : ''}" 
+                    onclick="selectSample('${sample}', this)">
+                ${sample} (${recovery}%)
+            </button>`;
+        }).join('');
+    }
+    
+    function selectSample(sample, btn) {
+        document.querySelectorAll('.sample-tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        currentSample = sample;
+        visualizeChromosome(sample);
+    }
+    
+    function visualizeChromosome(sample) {
+        const build = GENOME_BUILDS[currentBuild];
+        const result = analysisResults[sample];
+        const container = document.getElementById('chromosomeViz');
+        
+        if (!result) {
+            container.innerHTML = '<div class="empty-state">분석 결과가 없습니다</div>';
+            return;
+        }
+        
+        const maxLength = Math.max(...Object.values(build.chromosomes).map(c => c.length));
+        
+        let html = '';
+        
+        Object.entries(build.chromosomes).forEach(([chrName, chrInfo]) => {
+            const chrNum = chrName.replace('Chr', '');
+            const chrResult = result.chromosomes[chrNum];
+            const totalWidthPercent = (chrInfo.length / maxLength * 100).toFixed(2);
+            const centromerePercent = (chrInfo.centromere / chrInfo.length * 100).toFixed(2);
+            
+            if (vizOptions.splitArms) {
+                // 단완/장완 분리 모드
+                const pArmRatio = chrInfo.centromere / chrInfo.length;
+                const qArmRatio = (chrInfo.length - chrInfo.centromere) / chrInfo.length;
+                const pGrow = (pArmRatio * 100).toFixed(2);
+                const qGrow = (qArmRatio * 100).toFixed(2);
+                
+                html += `<div class="chromosome-row">
+                    <div class="chr-label">${chrName}</div>
+                    <div class="chr-structure" style="width: ${totalWidthPercent}%">
+                        <div class="chr-p-arm" style="flex-grow: ${pGrow}">
+                            ${generateMarkerRegionsForArm(chrResult, 0, chrInfo.centromere, chrInfo.centromere)}
+                        </div>
+                        ${vizOptions.showCentromere ? '<div class="chr-centromere"></div>' : ''}
+                        <div class="chr-q-arm" style="flex-grow: ${qGrow}">
+                            ${generateMarkerRegionsForArm(chrResult, chrInfo.centromere, chrInfo.length, chrInfo.length - chrInfo.centromere)}
+                        </div>
+                    </div>
+                    <div class="chr-length">${formatBp(chrInfo.length)}</div>
+                </div>`;
+            } else {
+                // 기존 bar 형태
+                html += `<div class="chromosome-row">
+                    <div class="chr-label">${chrName}</div>
+                    <div class="chr-bar-container" style="width: ${totalWidthPercent}%">
+                        <div class="chr-bar">
+                            ${vizOptions.showCentromere ? `<div class="chr-centromere-line" style="left: ${centromerePercent}%"></div>` : ''}
+                            ${generateMarkerRegions(chrResult, chrInfo.length)}
+                        </div>
+                    </div>
+                    <div class="chr-length">${formatBp(chrInfo.length)}</div>
+                </div>`;
+            }
+        });
+        
+        container.innerHTML = html;
+        
+        // 툴팁 이벤트 설정
+        setupTooltips();
+    }
+    
+    function generateMarkerRegionsForArm(chrResult, armStart, armEnd, armLength) {
+        if (!chrResult || chrResult.markers.length === 0) return '';
+        
+        let html = '';
+        const markers = chrResult.markers
+            .filter(m => m.position >= armStart && m.position < armEnd)
+            .sort((a, b) => a.position - b.position);
+        
+        if (markers.length === 0) return '';
+        
+        markers.forEach((marker, i) => {
+            const nextMarker = markers[i + 1];
+            const prevMarker = markers[i - 1];
+            
+            // 영역 시작/끝 계산 (arm 내부 좌표로 변환)
+            const regionStart = prevMarker 
+                ? Math.max(armStart, (prevMarker.position + marker.position) / 2)
+                : armStart;
+            const regionEnd = nextMarker 
+                ? Math.min(armEnd, (marker.position + nextMarker.position) / 2)
+                : armEnd;
+            
+            // arm 내부에서의 상대 위치 (0~100%)
+            const relStart = ((regionStart - armStart) / armLength * 100).toFixed(3);
+            const relWidth = ((regionEnd - regionStart) / armLength * 100).toFixed(3);
+            
+            html += `<div class="marker-region ${marker.type}" 
+                style="left: ${relStart}%; width: ${relWidth}%"
+                data-marker="${marker.name}"
+                data-position="${formatBp(marker.position)}"
+                data-type="${marker.type}"
+                data-genotype="${marker.genotype}">
+            </div>`;
+        });
+        
+        return html;
+    }
+    
+    // 기존 함수 유지 (호환성)
+    function generateMarkerRegions(chrResult, chrLength) {
+        if (!chrResult || chrResult.markers.length === 0) return '';
+        
+        let html = '';
+        const markers = chrResult.markers.sort((a, b) => a.position - b.position);
+        
+        // 연속된 동일 타입 마커를 영역으로 병합
+        let currentRegion = null;
+        
+        markers.forEach((marker, i) => {
+            const leftPercent = (marker.position / chrLength * 100).toFixed(3);
+            
+            // 다음 마커까지의 거리 계산
+            const nextMarker = markers[i + 1];
+            const regionEnd = nextMarker 
+                ? (marker.position + nextMarker.position) / 2 
+                : chrLength;
+            const regionStart = i > 0 
+                ? (markers[i-1].position + marker.position) / 2 
+                : 0;
+            
+            const startPercent = (regionStart / chrLength * 100).toFixed(3);
+            const widthPercent = ((regionEnd - regionStart) / chrLength * 100).toFixed(3);
+            
+            html += `<div class="marker-region ${marker.type}" 
+                style="left: ${startPercent}%; width: ${widthPercent}%"
+                data-marker="${marker.name}"
+                data-position="${formatBp(marker.position)}"
+                data-type="${marker.type}"
+                data-genotype="${marker.genotype}">
+            </div>`;
+        });
+        
+        return html;
+    }
+    
+    function setupTooltips() {
+        const tooltip = document.getElementById('tooltip');
+        
+        document.querySelectorAll('.marker-region').forEach(region => {
+            region.addEventListener('mouseenter', (e) => {
+                const marker = e.target.dataset.marker;
+                const position = e.target.dataset.position;
+                const type = e.target.dataset.type;
+                const genotype = e.target.dataset.genotype;
+                
+                tooltip.innerHTML = `
+                    <strong>${marker}</strong><br>
+                    Position: ${position}<br>
+                    Type: ${type}<br>
+                    Genotype: ${genotype}
+                `;
+                tooltip.style.display = 'block';
+            });
+            
+            region.addEventListener('mousemove', (e) => {
+                tooltip.style.left = (e.clientX + 15) + 'px';
+                tooltip.style.top = (e.clientY + 15) + 'px';
+            });
+            
+            region.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+        });
+    }
+    
+    // =====================================================
+    // 통계 및 차트
+    // =====================================================
+    function updateStatistics() {
+        const statsGrid = document.getElementById('statsGrid');
+        const selectionSummary = document.getElementById('selectionSummary');
+        const threshold = parseInt(document.getElementById('recoveryThreshold').value);
+        
+        let statsHtml = '';
+        let passCount = 0;
+        let totalSamples = Object.keys(analysisResults).length;
+        
+        Object.entries(analysisResults).forEach(([sample, result]) => {
+            const isPass = result.recoveryRate >= threshold;
+            if (isPass) passCount++;
+            
+            statsHtml += `<div class="stat-card">
+                <div class="stat-value" style="color: ${isPass ? 'var(--accent-dark)' : '#b8860b'}">
+                    ${result.recoveryRate.toFixed(1)}%
+                </div>
+                <div class="stat-label">${sample}</div>
+                <div style="margin-top: 0.5rem;">
+                    <div class="progress-container" style="height: 8px;">
+                        <div class="progress-bar" style="width: ${result.recoveryRate}%"></div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        
+        statsGrid.innerHTML = statsHtml;
+        
+        // 선발 요약
+        selectionSummary.innerHTML = `
+            <div class="selection-card">
+                <h4>분석 샘플 수</h4>
+                <div class="value">${totalSamples}</div>
+            </div>
+            <div class="selection-card">
+                <h4>기준 통과 (≥${threshold}%)</h4>
+                <div class="value">${passCount} / ${totalSamples}</div>
+            </div>
+            <div class="selection-card">
+                <h4>최고 회복률</h4>
+                <div class="value">${Math.max(...Object.values(analysisResults).map(r => r.recoveryRate)).toFixed(1)}%</div>
+            </div>
+        `;
+        
+        // 염색체별 회복률 차트
+        updateRecoveryChart();
+    }
+    
+    function updateRecoveryChart() {
+        const ctx = document.getElementById('recoveryChart').getContext('2d');
+        
+        if (recoveryChart) {
+            recoveryChart.destroy();
+        }
+        
+        const labels = Object.keys(GENOME_BUILDS[currentBuild].chromosomes).map(c => c.replace('Chr', ''));
+        const datasets = [];
+        
+        const colors = [
+            'rgba(1, 127, 151, 0.8)',
+            'rgba(12, 48, 38, 0.8)',
+            'rgba(0, 161, 184, 0.8)',
+            'rgba(204, 227, 221, 0.9)',
+            'rgba(100, 150, 140, 0.8)'
+        ];
+        
+        let colorIndex = 0;
+        Object.entries(analysisResults).forEach(([sample, result]) => {
+            const data = labels.map(chr => {
+                return result.chromosomes[chr] ? result.chromosomes[chr].recoveryRate : 0;
+            });
+            
+            datasets.push({
+                label: sample,
+                data: data,
+                backgroundColor: colors[colorIndex % colors.length],
+                borderColor: colors[colorIndex % colors.length].replace('0.8', '1'),
+                borderWidth: 1
+            });
+            colorIndex++;
+        });
+        
+        recoveryChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '회복률 (%)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '염색체'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function updateComparisonChart(samples) {
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        
+        if (comparisonChart) {
+            comparisonChart.destroy();
+        }
+        
+        const data = samples.map(s => analysisResults[s].recoveryRate);
+        const threshold = parseInt(document.getElementById('recoveryThreshold').value);
+        
+        comparisonChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: samples,
+                datasets: [{
+                    label: '유전체 회복률 (%)',
+                    data: data,
+                    backgroundColor: data.map(v => 
+                        v >= threshold ? 'rgba(1, 127, 151, 0.8)' : 'rgba(184, 134, 11, 0.8)'
+                    ),
+                    borderColor: data.map(v => 
+                        v >= threshold ? 'rgba(1, 127, 151, 1)' : 'rgba(184, 134, 11, 1)'
+                    ),
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    annotation: {
+                        annotations: {
+                            line1: {
+                                type: 'line',
+                                xMin: threshold,
+                                xMax: threshold,
+                                borderColor: 'rgba(220, 53, 69, 0.8)',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                label: {
+                                    content: `기준: ${threshold}%`,
+                                    enabled: true
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '회복률 (%)'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 선발 추천 업데이트
+        updateRecommendations(samples, threshold);
+    }
+    
+    function updateRecommendations(samples, threshold) {
+        const container = document.getElementById('selectionRecommendation');
+        
+        const sorted = samples
+            .map(s => ({ name: s, rate: analysisResults[s].recoveryRate }))
+            .sort((a, b) => b.rate - a.rate);
+        
+        const passed = sorted.filter(s => s.rate >= threshold);
+        const failed = sorted.filter(s => s.rate < threshold);
+        
+        container.innerHTML = `
+            <div class="selection-card">
+                <h4>🏆 선발 추천 (Top 3)</h4>
+                ${sorted.slice(0, 3).map((s, i) => 
+                    `<div style="margin-top: 0.5rem;">
+                        ${i + 1}. ${s.name}: ${s.rate.toFixed(1)}%
+                    </div>`
+                ).join('')}
+            </div>
+            <div class="selection-card">
+                <h4>✅ 기준 통과 (${passed.length}개)</h4>
+                ${passed.length > 0 
+                    ? passed.map(s => `<div>${s.name}: ${s.rate.toFixed(1)}%</div>`).join('')
+                    : '<div style="color: var(--text-secondary);">없음</div>'}
+            </div>
+            <div class="selection-card">
+                <h4>⚠️ 추가 여교배 필요 (${failed.length}개)</h4>
+                ${failed.length > 0 
+                    ? failed.map(s => `<div>${s.name}: ${s.rate.toFixed(1)}%</div>`).join('')
+                    : '<div style="color: var(--text-secondary);">없음</div>'}
+            </div>
+        `;
+    }
+    
+    // =====================================================
+    // 데이터 테이블
+    // =====================================================
+    function updateDataTable() {
+        const table = document.getElementById('dataTable');
+        const donor = document.getElementById('donorParent').value;
+        const recurrent = document.getElementById('recurrentParent').value;
+        
+        // 헤더 생성
+        let headerHtml = '<tr><th>Marker</th><th>Chr</th><th>Position</th>';
+        sampleNames.forEach(name => {
+            headerHtml += `<th>${name}</th>`;
+        });
+        headerHtml += '</tr>';
+        
+        // 바디 생성
+        let bodyHtml = '';
+        markerData.slice(0, 500).forEach(marker => { // 최대 500개만 표시
+            bodyHtml += `<tr>
+                <td>${marker.Marker}</td>
+                <td>${marker.Chr}</td>
+                <td>${formatBp(marker.Position)}</td>`;
+            
+            sampleNames.forEach(name => {
+                const genotype = marker[name];
+                let cellClass = 'genotype-cell';
+                
+                if (donor && recurrent) {
+                    if (genotype === marker[recurrent]) {
+                        cellClass += ' recurrent';
+                    } else if (genotype === marker[donor]) {
+                        cellClass += ' donor';
+                    } else {
+                        cellClass += ' het';
+                    }
+                }
+                
+                bodyHtml += `<td class="${cellClass}">${genotype || '-'}</td>`;
+            });
+            
+            bodyHtml += '</tr>';
+        });
+        
+        if (markerData.length > 500) {
+            bodyHtml += `<tr><td colspan="${3 + sampleNames.length}" style="text-align: center; color: var(--text-secondary);">
+                ... ${markerData.length - 500}개 추가 마커 (표시 생략)
+            </td></tr>`;
+        }
+        
+        table.querySelector('thead').innerHTML = headerHtml;
+        table.querySelector('tbody').innerHTML = bodyHtml || 
+            '<tr><td colspan="3" style="text-align: center;">데이터가 없습니다</td></tr>';
+    }
+    
+    // =====================================================
+    // UI 헬퍼
+    // =====================================================
+    function switchPanel(panelName) {
+        document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-panel-btn').forEach(b => b.classList.remove('active'));
+        
+        document.getElementById(`panel-${panelName}`).classList.add('active');
+        event.target.classList.add('active');
+    }
+    
+    function updateThresholdLabel() {
+        const value = document.getElementById('recoveryThreshold').value;
+        document.getElementById('thresholdValue').textContent = value + '%';
+        
+        // 분석 결과가 있으면 통계 업데이트
+        if (Object.keys(analysisResults).length > 0) {
+            updateStatistics();
+            updateComparisonChart(Object.keys(analysisResults));
+        }
+    }
+    
+    function showNotification(message, type = 'info') {
+        const notification = document.getElementById('notification');
+        notification.textContent = message;
+        notification.style.display = 'block';
+        notification.style.background = type === 'error' ? '#dc3545' : 'var(--header-bg)';
+        
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 3000);
+    }
+    
+    // =====================================================
+    // 시각화 설정
+    // =====================================================
+    function openStyleModal() {
+        document.getElementById('styleModal').classList.add('active');
+    }
+    
+    function closeStyleModal() {
+        document.getElementById('styleModal').classList.remove('active');
+    }
+    
+    function applyPreset(name, btn) {
+        vizStyles = { ...PRESETS[name] };
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        syncUIFromViz();
+        applyVizStyles();
+    }
+    
+    function syncUIFromViz() {
+        document.getElementById('vizDonor').value = vizStyles.donor;
+        document.getElementById('vizRecurrent').value = vizStyles.recurrent;
+        document.getElementById('vizHet').value = vizStyles.het;
+        document.getElementById('vizCentromere').value = vizStyles.centromere;
+        document.getElementById('vizCentromereW').value = vizStyles.centromereW;
+        document.getElementById('vizChrH').value = vizStyles.chrH;
+        document.getElementById('vizChrRadius').value = vizStyles.chrRadius;
+        document.getElementById('vizChrBorder').value = vizStyles.chrBorder;
+        document.getElementById('vizTrack').value = vizStyles.track;
+        document.getElementById('vizLabel').value = vizStyles.label;
+        
+        document.getElementById('vizCentromerePicker').value = vizStyles.centromere;
+        document.getElementById('vizTrackPicker').value = vizStyles.track;
+        document.getElementById('vizLabelPicker').value = vizStyles.label;
+    }
+    
+    function syncPicker(type) {
+        const picker = document.getElementById(`viz${type}Picker`);
+        const input = document.getElementById(`viz${type}`);
+        input.value = picker.value;
+        applyVizStyles();
+    }
+    
+    function applyVizStyles() {
+        vizStyles.donor = document.getElementById('vizDonor').value;
+        vizStyles.recurrent = document.getElementById('vizRecurrent').value;
+        vizStyles.het = document.getElementById('vizHet').value;
+        vizStyles.centromere = document.getElementById('vizCentromere').value;
+        vizStyles.centromereW = parseInt(document.getElementById('vizCentromereW').value) || 8;
+        vizStyles.chrH = parseInt(document.getElementById('vizChrH').value) || 28;
+        vizStyles.chrRadius = parseInt(document.getElementById('vizChrRadius').value) || 4;
+        vizStyles.chrBorder = parseInt(document.getElementById('vizChrBorder').value) || 0;
+        vizStyles.track = document.getElementById('vizTrack').value;
+        vizStyles.label = document.getElementById('vizLabel').value;
+        
+        // 추가 옵션
+        vizOptions.splitArms = document.getElementById('vizSplitArms').checked;
+        vizOptions.showCentromere = document.getElementById('vizShowCentromere').checked;
+        vizOptions.bgOpacity = parseInt(document.getElementById('vizBgOpacity').value) || 100;
+        
+        const root = document.documentElement;
+        root.style.setProperty('--viz-donor', vizStyles.donor);
+        root.style.setProperty('--viz-recurrent', vizStyles.recurrent);
+        root.style.setProperty('--viz-het', vizStyles.het);
+        root.style.setProperty('--viz-centromere', vizStyles.centromere);
+        root.style.setProperty('--viz-centromere-w', vizStyles.centromereW + 'px');
+        root.style.setProperty('--viz-chr-h', vizStyles.chrH + 'px');
+        root.style.setProperty('--viz-chr-radius', vizStyles.chrRadius + 'px');
+        root.style.setProperty('--viz-chr-border', vizStyles.chrBorder + 'px');
+        root.style.setProperty('--viz-track', vizStyles.track);
+        root.style.setProperty('--viz-label', vizStyles.label);
+        
+        // 배경 투명도 적용
+        const bgOpacityValue = vizOptions.bgOpacity / 100;
+        root.style.setProperty('--viz-bg', `rgba(255, 255, 255, ${bgOpacityValue})`);
+        
+        // 분석 결과가 있으면 다시 그리기
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
+    }
+    
+    function updateOpacityLabel() {
+        const value = document.getElementById('vizBgOpacity').value;
+        document.getElementById('vizBgOpacityLabel').textContent = value + '%';
+    }
+    
+    function resetVizStyles() {
+        vizStyles = { ...PRESETS.color };
+        vizOptions = { splitArms: true, showCentromere: true, bgOpacity: 100 };
+        document.querySelectorAll('.preset-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+        document.getElementById('vizSplitArms').checked = true;
+        document.getElementById('vizShowCentromere').checked = true;
+        document.getElementById('vizBgOpacity').value = 100;
+        document.getElementById('vizBgOpacityLabel').textContent = '100%';
+        syncUIFromViz();
+        applyVizStyles();
+    }
+    
+    // =====================================================
+    // 내보내기
+    // =====================================================
+    function exportCSV() {
+        if (Object.keys(analysisResults).length === 0) {
+            showNotification('내보낼 분석 결과가 없습니다', 'error');
+            return;
+        }
+        const build = GENOME_BUILDS[currentBuild];
+        let csv = 'Sample,Total_Recovery_Rate,Total_Markers,Recurrent,Donor,Het';
+        Object.keys(build.chromosomes).forEach(chr => { csv += `,${chr}_Recovery`; });
+        csv += '\n';
+        
+        Object.entries(analysisResults).forEach(([sample, result]) => {
+            csv += `${sample},${result.recoveryRate.toFixed(2)},${result.totalMarkers},${result.recurrentMarkers},${result.donorMarkers},${result.heterozygousMarkers}`;
+            Object.keys(build.chromosomes).forEach(chr => {
+                const chrResult = result.chromosomes[chr.replace('Chr','')];
+                csv += `,${chrResult ? chrResult.recoveryRate.toFixed(2) : 'NA'}`;
+            });
+            csv += '\n';
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `background_selection_${currentBuild}_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+        showNotification('CSV 파일 다운로드 완료', 'success');
+    }
+    
+    function openExportModal() {
+        if (Object.keys(analysisResults).length === 0) {
+            showNotification('내보낼 분석 결과가 없습니다', 'error');
+            return;
+        }
+        document.getElementById('exportModal').classList.add('active');
+        const rate = analysisResults[currentSample]?.recoveryRate?.toFixed(1) || '0';
+        document.getElementById('exportTitleText').value = `Background Selection - ${currentSample} (${rate}%)`;
+    }
+    
+    function closeExportModal() {
+        document.getElementById('exportModal').classList.remove('active');
+    }
+    
+    async function executeExport() {
+        const format = document.getElementById('exportFormat').value;
+        const width = parseInt(document.getElementById('exportWidth').value);
+        const dpi = parseInt(document.getElementById('exportDPI').value);
+        const bgColor = document.getElementById('exportBgColor').value;
+        const includeLegend = document.getElementById('exportLegend').checked;
+        const includeTitle = document.getElementById('exportTitle').checked;
+        const title = document.getElementById('exportTitleText').value;
+        
+        showNotification('이미지 생성 중...', 'info');
+        
+        if (format === 'svg') {
+            exportSVG(width, bgColor, includeLegend, includeTitle, title);
+        } else {
+            await exportRaster(format, width, dpi, bgColor, includeLegend, includeTitle, title);
+        }
+        closeExportModal();
+    }
+    
+    async function exportRaster(format, width, dpi, bgColor, includeLegend, includeTitle, title) {
+        const container = document.createElement('div');
+        container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
+        document.body.appendChild(container);
+        
+        if (includeTitle) {
+            const h = document.createElement('h2');
+            h.textContent = title;
+            h.style.cssText = 'font-size:18px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
+            container.appendChild(h);
+        }
+        
+        if (includeLegend) {
+            const leg = document.createElement('div');
+            leg.style.cssText = 'display:flex;gap:20px;flex-wrap:wrap;padding:12px;background:#f8fafa;border-radius:6px;margin-bottom:15px;font-size:12px;';
+            leg.innerHTML = `
+                <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.donor};border:1px solid rgba(0,0,0,0.1);"></div><span>Donor</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.recurrent};border:1px solid rgba(0,0,0,0.1);"></div><span>Recurrent</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.het};border:1px solid rgba(0,0,0,0.1);"></div><span>Het</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.1);"></div><span>Centromere</span></div>
+            `;
+            container.appendChild(leg);
+        }
+        
+        const vizClone = document.getElementById('chromosomeViz').cloneNode(true);
+        vizClone.style.background = bgColor;
+        container.appendChild(vizClone);
+        
+        // 인라인 스타일 적용
+        vizClone.querySelectorAll('.chromosome-row').forEach(r => r.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;');
+        vizClone.querySelectorAll('.chr-label').forEach(el => el.style.cssText = `width:50px;font-size:12px;font-weight:600;color:${vizStyles.label};text-align:right;flex-shrink:0;`);
+        
+        // 분리 모드 (p-arm/centromere/q-arm)
+        vizClone.querySelectorAll('.chr-structure').forEach(el => {
+            const currentWidth = el.style.width || '100%';
+            el.style.cssText = `width:${currentWidth};display:flex;align-items:center;height:${vizStyles.chrH}px;`;
+        });
+        vizClone.querySelectorAll('.chr-p-arm').forEach(el => {
+            const grow = el.style.flexGrow || 1;
+            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px 0 0 ${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};border-right:none;`;
+        });
+        vizClone.querySelectorAll('.chr-q-arm').forEach(el => {
+            const grow = el.style.flexGrow || 1;
+            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:0 ${vizStyles.chrRadius}px ${vizStyles.chrRadius}px 0;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};border-left:none;`;
+        });
+        vizClone.querySelectorAll('.chr-centromere').forEach(el => el.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;`);
+        
+        // 기존 bar 형태
+        vizClone.querySelectorAll('.chr-bar-container').forEach(el => {
+            const currentWidth = el.style.width || '100%';
+            el.style.cssText = `width:${currentWidth};height:${vizStyles.chrH}px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.centromere};`;
+        });
+        vizClone.querySelectorAll('.chr-bar').forEach(el => {
+            el.style.cssText = `height:100%;border-radius:${vizStyles.chrRadius}px;position:relative;`;
+        });
+        vizClone.querySelectorAll('.chr-centromere-line').forEach(el => {
+            el.style.cssText = `position:absolute;top:0;width:${vizStyles.centromereW}px;height:100%;background:${vizStyles.centromere};z-index:10;`;
+        });
+        
+        vizClone.querySelectorAll('.marker-region').forEach(el => {
+            let bg = vizStyles.recurrent;
+            if (el.classList.contains('donor')) bg = vizStyles.donor;
+            else if (el.classList.contains('heterozygous')) bg = vizStyles.het;
+            el.style.background = bg;
+            el.style.position = 'absolute';
+            el.style.top = '0';
+            el.style.height = '100%';
+        });
+        vizClone.querySelectorAll('.chr-length').forEach(el => el.style.cssText = `width:70px;font-size:11px;color:${vizStyles.label};font-family:'JetBrains Mono',monospace;flex-shrink:0;`);
+        
+        try {
+            const scale = dpi / 96;
+            const canvas = await html2canvas(container, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+            const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+            const ext = format === 'jpeg' ? 'jpg' : 'png';
+            
+            canvas.toBlob(blob => {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `background_selection_${currentSample}_${new Date().toISOString().slice(0,10)}.${ext}`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+                showNotification(`${format.toUpperCase()} 이미지 저장 완료`, 'success');
+            }, mime, 0.95);
+        } catch (e) {
+            console.error(e);
+            showNotification('이미지 생성 오류', 'error');
+        }
+        document.body.removeChild(container);
+    }
+    
+    function exportSVG(width, bgColor, includeLegend, includeTitle, title) {
+        const build = GENOME_BUILDS[currentBuild];
+        const result = analysisResults[currentSample];
+        if (!result) { showNotification('분석 결과 없음', 'error'); return; }
+        
+        const maxLen = Math.max(...Object.values(build.chromosomes).map(c => c.length));
+        const pad = 20, labelW = 50, lenW = 70;
+        const barW = width - pad*2 - labelW - lenW - 20;
+        const chrH = vizStyles.chrH, gap = 8;
+        const centR = vizStyles.centromereW / 2;
+        const legH = includeLegend ? 50 : 0, titleH = includeTitle ? 40 : 0;
+        const chrs = Object.entries(build.chromosomes);
+        const totalH = pad*2 + titleH + legH + chrs.length * (chrH + gap);
+        
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>
+
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${totalH}" viewBox="0 0 ${width} ${totalH}"> <defs><style> .lbl{font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;fill:${vizStyles.label}} .len{font-family:'JetBrains Mono',monospace;font-size:11px;fill:${vizStyles.label}} .ttl{font-family:'Noto Sans KR',sans-serif;font-size:18px;font-weight:700;fill:#0c3026} .leg{font-family:'Noto Sans KR',sans-serif;font-size:12px;fill:#1a2e28} </style></defs> <rect width="100%" height="100%" fill="${bgColor}"/>`;
+        let y = pad;
+        if (includeTitle) {
+            svg += `<text x="${width/2}" y="${y+25}" text-anchor="middle" class="ttl">${escXml(title)}</text>`;
+            y += titleH;
+        }
+        if (includeLegend) {
+            const items = [{c:vizStyles.donor,l:'Donor'},{c:vizStyles.recurrent,l:'Recurrent'},{c:vizStyles.het,l:'Het'}];
+            if (vizOptions.showCentromere) items.push({c:vizStyles.centromere,l:'Centromere'});
+            svg += `<rect x="${pad}" y="${y}" width="${width-pad*2}" height="35" rx="4" fill="#f8fafa"/>`;
+            let lx = pad + 15;
+            items.forEach(it => {
+                svg += `<rect x="${lx}" y="${y+10}" width="18" height="12" rx="2" fill="${it.c}" stroke="rgba(0,0,0,0.1)"/>`;
+                svg += `<text x="${lx+24}" y="${y+20}" class="leg">${it.l}</text>`;
+                lx += 110;
+            });
+            y += legH;
+        }
+        
+        chrs.forEach(([name, info], i) => {
+            const chrNum = name.replace('Chr','');
+            const chrRes = result.chromosomes[chrNum];
+            const cy = y + i * (chrH + gap);
+            const totalChrWidth = (info.length / maxLen) * barW;
+            
+            svg += `<text x="${labelW}" y="${cy + chrH/2 + 4}" text-anchor="end" class="lbl">${name}</text>`;
+            
+            if (vizOptions.splitArms) {
+                // 분리 모드
+                const pArmWidth = (info.centromere / info.length) * totalChrWidth;
+                const qArmWidth = totalChrWidth - pArmWidth;
+                const pArmX = labelW + 10;
+                const centX = pArmX + pArmWidth;
+                const qArmX = vizOptions.showCentromere ? centX + vizStyles.centromereW : centX;
+                
+                // p-arm
+                svg += `<rect x="${pArmX}" y="${cy}" width="${pArmWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
+                
+                // q-arm
+                svg += `<rect x="${qArmX}" y="${cy}" width="${qArmWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
+                
+                // 마커 그리기
+                if (chrRes && chrRes.markers.length > 0) {
+                    const markers = chrRes.markers.sort((a,b) => a.position - b.position);
+                    
+                    // p-arm 마커
+                    const pMarkers = markers.filter(m => m.position < info.centromere);
+                    pMarkers.forEach((m, j) => {
+                        const prev = pMarkers[j-1];
+                        const next = pMarkers[j+1];
+                        const start = prev ? (prev.position + m.position)/2 : 0;
+                        const end = next ? Math.min(info.centromere, (m.position + next.position)/2) : info.centromere;
+                        const rx = pArmX + (start / info.centromere) * pArmWidth;
+                        const rw = ((end - start) / info.centromere) * pArmWidth;
+                        let fill = vizStyles.recurrent;
+                        if (m.type === 'donor') fill = vizStyles.donor;
+                        else if (m.type === 'heterozygous') fill = vizStyles.het;
+                        svg += `<rect x="${rx}" y="${cy}" width="${rw}" height="${chrH}" fill="${fill}"/>`;
+                    });
+                    
+                    // q-arm 마커
+                    const qMarkers = markers.filter(m => m.position >= info.centromere);
+                    const qStart = info.centromere;
+                    const qLen = info.length - info.centromere;
+                    qMarkers.forEach((m, j) => {
+                        const prev = qMarkers[j-1];
+                        const next = qMarkers[j+1];
+                        const start = prev ? (prev.position + m.position)/2 : qStart;
+                        const end = next ? (m.position + next.position)/2 : info.length;
+                        const rx = qArmX + ((start - qStart) / qLen) * qArmWidth;
+                        const rw = ((end - start) / qLen) * qArmWidth;
+                        let fill = vizStyles.recurrent;
+                        if (m.type === 'donor') fill = vizStyles.donor;
+                        else if (m.type === 'heterozygous') fill = vizStyles.het;
+                        svg += `<rect x="${rx}" y="${cy}" width="${rw}" height="${chrH}" fill="${fill}"/>`;
+                    });
+                }
+                
+                // 동원체 (원형)
+                if (vizOptions.showCentromere) {
+                    svg += `<circle cx="${centX + vizStyles.centromereW/2}" cy="${cy + chrH/2}" r="${centR}" fill="${vizStyles.centromere}"/>`;
+                }
+                
+                svg += `<text x="${qArmX + qArmWidth + 10}" y="${cy+chrH/2+4}" class="len">${formatBp(info.length)}</text>`;
+            } else {
+                // 기존 bar 형태
+                const barX = labelW + 10;
+                const centromereX = barX + (info.centromere / info.length) * totalChrWidth;
+                
+                svg += `<rect x="${barX}" y="${cy}" width="${totalChrWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.centromere}" stroke-width="${vizStyles.chrBorder}"/>`;
+                
+                // 마커 그리기
+                if (chrRes && chrRes.markers.length > 0) {
+                    const markers = chrRes.markers.sort((a,b) => a.position - b.position);
+                    markers.forEach((m, j) => {
+                        const prev = markers[j-1];
+                        const next = markers[j+1];
+                        const start = prev ? (prev.position + m.position)/2 : 0;
+                        const end = next ? (m.position + next.position)/2 : info.length;
+                        const rx = barX + (start / info.length) * totalChrWidth;
+                        const rw = ((end - start) / info.length) * totalChrWidth;
+                        let fill = vizStyles.recurrent;
+                        if (m.type === 'donor') fill = vizStyles.donor;
+                        else if (m.type === 'heterozygous') fill = vizStyles.het;
+                        svg += `<rect x="${rx}" y="${cy}" width="${rw}" height="${chrH}" fill="${fill}"/>`;
+                    });
+                }
+                
+                // 동원체 (선)
+                if (vizOptions.showCentromere) {
+                    svg += `<rect x="${centromereX - vizStyles.centromereW/2}" y="${cy}" width="${vizStyles.centromereW}" height="${chrH}" fill="${vizStyles.centromere}"/>`;
+                }
+                
+                svg += `<text x="${barX + totalChrWidth + 10}" y="${cy+chrH/2+4}" class="len">${formatBp(info.length)}</text>`;
+            }
+        });
+        
+        svg += '</svg>';
+        
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `background_selection_${currentSample}_${new Date().toISOString().slice(0,10)}.svg`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        showNotification('SVG 이미지 저장 완료', 'success');
+    }
+    
+    function escXml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
