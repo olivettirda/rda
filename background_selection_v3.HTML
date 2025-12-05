@@ -1,6 +1,6 @@
  <!DOCTYPE html>
 
-<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <style> @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script> <style> @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
     :root {
         --bg-primary: #ffffff;
         --bg-secondary: #f8fafa;
@@ -834,8 +834,11 @@
                         </select>
                     </div>
                     
-                    <button class="btn btn-secondary btn-block" onclick="loadDemoData()">
+                    <button class="btn btn-secondary btn-block" onclick="loadDemoData()" style="margin-bottom: 0.5rem;">
                         📊 데모 데이터 로드
+                    </button>
+                    <button class="btn btn-secondary btn-block" onclick="openKaspImportModal()" style="background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent-mid) 100%); color: white;">
+                        🧬 KASP 데이터 불러오기
                     </button>
                 </div>
             </div>
@@ -1206,6 +1209,95 @@
             
             <div class="divider"></div>
             <button class="btn btn-secondary btn-block" onclick="resetVizStyles()">🔄 기본값 복원</button>
+        </div>
+    </div>
+</div>
+
+<!-- KASP 데이터 불러오기 모달 -->
+<div class="modal-overlay" id="kaspImportModal">
+    <div class="modal" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3>🧬 KASP 데이터 불러오기</h3>
+            <button class="modal-close" onclick="closeKaspImportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: #e8f4f0; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                    <strong>💡 사용 방법:</strong><br>
+                    1. 먼저 유전자형 데이터(샘플별 유전자형 1/0/H)를 직접 입력하거나 파일로 업로드하세요<br>
+                    2. KASP 분석기에서 분석한 결과를 추가로 불러와 유전자형 데이터에 병합할 수 있습니다<br>
+                    3. 필요한 유전자/마커 정보(염색체, 위치)를 설정하세요
+                </p>
+            </div>
+
+            <!-- 유전자형 직접 입력 -->
+            <div class="form-group">
+                <label>📋 유전자형 데이터 입력 (필수)</label>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    형식: Sample, Gene1, Gene2, ... (첫 행은 헤더, 유전자형은 1/0/H/- 사용)
+                </p>
+                <textarea id="genotypeInput" rows="6" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;" placeholder="Sample,Wx,GW2,Xa3,SSIIa
+품종1,1,0,1,H
+품종2,0,1,0,1
+품종3,1,1,1,1"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="file-upload-btn" for="genotypeFile" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px dashed var(--border-color);">
+                    📂 유전자형 파일 업로드 (CSV/TSV)
+                </label>
+                <input type="file" id="genotypeFile" accept=".csv,.tsv,.txt" onchange="loadGenotypeFile(event)">
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- KASP 분석 결과 추가 -->
+            <div class="form-group">
+                <label>🧬 KASP 분석 결과 추가 (선택)</label>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    KASP 분석기에서 내보낸 파일을 불러와 유전자형 데이터에 병합합니다
+                </p>
+                <label class="file-upload-btn" for="kaspResultFile" style="background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent-mid) 100%); color: white;">
+                    📊 KASP 결과 파일 추가 (.xlsx/.csv)
+                </label>
+                <input type="file" id="kaspResultFile" accept=".xlsx,.csv" onchange="loadKaspResultFile(event)">
+                <div id="kaspFileStatus" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 유전자/마커 정보 설정 -->
+            <div class="form-group">
+                <label>🗺️ 유전자/마커 위치 정보</label>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    각 유전자의 염색체 번호와 물리적 위치를 설정합니다 (형식: 유전자명,Chr,Position)
+                </p>
+                <textarea id="markerInfoInput" rows="4" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;" placeholder="Wx,6,1765761
+GW2,2,8116064
+Xa3,11,21291515
+SSIIa,6,6749554"></textarea>
+            </div>
+
+            <div class="form-group">
+                <button class="btn btn-secondary" onclick="loadDefaultMarkerInfo()" style="font-size: 0.8rem;">
+                    📚 주요 유전자 위치 자동 설정
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 미리보기 -->
+            <div class="form-group">
+                <label>📊 데이터 미리보기</label>
+                <div id="kaspPreviewTable" style="max-height: 200px; overflow: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <p style="padding: 1rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
+                        데이터를 입력하면 미리보기가 표시됩니다
+                    </p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+            <button class="btn btn-primary btn-block" onclick="importKaspData()">✅ 데이터 불러오기</button>
         </div>
     </div>
 </div>
@@ -2590,4 +2682,479 @@
     }
     
     function escXml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // =====================================================
+    // KASP 데이터 불러오기
+    // =====================================================
+
+    // 주요 벼 유전자 위치 정보 (IRGSP-1.0 기준)
+    const DEFAULT_MARKER_INFO = {
+        // 찰성 관련
+        'Wx': { chr: '6', position: 1765761 },
+        'SSIIa': { chr: '6', position: 6749554 },
+        'GBSSI': { chr: '6', position: 1765761 },
+
+        // 수량성 관련
+        'GW2': { chr: '2', position: 8116064 },
+        'GS3': { chr: '3', position: 16733441 },
+        'GW5': { chr: '5', position: 5360621 },
+        'qSW5': { chr: '5', position: 5360621 },
+        'GS5': { chr: '5', position: 3444830 },
+        'GW6a': { chr: '6', position: 29819619 },
+        'GW8': { chr: '8', position: 26501237 },
+        'TGW6': { chr: '6', position: 1496728 },
+        'GL3': { chr: '3', position: 3186380 },
+        'GL7': { chr: '7', position: 24699203 },
+        'GNP1': { chr: '3', position: 17259226 },
+        'Gn1a': { chr: '1', position: 5270359 },
+        'DEP1': { chr: '9', position: 26947862 },
+        'IPA1': { chr: '8', position: 25917977 },
+        'WFP': { chr: '8', position: 25917977 },
+
+        // 출수기 관련
+        'Hd1': { chr: '6', position: 9337513 },
+        'Hd2': { chr: '7', position: 22459254 },
+        'Hd3a': { chr: '6', position: 2940810 },
+        'Hd4': { chr: '7', position: 23768128 },
+        'Hd5': { chr: '8', position: 4328182 },
+        'Hd6': { chr: '3', position: 33992913 },
+        'Hd16': { chr: '3', position: 2468925 },
+        'Ghd7': { chr: '7', position: 9151707 },
+        'DTH8': { chr: '8', position: 4330108 },
+        'Ehd1': { chr: '10', position: 17081052 },
+        'RFT1': { chr: '6', position: 2940810 },
+
+        // 내병성 관련 (도열병)
+        'Pi-ta': { chr: '12', position: 10606359 },
+        'Pi-b': { chr: '2', position: 35106988 },
+        'Pi-k': { chr: '11', position: 27973000 },
+        'Pi-kh': { chr: '11', position: 27973000 },
+        'Pi-km': { chr: '11', position: 27973000 },
+        'Pi-kp': { chr: '11', position: 27973000 },
+        'Pi-ks': { chr: '11', position: 27973000 },
+        'Pi1': { chr: '11', position: 26478708 },
+        'Pi2': { chr: '6', position: 10381972 },
+        'Pi9': { chr: '6', position: 10381972 },
+        'Piz-t': { chr: '6', position: 10381972 },
+        'Pi33': { chr: '8', position: 5922942 },
+        'Pi36': { chr: '8', position: 2872315 },
+        'Pi37': { chr: '1', position: 33112448 },
+        'Pi54': { chr: '11', position: 24762311 },
+        'Pid2': { chr: '6', position: 17159710 },
+        'Pid3': { chr: '6', position: 18063520 },
+        'Pi5': { chr: '9', position: 9685611 },
+        'Pi56': { chr: '9', position: 9685611 },
+
+        // 내병성 관련 (흰잎마름병)
+        'Xa1': { chr: '4', position: 31655216 },
+        'Xa2': { chr: '4', position: 31561247 },
+        'Xa3': { chr: '11', position: 21291515 },
+        'Xa4': { chr: '11', position: 21282765 },
+        'Xa5': { chr: '5', position: 438655 },
+        'Xa7': { chr: '6', position: 27855892 },
+        'Xa10': { chr: '11', position: 22149049 },
+        'Xa13': { chr: '8', position: 26751205 },
+        'xa13': { chr: '8', position: 26751205 },
+        'Xa21': { chr: '11', position: 21285654 },
+        'Xa23': { chr: '11', position: 22188000 },
+        'xa25': { chr: '12', position: 17489376 },
+        'Xa26': { chr: '11', position: 17302443 },
+        'Xa27': { chr: '6', position: 24665999 },
+
+        // 내충성 관련
+        'Bph1': { chr: '12', position: 21925227 },
+        'Bph2': { chr: '12', position: 21869831 },
+        'Bph3': { chr: '6', position: 713567 },
+        'Bph14': { chr: '3', position: 35215561 },
+        'Bph15': { chr: '4', position: 6567896 },
+        'Bph17': { chr: '4', position: 7023628 },
+        'Bph18': { chr: '12', position: 22166000 },
+        'Bph26': { chr: '12', position: 22080000 },
+        'Bph29': { chr: '6', position: 713567 },
+
+        // 내냉성 관련
+        'Ctb1': { chr: '4', position: 31458618 },
+        'qLTG3-1': { chr: '3', position: 143654 },
+        'qCTS4': { chr: '4', position: 31500000 },
+        'qCTS12': { chr: '12', position: 19762381 },
+
+        // 초장 관련
+        'sd1': { chr: '1', position: 38382382 },
+        'SD1': { chr: '1', position: 38382382 },
+
+        // 탈립성 관련
+        'qSH1': { chr: '1', position: 36447801 },
+        'sh4': { chr: '4', position: 34003619 },
+        'SH4': { chr: '4', position: 34003619 },
+
+        // 향기 관련
+        'Badh2': { chr: '8', position: 20382420 },
+        'fgr': { chr: '8', position: 20382420 },
+
+        // 도복저항성 관련
+        'SCM2': { chr: '6', position: 28899162 },
+        'qSCM3': { chr: '3', position: 22800000 }
+    };
+
+    let kaspGenotypeData = {};  // 임시 저장용
+    let kaspMarkerInfo = {};     // 마커 위치 정보
+
+    function openKaspImportModal() {
+        document.getElementById('kaspImportModal').classList.add('active');
+        // 이전 데이터 초기화
+        kaspGenotypeData = {};
+        document.getElementById('genotypeInput').value = '';
+        document.getElementById('markerInfoInput').value = '';
+        document.getElementById('kaspFileStatus').textContent = '';
+        document.getElementById('kaspPreviewTable').innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">데이터를 입력하면 미리보기가 표시됩니다</p>';
+    }
+
+    function closeKaspImportModal() {
+        document.getElementById('kaspImportModal').classList.remove('active');
+    }
+
+    // 유전자형 파일 불러오기
+    function loadGenotypeFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('genotypeInput').value = e.target.result;
+            updateKaspPreview();
+        };
+        reader.readAsText(file);
+    }
+
+    // KASP 결과 파일 불러오기 (xlsx/csv)
+    function loadKaspResultFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                let data;
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                    // Excel 파일 처리
+                    const workbook = XLSX.read(e.target.result, { type: 'array' });
+                    // 첫 번째 시트 (Genotype Results) 사용
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    data = XLSX.utils.sheet_to_csv(sheet);
+                } else {
+                    // CSV 파일
+                    data = e.target.result;
+                }
+
+                // KASP 결과 파싱 및 병합
+                mergeKaspResults(data);
+                document.getElementById('kaspFileStatus').innerHTML = `<span style="color: var(--accent-dark);">✅ ${file.name} 로드 완료</span>`;
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('kaspFileStatus').innerHTML = `<span style="color: #dc3545;">❌ 파일 처리 오류: ${err.message}</span>`;
+            }
+        };
+
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+            reader.readAsArrayBuffer(file);
+        } else {
+            reader.readAsText(file);
+        }
+    }
+
+    // KASP 결과를 현재 유전자형 데이터에 병합
+    function mergeKaspResults(csvData) {
+        const lines = csvData.trim().split('\n');
+        if (lines.length < 2) return;
+
+        const headers = lines[0].split(',');
+        const genes = headers.slice(2); // Well, 품종명 제외
+
+        // 현재 유전자형 데이터 파싱
+        let currentInput = document.getElementById('genotypeInput').value.trim();
+        let currentData = {};
+        let currentGenes = [];
+
+        if (currentInput) {
+            const currentLines = currentInput.split('\n');
+            currentGenes = currentLines[0].split(/[,\t]/).slice(1);
+
+            for (let i = 1; i < currentLines.length; i++) {
+                const cols = currentLines[i].split(/[,\t]/);
+                const sample = cols[0].trim();
+                if (sample) {
+                    currentData[sample] = {};
+                    currentGenes.forEach((g, idx) => {
+                        currentData[sample][g] = cols[idx + 1] || '-';
+                    });
+                }
+            }
+        }
+
+        // KASP 결과 병합
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            const sample = cols[1].trim(); // 품종명/시료명
+            if (!sample) continue;
+
+            if (!currentData[sample]) {
+                currentData[sample] = {};
+            }
+
+            genes.forEach((gene, idx) => {
+                const genotype = cols[idx + 2] || '-';
+                if (genotype !== '-' && genotype !== '') {
+                    currentData[sample][gene] = genotype;
+                    if (!currentGenes.includes(gene)) {
+                        currentGenes.push(gene);
+                    }
+                }
+            });
+        }
+
+        // 입력창 업데이트
+        let newInput = 'Sample,' + currentGenes.join(',') + '\n';
+        Object.entries(currentData).forEach(([sample, genotypes]) => {
+            newInput += sample;
+            currentGenes.forEach(gene => {
+                newInput += ',' + (genotypes[gene] || '-');
+            });
+            newInput += '\n';
+        });
+
+        document.getElementById('genotypeInput').value = newInput.trim();
+
+        // 마커 정보 자동 설정
+        autoSetMarkerInfo(currentGenes);
+
+        updateKaspPreview();
+    }
+
+    // 기본 마커 정보 자동 설정
+    function autoSetMarkerInfo(genes) {
+        let markerInfo = document.getElementById('markerInfoInput').value.trim();
+        const existingMarkers = {};
+
+        if (markerInfo) {
+            markerInfo.split('\n').forEach(line => {
+                const parts = line.split(',');
+                if (parts.length >= 3) {
+                    existingMarkers[parts[0].trim()] = true;
+                }
+            });
+        }
+
+        genes.forEach(gene => {
+            const geneKey = gene.trim();
+            if (!existingMarkers[geneKey] && DEFAULT_MARKER_INFO[geneKey]) {
+                const info = DEFAULT_MARKER_INFO[geneKey];
+                markerInfo += (markerInfo ? '\n' : '') + `${geneKey},${info.chr},${info.position}`;
+                existingMarkers[geneKey] = true;
+            }
+        });
+
+        document.getElementById('markerInfoInput').value = markerInfo;
+    }
+
+    // 기본 마커 정보 로드
+    function loadDefaultMarkerInfo() {
+        // 현재 유전자형 데이터에서 유전자 목록 추출
+        const genotypeInput = document.getElementById('genotypeInput').value.trim();
+        if (!genotypeInput) {
+            showNotification('먼저 유전자형 데이터를 입력해주세요', 'error');
+            return;
+        }
+
+        const firstLine = genotypeInput.split('\n')[0];
+        const genes = firstLine.split(/[,\t]/).slice(1);
+
+        let markerInfo = '';
+        let found = 0, notFound = [];
+
+        genes.forEach(gene => {
+            const geneKey = gene.trim();
+            if (DEFAULT_MARKER_INFO[geneKey]) {
+                const info = DEFAULT_MARKER_INFO[geneKey];
+                markerInfo += (markerInfo ? '\n' : '') + `${geneKey},${info.chr},${info.position}`;
+                found++;
+            } else {
+                notFound.push(geneKey);
+            }
+        });
+
+        document.getElementById('markerInfoInput').value = markerInfo;
+
+        if (notFound.length > 0) {
+            showNotification(`${found}개 유전자 위치 설정됨. 미등록 유전자: ${notFound.join(', ')}`, 'info');
+        } else {
+            showNotification(`${found}개 유전자 위치 자동 설정 완료`, 'success');
+        }
+
+        updateKaspPreview();
+    }
+
+    // 미리보기 업데이트
+    function updateKaspPreview() {
+        const genotypeInput = document.getElementById('genotypeInput').value.trim();
+        const previewContainer = document.getElementById('kaspPreviewTable');
+
+        if (!genotypeInput) {
+            previewContainer.innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">데이터를 입력하면 미리보기가 표시됩니다</p>';
+            return;
+        }
+
+        try {
+            const lines = genotypeInput.split('\n');
+            const headers = lines[0].split(/[,\t]/);
+
+            let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">';
+            html += '<thead><tr>';
+            headers.forEach(h => {
+                html += `<th style="padding: 6px 8px; background: var(--header-bg); color: white; text-align: center; white-space: nowrap;">${h}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            const maxRows = Math.min(lines.length - 1, 10);
+            for (let i = 1; i <= maxRows; i++) {
+                const cols = lines[i].split(/[,\t]/);
+                html += '<tr>';
+                cols.forEach((c, idx) => {
+                    let style = 'padding: 6px 8px; border-bottom: 1px solid var(--border-color); text-align: center;';
+                    if (idx === 0) style += ' font-weight: 500; text-align: left;';
+                    else {
+                        // 유전자형 색상
+                        if (c === '1') style += ' background: #e3f2fd; color: #1565c0;';
+                        else if (c === '0') style += ' background: #fff3e0; color: #e65100;';
+                        else if (c === 'H') style += ' background: #f3e5f5; color: #7b1fa2;';
+                    }
+                    html += `<td style="${style}">${c || '-'}</td>`;
+                });
+                html += '</tr>';
+            }
+
+            if (lines.length - 1 > maxRows) {
+                html += `<tr><td colspan="${headers.length}" style="padding: 8px; text-align: center; color: var(--text-secondary);">... 외 ${lines.length - 1 - maxRows}개 샘플</td></tr>`;
+            }
+
+            html += '</tbody></table>';
+            previewContainer.innerHTML = html;
+
+        } catch (err) {
+            previewContainer.innerHTML = `<p style="padding: 1rem; text-align: center; color: #dc3545; font-size: 0.85rem;">데이터 파싱 오류: ${err.message}</p>`;
+        }
+    }
+
+    // 유전자형 데이터 입력창 변경 감지
+    document.addEventListener('DOMContentLoaded', () => {
+        const genotypeInput = document.getElementById('genotypeInput');
+        if (genotypeInput) {
+            genotypeInput.addEventListener('input', () => {
+                clearTimeout(genotypeInput._debounce);
+                genotypeInput._debounce = setTimeout(updateKaspPreview, 300);
+            });
+        }
+    });
+
+    // KASP 데이터 불러오기 실행
+    function importKaspData() {
+        const genotypeInput = document.getElementById('genotypeInput').value.trim();
+        const markerInfoInput = document.getElementById('markerInfoInput').value.trim();
+
+        if (!genotypeInput) {
+            showNotification('유전자형 데이터를 입력해주세요', 'error');
+            return;
+        }
+
+        if (!markerInfoInput) {
+            showNotification('유전자/마커 위치 정보를 입력해주세요', 'error');
+            return;
+        }
+
+        try {
+            // 마커 위치 정보 파싱
+            const markerInfo = {};
+            markerInfoInput.split('\n').forEach(line => {
+                const parts = line.split(',');
+                if (parts.length >= 3) {
+                    const gene = parts[0].trim();
+                    const chr = parts[1].trim().replace(/^0+/, ''); // 앞의 0 제거
+                    const position = parseInt(parts[2].trim());
+                    if (gene && chr && position) {
+                        markerInfo[gene] = { chr, position };
+                    }
+                }
+            });
+
+            // 유전자형 데이터 파싱
+            const lines = genotypeInput.split('\n');
+            const headers = lines[0].split(/[,\t]/);
+            const genes = headers.slice(1);
+
+            // 마커 데이터 생성
+            markerData = [];
+            const samples = [];
+
+            // 각 유전자를 마커로 변환
+            genes.forEach(gene => {
+                const geneKey = gene.trim();
+                const info = markerInfo[geneKey];
+
+                if (info) {
+                    const marker = {
+                        Marker: geneKey,
+                        Chr: info.chr,
+                        Position: info.position
+                    };
+
+                    // 각 샘플의 유전자형 추가
+                    for (let i = 1; i < lines.length; i++) {
+                        const cols = lines[i].split(/[,\t]/);
+                        const sampleName = cols[0].trim();
+                        if (sampleName && !samples.includes(sampleName)) {
+                            samples.push(sampleName);
+                        }
+
+                        const genotypeIdx = genes.indexOf(gene) + 1;
+                        const genotype = cols[genotypeIdx]?.trim() || '-';
+
+                        // 유전자형 변환 (1/0/H -> A/B/H)
+                        let convertedGenotype = genotype;
+                        if (genotype === '1') convertedGenotype = 'A';
+                        else if (genotype === '0') convertedGenotype = 'B';
+                        else if (genotype === 'H') convertedGenotype = 'H';
+                        else if (genotype === '-') convertedGenotype = '-';
+
+                        marker[sampleName] = convertedGenotype;
+                    }
+
+                    markerData.push(marker);
+                }
+            });
+
+            if (markerData.length === 0) {
+                showNotification('위치 정보가 있는 유전자가 없습니다', 'error');
+                return;
+            }
+
+            // 샘플명 설정
+            sampleNames = samples;
+
+            // 부모 선택 드롭다운 업데이트
+            updateParentSelects();
+
+            // 데이터 테이블 업데이트
+            updateDataTable();
+
+            // 모달 닫기
+            closeKaspImportModal();
+
+            showNotification(`${markerData.length}개 마커, ${samples.length}개 샘플 불러오기 완료`, 'success');
+
+        } catch (err) {
+            console.error(err);
+            showNotification('데이터 처리 오류: ' + err.message, 'error');
+        }
+    }
 </script>
