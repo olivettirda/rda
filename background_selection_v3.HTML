@@ -1,6 +1,7 @@
  <!DOCTYPE html>
 
-<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script> <style> @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script> <style> @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
     :root {
         --bg-primary: #ffffff;
         --bg-secondary: #f8fafa;
@@ -907,12 +908,28 @@
                     <h2>💾 내보내기</h2>
                 </div>
                 <div class="card-body">
+                    <button class="btn btn-primary btn-block" onclick="openBulkExportModal()" style="margin-bottom: 0.75rem;">
+                        📦 일괄 다운로드 (ZIP)
+                        <small style="display:block;font-size:0.7rem;opacity:0.85;margin-top:2px;">모든 데이터 + 모든 이미지</small>
+                    </button>
+                    <div class="divider" style="margin: 0.75rem 0;"></div>
                     <button class="btn btn-secondary btn-block" onclick="exportCSV()" style="margin-bottom: 0.5rem;">
-                        📄 CSV 내보내기
+                        📊 통계 CSV
+                        <small style="display:block;font-size:0.65rem;opacity:0.75;margin-top:2px;">샘플별/염색체별 회복률</small>
+                    </button>
+                    <button class="btn btn-secondary btn-block" onclick="exportRawDataCSV()" style="margin-bottom: 0.5rem;">
+                        📋 원시데이터 CSV
+                        <small style="display:block;font-size:0.65rem;opacity:0.75;margin-top:2px;">마커별 유전형 데이터</small>
                     </button>
                     <button class="btn btn-secondary btn-block" onclick="openExportModal()" style="margin-bottom: 0.5rem;">
-                        🖼️ 이미지 저장
+                        🧬 염색체 이미지
+                        <small style="display:block;font-size:0.65rem;opacity:0.75;margin-top:2px;">현재 샘플 시각화</small>
                     </button>
+                    <button class="btn btn-secondary btn-block" onclick="exportAllCharts()" style="margin-bottom: 0.5rem;">
+                        📈 차트 이미지
+                        <small style="display:block;font-size:0.65rem;opacity:0.75;margin-top:2px;">회복률/비교 차트 (ZIP)</small>
+                    </button>
+                    <div class="divider" style="margin: 0.75rem 0;"></div>
                     <button class="btn btn-secondary btn-block" onclick="openStyleModal()">
                         🎨 시각화 설정
                     </button>
@@ -1098,6 +1115,72 @@
             </div>
             <div class="divider"></div>
             <button class="btn btn-primary btn-block" onclick="executeExport()">💾 내보내기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 일괄 다운로드 모달 -->
+<div class="modal-overlay" id="bulkExportModal">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3>📦 일괄 다운로드</h3>
+            <button class="modal-close" onclick="closeBulkExportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                선택한 항목들을 ZIP 파일로 한번에 다운로드합니다.
+            </p>
+
+            <div class="form-group" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <h4 style="font-size: 0.9rem; color: var(--accent-darker); margin-bottom: 0.75rem;">📊 데이터 파일</h4>
+                <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                    <input type="checkbox" id="bulkStatsCsv" checked> 통계 분석 (CSV)
+                    <small style="color:var(--text-secondary);font-size:0.75rem;">- 샘플별/염색체별 회복률</small>
+                </label>
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="bulkRawCsv" checked> 원시 데이터 (CSV)
+                    <small style="color:var(--text-secondary);font-size:0.75rem;">- 마커별 유전형 전체</small>
+                </label>
+            </div>
+
+            <div class="form-group" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <h4 style="font-size: 0.9rem; color: var(--accent-darker); margin-bottom: 0.75rem;">🖼️ 이미지 파일</h4>
+                <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                    <input type="checkbox" id="bulkChromosomeImg" checked> 염색체 시각화 (PNG)
+                    <small style="color:var(--text-secondary);font-size:0.75rem;">- 모든 샘플</small>
+                </label>
+                <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+                    <input type="checkbox" id="bulkRecoveryChart" checked> 염색체별 회복률 차트 (PNG)
+                </label>
+                <label style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="bulkComparisonChart" checked> 샘플 비교 차트 (PNG)
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>이미지 설정</label>
+                <div class="two-col" style="gap: 0.5rem;">
+                    <div>
+                        <small style="color:var(--text-secondary);">너비 (px)</small>
+                        <input type="number" id="bulkImageWidth" value="1200" min="400" max="4000" style="margin-top:0.25rem;">
+                    </div>
+                    <div>
+                        <small style="color:var(--text-secondary);">DPI</small>
+                        <select id="bulkImageDPI" style="margin-top:0.25rem;">
+                            <option value="150">150</option>
+                            <option value="300" selected>300</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+            <button class="btn btn-primary btn-block" onclick="executeBulkExport()">
+                📥 ZIP 파일 다운로드
+            </button>
+            <p id="bulkExportProgress" style="text-align:center;font-size:0.8rem;color:var(--text-secondary);margin-top:0.75rem;display:none;">
+                다운로드 준비 중...
+            </p>
         </div>
     </div>
 </div>
@@ -2667,6 +2750,407 @@ SSIIa,6,6749554"></textarea>
     }
     
     function escXml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // =====================================================
+    // 일괄 다운로드 기능
+    // =====================================================
+
+    function openBulkExportModal() {
+        if (Object.keys(analysisResults).length === 0) {
+            showNotification('내보낼 분석 결과가 없습니다', 'error');
+            return;
+        }
+        document.getElementById('bulkExportModal').classList.add('active');
+    }
+
+    function closeBulkExportModal() {
+        document.getElementById('bulkExportModal').classList.remove('active');
+        document.getElementById('bulkExportProgress').style.display = 'none';
+    }
+
+    // 원시 데이터 CSV 내보내기
+    function exportRawDataCSV() {
+        if (markerData.length === 0) {
+            showNotification('내보낼 마커 데이터가 없습니다', 'error');
+            return;
+        }
+
+        const headers = ['Marker', 'Chr', 'Position', ...sampleNames];
+        let csv = headers.join(',') + '\n';
+
+        markerData.forEach(row => {
+            const values = [
+                row.Marker || row.marker || '',
+                row.Chr || row.chr || row.Chromosome || '',
+                row.Position || row.position || row.Pos || ''
+            ];
+            sampleNames.forEach(sample => {
+                values.push(row[sample] || '');
+            });
+            csv += values.map(v => `"${v}"`).join(',') + '\n';
+        });
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `raw_data_${currentBuild}_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+        showNotification('원시 데이터 CSV 다운로드 완료', 'success');
+    }
+
+    // 원시 데이터 CSV 문자열 생성 (ZIP용)
+    function generateRawDataCSV() {
+        if (markerData.length === 0) return null;
+
+        const headers = ['Marker', 'Chr', 'Position', ...sampleNames];
+        let csv = headers.join(',') + '\n';
+
+        markerData.forEach(row => {
+            const values = [
+                row.Marker || row.marker || '',
+                row.Chr || row.chr || row.Chromosome || '',
+                row.Position || row.position || row.Pos || ''
+            ];
+            sampleNames.forEach(sample => {
+                values.push(row[sample] || '');
+            });
+            csv += values.map(v => `"${v}"`).join(',') + '\n';
+        });
+
+        return '\uFEFF' + csv;
+    }
+
+    // 통계 CSV 문자열 생성 (ZIP용)
+    function generateStatsCSV() {
+        if (Object.keys(analysisResults).length === 0) return null;
+
+        const build = GENOME_BUILDS[currentBuild];
+        let csv = 'Sample,Total_Recovery_Rate,Total_Markers,Recurrent,Donor,Het';
+        Object.keys(build.chromosomes).forEach(chr => { csv += `,${chr}_Recovery`; });
+        csv += '\n';
+
+        Object.entries(analysisResults).forEach(([sample, result]) => {
+            csv += `${sample},${result.recoveryRate.toFixed(2)},${result.totalMarkers},${result.recurrentMarkers},${result.donorMarkers},${result.heterozygousMarkers}`;
+            Object.keys(build.chromosomes).forEach(chr => {
+                const chrResult = result.chromosomes[chr.replace('Chr','')];
+                csv += `,${chrResult ? chrResult.recoveryRate.toFixed(2) : 'NA'}`;
+            });
+            csv += '\n';
+        });
+
+        return '\uFEFF' + csv;
+    }
+
+    // 차트를 이미지로 캡처
+    async function captureChartAsBlob(chartCanvas, title, width, dpi, bgColor = '#ffffff') {
+        const container = document.createElement('div');
+        container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
+        document.body.appendChild(container);
+
+        const h = document.createElement('h2');
+        h.textContent = title;
+        h.style.cssText = 'font-size:16px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
+        container.appendChild(h);
+
+        // 차트 캔버스 복제
+        const chartClone = document.createElement('canvas');
+        chartClone.width = chartCanvas.width;
+        chartClone.height = chartCanvas.height;
+        const ctx = chartClone.getContext('2d');
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, chartClone.width, chartClone.height);
+        ctx.drawImage(chartCanvas, 0, 0);
+
+        const chartWrapper = document.createElement('div');
+        chartWrapper.style.cssText = 'max-width:100%;';
+        chartWrapper.appendChild(chartClone);
+        container.appendChild(chartWrapper);
+
+        try {
+            const scale = dpi / 96;
+            const canvas = await html2canvas(container, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+
+            return new Promise(resolve => {
+                canvas.toBlob(blob => {
+                    document.body.removeChild(container);
+                    resolve(blob);
+                }, 'image/png', 0.95);
+            });
+        } catch (e) {
+            console.error(e);
+            document.body.removeChild(container);
+            return null;
+        }
+    }
+
+    // 염색체 시각화를 이미지로 캡처 (특정 샘플)
+    async function captureChromosomeVizAsBlob(sampleName, width, dpi, bgColor = '#ffffff') {
+        const result = analysisResults[sampleName];
+        if (!result) return null;
+
+        // 현재 샘플 선택 상태 저장
+        const originalSample = currentSample;
+
+        // 샘플 변경하여 시각화 업데이트
+        if (currentSample !== sampleName) {
+            currentSample = sampleName;
+            visualizeChromosome();
+        }
+
+        // 약간의 딜레이 후 캡처 (DOM 업데이트 대기)
+        await new Promise(r => setTimeout(r, 100));
+
+        const container = document.createElement('div');
+        container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
+        document.body.appendChild(container);
+
+        const rate = result.recoveryRate?.toFixed(1) || '0';
+        const h = document.createElement('h2');
+        h.textContent = `Background Selection - ${sampleName} (${rate}%)`;
+        h.style.cssText = 'font-size:18px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
+        container.appendChild(h);
+
+        // 범례 추가
+        const leg = document.createElement('div');
+        leg.style.cssText = 'display:flex;gap:20px;flex-wrap:wrap;padding:12px;background:#f8fafa;border-radius:6px;margin-bottom:15px;font-size:12px;';
+        leg.innerHTML = `
+            <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.donor};border:1px solid rgba(0,0,0,0.1);"></div><span>Donor</span></div>
+            <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.recurrent};border:1px solid rgba(0,0,0,0.1);"></div><span>Recurrent</span></div>
+            <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.het};border:1px solid rgba(0,0,0,0.1);"></div><span>Het</span></div>
+            <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.1);"></div><span>Centromere</span></div>
+        `;
+        container.appendChild(leg);
+
+        const vizClone = document.getElementById('chromosomeViz').cloneNode(true);
+        vizClone.style.background = bgColor;
+        container.appendChild(vizClone);
+
+        // 인라인 스타일 적용
+        vizClone.querySelectorAll('.chromosome-row').forEach(r => r.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;');
+        vizClone.querySelectorAll('.chr-label').forEach(el => el.style.cssText = `width:50px;font-size:12px;font-weight:600;color:${vizStyles.label};text-align:right;flex-shrink:0;`);
+
+        vizClone.querySelectorAll('.chr-structure').forEach(el => {
+            const currentWidth = el.style.width || '100%';
+            el.style.cssText = `width:${currentWidth};display:flex;align-items:center;height:${vizStyles.chrH}px;`;
+        });
+        vizClone.querySelectorAll('.chr-p-arm').forEach(el => {
+            const grow = el.style.flexGrow || 1;
+            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.borderColor};`;
+        });
+        vizClone.querySelectorAll('.chr-q-arm').forEach(el => {
+            const grow = el.style.flexGrow || 1;
+            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.borderColor};`;
+        });
+        vizClone.querySelectorAll('.chr-centromere').forEach(el => el.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -2px;`);
+        vizClone.querySelectorAll('.chr-bar-container').forEach(el => {
+            const currentWidth = el.style.width || '100%';
+            el.style.cssText = `width:${currentWidth};height:${vizStyles.chrH}px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.borderColor};`;
+        });
+        vizClone.querySelectorAll('.chr-bar').forEach(el => {
+            el.style.cssText = `height:100%;border-radius:${vizStyles.chrRadius}px;position:relative;`;
+        });
+        vizClone.querySelectorAll('.chr-centromere-line').forEach(el => {
+            el.style.cssText = `position:absolute;top:0;width:${vizStyles.centromereW}px;height:100%;background:${vizStyles.centromere};z-index:10;`;
+        });
+
+        vizClone.querySelectorAll('.marker-region').forEach(el => {
+            let bg = vizStyles.recurrent;
+            if (el.classList.contains('donor')) bg = vizStyles.donor;
+            else if (el.classList.contains('heterozygous')) bg = vizStyles.het;
+            el.style.background = bg;
+            el.style.position = 'absolute';
+            el.style.top = '0';
+            el.style.height = '100%';
+        });
+        vizClone.querySelectorAll('.chr-length').forEach(el => el.style.cssText = `width:70px;font-size:11px;color:${vizStyles.label};font-family:'JetBrains Mono',monospace;flex-shrink:0;`);
+
+        try {
+            const scale = dpi / 96;
+            const canvas = await html2canvas(container, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+
+            return new Promise(resolve => {
+                canvas.toBlob(blob => {
+                    document.body.removeChild(container);
+                    // 원래 샘플로 복원
+                    if (originalSample !== sampleName) {
+                        currentSample = originalSample;
+                        visualizeChromosome();
+                    }
+                    resolve(blob);
+                }, 'image/png', 0.95);
+            });
+        } catch (e) {
+            console.error(e);
+            document.body.removeChild(container);
+            if (originalSample !== sampleName) {
+                currentSample = originalSample;
+                visualizeChromosome();
+            }
+            return null;
+        }
+    }
+
+    // 모든 차트 이미지를 ZIP으로 다운로드
+    async function exportAllCharts() {
+        if (Object.keys(analysisResults).length === 0) {
+            showNotification('내보낼 분석 결과가 없습니다', 'error');
+            return;
+        }
+
+        showNotification('차트 이미지 생성 중...', 'info');
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder('charts');
+
+        // 회복률 차트
+        const recoveryCanvas = document.getElementById('recoveryChart');
+        if (recoveryCanvas && recoveryChart) {
+            const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', 1200, 300);
+            if (blob) {
+                imgFolder.file('recovery_chart.png', blob);
+            }
+        }
+
+        // 비교 차트
+        const comparisonCanvas = document.getElementById('comparisonChart');
+        if (comparisonCanvas && comparisonChart) {
+            const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', 1200, 300);
+            if (blob) {
+                imgFolder.file('comparison_chart.png', blob);
+            }
+        }
+
+        try {
+            const content = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `charts_${currentBuild}_${new Date().toISOString().slice(0,10)}.zip`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showNotification('차트 이미지 ZIP 다운로드 완료', 'success');
+        } catch (e) {
+            console.error(e);
+            showNotification('ZIP 생성 오류', 'error');
+        }
+    }
+
+    // 일괄 다운로드 실행
+    async function executeBulkExport() {
+        const includeStats = document.getElementById('bulkStatsCsv').checked;
+        const includeRaw = document.getElementById('bulkRawCsv').checked;
+        const includeChromosome = document.getElementById('bulkChromosomeImg').checked;
+        const includeRecovery = document.getElementById('bulkRecoveryChart').checked;
+        const includeComparison = document.getElementById('bulkComparisonChart').checked;
+
+        const width = parseInt(document.getElementById('bulkImageWidth').value) || 1200;
+        const dpi = parseInt(document.getElementById('bulkImageDPI').value) || 300;
+
+        const progressEl = document.getElementById('bulkExportProgress');
+        progressEl.style.display = 'block';
+        progressEl.textContent = '다운로드 준비 중...';
+
+        const zip = new JSZip();
+        const dataFolder = zip.folder('data');
+        const imgFolder = zip.folder('images');
+        const chromoFolder = imgFolder.folder('chromosomes');
+        const chartFolder = imgFolder.folder('charts');
+
+        try {
+            // 1. 데이터 CSV 추가
+            if (includeStats) {
+                progressEl.textContent = '통계 CSV 생성 중...';
+                const statsCSV = generateStatsCSV();
+                if (statsCSV) {
+                    dataFolder.file(`statistics_${currentBuild}.csv`, statsCSV);
+                }
+            }
+
+            if (includeRaw) {
+                progressEl.textContent = '원시 데이터 CSV 생성 중...';
+                const rawCSV = generateRawDataCSV();
+                if (rawCSV) {
+                    dataFolder.file(`raw_data_${currentBuild}.csv`, rawCSV);
+                }
+            }
+
+            // 2. 염색체 시각화 이미지 추가
+            if (includeChromosome) {
+                const samples = Object.keys(analysisResults);
+                for (let i = 0; i < samples.length; i++) {
+                    const sample = samples[i];
+                    progressEl.textContent = `염색체 시각화 생성 중... (${i+1}/${samples.length})`;
+                    const blob = await captureChromosomeVizAsBlob(sample, width, dpi);
+                    if (blob) {
+                        chromoFolder.file(`chromosome_${sample}.png`, blob);
+                    }
+                }
+            }
+
+            // 3. 차트 이미지 추가
+            if (includeRecovery) {
+                progressEl.textContent = '회복률 차트 생성 중...';
+                const recoveryCanvas = document.getElementById('recoveryChart');
+                if (recoveryCanvas && recoveryChart) {
+                    const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', width, dpi);
+                    if (blob) {
+                        chartFolder.file('recovery_chart.png', blob);
+                    }
+                }
+            }
+
+            if (includeComparison) {
+                progressEl.textContent = '샘플 비교 차트 생성 중...';
+                const comparisonCanvas = document.getElementById('comparisonChart');
+                if (comparisonCanvas && comparisonChart) {
+                    const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', width, dpi);
+                    if (blob) {
+                        chartFolder.file('comparison_chart.png', blob);
+                    }
+                }
+            }
+
+            // 4. README 추가
+            const readme = `Background Selection Analysis Export
+=====================================
+
+Date: ${new Date().toISOString().slice(0,10)}
+Genome Build: ${currentBuild}
+Samples: ${Object.keys(analysisResults).join(', ')}
+
+Contents:
+---------
+data/
+  - statistics_${currentBuild}.csv: 샘플별/염색체별 회복률 통계
+  - raw_data_${currentBuild}.csv: 마커별 유전형 원시 데이터
+
+images/
+  chromosomes/
+    - chromosome_[sample].png: 각 샘플의 염색체 시각화
+  charts/
+    - recovery_chart.png: 염색체별 회복률 분포 차트
+    - comparison_chart.png: 샘플 간 회복률 비교 차트
+
+Generated by Rice Background Selection Analyzer
+`;
+            zip.file('README.txt', readme);
+
+            // 5. ZIP 다운로드
+            progressEl.textContent = 'ZIP 파일 생성 중...';
+            const content = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `background_selection_${currentBuild}_${new Date().toISOString().slice(0,10)}.zip`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            showNotification('일괄 다운로드 완료', 'success');
+            closeBulkExportModal();
+        } catch (e) {
+            console.error(e);
+            progressEl.textContent = '오류가 발생했습니다';
+            showNotification('ZIP 생성 오류: ' + e.message, 'error');
+        }
+    }
 
     // =====================================================
     // KASP 데이터 불러오기
