@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>프레젠테이션 도구</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
@@ -1282,165 +1285,399 @@
             startDemo();
         }
 
+        // PPTX 파싱용 전역 변수
+        let pptxImages = {};  // 이미지 저장소
+        const EMU_TO_PX = 914400 / 96;  // EMU to pixel 변환 상수
+
         function loadPowerPoint(file) {
-            const fileName = file.name.toLowerCase();
-            
-            // 로딩 알림
             const loadingMsg = document.createElement('div');
             loadingMsg.style.cssText = `
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: white;
-                padding: 30px 50px;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-                z-index: 9999;
-                text-align: center;
-                font-size: 1.2em;
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                background: white; padding: 30px 50px; border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 9999; text-align: center;
             `;
             loadingMsg.innerHTML = `
-                <div style="color: #0c3026; font-weight: 600; margin-bottom: 10px;">
-                    PowerPoint 파일 읽는 중...
-                </div>
-                <div style="color: #666; font-size: 0.9em;">
-                    ${file.name}
-                </div>
+                <div style="color: #0c3026; font-weight: 600; margin-bottom: 10px;">PowerPoint 파일 읽는 중...</div>
+                <div style="color: #666; font-size: 0.9em;">${file.name}</div>
+                <div id="loadingProgress" style="margin-top: 10px; color: #017f97;"></div>
             `;
             document.body.appendChild(loadingMsg);
-            
-            // JSZip으로 PPTX 파일 읽기
-            JSZip.loadAsync(file)
-                .then(zip => {
-                    // presentation.xml에서 슬라이드 크기 추출
-                    const presentationFile = zip.file('ppt/presentation.xml');
-                    let slideSizePromise = Promise.resolve();
 
+            let zip;
+            pptxImages = {};
+
+            JSZip.loadAsync(file)
+                .then(z => {
+                    zip = z;
+                    document.getElementById('loadingProgress').textContent = '슬라이드 크기 확인 중...';
+
+                    // 1. 슬라이드 크기 추출
+                    const presentationFile = zip.file('ppt/presentation.xml');
                     if (presentationFile) {
-                        slideSizePromise = presentationFile.async('string').then(xmlString => {
-                            // sldSz 요소에서 cx, cy 추출 (EMU 단위)
-                            const sldSzMatch = xmlString.match(/<p:sldSz[^>]*cx="(\d+)"[^>]*cy="(\d+)"/);
-                            if (sldSzMatch) {
-                                // EMU를 픽셀로 변환 (1인치 = 914400 EMU, 96 DPI 기준)
-                                const emuToPixel = 914400 / 96;
-                                slideWidth = Math.round(parseInt(sldSzMatch[1]) / emuToPixel);
-                                slideHeight = Math.round(parseInt(sldSzMatch[2]) / emuToPixel);
-                                console.log('슬라이드 크기:', slideWidth, 'x', slideHeight);
+                        return presentationFile.async('string').then(xml => {
+                            const match = xml.match(/<p:sldSz[^>]*cx="(\d+)"[^>]*cy="(\d+)"/);
+                            if (match) {
+                                slideWidth = Math.round(parseInt(match[1]) / EMU_TO_PX);
+                                slideHeight = Math.round(parseInt(match[2]) / EMU_TO_PX);
                             }
                         });
                     }
-
-                    return slideSizePromise.then(() => {
-                        // 슬라이드 파일 찾기
-                        const slideFiles = [];
-                        zip.forEach((relativePath, file) => {
-                            if (relativePath.match(/ppt\/slides\/slide\d+\.xml$/)) {
-                                slideFiles.push({
-                                    name: relativePath,
-                                    file: file
-                                });
-                            }
-                        });
-
-                        if (slideFiles.length === 0) {
-                            throw new Error('슬라이드를 찾을 수 없습니다.');
-                        }
-
-                        // 슬라이드 번호 순으로 정렬
-                        slideFiles.sort((a, b) => {
-                            const numA = parseInt(a.name.match(/slide(\d+)\.xml/)[1]);
-                            const numB = parseInt(b.name.match(/slide(\d+)\.xml/)[1]);
-                            return numA - numB;
-                        });
-
-                        // 각 슬라이드의 텍스트 추출
-                        const slidePromises = slideFiles.map(slideFile => {
-                            return slideFile.file.async('string').then(xmlString => {
-                                return extractTextFromSlideXML(xmlString);
-                            });
-                        });
-
-                        return Promise.all(slidePromises);
-                    });
                 })
-                .then(extractedSlides => {
-                    // 로딩 메시지 제거
-                    document.body.removeChild(loadingMsg);
-                    
-                    // 추출된 슬라이드를 slides 배열에 추가
-                    slides = extractedSlides.map((slideText, index) => ({
-                        title: `슬라이드 ${index + 1}`,
-                        content: `
-                            <h2>슬라이드 ${index + 1}</h2>
-                            <div style="white-space: pre-wrap; line-height: 1.8;">
-                                ${slideText || '(내용 없음)'}
-                            </div>
-                        `,
-                        notes: `업로드된 PowerPoint 파일의 ${index + 1}번째 슬라이드입니다.`
-                    }));
-                    
-                    // 프레젠테이션 시작 시간 기록 (타이머용)
-                    showModeStartTime = Date.now();
+                .then(() => {
+                    document.getElementById('loadingProgress').textContent = '이미지 추출 중...';
 
-                    // 프레젠테이션 시작
+                    // 2. 모든 이미지 추출 (ppt/media/)
+                    const imagePromises = [];
+                    zip.forEach((path, file) => {
+                        if (path.startsWith('ppt/media/')) {
+                            const imgName = path.split('/').pop();
+                            imagePromises.push(
+                                file.async('base64').then(base64 => {
+                                    const ext = imgName.split('.').pop().toLowerCase();
+                                    const mimeTypes = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', emf: 'image/emf', wmf: 'image/wmf' };
+                                    const mime = mimeTypes[ext] || 'image/png';
+                                    pptxImages[imgName] = `data:${mime};base64,${base64}`;
+                                })
+                            );
+                        }
+                    });
+                    return Promise.all(imagePromises);
+                })
+                .then(() => {
+                    document.getElementById('loadingProgress').textContent = '슬라이드 파싱 중...';
+
+                    // 3. 슬라이드 파일 찾기 및 정렬
+                    const slideFiles = [];
+                    zip.forEach((path, file) => {
+                        if (path.match(/ppt\/slides\/slide\d+\.xml$/)) {
+                            const num = parseInt(path.match(/slide(\d+)\.xml/)[1]);
+                            slideFiles.push({ path, file, num });
+                        }
+                    });
+                    slideFiles.sort((a, b) => a.num - b.num);
+
+                    if (slideFiles.length === 0) throw new Error('슬라이드를 찾을 수 없습니다.');
+
+                    // 4. 각 슬라이드 파싱
+                    const slidePromises = slideFiles.map((sf, idx) => {
+                        const relsPath = `ppt/slides/_rels/slide${sf.num}.xml.rels`;
+                        const relsFile = zip.file(relsPath);
+
+                        return Promise.all([
+                            sf.file.async('string'),
+                            relsFile ? relsFile.async('string') : Promise.resolve('')
+                        ]).then(([slideXml, relsXml]) => {
+                            return parseSlideXML(slideXml, relsXml, idx + 1);
+                        });
+                    });
+
+                    return Promise.all(slidePromises);
+                })
+                .then(parsedSlides => {
+                    document.body.removeChild(loadingMsg);
+
+                    slides = parsedSlides.map((content, idx) => ({
+                        title: `슬라이드 ${idx + 1}`,
+                        content: content,
+                        notes: `업로드된 PowerPoint의 ${idx + 1}번째 슬라이드`
+                    }));
+
+                    showModeStartTime = Date.now();
                     document.getElementById('uploadScreen').style.display = 'none';
                     document.getElementById('presentationScreen').style.display = 'block';
-
-                    // 슬라이드 네비게이터 초기화
                     initSlideNavigator();
-
                     showSlide(0);
-
-                    // 발표자 도구 별도 창으로 열기
-                    setTimeout(() => {
-                        openPresenterView();
-                    }, 300);
+                    setTimeout(() => openPresenterView(), 300);
                 })
                 .catch(err => {
-                    // 로딩 메시지 제거
-                    if (document.body.contains(loadingMsg)) {
-                        document.body.removeChild(loadingMsg);
-                    }
-                    
-                    console.error('PowerPoint 파일 읽기 오류:', err);
-                    alert('PowerPoint 파일을 읽는 중 오류가 발생했습니다.\n\n오류: ' + err.message + '\n\n파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.');
+                    if (document.body.contains(loadingMsg)) document.body.removeChild(loadingMsg);
+                    console.error('PPTX 파싱 오류:', err);
+                    alert('PowerPoint 파일 읽기 오류: ' + err.message);
                 });
         }
 
-        // XML에서 텍스트 추출
-        function extractTextFromSlideXML(xmlString) {
+        // 슬라이드 XML 파싱
+        function parseSlideXML(slideXml, relsXml, slideNum) {
             const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
-            
-            // 모든 <a:t> 태그 찾기 (텍스트 노드)
-            const textNodes = xmlDoc.getElementsByTagName('a:t');
-            const texts = [];
-            
-            for (let i = 0; i < textNodes.length; i++) {
-                const text = textNodes[i].textContent.trim();
-                if (text) {
-                    texts.push(text);
+            const slideDoc = parser.parseFromString(slideXml, 'text/xml');
+
+            // 관계 맵 생성 (rId -> target)
+            const relMap = {};
+            if (relsXml) {
+                const relsDoc = parser.parseFromString(relsXml, 'text/xml');
+                const rels = relsDoc.getElementsByTagName('Relationship');
+                for (let i = 0; i < rels.length; i++) {
+                    const id = rels[i].getAttribute('Id');
+                    const target = rels[i].getAttribute('Target');
+                    relMap[id] = target;
                 }
             }
-            
-            // 텍스트를 HTML로 변환
-            if (texts.length === 0) {
-                return '<p style="color: #999; font-style: italic;">텍스트를 추출할 수 없습니다.</p>';
+
+            // 배경색 추출
+            let bgStyle = 'background: white;';
+            const bgRef = slideDoc.querySelector('p\\:bg, bg');
+            if (bgRef) {
+                const srgbClr = bgRef.querySelector('a\\:srgbClr, srgbClr');
+                if (srgbClr) {
+                    bgStyle = `background: #${srgbClr.getAttribute('val')};`;
+                }
             }
-            
-            // 첫 번째 텍스트는 제목으로
-            let html = '';
-            if (texts.length > 0) {
-                html += `<h3 style="color: #0c3026; margin-bottom: 20px; font-size: 1.8em;">${texts[0]}</h3>`;
+
+            // 슬라이드 컨테이너 시작
+            let html = `<div class="pptx-slide" style="position: relative; width: 100%; height: 100%; ${bgStyle} font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; overflow: hidden;">`;
+
+            // 모든 shape 트리 요소 파싱
+            const spTree = slideDoc.querySelector('p\\:spTree, spTree');
+            if (spTree) {
+                const shapes = spTree.children;
+                for (let i = 0; i < shapes.length; i++) {
+                    const shape = shapes[i];
+                    const tagName = shape.tagName || shape.nodeName;
+
+                    if (tagName.includes('sp')) {
+                        // 텍스트 박스/도형
+                        html += parseShape(shape);
+                    } else if (tagName.includes('pic')) {
+                        // 이미지
+                        html += parsePicture(shape, relMap);
+                    } else if (tagName.includes('graphicFrame')) {
+                        // 테이블/차트
+                        html += parseGraphicFrame(shape);
+                    }
+                }
             }
-            
-            // 나머지는 본문으로
-            for (let i = 1; i < texts.length; i++) {
-                html += `<p style="margin: 10px 0; font-size: 1.1em;">${texts[i]}</p>`;
-            }
-            
+
+            html += '</div>';
             return html;
+        }
+
+        // 도형/텍스트 박스 파싱
+        function parseShape(shape) {
+            const xfrm = shape.querySelector('a\\:xfrm, xfrm');
+            if (!xfrm) return '';
+
+            const off = xfrm.querySelector('a\\:off, off');
+            const ext = xfrm.querySelector('a\\:ext, ext');
+            if (!off || !ext) return '';
+
+            const x = Math.round(parseInt(off.getAttribute('x') || 0) / EMU_TO_PX);
+            const y = Math.round(parseInt(off.getAttribute('y') || 0) / EMU_TO_PX);
+            const w = Math.round(parseInt(ext.getAttribute('cx') || 0) / EMU_TO_PX);
+            const h = Math.round(parseInt(ext.getAttribute('cy') || 0) / EMU_TO_PX);
+
+            // 위치를 퍼센트로 변환
+            const xPct = (x / slideWidth * 100).toFixed(2);
+            const yPct = (y / slideHeight * 100).toFixed(2);
+            const wPct = (w / slideWidth * 100).toFixed(2);
+            const hPct = (h / slideHeight * 100).toFixed(2);
+
+            // 도형 배경색
+            let shapeBg = 'transparent';
+            const solidFill = shape.querySelector('a\\:solidFill, solidFill');
+            if (solidFill) {
+                const srgb = solidFill.querySelector('a\\:srgbClr, srgbClr');
+                if (srgb) shapeBg = '#' + srgb.getAttribute('val');
+            }
+
+            // 텍스트 파싱
+            const txBody = shape.querySelector('p\\:txBody, txBody');
+            let textHtml = '';
+            if (txBody) {
+                textHtml = parseTextBody(txBody);
+            }
+
+            if (!textHtml && shapeBg === 'transparent') return '';
+
+            return `<div style="position: absolute; left: ${xPct}%; top: ${yPct}%; width: ${wPct}%; height: ${hPct}%; background: ${shapeBg}; overflow: hidden; display: flex; flex-direction: column; justify-content: center;">${textHtml}</div>`;
+        }
+
+        // 텍스트 본문 파싱
+        function parseTextBody(txBody) {
+            const paragraphs = txBody.querySelectorAll('a\\:p, p');
+            let html = '';
+
+            for (let i = 0; i < paragraphs.length; i++) {
+                const p = paragraphs[i];
+                const pPr = p.querySelector('a\\:pPr, pPr');
+
+                // 단락 스타일
+                let pStyle = 'margin: 0.2em 0; ';
+                let listPrefix = '';
+
+                if (pPr) {
+                    // 정렬
+                    const algn = pPr.getAttribute('algn');
+                    if (algn === 'ctr') pStyle += 'text-align: center; ';
+                    else if (algn === 'r') pStyle += 'text-align: right; ';
+
+                    // 리스트 (bullet)
+                    const buChar = pPr.querySelector('a\\:buChar, buChar');
+                    const buAutoNum = pPr.querySelector('a\\:buAutoNum, buAutoNum');
+                    if (buChar) listPrefix = buChar.getAttribute('char') + ' ';
+                    else if (buAutoNum) listPrefix = (i + 1) + '. ';
+
+                    // 들여쓰기
+                    const lvl = pPr.getAttribute('lvl');
+                    if (lvl) pStyle += `padding-left: ${parseInt(lvl) * 1.5}em; `;
+                }
+
+                // 런(텍스트 조각) 파싱
+                const runs = p.querySelectorAll('a\\:r, r');
+                let pContent = listPrefix;
+
+                for (let j = 0; j < runs.length; j++) {
+                    const run = runs[j];
+                    const rPr = run.querySelector('a\\:rPr, rPr');
+                    const t = run.querySelector('a\\:t, t');
+                    if (!t) continue;
+
+                    let text = t.textContent;
+                    let rStyle = '';
+
+                    if (rPr) {
+                        // 폰트 크기 (EMU 단위, 100 = 1pt)
+                        const sz = rPr.getAttribute('sz');
+                        if (sz) rStyle += `font-size: ${parseInt(sz) / 100}pt; `;
+
+                        // 볼드
+                        const b = rPr.getAttribute('b');
+                        if (b === '1') rStyle += 'font-weight: bold; ';
+
+                        // 이탤릭
+                        const i = rPr.getAttribute('i');
+                        if (i === '1') rStyle += 'font-style: italic; ';
+
+                        // 밑줄
+                        const u = rPr.getAttribute('u');
+                        if (u && u !== 'none') rStyle += 'text-decoration: underline; ';
+
+                        // 색상
+                        const solidFill = rPr.querySelector('a\\:solidFill, solidFill');
+                        if (solidFill) {
+                            const srgb = solidFill.querySelector('a\\:srgbClr, srgbClr');
+                            if (srgb) rStyle += `color: #${srgb.getAttribute('val')}; `;
+                        }
+                    }
+
+                    pContent += rStyle ? `<span style="${rStyle}">${escapeHtml(text)}</span>` : escapeHtml(text);
+                }
+
+                if (pContent.trim() || listPrefix) {
+                    html += `<p style="${pStyle}">${pContent || '&nbsp;'}</p>`;
+                }
+            }
+
+            return html;
+        }
+
+        // 이미지 파싱
+        function parsePicture(pic, relMap) {
+            const xfrm = pic.querySelector('a\\:xfrm, xfrm');
+            if (!xfrm) return '';
+
+            const off = xfrm.querySelector('a\\:off, off');
+            const ext = xfrm.querySelector('a\\:ext, ext');
+            if (!off || !ext) return '';
+
+            const x = Math.round(parseInt(off.getAttribute('x') || 0) / EMU_TO_PX);
+            const y = Math.round(parseInt(off.getAttribute('y') || 0) / EMU_TO_PX);
+            const w = Math.round(parseInt(ext.getAttribute('cx') || 0) / EMU_TO_PX);
+            const h = Math.round(parseInt(ext.getAttribute('cy') || 0) / EMU_TO_PX);
+
+            const xPct = (x / slideWidth * 100).toFixed(2);
+            const yPct = (y / slideHeight * 100).toFixed(2);
+            const wPct = (w / slideWidth * 100).toFixed(2);
+            const hPct = (h / slideHeight * 100).toFixed(2);
+
+            // 이미지 참조 찾기
+            const blip = pic.querySelector('a\\:blip, blip');
+            if (!blip) return '';
+
+            const embedId = blip.getAttribute('r:embed') || blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed');
+            if (!embedId || !relMap[embedId]) return '';
+
+            const imgPath = relMap[embedId];
+            const imgName = imgPath.split('/').pop();
+            const imgSrc = pptxImages[imgName];
+
+            if (!imgSrc) return '';
+
+            return `<img src="${imgSrc}" style="position: absolute; left: ${xPct}%; top: ${yPct}%; width: ${wPct}%; height: ${hPct}%; object-fit: contain;" />`;
+        }
+
+        // 테이블/그래픽 프레임 파싱
+        function parseGraphicFrame(frame) {
+            const xfrm = frame.querySelector('a\\:xfrm, xfrm');
+            if (!xfrm) return '';
+
+            const off = xfrm.querySelector('a\\:off, off');
+            const ext = xfrm.querySelector('a\\:ext, ext');
+            if (!off || !ext) return '';
+
+            const x = Math.round(parseInt(off.getAttribute('x') || 0) / EMU_TO_PX);
+            const y = Math.round(parseInt(off.getAttribute('y') || 0) / EMU_TO_PX);
+            const w = Math.round(parseInt(ext.getAttribute('cx') || 0) / EMU_TO_PX);
+            const h = Math.round(parseInt(ext.getAttribute('cy') || 0) / EMU_TO_PX);
+
+            const xPct = (x / slideWidth * 100).toFixed(2);
+            const yPct = (y / slideHeight * 100).toFixed(2);
+            const wPct = (w / slideWidth * 100).toFixed(2);
+            const hPct = (h / slideHeight * 100).toFixed(2);
+
+            // 테이블 찾기
+            const tbl = frame.querySelector('a\\:tbl, tbl');
+            if (tbl) {
+                let tableHtml = '<table style="width: 100%; height: 100%; border-collapse: collapse; font-size: 0.8em;">';
+
+                const rows = tbl.querySelectorAll('a\\:tr, tr');
+                for (let i = 0; i < rows.length; i++) {
+                    tableHtml += '<tr>';
+                    const cells = rows[i].querySelectorAll('a\\:tc, tc');
+                    for (let j = 0; j < cells.length; j++) {
+                        const cell = cells[j];
+                        const isHeader = i === 0;
+                        const tag = isHeader ? 'th' : 'td';
+
+                        // 셀 배경색
+                        let cellBg = isHeader ? '#0c3026' : (i % 2 === 0 ? '#f5f5f5' : 'white');
+                        let cellColor = isHeader ? 'white' : '#333';
+
+                        const tcPr = cell.querySelector('a\\:tcPr, tcPr');
+                        if (tcPr) {
+                            const solidFill = tcPr.querySelector('a\\:solidFill, solidFill');
+                            if (solidFill) {
+                                const srgb = solidFill.querySelector('a\\:srgbClr, srgbClr');
+                                if (srgb) cellBg = '#' + srgb.getAttribute('val');
+                            }
+                        }
+
+                        // 셀 텍스트
+                        const txBody = cell.querySelector('a\\:txBody, txBody');
+                        let cellText = '';
+                        if (txBody) {
+                            const texts = txBody.querySelectorAll('a\\:t, t');
+                            for (let k = 0; k < texts.length; k++) {
+                                cellText += texts[k].textContent;
+                            }
+                        }
+
+                        tableHtml += `<${tag} style="border: 1px solid #ddd; padding: 8px; background: ${cellBg}; color: ${cellColor};">${escapeHtml(cellText)}</${tag}>`;
+                    }
+                    tableHtml += '</tr>';
+                }
+                tableHtml += '</table>';
+
+                return `<div style="position: absolute; left: ${xPct}%; top: ${yPct}%; width: ${wPct}%; height: ${hPct}%; overflow: auto;">${tableHtml}</div>`;
+            }
+
+            return '';
+        }
+
+        // HTML 이스케이프
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // 데모 시작
@@ -1737,251 +1974,241 @@
                 <head>
                     <meta charset="UTF-8">
                     <title>발표자 도구</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body { 
-                            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; 
-                            background: #f5f9f8;
-                            overflow: hidden;
-                        }
-                        .presenter-header {
-                            background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+                        body {
+                            font-family: 'Noto Sans KR', 'Segoe UI', sans-serif;
+                            background: #1a1a2e;
                             color: white;
-                            padding: 15px 30px;
+                            overflow: hidden;
+                            height: 100vh;
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .header {
+                            background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+                            padding: 12px 24px;
                             display: flex;
                             justify-content: space-between;
                             align-items: center;
+                            flex-shrink: 0;
                         }
+                        .header-left { display: flex; align-items: center; gap: 20px; }
+                        .header h2 { font-size: 1.2em; font-weight: 700; }
                         .timer {
-                            font-size: 1.5em;
+                            font-size: 1.8em;
                             font-weight: 700;
                             font-family: 'Courier New', monospace;
-                            background: rgba(255,255,255,0.2);
-                            padding: 8px 20px;
+                            background: rgba(255,255,255,0.15);
+                            padding: 6px 16px;
                             border-radius: 8px;
                         }
-                        .presenter-main { 
-                            display: flex; 
-                            height: calc(100vh - 70px);
-                            gap: 20px;
-                            padding: 20px;
-                        }
-                        .presenter-left { 
-                            flex: 2; 
-                            display: flex;
-                            flex-direction: column;
-                            gap: 20px;
-                        }
-                        .presenter-right {
-                            flex: 1;
-                            min-width: 280px;
-                            background: white;
-                            border-radius: 12px;
-                            padding: 20px;
-                            overflow-y: auto;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        }
-                        .current-slide-container {
-                            flex: 1;
-                            background: white;
-                            border: 3px solid #67c8a5;
-                            border-radius: 12px;
-                            padding: 20px;
-                            display: flex;
-                            flex-direction: column;
-                            overflow: hidden;
-                        }
-                        .current-slide-container h3 {
+                        .controls { display: flex; align-items: center; gap: 10px; }
+                        .btn {
+                            background: rgba(255,255,255,0.9);
                             color: #0c3026;
-                            margin-bottom: 15px;
-                            font-size: 1em;
+                            border: none;
+                            padding: 8px 20px;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 600;
+                            font-size: 0.95em;
                         }
-                        .presenter-preview {
+                        .btn:hover { background: #67c8a5; }
+                        .counter { font-size: 1.2em; font-weight: 600; margin: 0 10px; }
+
+                        .main {
                             flex: 1;
-                            background: #f9f9f9;
-                            border-radius: 8px;
+                            display: flex;
+                            flex-direction: column;
+                            padding: 15px;
+                            gap: 15px;
+                            overflow: hidden;
+                        }
+                        .top-section {
+                            flex: 1;
+                            display: flex;
+                            gap: 15px;
+                            min-height: 0;
+                        }
+                        .current-slide {
+                            flex: 2;
+                            background: #2d2d44;
+                            border-radius: 10px;
+                            padding: 10px;
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .current-slide h3 {
+                            color: #67c8a5;
+                            font-size: 0.85em;
+                            margin-bottom: 8px;
+                            flex-shrink: 0;
+                        }
+                        .slide-preview {
+                            flex: 1;
+                            background: white;
+                            border-radius: 6px;
                             overflow: hidden;
                             display: flex;
                             align-items: center;
                             justify-content: center;
-                            position: relative;
-                        }
-                        .preview-content {
-                            width: 100%;
-                            height: 100%;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            padding: 10px;
                         }
                         .preview-inner {
                             width: 960px;
                             height: 540px;
                             background: white;
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
                             transform-origin: center center;
                             overflow: hidden;
-                            padding: 30px;
                         }
-                        .preview-inner h2 { font-size: 1.5em; margin-bottom: 15px; color: #0c3026; border-bottom: 2px solid #67c8a5; padding-bottom: 8px; }
-                        .preview-inner h3 { font-size: 1.2em; margin: 15px 0 10px 0; color: #017f97; }
-                        .preview-inner p { font-size: 0.9em; line-height: 1.6; margin-bottom: 10px; }
-                        .preview-inner ul { margin-left: 20px; }
-                        .preview-inner li { font-size: 0.85em; line-height: 1.8; margin-bottom: 5px; }
-                        .preview-inner table { font-size: 0.8em; }
-                        .preview-inner .webapp-link-btn { font-size: 0.8em; padding: 5px 10px; }
-                        .next-slide {
-                            height: 250px;
-                            background: white;
-                            border-radius: 12px;
+
+                        .notes-section {
+                            flex: 1;
+                            background: #2d2d44;
+                            border-radius: 10px;
                             padding: 15px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                            display: flex;
+                            flex-direction: column;
+                            min-width: 250px;
                         }
-                        .next-slide h4 { 
-                            color: #666; 
-                            margin-bottom: 10px;
+                        .notes-section h3 {
+                            color: #67c8a5;
                             font-size: 0.9em;
+                            margin-bottom: 10px;
+                            flex-shrink: 0;
                         }
-                        .next-slide-preview {
-                            height: calc(100% - 30px);
-                            background: #f9f9f9;
-                            border-radius: 8px;
+                        .notes-content {
+                            flex: 1;
+                            background: #fff9e6;
+                            color: #333;
+                            border-radius: 6px;
+                            padding: 12px;
+                            font-size: 1em;
+                            line-height: 1.7;
+                            overflow-y: auto;
+                        }
+
+                        .bottom-section {
+                            height: 140px;
+                            flex-shrink: 0;
+                            background: #2d2d44;
+                            border-radius: 10px;
+                            padding: 10px;
+                        }
+                        .bottom-section h4 {
+                            color: #888;
+                            font-size: 0.8em;
+                            margin-bottom: 8px;
+                        }
+                        .next-preview-container {
+                            height: calc(100% - 25px);
+                            background: white;
+                            border-radius: 6px;
                             overflow: hidden;
                             display: flex;
                             align-items: center;
                             justify-content: center;
                         }
                         .next-preview-inner {
-                            transform: scale(0.3);
-                            transform-origin: center;
-                            width: 333%;
-                            height: 333%;
+                            transform: scale(0.15);
+                            transform-origin: center center;
                         }
-                        .presenter-notes {
-                            background: #fff9e6;
-                            padding: 20px;
-                            border-radius: 8px;
-                            border-left: 4px solid #67c8a5;
-                            margin-bottom: 20px;
-                            min-height: 150px;
-                        }
-                        .presenter-notes h3 {
-                            color: #0c3026;
-                            margin-bottom: 15px;
-                            font-size: 1.1em;
-                        }
-                        .presenter-notes p {
-                            color: #1a1a1a;
-                            line-height: 1.8;
-                            font-size: 1.1em;
-                            white-space: pre-wrap;
-                            min-height: 80px;
-                        }
-                        .control-btn {
-                            background: white;
-                            color: #0c3026;
-                            border: 2px solid #0c3026;
-                            padding: 10px 25px;
-                            border-radius: 8px;
-                            cursor: pointer;
-                            font-size: 1em;
-                            font-weight: 600;
-                            margin: 0 5px;
-                        }
-                        .control-btn:hover { background: #67c8a5; }
-                        .slide-counter { 
-                            font-size: 1.3em; 
-                            font-weight: 600;
-                            margin: 0 15px;
+
+                        @media (max-width: 900px) {
+                            .top-section { flex-direction: column; }
+                            .notes-section { min-width: auto; max-height: 200px; }
                         }
                     </style>
                 </head>
                 <body>
-                    <div class="presenter-header">
-                        <div>
-                            <h2 style="display: inline-block; margin-right: 30px;">발표자 도구</h2>
+                    <div class="header">
+                        <div class="header-left">
+                            <h2>발표자 도구</h2>
                             <span class="timer" id="presentTimer">00:00</span>
                         </div>
-                        <div>
-                            <button class="control-btn" onclick="window.opener.prevSlide()">◀ 이전</button>
-                            <span class="slide-counter" id="presenterCounter">1 / 11</span>
-                            <button class="control-btn" onclick="window.opener.nextSlide()">다음 ▶</button>
+                        <div class="controls">
+                            <button class="btn" onclick="window.opener.prevSlide()">◀ 이전</button>
+                            <span class="counter" id="presenterCounter">1 / 1</span>
+                            <button class="btn" onclick="window.opener.nextSlide()">다음 ▶</button>
                         </div>
                     </div>
-                    <div class="presenter-main">
-                        <div class="presenter-left">
-                            <div class="current-slide-container">
+                    <div class="main">
+                        <div class="top-section">
+                            <div class="current-slide">
                                 <h3>현재 슬라이드</h3>
-                                <div class="presenter-preview">
-                                    <div class="preview-content">
-                                        <div class="preview-inner" id="presenterPreview"></div>
-                                    </div>
+                                <div class="slide-preview">
+                                    <div class="preview-inner" id="presenterPreview"></div>
                                 </div>
                             </div>
-                            <div class="next-slide">
-                                <h4>다음 슬라이드 미리보기</h4>
-                                <div class="next-slide-preview">
-                                    <div class="next-preview-inner" id="nextSlidePreview"></div>
-                                </div>
+                            <div class="notes-section">
+                                <h3>📝 발표 노트</h3>
+                                <div class="notes-content" id="presenterNotes">발표 노트가 없습니다.</div>
                             </div>
                         </div>
-                        <div class="presenter-right">
-                            <div class="presenter-notes">
-                                <h3>📝 발표 노트</h3>
-                                <p id="presenterNotes"></p>
+                        <div class="bottom-section">
+                            <h4>다음 슬라이드</h4>
+                            <div class="next-preview-container">
+                                <div class="next-preview-inner" id="nextSlidePreview"></div>
                             </div>
                         </div>
                     </div>
-                    <scr` + `ipt>
-                        // 타이머 시작 - 슬라이드쇼 시작 시간 기준
-                        function updateTimer() {
-                            const startTime = window.opener && window.opener.showModeStartTime
-                                ? window.opener.showModeStartTime
-                                : Date.now();
-                            const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                            const minutes = Math.floor(elapsed / 60);
-                            const seconds = elapsed % 60;
-                            document.getElementById('presentTimer').textContent =
-                                String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-                        }
-                        updateTimer();
-                        setInterval(updateTimer, 1000);
-
-                        // 현재 슬라이드 프리뷰 스케일 조절 (원본 비율 유지, 최대 크기)
-                        function adjustPreviewScale() {
-                            const container = document.querySelector('.preview-content');
-                            const preview = document.getElementById('presenterPreview');
-                            if (!container || !preview) return;
-
-                            // 원본 슬라이드 크기 가져오기 (window.opener에서)
-                            const origWidth = (window.opener && window.opener.slideWidth) || 960;
-                            const origHeight = (window.opener && window.opener.slideHeight) || 540;
-
-                            // preview-inner 크기를 원본 비율로 설정
-                            preview.style.width = origWidth + 'px';
-                            preview.style.height = origHeight + 'px';
-
-                            const containerRect = container.getBoundingClientRect();
-
-                            // 컨테이너에 맞는 최대 스케일 계산 (padding 고려)
-                            const availWidth = containerRect.width - 20;
-                            const availHeight = containerRect.height - 20;
-                            const scaleX = availWidth / origWidth;
-                            const scaleY = availHeight / origHeight;
-                            const scale = Math.min(scaleX, scaleY, 1.5);  // 최대 1.5배
-
-                            preview.style.transform = 'scale(' + scale + ')';
-                        }
-
-                        // 초기 스케일 조절 및 리사이즈 이벤트
-                        setTimeout(adjustPreviewScale, 100);
-                        window.addEventListener('resize', adjustPreviewScale);
-                    </scr` + `ipt>
                 </body>
                 </html>
             `);
 
             presenterWindow.document.close();
+
+            // 타이머 및 스케일 조절 스크립트 실행
+            setTimeout(() => {
+                if (!presenterWindow || presenterWindow.closed) return;
+
+                // 타이머 시작
+                const timerEl = presenterWindow.document.getElementById('presentTimer');
+                if (timerEl) {
+                    setInterval(() => {
+                        const start = showModeStartTime || Date.now();
+                        const elapsed = Math.floor((Date.now() - start) / 1000);
+                        const min = Math.floor(elapsed / 60);
+                        const sec = elapsed % 60;
+                        timerEl.textContent = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+                    }, 1000);
+                }
+
+                // 슬라이드 스케일 조절
+                function adjustScale() {
+                    if (!presenterWindow || presenterWindow.closed) return;
+                    const container = presenterWindow.document.querySelector('.slide-preview');
+                    const preview = presenterWindow.document.getElementById('presenterPreview');
+                    if (!container || !preview) return;
+
+                    const rect = container.getBoundingClientRect();
+                    const sw = slideWidth || 960;
+                    const sh = slideHeight || 540;
+                    preview.style.width = sw + 'px';
+                    preview.style.height = sh + 'px';
+
+                    const scaleX = (rect.width - 10) / sw;
+                    const scaleY = (rect.height - 10) / sh;
+                    const scale = Math.min(scaleX, scaleY, 1.2);
+                    preview.style.transform = 'scale(' + scale + ')';
+
+                    // 다음 슬라이드 스케일
+                    const nextContainer = presenterWindow.document.querySelector('.next-preview-container');
+                    const nextPreview = presenterWindow.document.getElementById('nextSlidePreview');
+                    if (nextContainer && nextPreview) {
+                        const nextRect = nextContainer.getBoundingClientRect();
+                        nextPreview.style.width = sw + 'px';
+                        nextPreview.style.height = sh + 'px';
+                        const nextScale = Math.min((nextRect.width - 10) / sw, (nextRect.height - 10) / sh, 0.3);
+                        nextPreview.style.transform = 'scale(' + nextScale + ')';
+                    }
+                }
+
+                adjustScale();
+                presenterWindow.addEventListener('resize', adjustScale);
+            }, 200);
+
             updatePresenterView();
         }
             
