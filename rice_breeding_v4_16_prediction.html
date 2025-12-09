@@ -3197,6 +3197,16 @@ async function findCrossoverForMultiple(indices, withPrediction = false, useRela
         pyodide.globals.set('variety_names_js', varietyNames);
         pyodide.globals.set('variety_types_js', varietyTypes);
         pyodide.globals.set('top_n', topN);
+        pyodide.globals.set('phenotype_names', phenotypeNames);
+        pyodide.globals.set('gene_names', geneNames);
+
+        // GA 목표 형질 정보 전달
+        const targetPhenoNames = gaSelectedObjectives.length > 0
+            ? gaSelectedObjectives.map(i => phenotypeNames[i])
+            : phenotypeNames;
+        pyodide.globals.set('target_pheno_names', targetPhenoNames);
+
+        console.log('📊 일괄 예측 - 전달된 목표 형질:', targetPhenoNames);
         
         // 1단계: 모든 교배조합 한번에 찾기
         const allTargets = indices.map(idx => ({
@@ -3275,6 +3285,27 @@ import json
 model_info_dict = json.loads(model_info_json)
 geno_matrix = np.array(genotype_matrix, dtype=float)
 geno_matrix = np.nan_to_num(geno_matrix, nan=0.0)
+gene_names_list = list(gene_names) if 'gene_names' in dir() else []
+
+# models와 best_models 확인 (globals에서 가져오기)
+available_models = globals().get('models', {})
+best_models_info = globals().get('best_models', {})
+
+if not available_models:
+    print("⚠️ 학습된 모델이 없습니다!")
+else:
+    print(f"📦 사용 가능한 모델: {list(available_models.keys())}")
+
+# 각 형질별 사용된 유전자 인덱스 확인
+model_gene_indices = {}
+for pheno, info in best_models_info.items():
+    if isinstance(info, dict) and 'used_genes' in info and info['used_genes'] is not None:
+        model_gene_indices[pheno] = info['used_genes']
+        print(f"  - {pheno}: {len(info['used_genes'])}개 관련 유전자 사용")
+
+# 목표 형질 목록 (target_pheno_names가 있으면 그것만, 없으면 전체)
+target_phenos = list(target_pheno_names) if 'target_pheno_names' in dir() else list(phenotype_names)
+print(f"🎯 예측할 목표 형질: {target_phenos}")
 
 all_results = []
 total = len(parent_pairs)
@@ -3282,34 +3313,36 @@ total = len(parent_pairs)
 for idx, (p1_idx, p2_idx) in enumerate(parent_pairs):
     if idx % 50 == 0:
         print(f"예측 진행: {idx}/{total}")
-    
+
     p1_geno = geno_matrix[p1_idx]
     p2_geno = geno_matrix[p2_idx]
-    
+
     if method == 'deterministic':
         offspring_geno = [max(g1, g2) for g1, g2 in zip(p1_geno, p2_geno)]
-        X_offspring = np.array([offspring_geno], dtype=float)
     else:
-        offspring_genos = []
-        for _ in range(30):  # 속도를 위해 30으로 줄임
-            offspring = [g1 if g1 == g2 else (1 if random.random() < 0.75 else 0) for g1, g2 in zip(p1_geno, p2_geno)]
-            offspring_genos.append(offspring)
-        offspring_geno = offspring_genos[0]
-        X_offspring = np.array(offspring_genos, dtype=float)
-    
+        offspring_geno = [g1 if g1 == g2 else (1 if random.random() < 0.75 else 0) for g1, g2 in zip(p1_geno, p2_geno)]
+
     predictions = {}
-    for pheno_name in phenotype_names:
-        if pheno_name not in models:
+    # 목표 형질에 대해서만 예측
+    for pheno_name in target_phenos:
+        if pheno_name not in available_models:
             continue
         try:
-            pred = models[pheno_name].predict(X_offspring)
-            predictions[pheno_name] = {'mean': float(np.mean(pred)), 'std': float(np.std(pred)) if len(pred) > 1 else 0.0}
-        except:
-            pass
-    
+            # ★ 관련 유전자 인덱스가 있으면 해당 유전자만 사용
+            if pheno_name in model_gene_indices:
+                gene_idx = model_gene_indices[pheno_name]
+                X_for_pred = np.array([[offspring_geno[j] for j in gene_idx]], dtype=float)
+            else:
+                X_for_pred = np.array([offspring_geno], dtype=float)
+
+            pred = available_models[pheno_name].predict(X_for_pred)
+            predictions[pheno_name] = {'mean': float(np.mean(pred)), 'std': 0.0}
+        except Exception as e:
+            print(f"예측 오류 ({pheno_name}): {e}")
+
     all_results.append({'genotype': list(map(float, offspring_geno)), 'predictions': predictions})
 
-print(f"예측 완료: {total}개")
+print(f"예측 완료: {total}개, 예측된 형질: {len(target_phenos)}개")
 all_results
             `;
             
