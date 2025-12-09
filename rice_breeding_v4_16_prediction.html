@@ -2648,13 +2648,20 @@ class MLFitnessEvaluator:
 
         successful_models = 0
 
+        # Tab 2에서 학습한 모델 확인 (globals()로 안정적 체크)
+        pretrained_models = globals().get('models', {}) if has_pretrained_models else {}
+        if pretrained_models:
+            print(f"📦 Tab 2 사전학습 모델 발견: {list(pretrained_models.keys())}")
+        else:
+            print(f"⚠️ Tab 2 사전학습 모델 없음 - GA 내부에서 새 모델 학습")
+
         for obj_idx in objective_indices:
             pheno_name = pheno_names[obj_idx]
 
             # 1순위: Tab 2에서 학습한 모델 사용 (Pyodide 전역 models 변수)
-            if has_pretrained_models and 'models' in dir() and pheno_name in models:
+            if has_pretrained_models and pheno_name in pretrained_models:
                 try:
-                    self.models[obj_idx] = models[pheno_name]
+                    self.models[obj_idx] = pretrained_models[pheno_name]
                     self.model_source[obj_idx] = 'pretrained'
                     successful_models += 1
                     print(f"✅ {pheno_name}: Tab 2 사전학습 모델 사용")
