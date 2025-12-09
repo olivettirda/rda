@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프레젠테이션 도구</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --dmrt-primary: #0c3026;
+            --dmrt-secondary: #017f97;
+            --dmrt-accent: #67c8a5;
+            --dmrt-bg-light: #f5f9f8;
+            --dmrt-text-dark: #1a1a1a;
+            --dmrt-border: #e0e0e0;
+            --dmrt-gradient: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+            background: var(--dmrt-bg-light);
+            overflow: hidden;
+        }
+
+        /* 업로드 화면 */
+        .upload-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: var(--dmrt-gradient);
+        }
+
+        .upload-container {
+            background: white;
+            padding: 60px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 600px;
+        }
+
+        .upload-container h1 {
+            color: var(--dmrt-primary);
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+
+        .upload-container p {
+            color: var(--dmrt-text-dark);
+            font-size: 1.1em;
+            margin-bottom: 30px;
+        }
+
+        .upload-area {
+            border: 3px dashed var(--dmrt-accent);
+            border-radius: 12px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            background: var(--dmrt-bg-light);
+            border-color: var(--dmrt-secondary);
+        }
+
+        .upload-area.dragover {
+            background: var(--dmrt-bg-light);
+            border-color: var(--dmrt-primary);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            color: var(--dmrt-accent);
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 1.2em;
+            color: var(--dmrt-text-dark);
+            font-weight: 600;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .or-divider {
+            margin: 20px 0;
+            color: var(--dmrt-text-dark);
+            font-size: 0.9em;
+        }
+
+        .demo-btn {
+            background: var(--dmrt-gradient);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .demo-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(12, 48, 38, 0.3);
+        }
+
+        /* 프레젠테이션 화면 */
+        .presentation-screen {
+            display: none;
+            height: 100vh;
+        }
+
+        /* 기본: 슬라이드만 전체 화면 */
+        .presentation-container {
+            display: flex;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* 웹앱 뷰어 (처음엔 숨김) */
+        .webapp-viewer {
+            flex: 0;
+            width: 0;
+            background: white;
+            border-right: 3px solid var(--dmrt-primary);
+            position: relative;
+            transition: all 0.4s ease;
+            overflow: hidden;
+        }
+
+        .webapp-viewer.active {
+            flex: 1;
+            width: 50%;
+        }
+
+        .webapp-viewer iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .webapp-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--dmrt-gradient);
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .webapp-title {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .webapp-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+
+        .webapp-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* 드래그 핸들 */
+        .resize-handle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 10px;
+            height: 100%;
+            cursor: ew-resize;
+            background: var(--dmrt-accent);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 20;
+        }
+
+        .resize-handle:hover,
+        .resize-handle.dragging {
+            opacity: 0.5;
+        }
+
+        .resize-handle::before {
+            content: '⋮';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.5em;
+        }
+
+        /* 슬라이드 뷰 */
+        .slide-viewer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            transition: all 0.4s ease;
+        }
+        /* 슬라이드 컨테이너 */
+        .slide-view {
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .slide-container {
+            max-width: 100%;
+            max-height: 100%;
+            background: white;
+            position: relative;
+        }
+
+        .slide-content {
+            width: 100%;
+            height: 100%;
+            padding: 60px;
+            overflow-y: auto;
+        }
+
+        .slide-content h2 {
+            color: var(--dmrt-primary);
+            font-size: 3em;
+            margin-bottom: 30px;
+            border-bottom: 4px solid var(--dmrt-accent);
+            padding-bottom: 15px;
+        }
+
+        .slide-content h3 {
+            color: var(--dmrt-secondary);
+            font-size: 2em;
+            margin: 30px 0 20px 0;
+        }
+
+        .slide-content p {
+            font-size: 1.5em;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        .slide-content ul {
+            margin-left: 50px;
+        }
+
+        .slide-content li {
+            font-size: 1.4em;
+            line-height: 2;
+            margin-bottom: 15px;
+        }
+
+        .slide-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            font-size: 1.3em;
+        }
+
+        .slide-content table th {
+            background: var(--dmrt-gradient);
+            color: white;
+            padding: 20px;
+            text-align: left;
+        }
+
+        .slide-content table td {
+            padding: 20px;
+            border-bottom: 2px solid var(--dmrt-border);
+        }
+
+        .slide-content table tr:hover {
+            background: var(--dmrt-bg-light);
+        }
+
+        /* 웹앱 실행 버튼 */
+        .webapp-link-btn {
+            display: inline-block;
+            background: var(--dmrt-gradient);
+            color: white;
+            padding: 20px 50px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-size: 1.5em;
+            font-weight: 600;
+            margin: 20px 10px;
+            transition: all 0.3s;
+            box-shadow: 0 6px 20px rgba(12, 48, 38, 0.3);
+        }
+
+        .webapp-link-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(12, 48, 38, 0.4);
+        }
+
+        /* 슬라이드 네비게이션 */
+        .slide-counter {
+            color: #0c3026;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            background: transparent;
+        }
+
+        .slide-counter:hover {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        /* 플로팅 컨트롤의 슬라이드 카운터 */
+        .slide-controls .slide-counter {
+            color: white;
+            cursor: default;
+            padding: 0 20px;
+        }
+
+        .slide-controls .slide-counter:hover {
+            background: transparent;
+        }
+
+        /* 슬라이드 컨트롤 (플로팅) */
+        .slide-controls {
+            display: flex;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            gap: 20px;
+            background: rgba(0,0,0,0.9);
+            padding: 15px 30px;
+            border-radius: 50px;
+            z-index: 300;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        /* 마우스 이동 시 표시 */
+        .presentation-screen:hover .slide-controls,
+        .slide-controls:hover {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 전체화면에서도 네비게이터 토글 버튼 표시 */
+        .presentation-screen:fullscreen .nav-toggle-btn {
+            display: block !important;
+        }
+
+        /* 전체화면에서는 쇼 모드 버튼 숨김 */
+        .presentation-screen:fullscreen .show-mode-btn {
+            display: none !important;
+        }
+
+        .control-btn {
+            background: white;
+            color: #0c3026;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover:not(:disabled) {
+            background: #67c8a5;
+            transform: scale(1.1);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            color: white;
+            font-size: 1.3em;
+            font-weight: 600;
+            line-height: 50px;
+            padding: 0 20px;
+        }
+
+        .fullscreen-btn {
+            background: #017f97;
+            color: white;
+        }
+
+        .presenter-btn {
+            background: #0c3026;
+            color: white;
+        }
+
+        .stop-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        .stop-btn:hover {
+            background: #c82333 !important;
+        }
+
+        /* 쇼 모드 복귀 버튼 */
+        .show-mode-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--dmrt-gradient);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 240;
+            transition: all 0.3s;
+            display: none;
+        }
+
+        .show-mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .show-mode-btn.visible {
+            display: block;
+        }
+
+        /* 슬라이드 네비게이터 */
+        .slide-navigator {
+            position: fixed;
+            top: 140px;
+            right: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            padding: 20px;
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+            z-index: 250;
+            display: none;
+            width: 300px;
+        }
+
+        .slide-navigator.visible {
+            display: block;
+        }
+
+        .slide-navigator h3 {
+            color: var(--dmrt-primary);
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .slide-nav-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            font-size: 0.9em;
+        }
+
+        .slide-nav-item:hover {
+            background: var(--dmrt-bg-light);
+            border-left-color: var(--dmrt-accent);
+        }
+
+        .slide-nav-item.active {
+            background: var(--dmrt-bg-light);
+            border-left-color: var(--dmrt-primary);
+            font-weight: 600;
+        }
+
+        .slide-nav-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            background: var(--dmrt-accent);
+            color: white;
+            border-radius: 50%;
+            margin-right: 10px;
+            font-size: 0.9em;
+        }
+
+        .slide-nav-item.active .slide-nav-number {
+            background: var(--dmrt-primary);
+        }
+
+        .nav-toggle-btn {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background: var(--dmrt-gradient);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 240;
+            transition: all 0.3s;
+            display: none;
+        }
+
+        .nav-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .nav-toggle-btn.visible {
+            display: block;
+        }
+
+        /* 발표자 뷰 스타일 (별도 창) */
+        .presenter-view {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .presenter-header {
+            background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .presenter-current {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .presenter-current h3 {
+            color: #0c3026;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .current-slide-preview {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            transform: scale(0.25);
+            transform-origin: top left;
+            width: 400%;
+            height: 400%;
+            overflow: hidden;
+        }
+
+        .presenter-next {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .presenter-next h3 {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        .next-slide-preview {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            transform: scale(0.16);
+            transform-origin: top left;
+            width: 625%;
+            height: 625%;
+            overflow: hidden;
+        }
+
+        .presenter-notes {
+            background: #fff9e6;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #67c8a5;
+        }
+
+        .presenter-notes h3 {
+            color: #0c3026;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        .presenter-notes p {
+            color: #333;
+            line-height: 1.8;
+        }
+
+        .presenter-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 15px 30px;
+            border-radius: 50px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .presenter-controls button {
+            background: white;
+            color: #0c3026;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .presenter-controls button:hover {
+            background: #67c8a5;
+            transform: translateY(-2px);
+        }
+
+        /* 발표자 도구 */
+        .presenter-view {
+            display: none;
+            height: 100vh;
+            background: var(--dmrt-bg-light);
+        }
+
+        .presenter-header {
+            background: var(--dmrt-gradient);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .presenter-main {
+            display: flex;
+            height: calc(100vh - 70px);
+        }
+
+        .presenter-left {
+            flex: 3;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .presenter-right {
+            flex: 1;
+            background: white;
+            border-left: 3px solid var(--dmrt-border);
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .presenter-preview {
+            background: white;
+            border: 3px solid var(--dmrt-accent);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            transform: scale(0.25);
+            transform-origin: top left;
+            width: 400%;
+        }
+
+        .presenter-notes {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid var(--dmrt-accent);
+        }
+
+        .presenter-notes h3 {
+            color: var(--dmrt-primary);
+            margin-bottom: 15px;
+        }
+
+        .presenter-notes p {
+            color: var(--dmrt-text-dark);
+            line-height: 1.8;
+            font-size: 1.1em;
+        }
+
+        .presenter-controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        .code-block {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--dmrt-secondary);
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            overflow-x: auto;
+        }
+
+        .highlight-box {
+            background: var(--dmrt-bg-light);
+            border-left: 6px solid var(--dmrt-accent);
+            padding: 30px;
+            margin: 30px 0;
+            border-radius: 12px;
+            font-size: 1.3em;
+        }
+
+        .highlight-box strong {
+            color: var(--dmrt-primary);
+            font-size: 1.2em;
+        }
+
+        /* 반응형 */
+        @media (max-width: 1200px) {
+            .presentation-container {
+                flex-direction: column;
+            }
+
+            .webapp-viewer.active {
+                flex: none;
+                width: 100%;
+                height: 40vh;
+                border-right: none;
+                border-bottom: 3px solid var(--dmrt-primary);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 업로드 화면 -->
+    <div class="upload-screen" id="uploadScreen">
+        <div class="upload-container">
+            <h1>프레젠테이션 도구</h1>
+            <p>PowerPoint (PPTX, PPS, PPSX) 또는 PDF 파일을 업로드하거나<br>데모 슬라이드로 시작하세요</p>
+            
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">파일을 드래그하거나 클릭하여 선택<br><small style="color: #999;">지원 형식: PPTX, PPS, PPSX, PDF</small></div>
+            </div>
+            
+            <input type="file" id="fileInput" class="file-input" accept=".pdf,.pptx,.ppt,.pps,.ppsx">
+            
+            <div class="or-divider">또는</div>
+            
+            <button class="demo-btn" onclick="startDemo()">데모 슬라이드로 시작</button>
+        </div>
+    </div>
+
+    <!-- 프레젠테이션 화면 -->
+    <div class="presentation-screen" id="presentationScreen">
+        <div class="presentation-container">
+            <!-- 왼쪽: 웹앱 뷰어 (처음엔 숨김) -->
+            <div class="webapp-viewer" id="webappViewer">
+                <div class="webapp-overlay">
+                    <div class="webapp-title" id="webappTitle">웹앱 로딩 중...</div>
+                    <button class="webapp-close" onclick="closeWebApp()" title="웹앱 닫기">✕ 닫기</button>
+                </div>
+                <iframe id="webappFrame" src=""></iframe>
+                <div class="resize-handle" id="resizeHandle"></div>
+            </div>
+
+            <!-- 오른쪽: 슬라이드 -->
+            <div class="slide-viewer">
+                <div class="slide-header">
+                    <h1>벼 육종 디지털 시스템 v4.16</h1>
+                    <p>AI 기반 다목적 최적화 플랫폼</p>
+                </div>
+
+                <div class="slide-content">
+                    <div class="slide-view" id="slideView">
+                        <div class="slide-container" id="slideContainer">
+                            <div id="slideContent">
+                                <!-- 슬라이드 내용이 여기에 동적으로 삽입됨 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 컨트롤 (플로팅) -->
+        <div class="slide-controls" id="slideControls">
+            <button class="control-btn" onclick="prevSlide()" title="이전 슬라이드 (←)">◀</button>
+            <div class="slide-counter">
+                <span id="currentSlide2">1</span> / <span id="totalSlides2">11</span>
+            </div>
+            <button class="control-btn" onclick="nextSlide()" title="다음 슬라이드 (→ 또는 Space)">▶</button>
+            <button class="control-btn fullscreen-btn" onclick="toggleFullscreen()" title="전체화면 토글 (F)">⛶</button>
+            <button class="control-btn presenter-btn" onclick="openPresenterView()" title="발표자 도구 열기 (별도 창)">👁</button>
+            <button class="control-btn stop-btn" onclick="stopPresentation()" title="슬라이드쇼 중단 (ESC)">⏹</button>
+        </div>
+    </div>
+
+    <!-- 쇼 모드 복귀 버튼 -->
+    <button class="show-mode-btn" id="showModeBtn" onclick="enterShowMode()" title="전체화면 쇼 모드로 전환 (F 키)">🎬 쇼 모드로 전환</button>
+
+    <!-- 네비게이터 토글 버튼 -->
+    <button class="nav-toggle-btn" id="navToggleBtn" onclick="toggleNavigator()" title="슬라이드 목록 열기/닫기 (G 키)">📑 슬라이드 목록</button>
+
+    <!-- 슬라이드 네비게이터 -->
+    <div class="slide-navigator" id="slideNavigator">
+        <h3>슬라이드 목록</h3>
+        <div id="slideNavList"></div>
+    </div>
+
+    <script>
+        // 슬라이드 데이터
+        let slides = [
+            {
+                title: "벼 육종 디지털 시스템 v4.16",
+                content: `
+                    <h2>벼 육종 디지털 시스템 v4.16</h2>
+                    <p style="font-size: 1.8em; color: var(--dmrt-secondary); margin-top: 50px;">
+                        전통육종 + 분자육종 + AI의 융합
+                    </p>
+                    <div class="highlight-box" style="margin-top: 80px;">
+                        <p><strong>개발자:</strong> 국립종자원 품종보호과 솜여</p>
+                        <p><strong>정확도:</strong> 87.2%</p>
+                        <p><strong>핵심 기술:</strong> NSGA-II 유전알고리즘, 머신러닝, 연관 분석</p>
+                        <p><strong>목표:</strong> 실용적이고 확장 가능한 디지털 육종 플랫폼</p>
+                    </div>
+                `,
+                notes: "프레젠테이션 시작. 시스템의 전체 개요와 핵심 메시지를 전달합니다."
+            },
+            {
+                title: "시스템 개요",
+                content: `
+                    <h2>시스템 개요</h2>
+                    <h3>11개 탭 구성</h3>
+                    <table>
+                        <tr><th>탭</th><th>기능</th></tr>
+                        <tr><td>Tab 0</td><td>📊 데이터 업로드</td></tr>
+                        <tr><td>Tab 1</td><td>🔍 결측치 예측</td></tr>
+                        <tr><td>Tab 2</td><td>⚡ 모델 테스트</td></tr>
+                        <tr><td>Tab 3</td><td>🧬 히트맵</td></tr>
+                        <tr><td>Tab 4</td><td>🎯 유전 알고리즘</td></tr>
+                        <tr><td>Tab 5</td><td>🌾 교배 조합</td></tr>
+                        <tr><td>Tab 6</td><td>🌱 후대 예측</td></tr>
+                        <tr><td>Tab 7</td><td>🗺️ 마커 위치</td></tr>
+                        <tr><td>Tab 8</td><td>🔗 유전자 상호작용</td></tr>
+                        <tr><td>Tab 9</td><td>🧬 연관 교배 시뮬레이션</td></tr>
+                        <tr><td>Tab 10</td><td>📋 종합 리포트</td></tr>
+                    </table>
+                `,
+                notes: "11개 탭의 구성을 설명합니다. 각 탭의 역할을 간단히 소개하세요."
+            },
+            {
+                title: "Domain Knowledge vs Coding",
+                content: `
+                    <h2>Domain Knowledge vs Coding Skills</h2>
+                    <p>AI 기반 육종 시스템 개발의 핵심은 코딩 능력이 아닌 <strong>육종 도메인 지식</strong>입니다.</p>
+                    
+                    <table>
+                        <tr>
+                            <th>구분</th>
+                            <th>코딩 중심 접근</th>
+                            <th>도메인 지식 중심 접근</th>
+                        </tr>
+                        <tr>
+                            <td>특징 선택</td>
+                            <td>모든 변수 포함</td>
+                            <td>고빈도 대립유전자 선별</td>
+                        </tr>
+                        <tr>
+                            <td>모델 설계</td>
+                            <td>복잡한 딥러닝</td>
+                            <td>RandomForest + 상관계수</td>
+                        </tr>
+                        <tr>
+                            <td>결과</td>
+                            <td>이론적, 검증 필요</td>
+                            <td>실용적, 즉시 적용 가능</td>
+                        </tr>
+                    </table>
+
+                    <div class="highlight-box" style="margin-top: 50px;">
+                        <strong>핵심 메시지:</strong> 
+                        <p>AI는 도구일 뿐, 육종가의 전문성이 시스템의 실용성을 결정합니다.</p>
+                    </div>
+                `,
+                notes: "도메인 지식의 중요성을 강조합니다. 단순히 코딩 실력만으로는 실용적인 시스템을 만들 수 없다는 점을 설명하세요."
+            },
+            {
+                title: "Tab 0: 데이터 업로드",
+                content: `
+                    <h2>Tab 0: 데이터 업로드</h2>
+                    <h3>시스템의 시작점</h3>
+                    <p>유전자형(Genotype)과 표현형(Phenotype) 데이터를 업로드하는 탭입니다.</p>
+
+                    <table>
+                        <tr><th>데이터 유형</th><th>형식</th><th>내용</th></tr>
+                        <tr>
+                            <td>유전자형</td>
+                            <td>CSV</td>
+                            <td>품종별 45개 마커 정보 (0/1, R/S)</td>
+                        </tr>
+                        <tr>
+                            <td>표현형</td>
+                            <td>CSV</td>
+                            <td>품종별 형질 데이터 (수량성, 병저항성 등)</td>
+                        </tr>
+                    </table>
+
+                    <button class="webapp-link-btn" onclick="openWebApp(0)">📊 Tab 0 실행하기</button>
+
+                    <div class="highlight-box" style="margin-top: 50px;">
+                        <strong>중요:</strong> 데이터 품질이 모든 후속 분석의 정확도를 결정합니다.
+                    </div>
+                `,
+                notes: "데이터 입력의 중요성을 설명합니다. 버튼을 클릭하면 실제 웹앱이 열립니다.",
+                webappTab: 0
+            },
+            {
+                title: "Tab 2: ML 모델",
+                content: `
+                    <h2>Tab 2: ML 모델 테스트</h2>
+                    <h3>머신러닝 모델 학습 및 평가</h3>
+                    
+                    <table>
+                        <tr><th>기능</th><th>설명</th></tr>
+                        <tr><td>모델 학습</td><td>각 형질별 RandomForest 모델 학습</td></tr>
+                        <tr><td>성능 평가</td><td>정확도, Precision, Recall, F1-Score</td></tr>
+                        <tr><td>특징 중요도</td><td>어떤 마커가 각 형질에 중요한지 분석</td></tr>
+                        <tr><td>모델 저장</td><td>학습된 모델을 Tab 4에서 재사용</td></tr>
+                    </table>
+
+                    <button class="webapp-link-btn" onclick="openWebApp(2)">⚡ Tab 2 실행하기</button>
+
+                    <div class="highlight-box" style="margin-top: 50px;">
+                        <strong>핵심:</strong> 이 탭에서 학습한 모델이 Tab 4 유전알고리즘의 적합도 함수로 사용됩니다.
+                    </div>
+                `,
+                notes: "ML 모델 학습 탭을 설명합니다. 이 모델이 유전알고리즘에서 재사용된다는 점을 강조하세요.",
+                webappTab: 2
+            },
+            {
+                title: "적합도 함수",
+                content: `
+                    <h2>적합도 함수 (Fitness Function)</h2>
+                    <h3>정의</h3>
+                    <p>유전알고리즘에서 각 개체(유전자 조합)의 우수성을 정량적으로 평가하는 함수</p>
+
+                    <h3>평가 방식: 3단계 계층 구조</h3>
+                    <div class="code-block">
+[유전자형] → [1순위: Tab2 모델] → [2순위: 즉석 학습] → [3순위: 상관계수] → [점수]
+            ↓ 실패                  ↓ 실패                ↓
+                    </div>
+
+                    <table>
+                        <tr><th></th><th>1순위</th><th>2순위</th><th>3순위</th></tr>
+                        <tr><td><strong>조건</strong></td><td>Tab 2 모델 존재</td><td>데이터 10개 이상</td><td>ML 불가</td></tr>
+                        <tr><td><strong>방법</strong></td><td>predict_proba()</td><td>RF 즉석 학습</td><td>상관계수</td></tr>
+                        <tr><td><strong>정확도</strong></td><td>가장 높음</td><td>중간</td><td>기본</td></tr>
+                        <tr><td><strong>출력</strong></td><td>확률 (0~1)</td><td>확률 (0~1)</td><td>점수 (0~1)</td></tr>
+                    </table>
+                `,
+                notes: "3단계 fallback 구조를 설명합니다. 안정성과 정확성을 동시에 확보한 설계임을 강조하세요."
+            },
+            {
+                title: "유전알고리즘",
+                content: `
+                    <h2>유전알고리즘 (Genetic Algorithm)</h2>
+                    <h3>정의</h3>
+                    <p>생물의 진화 과정을 모방한 최적화 알고리즘</p>
+
+                    <h3>작동 원리: 4단계 반복</h3>
+                    <table>
+                        <tr>
+                            <th>1. 초기 개체군</th>
+                            <th>2. 평가 & 선택</th>
+                            <th>3. 교배</th>
+                            <th>4. 돌연변이</th>
+                        </tr>
+                        <tr>
+                            <td>무작위 100개 생성</td>
+                            <td>적합도로 평가<br>우수한 것 선택</td>
+                            <td>유전자 교환<br>새 조합 생성</td>
+                            <td>일부 무작위 변경<br>다양성 유지</td>
+                        </tr>
+                    </table>
+
+                    <div class="highlight-box" style="margin-top: 50px;">
+                        <strong>50세대 반복 → 최적 해 도출</strong><br>
+                        2^45 = 35조 개의 조합 중에서 효율적으로 최적해 탐색
+                    </div>
+                `,
+                notes: "유전알고리즘의 기본 원리를 설명합니다. 생물 진화와의 유사성을 강조하세요."
+            },
+            {
+                title: "NSGA-II",
+                content: `
+                    <h2>NSGA-II</h2>
+                    <h3>다목적 최적화 알고리즘</h3>
+                    
+                    <table>
+                        <tr><th>개념</th><th>설명</th></tr>
+                        <tr>
+                            <td><strong>Pareto 지배</strong></td>
+                            <td>모든 목표에서 같거나 나은 해<br>
+                            예: A[0.9, 0.8] > B[0.7, 0.7]</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Pareto Front</strong></td>
+                            <td>서로 지배하지 않는 최적해 집합<br>
+                            트레이드오프 관계의 최선 조합들</td>
+                        </tr>
+                    </table>
+
+                    <h3 style="margin-top: 40px;">시스템 적용</h3>
+                    <ul>
+                        <li>개체군: 100개</li>
+                        <li>세대: 50세대</li>
+                        <li>목표: 수량성, 병저항성, 미질 등 동시 최적화</li>
+                        <li>출력: 최적 조합 10개</li>
+                    </ul>
+
+                    <button class="webapp-link-btn" onclick="openWebApp(4)">🎯 Tab 4 실행하기</button>
+                `,
+                notes: "NSGA-II와 Pareto Front 개념을 설명합니다. 다목적 최적화의 장점을 강조하세요.",
+                webappTab: 4
+            },
+            {
+                title: "Strategic Feature Selection",
+                content: `
+                    <h2>Strategic Feature Selection</h2>
+                    <h3>핵심 변수 접근법</h3>
+
+                    <div class="highlight-box">
+                        <p><strong>질문:</strong> "마이너 대립유전자를 포함해야 하는 거 아닌가?"</p>
+                        <p><strong>답변:</strong></p>
+                        <p>✅ <strong>Curse of Dimensionality</strong> - 특징 증가 시 필요 데이터 기하급수 증가</p>
+                        <p>✅ <strong>Signal-to-Noise Ratio</strong> - 고빈도 = 안정적, 저빈도 = 노이즈</p>
+                        <p>✅ <strong>Practical Utility</strong> - 실제 사용되는 조합 학습</p>
+                    </div>
+
+                    <h3 style="margin-top: 50px;">결과 & 확장성</h3>
+                    <div class="highlight-box">
+                        <p>✅ <strong>87.2% 정확도</strong> 달성</p>
+                        <p>🔄 <strong>통계적으로 안정적인 핵심 변이로 고정밀 예측 모델을 구축하고, 이후 단계적 확장이 가능합니다.</strong></p>
+                        <p style="font-size: 1.5em; margin-top: 30px;"><strong>"Less is More"</strong> - 선택적 정밀함이 전체 포괄보다 우수</p>
+                    </div>
+                `,
+                notes: "전략적 특징 선택의 합리성을 설명합니다. 비판에 대한 명확한 답변을 제시하세요."
+            },
+            {
+                title: "교배 조합 & 시뮬레이션",
+                content: `
+                    <h2>기타 주요 기능</h2>
+                    
+                    <h3>Tab 5: 교배 조합</h3>
+                    <p>두 품종 간 교배 시 예상 후대의 형질 분포 시뮬레이션</p>
+                    <button class="webapp-link-btn" onclick="openWebApp(5)">🌾 Tab 5 실행하기</button>
+
+                    <h3 style="margin-top: 40px;">Tab 9: 연관 교배 시뮬레이션</h3>
+                    <p>연관 관계를 고려한 교배 시뮬레이션 (동원체 재조합 억제 효과 반영)</p>
+                    <button class="webapp-link-btn" onclick="openWebApp(9)">🧬 Tab 9 실행하기</button>
+
+                    <h3 style="margin-top: 40px;">Tab 10: 종합 리포트</h3>
+                    <p>전체 분석 결과 종합 대시보드</p>
+                    <button class="webapp-link-btn" onclick="openWebApp(10)">📋 Tab 10 실행하기</button>
+                `,
+                notes: "기타 주요 탭들을 소개합니다. 각 탭의 실용적 가치를 강조하세요.",
+                webappTab: 5
+            },
+            {
+                title: "결론",
+                content: `
+                    <h2>결론</h2>
+                    
+                    <table style="font-size: 1.2em;">
+                        <tr><th>항목</th><th>내용</th></tr>
+                        <tr><td><strong>실용성</strong></td><td>87.2% 정확도로 검증된 실전 시스템</td></tr>
+                        <tr><td><strong>확장성</strong></td><td>단계적 확장 가능한 플랫폼</td></tr>
+                        <tr><td><strong>효율성</strong></td><td>전략적 특징 선택으로 빠르고 정확</td></tr>
+                        <tr><td><strong>통합성</strong></td><td>전통육종 + 분자육종 + AI 결합</td></tr>
+                    </table>
+
+                    <div class="highlight-box" style="margin-top: 80px; font-size: 1.4em;">
+                        <strong>핵심 메시지</strong><br><br>
+                        "이론적 완벽함보다 실용적 유용함을 추구하며,<br>
+                        확장 가능한 디지털 육종 플랫폼의 <strong>첫 단계</strong>를 완성했습니다."
+                    </div>
+
+                    <p style="text-align: center; margin-top: 80px; font-size: 2em; color: var(--dmrt-primary);">
+                        <strong>감사합니다</strong>
+                    </p>
+                `,
+                notes: "프레젠테이션을 마무리합니다. 핵심 메시지를 다시 한번 강조하고 질문을 받으세요."
+            }
+        ];
+
+        let currentSlideIndex = 0;
+        let presenterWindow = null;
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        // 드래그 리사이즈
+        const resizeHandle = document.getElementById('resizeHandle');
+        const webappViewer = document.getElementById('webappViewer');
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            // active 상태의 실제 너비 가져오기
+            startWidth = webappViewer.getBoundingClientRect().width;
+            resizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'ew-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            const diff = e.clientX - startX;
+            const newWidth = startWidth + diff;
+            const container = document.querySelector('.presentation-container');
+            const containerWidth = container.offsetWidth;
+            
+            // 최소 20%, 최대 80% 제한
+            const minWidth = containerWidth * 0.2;
+            const maxWidth = containerWidth * 0.8;
+            
+            if (newWidth >= minWidth && newWidth <= maxWidth) {
+                const widthPercent = (newWidth / containerWidth) * 100;
+                // flex를 명시적으로 설정
+                webappViewer.style.flex = `0 0 ${widthPercent}%`;
+                webappViewer.style.width = `${widthPercent}%`;
+                webappViewer.style.minWidth = `${widthPercent}%`;
+                webappViewer.style.maxWidth = `${widthPercent}%`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizeHandle.classList.remove('dragging');
+                document.body.style.cursor = '';
+            }
+        });
+
+        // 전체화면 변경 모니터링
+        document.addEventListener('fullscreenchange', () => {
+            const showModeBtn = document.getElementById('showModeBtn');
+            const navToggleBtn = document.getElementById('navToggleBtn');
+            const slideNavigator = document.getElementById('slideNavigator');
+            
+            if (!document.fullscreenElement) {
+                // 전체화면 해제됨 → 버튼 표시
+                showModeBtn.classList.add('visible');
+                navToggleBtn.classList.add('visible');
+            } else {
+                // 전체화면 진입 → 버튼 숨김
+                showModeBtn.classList.remove('visible');
+                navToggleBtn.classList.remove('visible');
+                slideNavigator.classList.remove('visible');
+            }
+        });
+
+        // 업로드 관련
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const validTypes = ['application/pdf', 
+                                   'application/vnd.ms-powerpoint',
+                                   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                                   'application/vnd.ms-powerpoint.presentation.macroEnabled.12'];
+                const validExtensions = ['.pdf', '.pptx', '.ppt', '.pps', '.ppsx'];
+                const fileName = file.name.toLowerCase();
+                const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+                
+                if (validTypes.includes(file.type) || hasValidExtension) {
+                    loadFile(file);
+                } else {
+                    alert('PDF 또는 PowerPoint 파일만 업로드 가능합니다.');
+                }
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadFile(file);
+        });
+
+        function loadFile(file) {
+            const fileName = file.name.toLowerCase();
+            const fileType = file.type.toLowerCase();
+            
+            if (fileName.endsWith('.pdf') || fileType === 'application/pdf') {
+                loadPDF(file);
+            } else if (fileName.endsWith('.pptx') || fileName.endsWith('.ppt') || 
+                       fileName.endsWith('.pps') || fileName.endsWith('.ppsx') ||
+                       fileType.includes('presentation')) {
+                loadPowerPoint(file);
+            } else {
+                alert('지원하지 않는 파일 형식입니다.\nPDF 또는 PowerPoint 파일을 업로드해주세요.');
+            }
+        }
+
+        function loadPDF(file) {
+            // TODO: PDF.js로 PDF 로드 및 파싱
+            alert('PDF 로드 기능은 추후 구현 예정입니다.\n지금은 데모 슬라이드를 사용해주세요.');
+            startDemo();
+        }
+
+        function loadPowerPoint(file) {
+            const fileName = file.name.toLowerCase();
+            
+            // 로딩 알림
+            const loadingMsg = document.createElement('div');
+            loadingMsg.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 30px 50px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                z-index: 9999;
+                text-align: center;
+                font-size: 1.2em;
+            `;
+            loadingMsg.innerHTML = `
+                <div style="color: #0c3026; font-weight: 600; margin-bottom: 10px;">
+                    PowerPoint 파일 읽는 중...
+                </div>
+                <div style="color: #666; font-size: 0.9em;">
+                    ${file.name}
+                </div>
+            `;
+            document.body.appendChild(loadingMsg);
+            
+            // JSZip으로 PPTX 파일 읽기
+            JSZip.loadAsync(file)
+                .then(zip => {
+                    // 슬라이드 파일 찾기
+                    const slideFiles = [];
+                    zip.forEach((relativePath, file) => {
+                        if (relativePath.match(/ppt\/slides\/slide\d+\.xml$/)) {
+                            slideFiles.push({
+                                name: relativePath,
+                                file: file
+                            });
+                        }
+                    });
+                    
+                    if (slideFiles.length === 0) {
+                        throw new Error('슬라이드를 찾을 수 없습니다.');
+                    }
+                    
+                    // 슬라이드 번호 순으로 정렬
+                    slideFiles.sort((a, b) => {
+                        const numA = parseInt(a.name.match(/slide(\d+)\.xml/)[1]);
+                        const numB = parseInt(b.name.match(/slide(\d+)\.xml/)[1]);
+                        return numA - numB;
+                    });
+                    
+                    // 각 슬라이드의 텍스트 추출
+                    const slidePromises = slideFiles.map(slideFile => {
+                        return slideFile.file.async('string').then(xmlString => {
+                            return extractTextFromSlideXML(xmlString);
+                        });
+                    });
+                    
+                    return Promise.all(slidePromises);
+                })
+                .then(extractedSlides => {
+                    // 로딩 메시지 제거
+                    document.body.removeChild(loadingMsg);
+                    
+                    // 추출된 슬라이드를 slides 배열에 추가
+                    slides = extractedSlides.map((slideText, index) => ({
+                        title: `슬라이드 ${index + 1}`,
+                        content: `
+                            <h2>슬라이드 ${index + 1}</h2>
+                            <div style="white-space: pre-wrap; line-height: 1.8;">
+                                ${slideText || '(내용 없음)'}
+                            </div>
+                        `,
+                        notes: `업로드된 PowerPoint 파일의 ${index + 1}번째 슬라이드입니다.`
+                    }));
+                    
+                    // 프레젠테이션 시작
+                    document.getElementById('uploadScreen').style.display = 'none';
+                    document.getElementById('presentationScreen').style.display = 'block';
+                    
+                    // 슬라이드 네비게이터 초기화
+                    initSlideNavigator();
+                    
+                    showSlide(0);
+                    
+                    // 발표자 도구 별도 창으로 열기
+                    setTimeout(() => {
+                        openPresenterView();
+                    }, 300);
+                })
+                .catch(err => {
+                    // 로딩 메시지 제거
+                    if (document.body.contains(loadingMsg)) {
+                        document.body.removeChild(loadingMsg);
+                    }
+                    
+                    console.error('PowerPoint 파일 읽기 오류:', err);
+                    alert('PowerPoint 파일을 읽는 중 오류가 발생했습니다.\n\n오류: ' + err.message + '\n\n파일이 손상되었거나 지원하지 않는 형식일 수 있습니다.');
+                });
+        }
+
+        // XML에서 텍스트 추출
+        function extractTextFromSlideXML(xmlString) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+            
+            // 모든 <a:t> 태그 찾기 (텍스트 노드)
+            const textNodes = xmlDoc.getElementsByTagName('a:t');
+            const texts = [];
+            
+            for (let i = 0; i < textNodes.length; i++) {
+                const text = textNodes[i].textContent.trim();
+                if (text) {
+                    texts.push(text);
+                }
+            }
+            
+            // 텍스트를 HTML로 변환
+            if (texts.length === 0) {
+                return '<p style="color: #999; font-style: italic;">텍스트를 추출할 수 없습니다.</p>';
+            }
+            
+            // 첫 번째 텍스트는 제목으로
+            let html = '';
+            if (texts.length > 0) {
+                html += `<h3 style="color: #0c3026; margin-bottom: 20px; font-size: 1.8em;">${texts[0]}</h3>`;
+            }
+            
+            // 나머지는 본문으로
+            for (let i = 1; i < texts.length; i++) {
+                html += `<p style="margin: 10px 0; font-size: 1.1em;">${texts[i]}</p>`;
+            }
+            
+            return html;
+        }
+
+        // 데모 시작
+        function startDemo() {
+            document.getElementById('uploadScreen').style.display = 'none';
+            document.getElementById('presentationScreen').style.display = 'block';
+            
+            // 슬라이드 네비게이터 초기화
+            initSlideNavigator();
+            
+            showSlide(0);
+            
+            // 발표자 도구 별도 창으로 열기
+            setTimeout(() => {
+                openPresenterView();
+            }, 300);
+        }
+
+        // 발표자 사이드바 토글
+        // 슬라이드 네비게이터 초기화
+        function initSlideNavigator() {
+            const navList = document.getElementById('slideNavList');
+            navList.innerHTML = '';
+            
+            slides.forEach((slide, index) => {
+                const item = document.createElement('div');
+                item.className = 'slide-nav-item';
+                if (index === 0) item.classList.add('active');
+                item.innerHTML = `
+                    <span class="slide-nav-number">${index + 1}</span>
+                    <span>${slide.title}</span>
+                `;
+                item.onclick = () => {
+                    goToSlide(index);
+                    toggleNavigator(); // 선택 후 네비게이터 닫기
+                };
+                navList.appendChild(item);
+            });
+        }
+
+        // 특정 슬라이드로 이동
+        function goToSlide(index) {
+            showSlide(index);
+            updateNavigatorActive();
+        }
+
+        // 네비게이터 활성 항목 업데이트
+        function updateNavigatorActive() {
+            const items = document.querySelectorAll('.slide-nav-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('active', index === currentSlideIndex);
+            });
+        }
+
+        // 네비게이터 토글
+        function toggleNavigator() {
+            const navigator = document.getElementById('slideNavigator');
+            navigator.classList.toggle('visible');
+        }
+
+        // 슬라이드 표시
+        function showSlide(index) {
+            if (index < 0 || index >= slides.length) return;
+            
+            currentSlideIndex = index;
+            const slide = slides[index];
+            
+            document.getElementById('slideContent').innerHTML = slide.content;
+            
+            // 슬라이드 내 링크에 이벤트 리스너 추가
+            attachLinkListeners();
+            
+            // 네비게이터 활성 항목 업데이트
+            updateNavigatorActive();
+            
+            // 카운터 업데이트 (안전하게)
+            const currentSlide = document.getElementById('currentSlide');
+            const totalSlides = document.getElementById('totalSlides');
+            const currentSlide2 = document.getElementById('currentSlide2');
+            const totalSlides2 = document.getElementById('totalSlides2');
+            
+            if (currentSlide) currentSlide.textContent = index + 1;
+            if (totalSlides) totalSlides.textContent = slides.length;
+            if (currentSlide2) currentSlide2.textContent = index + 1;
+            if (totalSlides2) totalSlides2.textContent = slides.length;
+            
+            // 버튼 비활성화
+            const prevBtns = document.querySelectorAll('#prevBtn, .slide-controls button:first-child');
+            const nextBtns = document.querySelectorAll('#nextBtn, .slide-controls button:nth-child(3)');
+            
+            prevBtns.forEach(btn => btn.disabled = index === 0);
+            nextBtns.forEach(btn => btn.disabled = index === slides.length - 1);
+
+            // 발표자 뷰 업데이트 (별도 창)
+            if (presenterWindow && !presenterWindow.closed) {
+                updatePresenterView();
+            }
+        }
+
+        // 슬라이드 내 링크 이벤트 리스너 추가
+        function attachLinkListeners() {
+            const links = document.querySelectorAll('#slideContent .webapp-link-btn');
+            links.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    // 전체화면이면 해제
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                    
+                    // 쇼 모드 복귀 버튼 표시
+                    document.getElementById('showModeBtn').classList.add('visible');
+                    
+                    // onclick 속성 실행
+                    const onclickAttr = link.getAttribute('onclick');
+                    if (onclickAttr) {
+                        eval(onclickAttr);
+                    }
+                });
+            });
+        }
+
+        function nextSlide() {
+            showSlide(currentSlideIndex + 1);
+        }
+
+        function prevSlide() {
+            showSlide(currentSlideIndex - 1);
+        }
+
+        // 키보드 네비게이션
+        document.addEventListener('keydown', (e) => {
+            // 네비게이터가 열려있을 때는 슬라이드 이동 방지
+            const navigatorOpen = document.getElementById('slideNavigator').classList.contains('visible');
+            
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                if (!navigatorOpen) nextSlide();
+            }
+            if (e.key === 'ArrowLeft') {
+                if (!navigatorOpen) prevSlide();
+            }
+            if (e.key === 'f' || e.key === 'F11') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+            if (e.key === 'g' || e.key === 'G') {
+                // G 키로 네비게이터 토글
+                e.preventDefault();
+                toggleNavigator();
+            }
+            if (e.key === 'Escape') {
+                // 네비게이터가 열려있으면 닫기
+                if (navigatorOpen) {
+                    toggleNavigator();
+                    return;
+                }
+                
+                // 전체화면이면 전체화면 종료
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    // 아니면 슬라이드쇼 중단
+                    stopPresentation();
+                }
+            }
+        });
+
+        // 전체화면
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                enterShowMode();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // 쇼 모드 진입 (전체화면)
+        function enterShowMode() {
+            // 웹앱 닫기
+            closeWebApp();
+            
+            // 네비게이터 닫기
+            document.getElementById('slideNavigator').classList.remove('visible');
+            
+            // 쇼 모드 버튼 숨기기
+            document.getElementById('showModeBtn').classList.remove('visible');
+            document.getElementById('navToggleBtn').classList.remove('visible');
+            
+            // 전체화면
+            const presentationScreen = document.getElementById('presentationScreen');
+            if (presentationScreen.requestFullscreen) {
+                presentationScreen.requestFullscreen();
+            }
+        }
+
+        // 슬라이드쇼 중단
+        // 슬라이드쇼 중단
+        // 슬라이드쇼 중단
+        function stopPresentation() {
+            if (confirm('슬라이드쇼를 중단하시겠습니까?')) {
+                // 전체화면 종료
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
+                
+                // 발표자 창 닫기
+                if (presenterWindow && !presenterWindow.closed) {
+                    presenterWindow.close();
+                    presenterWindow = null;
+                }
+                
+                // 웹앱 뷰어 닫기
+                closeWebApp();
+                
+                // 화면 전환
+                document.getElementById('presentationScreen').style.display = 'none';
+                document.getElementById('uploadScreen').style.display = 'flex';
+                
+                // 슬라이드 인덱스 초기화
+                currentSlideIndex = 0;
+            }
+        }
+
+        // 발표자 뷰 열기
+        // 발표자 뷰 열기 (반대편 모니터로)
+        function openPresenterView() {
+            // 듀얼 모니터 감지 - 더 정확한 방법
+            const totalWidth = window.screen.availWidth * window.devicePixelRatio;
+            const totalHeight = window.screen.availHeight * window.devicePixelRatio;
+            const currentLeft = window.screenX;
+            const currentTop = window.screenY;
+            
+            // 다중 모니터 감지
+            let newLeft, newTop;
+            
+            // screen.availLeft가 음수면 왼쪽에 보조 모니터가 있음
+            if (window.screen.availLeft !== undefined && window.screen.availLeft < 0) {
+                // 메인이 오른쪽, 보조가 왼쪽
+                if (currentLeft >= 0) {
+                    // 현재 메인(오른쪽)에 있으면 왼쪽으로
+                    newLeft = window.screen.availLeft + 50;
+                } else {
+                    // 현재 보조(왼쪽)에 있으면 오른쪽으로
+                    newLeft = 50;
+                }
+            } else {
+                // 일반적인 경우: 메인이 왼쪽, 보조가 오른쪽
+                if (currentLeft < window.screen.width / 2) {
+                    // 왼쪽 모니터 → 오른쪽으로
+                    newLeft = window.screen.width + 50;
+                } else {
+                    // 오른쪽 모니터 → 왼쪽으로
+                    newLeft = 50 - window.screen.width;
+                }
+            }
+            
+            newTop = currentTop + 50;
+            
+            const features = `width=1400,height=${window.screen.height - 100},left=${newLeft},top=${newTop},menubar=no,toolbar=no,location=no,status=no`;
+            presenterWindow = window.open('', 'presenter', features);
+            
+            presenterWindow.document.write(`
+                <!DOCTYPE html>
+                <html lang="ko">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>발표자 도구</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body { 
+                            font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; 
+                            background: #f5f9f8;
+                            overflow: hidden;
+                        }
+                        .presenter-header {
+                            background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+                            color: white;
+                            padding: 15px 30px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        }
+                        .timer {
+                            font-size: 1.5em;
+                            font-weight: 700;
+                            font-family: 'Courier New', monospace;
+                            background: rgba(255,255,255,0.2);
+                            padding: 8px 20px;
+                            border-radius: 8px;
+                        }
+                        .presenter-main { 
+                            display: flex; 
+                            height: calc(100vh - 70px);
+                            gap: 20px;
+                            padding: 20px;
+                        }
+                        .presenter-left { 
+                            flex: 2; 
+                            display: flex;
+                            flex-direction: column;
+                            gap: 20px;
+                        }
+                        .presenter-right { 
+                            flex: 1; 
+                            background: white; 
+                            border-radius: 12px;
+                            padding: 20px;
+                            overflow-y: auto;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        }
+                        .current-slide-container {
+                            flex: 1;
+                            background: white;
+                            border: 3px solid #67c8a5;
+                            border-radius: 12px;
+                            padding: 20px;
+                            display: flex;
+                            flex-direction: column;
+                            overflow: hidden;
+                        }
+                        .current-slide-container h3 {
+                            color: #0c3026;
+                            margin-bottom: 15px;
+                            font-size: 1em;
+                        }
+                        .presenter-preview {
+                            flex: 1;
+                            background: #f9f9f9;
+                            border-radius: 8px;
+                            overflow: hidden;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            position: relative;
+                        }
+                        .preview-content {
+                            width: 100%;
+                            height: 100%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .preview-inner {
+                            max-width: 100%;
+                            max-height: 100%;
+                            background: white;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                        }
+                        .next-slide {
+                            height: 250px;
+                            background: white;
+                            border-radius: 12px;
+                            padding: 15px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        }
+                        .next-slide h4 { 
+                            color: #666; 
+                            margin-bottom: 10px;
+                            font-size: 0.9em;
+                        }
+                        .next-slide-preview {
+                            height: calc(100% - 30px);
+                            background: #f9f9f9;
+                            border-radius: 8px;
+                            overflow: hidden;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .next-preview-inner {
+                            transform: scale(0.3);
+                            transform-origin: center;
+                            width: 333%;
+                            height: 333%;
+                        }
+                        .presenter-notes {
+                            background: #fff9e6;
+                            padding: 20px;
+                            border-radius: 8px;
+                            border-left: 4px solid #67c8a5;
+                            margin-bottom: 20px;
+                        }
+                        .presenter-notes h3 { 
+                            color: #0c3026; 
+                            margin-bottom: 15px;
+                            font-size: 1em;
+                        }
+                        .presenter-notes p { 
+                            color: #1a1a1a; 
+                            line-height: 1.8; 
+                            font-size: 1em; 
+                            white-space: pre-wrap; 
+                        }
+                        .control-btn {
+                            background: white;
+                            color: #0c3026;
+                            border: 2px solid #0c3026;
+                            padding: 10px 25px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-size: 1em;
+                            font-weight: 600;
+                            margin: 0 5px;
+                        }
+                        .control-btn:hover { background: #67c8a5; }
+                        .slide-counter { 
+                            font-size: 1.3em; 
+                            font-weight: 600;
+                            margin: 0 15px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="presenter-header">
+                        <div>
+                            <h2 style="display: inline-block; margin-right: 30px;">발표자 도구</h2>
+                            <span class="timer" id="presentTimer">00:00</span>
+                        </div>
+                        <div>
+                            <button class="control-btn" onclick="window.opener.prevSlide()">◀ 이전</button>
+                            <span class="slide-counter" id="presenterCounter">1 / 11</span>
+                            <button class="control-btn" onclick="window.opener.nextSlide()">다음 ▶</button>
+                        </div>
+                    </div>
+                    <div class="presenter-main">
+                        <div class="presenter-left">
+                            <div class="current-slide-container">
+                                <h3>현재 슬라이드</h3>
+                                <div class="presenter-preview">
+                                    <div class="preview-content">
+                                        <div class="preview-inner" id="presenterPreview"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="next-slide">
+                                <h4>다음 슬라이드 미리보기</h4>
+                                <div class="next-slide-preview">
+                                    <div class="next-preview-inner" id="nextSlidePreview"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="presenter-right">
+                            <div class="presenter-notes">
+                                <h3>📝 발표 노트</h3>
+                                <p id="presenterNotes"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <script>
+                        // 타이머 시작
+                        let startTime = Date.now();
+                        setInterval(() => {
+                            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                            const minutes = Math.floor(elapsed / 60);
+                            const seconds = elapsed % 60;
+                            document.getElementById('presentTimer').textContent = 
+                                String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+                        }, 1000);
+                    </script>
+                </body>
+                </html>
+            `);
+
+            updatePresenterView();
+        }
+            
+        function updatePresenterView() {
+            if (!presenterWindow || presenterWindow.closed) return;
+            
+            const slide = slides[currentSlideIndex];
+            const preview = presenterWindow.document.getElementById('presenterPreview');
+            const notes = presenterWindow.document.getElementById('presenterNotes');
+            const counter = presenterWindow.document.getElementById('presenterCounter');
+            const nextPreview = presenterWindow.document.getElementById('nextSlidePreview');
+            
+            if (preview) preview.innerHTML = slide.content;
+            if (notes) notes.textContent = slide.notes || '발표 노트가 없습니다.';
+            if (counter) counter.textContent = `${currentSlideIndex + 1} / ${slides.length}`;
+            
+            // 다음 슬라이드 미리보기
+            if (nextPreview) {
+                if (currentSlideIndex < slides.length - 1) {
+                    const nextSlide = slides[currentSlideIndex + 1];
+                    nextPreview.innerHTML = nextSlide.content;
+                } else {
+                    nextPreview.innerHTML = '<div style="padding: 50px; text-align: center; color: #999;">마지막 슬라이드입니다</div>';
+                }
+            }
+        }
+
+        // 웹앱 열기 (iframe 사이드바)
+        // 웹앱 열기 (iframe 사이드바)
+        function openWebApp(tabIndex) {
+            const webappViewer = document.getElementById('webappViewer');
+            const webappFrame = document.getElementById('webappFrame');
+            const webappTitle = document.getElementById('webappTitle');
+            const showModeBtn = document.getElementById('showModeBtn');
+            
+            // 전체화면이면 해제
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+            
+            // 웹앱 뷰어 활성화
+            webappViewer.classList.add('active');
+            
+            // 초기 크기 50%로 설정 (리사이즈 가능)
+            webappViewer.style.flex = '0 0 50%';
+            webappViewer.style.width = '50%';
+            webappViewer.style.minWidth = '50%';
+            webappViewer.style.maxWidth = '50%';
+            
+            // 쇼 모드 복귀 버튼 표시
+            showModeBtn.classList.add('visible');
+            
+            // iframe에 로드 (URL 해시 포함)
+            webappFrame.src = `rice_breeding_demo.html#tab${tabIndex}`;
+            
+            // 탭 이름 업데이트
+            const tabNames = [
+                '📊 데이터 업로드',
+                '🔍 결측치 예측',
+                '⚡ 모델 테스트',
+                '🧬 히트맵',
+                '🎯 유전 알고리즘',
+                '🌾 교배 조합',
+                '🌱 후대 예측',
+                '🗺️ 마커 위치',
+                '🔗 유전자 상호작용',
+                '🧬 연관 교배 시뮬레이션',
+                '📋 종합 리포트'
+            ];
+            webappTitle.textContent = tabNames[tabIndex] || '웹앱';
+        }
+
+        // 웹앱 닫기
+        function closeWebApp() {
+            const webappViewer = document.getElementById('webappViewer');
+            const webappFrame = document.getElementById('webappFrame');
+            const showModeBtn = document.getElementById('showModeBtn');
+            
+            webappViewer.classList.remove('active');
+            
+            // 웹앱이 닫히면 쇼 모드 버튼도 숨기기
+            showModeBtn.classList.remove('visible');
+            
+            // 크기 완전 초기화
+            webappViewer.style.flex = '';
+            webappViewer.style.width = '';
+            webappViewer.style.minWidth = '';
+            webappViewer.style.maxWidth = '';
+            
+            // iframe 초기화
+            setTimeout(() => {
+                webappFrame.src = '';
+            }, 400); // 애니메이션 후
+        }
+
+        // 초기화
+        const totalSlides = document.getElementById('totalSlides');
+        const totalSlides2 = document.getElementById('totalSlides2');
+        
+        if (totalSlides) totalSlides.textContent = slides.length;
+        if (totalSlides2) totalSlides2.textContent = slides.length;
+    </script>
+</body>
+</html>
