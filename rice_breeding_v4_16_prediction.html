@@ -2332,55 +2332,438 @@ function updateInteractionTab() {
 function runInteractionAnalysis() {
     const trait = document.getElementById('interactionTrait').value;
     if (!trait || !dataLoaded) { alert('데이터와 형질을 선택하세요.'); return; }
-    
+
     document.getElementById('interactionLoading').classList.add('active');
-    
-    setTimeout(() => {
-        // 간단한 분석 (실제로는 RF 등 사용)
-        const interactions = [];
-        for (let i = 0; i < geneNames.length; i++) {
-            for (let j = i + 1; j < geneNames.length; j++) {
-                const key1 = `${geneNames[i]}+${geneNames[j]}`;
-                const key2 = `${geneNames[j]}+${geneNames[i]}`;
-                const known = knownInteractions[key1] || knownInteractions[key2];
-                if (known) {
-                    interactions.push({ gene1: geneNames[i], gene2: geneNames[j], ...known, isKnown: true });
-                } else if (Math.random() < 0.1) {
-                    interactions.push({ 
-                        gene1: geneNames[i], gene2: geneNames[j], 
-                        type: Math.random() < 0.7 ? 'synergy' : 'antagonism',
-                        effect: Math.round((0.8 + Math.random() * 0.6) * 10) / 10,
-                        isKnown: false
-                    });
-                }
-            }
-        }
-        
-        document.getElementById('interactionLoading').classList.remove('active');
-        
-        let html = '<div class="result-card"><h3>🔗 분석 결과</h3>';
-        if (document.getElementById('prioritizeKnown').checked) {
-            const known = interactions.filter(i => i.isKnown);
-            const unknown = interactions.filter(i => !i.isKnown);
-            
-            if (known.length) {
-                html += '<h4 style="color:#00b894;">📚 문헌 검증</h4><div>';
-                known.forEach(i => { html += `<span class="gene-chip ${i.type}">★ ${i.gene1} + ${i.gene2}</span>`; });
-                html += '</div>';
-            }
-            if (unknown.length) {
-                html += '<h4 style="margin-top:15px;">📊 데이터 기반</h4><div>';
-                unknown.slice(0, 10).forEach(i => { html += `<span class="gene-chip ${i.type}">${i.gene1} + ${i.gene2}</span>`; });
-                html += '</div>';
-            }
-        } else {
-            interactions.slice(0, 15).forEach(i => { 
-                html += `<span class="gene-chip ${i.type}">${i.isKnown ? '★ ' : ''}${i.gene1} + ${i.gene2}</span>`; 
+    log(`🔬 ${trait} 형질에 대한 유전자 상호작용 분석 시작...`, 'info');
+
+    // Pyodide로 통계적 상호작용 분석 수행
+    initPyodide().then(async () => {
+        try {
+            const genotypeMatrix = genotypeData.map(row => {
+                return geneNames.map(gene => {
+                    const val = row[gene];
+                    if (val === 'R' || val === 1 || val === '1' || val === 'X' || val === 'x') return 1;
+                    if (val === 'S' || val === 0 || val === '0') return 0;
+                    return 0.5;
+                });
             });
+
+            const phenoIdx = phenotypeNames.indexOf(trait);
+            const phenotypeVector = phenotypeData.map(row => {
+                const val = row[trait];
+                if (val === 1 || val === '1') return 1;
+                if (val === 0 || val === '0') return 0;
+                return parseFloat(val) || 0;
+            });
+
+            pyodide.globals.set('geno_matrix', genotypeMatrix);
+            pyodide.globals.set('pheno_vector', phenotypeVector);
+            pyodide.globals.set('gene_names_list', geneNames);
+            pyodide.globals.set('trait_name', trait);
+
+            const analysisCode = `
+import numpy as np
+from scipy import stats
+import warnings
+warnings.filterwarnings('ignore')
+
+geno = np.array(geno_matrix, dtype=float)
+pheno = np.array(pheno_vector, dtype=float)
+gene_names = list(gene_names_list)
+n_samples, n_genes = geno.shape
+
+# 결측치 처리
+valid_idx = ~np.isnan(pheno)
+geno = geno[valid_idx]
+pheno = pheno[valid_idx]
+n_samples = len(pheno)
+
+print(f"분석 대상: {n_samples}개 샘플, {n_genes}개 유전자")
+
+# ===============================================
+# 1. 개별 유전자 효과 계산 (Main Effect)
+# ===============================================
+gene_effects = {}
+for i in range(n_genes):
+    g = geno[:, i]
+    # 유전자 보유(1) vs 미보유(0) 그룹의 표현형 평균 차이
+    mask_1 = g >= 0.5
+    mask_0 = g < 0.5
+    if mask_1.sum() > 2 and mask_0.sum() > 2:
+        mean_1 = pheno[mask_1].mean()
+        mean_0 = pheno[mask_0].mean()
+        effect = mean_1 - mean_0  # 주효과 (Main Effect)
+        # t-test로 유의성 검정
+        t_stat, p_val = stats.ttest_ind(pheno[mask_1], pheno[mask_0])
+        gene_effects[i] = {'effect': effect, 'p_value': p_val, 'mean_1': mean_1, 'mean_0': mean_0}
+
+print(f"유의미한 개별 효과: {sum(1 for v in gene_effects.values() if v['p_value'] < 0.05)}개")
+
+# ===============================================
+# 2. Epistasis (상위성) 분석 - 2유전자 상호작용
+# ===============================================
+interactions = []
+top_genes = sorted(gene_effects.keys(), key=lambda x: abs(gene_effects[x]['effect']), reverse=True)[:30]
+
+for idx, i in enumerate(top_genes):
+    for j in top_genes[idx+1:]:
+        g_i = geno[:, i]
+        g_j = geno[:, j]
+
+        # 4가지 조합의 표현형 평균
+        mask_00 = (g_i < 0.5) & (g_j < 0.5)  # 둘 다 없음
+        mask_01 = (g_i < 0.5) & (g_j >= 0.5)  # j만 있음
+        mask_10 = (g_i >= 0.5) & (g_j < 0.5)  # i만 있음
+        mask_11 = (g_i >= 0.5) & (g_j >= 0.5)  # 둘 다 있음
+
+        counts = [mask_00.sum(), mask_01.sum(), mask_10.sum(), mask_11.sum()]
+        if min(counts) < 2:
+            continue
+
+        P_00 = pheno[mask_00].mean()
+        P_01 = pheno[mask_01].mean()
+        P_10 = pheno[mask_10].mean()
+        P_11 = pheno[mask_11].mean()
+
+        # ===============================================
+        # Epistasis Score 계산 (Bateson, 1909; Fisher, 1918)
+        # ε = P_11 - P_10 - P_01 + P_00
+        # 가법성 가정: P_11 = P_10 + P_01 - P_00이면 ε = 0
+        # ε > 0: 시너지 (Positive Epistasis)
+        # ε < 0: 길항 (Negative Epistasis/Antagonism)
+        # ===============================================
+        epsilon = P_11 - P_10 - P_01 + P_00
+
+        # 개별 효과
+        effect_i = P_10 - P_00  # 유전자 i의 단독 효과
+        effect_j = P_01 - P_00  # 유전자 j의 단독 효과
+        expected_11 = P_00 + effect_i + effect_j  # 가법 모델 기대값
+        observed_11 = P_11
+
+        # ===============================================
+        # Synergy Index (SI) - Bliss Independence Model
+        # SI = P_11 / (P_10 * P_01 / P_00) if P_00 > 0
+        # SI > 1: 시너지, SI < 1: 길항
+        # ===============================================
+        if P_00 > 0.01 and P_10 > 0.01 and P_01 > 0.01:
+            expected_mult = (P_10 * P_01) / P_00
+            synergy_index = P_11 / expected_mult if expected_mult > 0.01 else 1.0
+        else:
+            synergy_index = 1.0
+
+        # ===============================================
+        # Interaction Effect Size (Cohen's d 유사)
+        # ===============================================
+        pooled_std = np.std(pheno)
+        if pooled_std > 0:
+            interaction_effect_size = epsilon / pooled_std
+        else:
+            interaction_effect_size = 0
+
+        # ===============================================
+        # 2-way ANOVA 유사 통계량 (간소화)
+        # F-statistic for interaction term
+        # ===============================================
+        all_groups = [pheno[mask_00], pheno[mask_01], pheno[mask_10], pheno[mask_11]]
+        if all(len(g) > 1 for g in all_groups):
+            # 그룹 간 분산 / 그룹 내 분산
+            grand_mean = pheno.mean()
+            ss_between = sum(len(g) * (g.mean() - grand_mean)**2 for g in all_groups)
+            ss_within = sum(((g - g.mean())**2).sum() for g in all_groups)
+            df_between = 3
+            df_within = n_samples - 4
+            if ss_within > 0 and df_within > 0:
+                f_stat = (ss_between / df_between) / (ss_within / df_within)
+                p_interaction = 1 - stats.f.cdf(f_stat, df_between, df_within)
+            else:
+                f_stat, p_interaction = 0, 1
+        else:
+            f_stat, p_interaction = 0, 1
+
+        # ===============================================
+        # Epistasis Type 분류 (Cordell, 2002)
+        # ===============================================
+        if abs(epsilon) < 0.05:
+            epistasis_type = 'additive'  # 가법적 (상호작용 없음)
+        elif epsilon > 0.1 and synergy_index > 1.2:
+            epistasis_type = 'synergy'  # 양성 상위성 (시너지)
+        elif epsilon < -0.1 and synergy_index < 0.8:
+            epistasis_type = 'antagonism'  # 음성 상위성 (길항)
+        elif abs(effect_i) > 0.1 and abs(effect_j) < 0.05 and abs(P_11 - P_10) < 0.05:
+            epistasis_type = 'masking'  # 마스킹 (i가 j를 가림)
+        elif abs(effect_j) > 0.1 and abs(effect_i) < 0.05 and abs(P_11 - P_01) < 0.05:
+            epistasis_type = 'masking'  # 마스킹 (j가 i를 가림)
+        elif effect_i * effect_j < 0:
+            epistasis_type = 'suppression'  # 억제 (반대 방향 효과)
+        else:
+            epistasis_type = 'complex'  # 복잡한 상호작용
+
+        interactions.append({
+            'gene1': gene_names[i],
+            'gene2': gene_names[j],
+            'gene1_idx': int(i),
+            'gene2_idx': int(j),
+            'epsilon': float(epsilon),
+            'synergy_index': float(synergy_index),
+            'effect_size': float(interaction_effect_size),
+            'f_stat': float(f_stat),
+            'p_value': float(p_interaction),
+            'epistasis_type': epistasis_type,
+            'P_00': float(P_00),
+            'P_01': float(P_01),
+            'P_10': float(P_10),
+            'P_11': float(P_11),
+            'effect_i': float(effect_i),
+            'effect_j': float(effect_j),
+            'expected_11': float(expected_11),
+            'observed_11': float(observed_11),
+            'counts': counts
+        })
+
+# 유의미한 상호작용 정렬 (효과 크기 순)
+interactions.sort(key=lambda x: abs(x['epsilon']), reverse=True)
+print(f"분석된 상호작용: {len(interactions)}개")
+print(f"유의미한 상호작용 (p<0.05): {sum(1 for i in interactions if i['p_value'] < 0.05)}개")
+
+{'interactions': interactions[:50], 'gene_effects': {gene_names[k]: v for k, v in gene_effects.items()}}
+            `;
+
+            const results = await pyodide.runPythonAsync(analysisCode);
+            const resultsJs = results.toJs({dict_converter: Object.fromEntries});
+
+            document.getElementById('interactionLoading').classList.remove('active');
+            displayInteractionResults(resultsJs, trait);
+
+        } catch (error) {
+            document.getElementById('interactionLoading').classList.remove('active');
+            console.error('상호작용 분석 실패:', error);
+            alert('분석 오류: ' + error.message);
         }
-        html += '</div>';
-        document.getElementById('interactionResults').innerHTML = html;
-    }, 1000);
+    });
+}
+
+function displayInteractionResults(results, trait) {
+    const interactions = results.interactions || [];
+    const geneEffects = results.gene_effects || {};
+
+    // 문헌 검증 상호작용 매칭
+    interactions.forEach(int => {
+        const key1 = `${int.gene1}+${int.gene2}`;
+        const key2 = `${int.gene2}+${int.gene1}`;
+        int.isKnown = !!(knownInteractions[key1] || knownInteractions[key2]);
+        if (int.isKnown) {
+            int.reference = (knownInteractions[key1] || knownInteractions[key2]).reference;
+        }
+    });
+
+    let html = `
+    <div class="result-card">
+        <h3>📊 ${trait} 형질 - 유전자 상호작용 분석 결과</h3>
+        <p style="color: #666;">분석된 상호작용: <strong>${interactions.length}개</strong> | 유의미한 상호작용 (p<0.05): <strong>${interactions.filter(i => i.p_value < 0.05).length}개</strong></p>
+    </div>
+
+    <!-- 수치 해석 가이드 -->
+    <div class="result-card" style="background: #f8f9fa; border-left: 4px solid #6c757d;">
+        <h4>📖 수치 해석 가이드</h4>
+        <table class="data-table" style="font-size: 0.85em;">
+            <tr><th>지표</th><th>의미</th><th>해석</th></tr>
+            <tr>
+                <td><strong>Epistasis Score (ε)</strong></td>
+                <td>가법성 편차<br><small>ε = P<sub>11</sub> - P<sub>10</sub> - P<sub>01</sub> + P<sub>00</sub></small></td>
+                <td><span style="color:#00b894;">ε > 0</span>: 시너지 (함께 있을 때 더 효과적)<br>
+                    <span style="color:#e74c3c;">ε < 0</span>: 길항 (함께 있을 때 효과 감소)<br>
+                    <span style="color:#95a5a6;">ε ≈ 0</span>: 가법적 (독립적 효과)</td>
+            </tr>
+            <tr>
+                <td><strong>Synergy Index (SI)</strong></td>
+                <td>Bliss 독립 모델 기반<br><small>SI = P<sub>11</sub> / (P<sub>10</sub>×P<sub>01</sub>/P<sub>00</sub>)</small></td>
+                <td><span style="color:#00b894;">SI > 1.2</span>: 강한 시너지<br>
+                    <span style="color:#e74c3c;">SI < 0.8</span>: 강한 길항<br>
+                    <span style="color:#95a5a6;">0.8 ≤ SI ≤ 1.2</span>: 독립적</td>
+            </tr>
+            <tr>
+                <td><strong>Effect Size (d)</strong></td>
+                <td>표준화된 상호작용 크기<br><small>d = ε / SD(표현형)</small></td>
+                <td>|d| > 0.8: 큰 효과<br>0.5 < |d| ≤ 0.8: 중간 효과<br>|d| ≤ 0.5: 작은 효과</td>
+            </tr>
+            <tr>
+                <td><strong>p-value</strong></td>
+                <td>통계적 유의성</td>
+                <td>p < 0.05: 유의미<br>p < 0.01: 매우 유의미</td>
+            </tr>
+        </table>
+        <p style="margin-top: 10px; font-size: 0.85em; color: #666;">
+            <strong>참고문헌:</strong> Bateson (1909), Fisher (1918), Cordell (2002), Dwivedi et al. (2024) Plant Biotechnol J.
+        </p>
+    </div>`;
+
+    // 유의미한 상호작용 상세 테이블
+    const significantInt = interactions.filter(i => i.p_value < 0.1).slice(0, 20);
+
+    if (significantInt.length > 0) {
+        html += `
+        <div class="result-card">
+            <h4>🔬 주요 상호작용 (Top 20)</h4>
+            <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>유전자 1</th>
+                        <th>유전자 2</th>
+                        <th>상호작용 유형</th>
+                        <th>Epistasis (ε)</th>
+                        <th>SI</th>
+                        <th>Effect Size</th>
+                        <th>p-value</th>
+                        <th>해석</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        significantInt.forEach(int => {
+            const typeColor = {
+                'synergy': '#00b894',
+                'antagonism': '#e74c3c',
+                'masking': '#f39c12',
+                'suppression': '#9b59b6',
+                'additive': '#95a5a6',
+                'complex': '#3498db'
+            }[int.epistasis_type] || '#666';
+
+            const typeKorean = {
+                'synergy': '시너지',
+                'antagonism': '길항',
+                'masking': '마스킹',
+                'suppression': '억제',
+                'additive': '가법적',
+                'complex': '복합'
+            }[int.epistasis_type] || int.epistasis_type;
+
+            const epsilonBadge = int.epsilon > 0.05 ? 'quality-high' : int.epsilon < -0.05 ? 'quality-low' : 'quality-medium';
+            const pBadge = int.p_value < 0.01 ? 'quality-high' : int.p_value < 0.05 ? 'quality-medium' : 'quality-low';
+
+            // 상세 해석 생성
+            let interpretation = '';
+            if (int.epistasis_type === 'synergy') {
+                interpretation = `두 유전자가 함께 있을 때 ${trait} 효과가 ${(int.epsilon * 100).toFixed(1)}% 증가`;
+            } else if (int.epistasis_type === 'antagonism') {
+                interpretation = `두 유전자가 함께 있을 때 ${trait} 효과가 ${(Math.abs(int.epsilon) * 100).toFixed(1)}% 감소`;
+            } else if (int.epistasis_type === 'masking') {
+                interpretation = `한 유전자가 다른 유전자의 효과를 가림`;
+            } else if (int.epistasis_type === 'suppression') {
+                interpretation = `한 유전자가 다른 유전자의 효과를 억제`;
+            } else if (int.epistasis_type === 'additive') {
+                interpretation = `두 유전자가 독립적으로 작용`;
+            } else {
+                interpretation = `복합적 상호작용 패턴`;
+            }
+
+            html += `
+                <tr>
+                    <td><strong>${int.gene1}</strong>${int.isKnown ? ' ★' : ''}</td>
+                    <td><strong>${int.gene2}</strong></td>
+                    <td><span style="color: ${typeColor}; font-weight: bold;">${typeKorean}</span></td>
+                    <td><span class="quality-badge ${epsilonBadge}">${int.epsilon >= 0 ? '+' : ''}${int.epsilon.toFixed(3)}</span></td>
+                    <td>${int.synergy_index.toFixed(2)}</td>
+                    <td>${int.effect_size.toFixed(2)}</td>
+                    <td><span class="quality-badge ${pBadge}">${int.p_value < 0.001 ? '<0.001' : int.p_value.toFixed(3)}</span></td>
+                    <td style="font-size: 0.85em;">${interpretation}</td>
+                </tr>`;
+        });
+
+        html += `</tbody></table></div></div>`;
+    }
+
+    // 상호작용 유형 요약
+    const typeCounts = {};
+    interactions.forEach(int => {
+        typeCounts[int.epistasis_type] = (typeCounts[int.epistasis_type] || 0) + 1;
+    });
+
+    html += `
+    <div class="result-card">
+        <h4>📈 상호작용 유형 분포</h4>
+        <div class="stats-grid">
+            <div class="stat-box" style="border-left: 4px solid #00b894;">
+                <div>시너지</div>
+                <div class="stat-value" style="color: #00b894;">${typeCounts['synergy'] || 0}</div>
+            </div>
+            <div class="stat-box" style="border-left: 4px solid #e74c3c;">
+                <div>길항</div>
+                <div class="stat-value" style="color: #e74c3c;">${typeCounts['antagonism'] || 0}</div>
+            </div>
+            <div class="stat-box" style="border-left: 4px solid #f39c12;">
+                <div>마스킹</div>
+                <div class="stat-value" style="color: #f39c12;">${typeCounts['masking'] || 0}</div>
+            </div>
+            <div class="stat-box" style="border-left: 4px solid #9b59b6;">
+                <div>억제</div>
+                <div class="stat-value" style="color: #9b59b6;">${typeCounts['suppression'] || 0}</div>
+            </div>
+            <div class="stat-box" style="border-left: 4px solid #95a5a6;">
+                <div>가법적</div>
+                <div class="stat-value" style="color: #95a5a6;">${typeCounts['additive'] || 0}</div>
+            </div>
+            <div class="stat-box" style="border-left: 4px solid #3498db;">
+                <div>복합</div>
+                <div class="stat-value" style="color: #3498db;">${typeCounts['complex'] || 0}</div>
+            </div>
+        </div>
+    </div>`;
+
+    // 상위 시너지 조합 육종 추천
+    const topSynergy = interactions.filter(i => i.epistasis_type === 'synergy' && i.p_value < 0.1).slice(0, 5);
+    if (topSynergy.length > 0) {
+        html += `
+        <div class="result-card" style="background: #e8f5e9; border-left: 4px solid #00b894;">
+            <h4>🌱 육종 추천: 우선 도입 시너지 조합</h4>
+            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합을 함께 도입하면 ${trait} 형질에서 상승 효과를 기대할 수 있습니다.</p>
+            <table class="data-table" style="margin-top: 10px;">
+                <thead><tr><th>순위</th><th>유전자 조합</th><th>시너지 효과</th><th>신뢰도</th><th>육종 전략</th></tr></thead>
+                <tbody>`;
+
+        topSynergy.forEach((int, idx) => {
+            const confidence = int.p_value < 0.01 ? '매우 높음' : int.p_value < 0.05 ? '높음' : '보통';
+            const strategy = `${int.gene1}과 ${int.gene2}를 함께 가진 품종 선발 또는 교배 조합 구성`;
+
+            html += `
+                <tr>
+                    <td><strong>#${idx + 1}</strong></td>
+                    <td><span class="gene-chip synergy">${int.gene1} + ${int.gene2}</span></td>
+                    <td>+${(int.epsilon * 100).toFixed(1)}% (SI: ${int.synergy_index.toFixed(2)})</td>
+                    <td>${confidence}</td>
+                    <td style="font-size: 0.85em;">${strategy}</td>
+                </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+    }
+
+    // 주의할 길항 조합
+    const topAntagonism = interactions.filter(i => i.epistasis_type === 'antagonism' && i.p_value < 0.1).slice(0, 5);
+    if (topAntagonism.length > 0) {
+        html += `
+        <div class="result-card" style="background: #fce4ec; border-left: 4px solid #e74c3c;">
+            <h4>⚠️ 주의: 길항 조합 (피해야 할 조합)</h4>
+            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합은 함께 존재할 때 ${trait} 형질에서 효과가 감소합니다.</p>
+            <table class="data-table" style="margin-top: 10px;">
+                <thead><tr><th>유전자 조합</th><th>효과 감소</th><th>권장 사항</th></tr></thead>
+                <tbody>`;
+
+        topAntagonism.forEach(int => {
+            html += `
+                <tr>
+                    <td><span class="gene-chip antagonism">${int.gene1} + ${int.gene2}</span></td>
+                    <td>${(int.epsilon * 100).toFixed(1)}%</td>
+                    <td style="font-size: 0.85em;">두 유전자 중 효과가 큰 것 하나만 선택 권장</td>
+                </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+    }
+
+    document.getElementById('interactionResults').innerHTML = html;
+    log(`✅ 상호작용 분석 완료: ${interactions.length}개 분석, ${interactions.filter(i => i.p_value < 0.05).length}개 유의미`, 'success');
 }
 
 // ==================== 기존 기능 ====================
