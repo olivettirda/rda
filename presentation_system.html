@@ -1144,6 +1144,8 @@
         let currentSlideIndex = 0;
         let presenterWindow = null;
         let showModeStartTime = null;  // 슬라이드쇼 시작 시간
+        let slideWidth = 960;   // 슬라이드 너비 (기본값 16:9)
+        let slideHeight = 540;  // 슬라이드 높이 (기본값 16:9)
         let isResizing = false;
         let startX = 0;
         let startWidth = 0;
@@ -1303,36 +1305,56 @@
             // JSZip으로 PPTX 파일 읽기
             JSZip.loadAsync(file)
                 .then(zip => {
-                    // 슬라이드 파일 찾기
-                    const slideFiles = [];
-                    zip.forEach((relativePath, file) => {
-                        if (relativePath.match(/ppt\/slides\/slide\d+\.xml$/)) {
-                            slideFiles.push({
-                                name: relativePath,
-                                file: file
-                            });
-                        }
-                    });
-                    
-                    if (slideFiles.length === 0) {
-                        throw new Error('슬라이드를 찾을 수 없습니다.');
-                    }
-                    
-                    // 슬라이드 번호 순으로 정렬
-                    slideFiles.sort((a, b) => {
-                        const numA = parseInt(a.name.match(/slide(\d+)\.xml/)[1]);
-                        const numB = parseInt(b.name.match(/slide(\d+)\.xml/)[1]);
-                        return numA - numB;
-                    });
-                    
-                    // 각 슬라이드의 텍스트 추출
-                    const slidePromises = slideFiles.map(slideFile => {
-                        return slideFile.file.async('string').then(xmlString => {
-                            return extractTextFromSlideXML(xmlString);
+                    // presentation.xml에서 슬라이드 크기 추출
+                    const presentationFile = zip.file('ppt/presentation.xml');
+                    let slideSizePromise = Promise.resolve();
+
+                    if (presentationFile) {
+                        slideSizePromise = presentationFile.async('string').then(xmlString => {
+                            // sldSz 요소에서 cx, cy 추출 (EMU 단위)
+                            const sldSzMatch = xmlString.match(/<p:sldSz[^>]*cx="(\d+)"[^>]*cy="(\d+)"/);
+                            if (sldSzMatch) {
+                                // EMU를 픽셀로 변환 (1인치 = 914400 EMU, 96 DPI 기준)
+                                const emuToPixel = 914400 / 96;
+                                slideWidth = Math.round(parseInt(sldSzMatch[1]) / emuToPixel);
+                                slideHeight = Math.round(parseInt(sldSzMatch[2]) / emuToPixel);
+                                console.log('슬라이드 크기:', slideWidth, 'x', slideHeight);
+                            }
                         });
+                    }
+
+                    return slideSizePromise.then(() => {
+                        // 슬라이드 파일 찾기
+                        const slideFiles = [];
+                        zip.forEach((relativePath, file) => {
+                            if (relativePath.match(/ppt\/slides\/slide\d+\.xml$/)) {
+                                slideFiles.push({
+                                    name: relativePath,
+                                    file: file
+                                });
+                            }
+                        });
+
+                        if (slideFiles.length === 0) {
+                            throw new Error('슬라이드를 찾을 수 없습니다.');
+                        }
+
+                        // 슬라이드 번호 순으로 정렬
+                        slideFiles.sort((a, b) => {
+                            const numA = parseInt(a.name.match(/slide(\d+)\.xml/)[1]);
+                            const numB = parseInt(b.name.match(/slide(\d+)\.xml/)[1]);
+                            return numA - numB;
+                        });
+
+                        // 각 슬라이드의 텍스트 추출
+                        const slidePromises = slideFiles.map(slideFile => {
+                            return slideFile.file.async('string').then(xmlString => {
+                                return extractTextFromSlideXML(xmlString);
+                            });
+                        });
+
+                        return Promise.all(slidePromises);
                     });
-                    
-                    return Promise.all(slidePromises);
                 })
                 .then(extractedSlides => {
                     // 로딩 메시지 제거
@@ -1907,21 +1929,27 @@
                         updateTimer();
                         setInterval(updateTimer, 1000);
 
-                        // 현재 슬라이드 프리뷰 스케일 조절 (16:9 비율 유지, 최대 크기)
+                        // 현재 슬라이드 프리뷰 스케일 조절 (원본 비율 유지, 최대 크기)
                         function adjustPreviewScale() {
                             const container = document.querySelector('.preview-content');
                             const preview = document.getElementById('presenterPreview');
                             if (!container || !preview) return;
 
+                            // 원본 슬라이드 크기 가져오기 (window.opener에서)
+                            const origWidth = (window.opener && window.opener.slideWidth) || 960;
+                            const origHeight = (window.opener && window.opener.slideHeight) || 540;
+
+                            // preview-inner 크기를 원본 비율로 설정
+                            preview.style.width = origWidth + 'px';
+                            preview.style.height = origHeight + 'px';
+
                             const containerRect = container.getBoundingClientRect();
-                            const slideWidth = 960;
-                            const slideHeight = 540;
 
                             // 컨테이너에 맞는 최대 스케일 계산 (padding 고려)
                             const availWidth = containerRect.width - 20;
                             const availHeight = containerRect.height - 20;
-                            const scaleX = availWidth / slideWidth;
-                            const scaleY = availHeight / slideHeight;
+                            const scaleX = availWidth / origWidth;
+                            const scaleY = availHeight / origHeight;
                             const scale = Math.min(scaleX, scaleY, 1.5);  // 최대 1.5배
 
                             preview.style.transform = 'scale(' + scale + ')';
