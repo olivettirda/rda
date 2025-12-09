@@ -1397,6 +1397,35 @@
                 });
         }
 
+        // XML 네임스페이스 헬퍼 함수
+        function xmlQuery(node, selectors) {
+            if (!node) return null;
+            for (const sel of selectors.split(',').map(s => s.trim())) {
+                try {
+                    const result = node.querySelector(sel);
+                    if (result) return result;
+                } catch (e) {}
+            }
+            // getElementsByTagName 폴백
+            const localName = selectors.split(',')[0].replace(/^[a-z]+\\?:/, '').replace(/^[a-z]+:/, '');
+            const elements = node.getElementsByTagName('*');
+            for (let i = 0; i < elements.length; i++) {
+                if (elements[i].localName === localName) return elements[i];
+            }
+            return null;
+        }
+
+        function xmlQueryAll(node, selectors) {
+            if (!node) return [];
+            const results = [];
+            const localName = selectors.split(',')[0].replace(/^[a-z]+\\?:/, '').replace(/^[a-z]+:/, '');
+            const elements = node.getElementsByTagName('*');
+            for (let i = 0; i < elements.length; i++) {
+                if (elements[i].localName === localName) results.push(elements[i]);
+            }
+            return results;
+        }
+
         // 슬라이드 XML 파싱
         function parseSlideXML(slideXml, relsXml, slideNum) {
             const parser = new DOMParser();
@@ -1416,9 +1445,9 @@
 
             // 배경색 추출
             let bgStyle = 'background: white;';
-            const bgRef = slideDoc.querySelector('p\\:bg, bg');
+            const bgRef = xmlQuery(slideDoc, 'p\\:bg, bg');
             if (bgRef) {
-                const srgbClr = bgRef.querySelector('a\\:srgbClr, srgbClr');
+                const srgbClr = xmlQuery(bgRef, 'a\\:srgbClr, srgbClr');
                 if (srgbClr) {
                     bgStyle = `background: #${srgbClr.getAttribute('val')};`;
                 }
@@ -1428,20 +1457,20 @@
             let html = `<div class="pptx-slide" style="position: relative; width: 100%; height: 100%; ${bgStyle} font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; overflow: hidden;">`;
 
             // 모든 shape 트리 요소 파싱
-            const spTree = slideDoc.querySelector('p\\:spTree, spTree');
+            const spTree = xmlQuery(slideDoc, 'p\\:spTree, spTree');
             if (spTree) {
                 const shapes = spTree.children;
                 for (let i = 0; i < shapes.length; i++) {
                     const shape = shapes[i];
-                    const tagName = shape.tagName || shape.nodeName;
+                    const tagName = shape.localName || shape.tagName || shape.nodeName;
 
-                    if (tagName.includes('sp')) {
+                    if (tagName === 'sp') {
                         // 텍스트 박스/도형
                         html += parseShape(shape);
-                    } else if (tagName.includes('pic')) {
+                    } else if (tagName === 'pic') {
                         // 이미지
                         html += parsePicture(shape, relMap);
-                    } else if (tagName.includes('graphicFrame')) {
+                    } else if (tagName === 'graphicFrame') {
                         // 테이블/차트
                         html += parseGraphicFrame(shape);
                     }
@@ -1454,11 +1483,11 @@
 
         // 도형/텍스트 박스 파싱
         function parseShape(shape) {
-            const xfrm = shape.querySelector('a\\:xfrm, xfrm');
+            const xfrm = xmlQuery(shape, 'a\\:xfrm, xfrm');
             if (!xfrm) return '';
 
-            const off = xfrm.querySelector('a\\:off, off');
-            const ext = xfrm.querySelector('a\\:ext, ext');
+            const off = xmlQuery(xfrm, 'a\\:off, off');
+            const ext = xmlQuery(xfrm, 'a\\:ext, ext');
             if (!off || !ext) return '';
 
             const x = Math.round(parseInt(off.getAttribute('x') || 0) / EMU_TO_PX);
@@ -1474,14 +1503,14 @@
 
             // 도형 배경색
             let shapeBg = 'transparent';
-            const solidFill = shape.querySelector('a\\:solidFill, solidFill');
+            const solidFill = xmlQuery(shape, 'a\\:solidFill, solidFill');
             if (solidFill) {
-                const srgb = solidFill.querySelector('a\\:srgbClr, srgbClr');
+                const srgb = xmlQuery(solidFill, 'a\\:srgbClr, srgbClr');
                 if (srgb) shapeBg = '#' + srgb.getAttribute('val');
             }
 
             // 텍스트 파싱
-            const txBody = shape.querySelector('p\\:txBody, txBody');
+            const txBody = xmlQuery(shape, 'p\\:txBody, txBody');
             let textHtml = '';
             if (txBody) {
                 textHtml = parseTextBody(txBody);
@@ -1494,12 +1523,12 @@
 
         // 텍스트 본문 파싱
         function parseTextBody(txBody) {
-            const paragraphs = txBody.querySelectorAll('a\\:p, p');
+            const paragraphs = xmlQueryAll(txBody, 'a\\:p, p');
             let html = '';
 
             for (let i = 0; i < paragraphs.length; i++) {
                 const p = paragraphs[i];
-                const pPr = p.querySelector('a\\:pPr, pPr');
+                const pPr = xmlQuery(p, 'a\\:pPr, pPr');
 
                 // 단락 스타일
                 let pStyle = 'margin: 0.2em 0; ';
@@ -1512,8 +1541,8 @@
                     else if (algn === 'r') pStyle += 'text-align: right; ';
 
                     // 리스트 (bullet)
-                    const buChar = pPr.querySelector('a\\:buChar, buChar');
-                    const buAutoNum = pPr.querySelector('a\\:buAutoNum, buAutoNum');
+                    const buChar = xmlQuery(pPr, 'a\\:buChar, buChar');
+                    const buAutoNum = xmlQuery(pPr, 'a\\:buAutoNum, buAutoNum');
                     if (buChar) listPrefix = buChar.getAttribute('char') + ' ';
                     else if (buAutoNum) listPrefix = (i + 1) + '. ';
 
@@ -1523,13 +1552,13 @@
                 }
 
                 // 런(텍스트 조각) 파싱
-                const runs = p.querySelectorAll('a\\:r, r');
+                const runs = xmlQueryAll(p, 'a\\:r, r');
                 let pContent = listPrefix;
 
                 for (let j = 0; j < runs.length; j++) {
                     const run = runs[j];
-                    const rPr = run.querySelector('a\\:rPr, rPr');
-                    const t = run.querySelector('a\\:t, t');
+                    const rPr = xmlQuery(run, 'a\\:rPr, rPr');
+                    const t = xmlQuery(run, 'a\\:t, t');
                     if (!t) continue;
 
                     let text = t.textContent;
@@ -1545,17 +1574,17 @@
                         if (b === '1') rStyle += 'font-weight: bold; ';
 
                         // 이탤릭
-                        const i = rPr.getAttribute('i');
-                        if (i === '1') rStyle += 'font-style: italic; ';
+                        const italic = rPr.getAttribute('i');
+                        if (italic === '1') rStyle += 'font-style: italic; ';
 
                         // 밑줄
                         const u = rPr.getAttribute('u');
                         if (u && u !== 'none') rStyle += 'text-decoration: underline; ';
 
                         // 색상
-                        const solidFill = rPr.querySelector('a\\:solidFill, solidFill');
+                        const solidFill = xmlQuery(rPr, 'a\\:solidFill, solidFill');
                         if (solidFill) {
-                            const srgb = solidFill.querySelector('a\\:srgbClr, srgbClr');
+                            const srgb = xmlQuery(solidFill, 'a\\:srgbClr, srgbClr');
                             if (srgb) rStyle += `color: #${srgb.getAttribute('val')}; `;
                         }
                     }
@@ -1573,11 +1602,11 @@
 
         // 이미지 파싱
         function parsePicture(pic, relMap) {
-            const xfrm = pic.querySelector('a\\:xfrm, xfrm');
+            const xfrm = xmlQuery(pic, 'a\\:xfrm, xfrm');
             if (!xfrm) return '';
 
-            const off = xfrm.querySelector('a\\:off, off');
-            const ext = xfrm.querySelector('a\\:ext, ext');
+            const off = xmlQuery(xfrm, 'a\\:off, off');
+            const ext = xmlQuery(xfrm, 'a\\:ext, ext');
             if (!off || !ext) return '';
 
             const x = Math.round(parseInt(off.getAttribute('x') || 0) / EMU_TO_PX);
@@ -1591,7 +1620,7 @@
             const hPct = (h / slideHeight * 100).toFixed(2);
 
             // 이미지 참조 찾기
-            const blip = pic.querySelector('a\\:blip, blip');
+            const blip = xmlQuery(pic, 'a\\:blip, blip');
             if (!blip) return '';
 
             const embedId = blip.getAttribute('r:embed') || blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed');
@@ -1608,11 +1637,11 @@
 
         // 테이블/그래픽 프레임 파싱
         function parseGraphicFrame(frame) {
-            const xfrm = frame.querySelector('a\\:xfrm, xfrm');
+            const xfrm = xmlQuery(frame, 'a\\:xfrm, xfrm');
             if (!xfrm) return '';
 
-            const off = xfrm.querySelector('a\\:off, off');
-            const ext = xfrm.querySelector('a\\:ext, ext');
+            const off = xmlQuery(xfrm, 'a\\:off, off');
+            const ext = xmlQuery(xfrm, 'a\\:ext, ext');
             if (!off || !ext) return '';
 
             const x = Math.round(parseInt(off.getAttribute('x') || 0) / EMU_TO_PX);
@@ -1626,14 +1655,14 @@
             const hPct = (h / slideHeight * 100).toFixed(2);
 
             // 테이블 찾기
-            const tbl = frame.querySelector('a\\:tbl, tbl');
+            const tbl = xmlQuery(frame, 'a\\:tbl, tbl');
             if (tbl) {
                 let tableHtml = '<table style="width: 100%; height: 100%; border-collapse: collapse; font-size: 0.8em;">';
 
-                const rows = tbl.querySelectorAll('a\\:tr, tr');
+                const rows = xmlQueryAll(tbl, 'a\\:tr, tr');
                 for (let i = 0; i < rows.length; i++) {
                     tableHtml += '<tr>';
-                    const cells = rows[i].querySelectorAll('a\\:tc, tc');
+                    const cells = xmlQueryAll(rows[i], 'a\\:tc, tc');
                     for (let j = 0; j < cells.length; j++) {
                         const cell = cells[j];
                         const isHeader = i === 0;
@@ -1643,20 +1672,20 @@
                         let cellBg = isHeader ? '#0c3026' : (i % 2 === 0 ? '#f5f5f5' : 'white');
                         let cellColor = isHeader ? 'white' : '#333';
 
-                        const tcPr = cell.querySelector('a\\:tcPr, tcPr');
+                        const tcPr = xmlQuery(cell, 'a\\:tcPr, tcPr');
                         if (tcPr) {
-                            const solidFill = tcPr.querySelector('a\\:solidFill, solidFill');
+                            const solidFill = xmlQuery(tcPr, 'a\\:solidFill, solidFill');
                             if (solidFill) {
-                                const srgb = solidFill.querySelector('a\\:srgbClr, srgbClr');
+                                const srgb = xmlQuery(solidFill, 'a\\:srgbClr, srgbClr');
                                 if (srgb) cellBg = '#' + srgb.getAttribute('val');
                             }
                         }
 
                         // 셀 텍스트
-                        const txBody = cell.querySelector('a\\:txBody, txBody');
+                        const txBody = xmlQuery(cell, 'a\\:txBody, txBody');
                         let cellText = '';
                         if (txBody) {
-                            const texts = txBody.querySelectorAll('a\\:t, t');
+                            const texts = xmlQueryAll(txBody, 'a\\:t, t');
                             for (let k = 0; k < texts.length; k++) {
                                 cellText += texts[k].textContent;
                             }
@@ -2063,10 +2092,12 @@
                             position: relative;
                         }
                         .preview-inner {
+                            width: 960px;
+                            height: 540px;
                             position: relative;
                             background: white;
                             transform-origin: center center;
-                            overflow: hidden;
+                            transform: scale(0.4);
                         }
 
                         .resize-handle {
@@ -2141,10 +2172,12 @@
                             position: relative;
                         }
                         .next-preview-inner {
+                            width: 960px;
+                            height: 540px;
                             position: relative;
                             background: white;
                             transform-origin: center center;
-                            overflow: hidden;
+                            transform: scale(0.15);
                         }
 
                         @media (max-width: 800px) {
