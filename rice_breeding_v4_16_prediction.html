@@ -2884,6 +2884,13 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
         gaSelectedObjectives = selectedObjectives.slice();
         const targetPhenoNames = gaSelectedObjectives.map(i => phenotypeNames[i]);
 
+        // 디버깅 로그
+        console.log('🧬 GA 결과 저장 - 목표 형질 정보:');
+        console.log('  - selectedObjectives (파라미터):', selectedObjectives);
+        console.log('  - gaSelectedObjectives (전역 저장):', gaSelectedObjectives);
+        console.log('  - targetPhenoNames:', targetPhenoNames);
+        console.log('  - phenotypeNames 전체:', phenotypeNames);
+
         optimalSolutions = [];
         if (resultsJs.pareto_front && Array.isArray(resultsJs.pareto_front)) {
             for (const sol of resultsJs.pareto_front) {
@@ -3678,8 +3685,20 @@ function displayCrossoverResults(results, dataType) {
     // 현재 선택한 최적해의 목표 형질 정보 가져오기
     const solIdx = parseInt(document.getElementById('optimalSolutionSelect').value) || 0;
     const selectedSolution = optimalSolutions[solIdx] || {};
+
+    // 디버깅 로그
+    console.log('🔍 교배조합 - 목표 형질 정보 확인:');
+    console.log('  - solIdx:', solIdx);
+    console.log('  - selectedSolution:', selectedSolution);
+    console.log('  - selectedSolution.targetObjectives:', selectedSolution.targetObjectives);
+    console.log('  - selectedSolution.targetPhenoNames:', selectedSolution.targetPhenoNames);
+    console.log('  - gaSelectedObjectives (전역):', gaSelectedObjectives);
+    console.log('  - optimalSolutions 전체:', optimalSolutions);
+
     const targetObjectives = selectedSolution.targetObjectives || gaSelectedObjectives || [];
     const targetPhenoNames = selectedSolution.targetPhenoNames || targetObjectives.map(i => phenotypeNames[i]);
+
+    console.log('  - 최종 targetPhenoNames:', targetPhenoNames);
 
     currentCrossResults = results.map(combo => ({
         parent1_idx: combo.parent1_idx,
