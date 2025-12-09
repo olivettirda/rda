@@ -1143,6 +1143,7 @@
 
         let currentSlideIndex = 0;
         let presenterWindow = null;
+        let showModeStartTime = null;  // 슬라이드쇼 시작 시간
         let isResizing = false;
         let startX = 0;
         let startWidth = 0;
@@ -1586,6 +1587,11 @@
 
         // 쇼 모드 진입 (전체화면)
         function enterShowMode() {
+            // 슬라이드쇼 시작 시간 기록
+            if (!showModeStartTime) {
+                showModeStartTime = Date.now();
+            }
+
             // 웹앱 닫기
             closeWebApp();
             
@@ -1628,46 +1634,65 @@
                 
                 // 슬라이드 인덱스 초기화
                 currentSlideIndex = 0;
+
+                // 시작 시간 초기화
+                showModeStartTime = null;
             }
         }
 
-        // 발표자 뷰 열기
         // 발표자 뷰 열기 (반대편 모니터로)
         function openPresenterView() {
-            // 듀얼 모니터 감지 - 더 정확한 방법
-            const totalWidth = window.screen.availWidth * window.devicePixelRatio;
-            const totalHeight = window.screen.availHeight * window.devicePixelRatio;
-            const currentLeft = window.screenX;
-            const currentTop = window.screenY;
-            
-            // 다중 모니터 감지
-            let newLeft, newTop;
-            
-            // screen.availLeft가 음수면 왼쪽에 보조 모니터가 있음
-            if (window.screen.availLeft !== undefined && window.screen.availLeft < 0) {
-                // 메인이 오른쪽, 보조가 왼쪽
-                if (currentLeft >= 0) {
-                    // 현재 메인(오른쪽)에 있으면 왼쪽으로
+            // 듀얼 모니터 감지 및 반대편 모니터 좌표 계산
+            const currentLeft = window.screenX || window.screenLeft || 0;
+            const screenWidth = window.screen.width;
+            const screenHeight = window.screen.height;
+
+            // 현재 창의 중심점으로 어느 모니터에 있는지 판단
+            const currentCenter = currentLeft + (window.outerWidth / 2);
+
+            let newLeft, newTop = 50;
+
+            // screen.availLeft로 왼쪽에 모니터가 있는지 확인
+            const hasLeftMonitor = window.screen.availLeft !== undefined && window.screen.availLeft < 0;
+
+            if (hasLeftMonitor) {
+                // 왼쪽에 보조 모니터가 있는 경우
+                if (currentCenter >= 0) {
+                    // 현재 주 모니터(오른쪽)에 있음 → 발표자 도구를 왼쪽 모니터에
                     newLeft = window.screen.availLeft + 50;
                 } else {
-                    // 현재 보조(왼쪽)에 있으면 오른쪽으로
+                    // 현재 왼쪽 모니터에 있음 → 발표자 도구를 주 모니터에
                     newLeft = 50;
                 }
             } else {
-                // 일반적인 경우: 메인이 왼쪽, 보조가 오른쪽
-                if (currentLeft < window.screen.width / 2) {
-                    // 왼쪽 모니터 → 오른쪽으로
-                    newLeft = window.screen.width + 50;
+                // 오른쪽에 보조 모니터가 있거나 단일 모니터
+                if (currentCenter < screenWidth) {
+                    // 현재 주 모니터(왼쪽)에 있음 → 발표자 도구를 오른쪽 모니터에
+                    newLeft = screenWidth + 50;
                 } else {
-                    // 오른쪽 모니터 → 왼쪽으로
-                    newLeft = 50 - window.screen.width;
+                    // 현재 오른쪽 모니터에 있음 → 발표자 도구를 주 모니터에
+                    newLeft = 50;
                 }
             }
-            
-            newTop = currentTop + 50;
-            
-            const features = `width=1400,height=${window.screen.height - 100},left=${newLeft},top=${newTop},menubar=no,toolbar=no,location=no,status=no`;
+
+            const windowWidth = 1200;
+            const windowHeight = screenHeight - 100;
+
+            const features = `width=${windowWidth},height=${windowHeight},left=${newLeft},top=${newTop},menubar=no,toolbar=no,location=no,status=no`;
             presenterWindow = window.open('', 'presenter', features);
+
+            // 창이 열린 후 위치 재조정 (브라우저 보안으로 인해 left/top이 무시될 수 있음)
+            setTimeout(() => {
+                if (presenterWindow && !presenterWindow.closed) {
+                    try {
+                        presenterWindow.moveTo(newLeft, newTop);
+                        presenterWindow.resizeTo(windowWidth, windowHeight);
+                        presenterWindow.focus();
+                    } catch (e) {
+                        console.log('창 위치 조정 실패:', e);
+                    }
+                }
+            }, 100);
             
             presenterWindow.document.write(`
                 <!DOCTYPE html>
@@ -1749,13 +1774,24 @@
                             display: flex;
                             align-items: center;
                             justify-content: center;
+                            padding: 10px;
                         }
                         .preview-inner {
-                            max-width: 100%;
-                            max-height: 100%;
+                            width: 960px;
+                            height: 540px;
                             background: white;
                             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                            transform-origin: center center;
+                            overflow: hidden;
+                            padding: 30px;
                         }
+                        .preview-inner h2 { font-size: 1.5em; margin-bottom: 15px; color: #0c3026; border-bottom: 2px solid #67c8a5; padding-bottom: 8px; }
+                        .preview-inner h3 { font-size: 1.2em; margin: 15px 0 10px 0; color: #017f97; }
+                        .preview-inner p { font-size: 0.9em; line-height: 1.6; margin-bottom: 10px; }
+                        .preview-inner ul { margin-left: 20px; }
+                        .preview-inner li { font-size: 0.85em; line-height: 1.8; margin-bottom: 5px; }
+                        .preview-inner table { font-size: 0.8em; }
+                        .preview-inner .webapp-link-btn { font-size: 0.8em; padding: 5px 10px; }
                         .next-slide {
                             height: 250px;
                             background: white;
@@ -1857,15 +1893,43 @@
                         </div>
                     </div>
                     <script>
-                        // 타이머 시작
-                        let startTime = Date.now();
-                        setInterval(() => {
+                        // 타이머 시작 - 슬라이드쇼 시작 시간 기준
+                        function updateTimer() {
+                            const startTime = window.opener && window.opener.showModeStartTime
+                                ? window.opener.showModeStartTime
+                                : Date.now();
                             const elapsed = Math.floor((Date.now() - startTime) / 1000);
                             const minutes = Math.floor(elapsed / 60);
                             const seconds = elapsed % 60;
-                            document.getElementById('presentTimer').textContent = 
+                            document.getElementById('presentTimer').textContent =
                                 String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-                        }, 1000);
+                        }
+                        updateTimer();
+                        setInterval(updateTimer, 1000);
+
+                        // 현재 슬라이드 프리뷰 스케일 조절 (16:9 비율 유지, 최대 크기)
+                        function adjustPreviewScale() {
+                            const container = document.querySelector('.preview-content');
+                            const preview = document.getElementById('presenterPreview');
+                            if (!container || !preview) return;
+
+                            const containerRect = container.getBoundingClientRect();
+                            const slideWidth = 960;
+                            const slideHeight = 540;
+
+                            // 컨테이너에 맞는 최대 스케일 계산 (padding 고려)
+                            const availWidth = containerRect.width - 20;
+                            const availHeight = containerRect.height - 20;
+                            const scaleX = availWidth / slideWidth;
+                            const scaleY = availHeight / slideHeight;
+                            const scale = Math.min(scaleX, scaleY, 1.5);  // 최대 1.5배
+
+                            preview.style.transform = 'scale(' + scale + ')';
+                        }
+
+                        // 초기 스케일 조절 및 리사이즈 이벤트
+                        setTimeout(adjustPreviewScale, 100);
+                        window.addEventListener('resize', adjustPreviewScale);
                     </script>
                 </body>
                 </html>
