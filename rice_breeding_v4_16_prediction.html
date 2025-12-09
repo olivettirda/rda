@@ -6489,40 +6489,44 @@ async function downloadReportAndGraphsZip() {
         loadingEl.querySelector('p').textContent = '리포트 생성 중...';
     }
 
-    // Plotly 이미지를 base64로 안전하게 추출하는 헬퍼 함수
-    async function getPlotlyImageBase64(plotElement, options) {
+    // Plotly 이미지를 Blob으로 안전하게 추출하는 헬퍼 함수
+    async function getPlotlyImageBlob(plotElement, options) {
         try {
-            if (!plotElement || !plotElement.data || plotElement.data.length === 0) {
-                console.warn('Plot element has no data:', plotElement?.id);
+            // Plotly 차트 존재 여부 확인 (더 안정적인 방법)
+            if (!plotElement) {
+                console.warn('Plot element is null');
                 return null;
             }
 
+            // Plotly 차트인지 확인
+            const hasPlotlyData = plotElement.data || plotElement._fullData ||
+                                  (plotElement.layout && Object.keys(plotElement.layout).length > 0);
+            if (!hasPlotlyData) {
+                console.warn('Not a valid Plotly chart:', plotElement?.id);
+                return null;
+            }
+
+            // Plotly.toImage로 data URL 생성
             const dataUrl = await Plotly.toImage(plotElement, options);
 
-            // dataUrl 형식 검증: "data:image/png;base64,XXXX"
-            if (!dataUrl || typeof dataUrl !== 'string') {
-                console.warn('Invalid dataUrl returned from Plotly.toImage');
+            if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image')) {
+                console.warn('Invalid dataUrl:', dataUrl?.substring(0, 30));
                 return null;
             }
 
-            // data URL 형식 확인
-            const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-            if (!match) {
-                console.warn('DataUrl format mismatch:', dataUrl.substring(0, 50));
+            // Data URL을 Blob으로 변환 (더 안정적)
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+
+            // Blob 크기 확인
+            if (blob.size < 1000) {
+                console.warn('Image blob too small:', blob.size);
                 return null;
             }
 
-            const base64Data = match[2];
-
-            // base64 데이터 유효성 검사 (최소 크기 확인)
-            if (!base64Data || base64Data.length < 100) {
-                console.warn('Base64 data too small, likely invalid image');
-                return null;
-            }
-
-            return base64Data;
+            return blob;
         } catch (err) {
-            console.error('Error converting plot to image:', err);
+            console.error('Error converting plot to image:', plotElement?.id, err);
             return null;
         }
     }
@@ -6536,10 +6540,10 @@ async function downloadReportAndGraphsZip() {
 
         // 2. 모델 성능 그래프
         const modelPerfPlot = document.getElementById('modelPerfPlot');
-        const modelPerfBase64 = await getPlotlyImageBase64(modelPerfPlot, { format: 'png', width: 1200 * scale, height: 800 * scale });
-        if (modelPerfBase64) {
+        const modelPerfBlob = await getPlotlyImageBlob(modelPerfPlot, { format: 'png', width: 1200 * scale, height: 800 * scale });
+        if (modelPerfBlob) {
             const modelPerfFolder = zip.folder('01_모델성능');
-            modelPerfFolder.file('model_performance_f1.png', modelPerfBase64, { base64: true });
+            modelPerfFolder.file('model_performance_f1.png', modelPerfBlob);
         }
 
         // 3. 혼동행렬 - 모든 형질
@@ -6551,11 +6555,11 @@ async function downloadReportAndGraphsZip() {
                 if (cmSelect) {
                     cmSelect.value = pheno;
                     if (typeof updateConfusionMatrix === 'function') updateConfusionMatrix();
-                    await new Promise(r => setTimeout(r, 500)); // 더 긴 대기 시간
+                    await new Promise(r => setTimeout(r, 600));
                     const cmPlot = document.getElementById('confMatrixPlot');
-                    const base64 = await getPlotlyImageBase64(cmPlot, { format: 'png', width: 800 * scale, height: 600 * scale });
-                    if (base64) {
-                        cmFolder.file(`confusion_matrix_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, base64, { base64: true });
+                    const blob = await getPlotlyImageBlob(cmPlot, { format: 'png', width: 800 * scale, height: 600 * scale });
+                    if (blob) {
+                        cmFolder.file(`confusion_matrix_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, blob);
                     }
                 }
             }
@@ -6570,11 +6574,11 @@ async function downloadReportAndGraphsZip() {
                 if (rocSelect) {
                     rocSelect.value = pheno;
                     if (typeof updateROCCurve === 'function') updateROCCurve();
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 600));
                     const rocPlot = document.getElementById('rocPlot');
-                    const base64 = await getPlotlyImageBase64(rocPlot, { format: 'png', width: 800 * scale, height: 800 * scale });
-                    if (base64) {
-                        rocFolder.file(`roc_curve_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, base64, { base64: true });
+                    const blob = await getPlotlyImageBlob(rocPlot, { format: 'png', width: 800 * scale, height: 800 * scale });
+                    if (blob) {
+                        rocFolder.file(`roc_curve_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, blob);
                     }
                 }
             }
@@ -6591,11 +6595,11 @@ async function downloadReportAndGraphsZip() {
                     fiSelect.value = pheno;
                     if (fiTopN) fiTopN.value = 'all';
                     if (typeof updateFeatureImportancePlot === 'function') updateFeatureImportancePlot();
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 600));
                     const fiPlot = document.getElementById('fiPlot');
-                    const base64 = await getPlotlyImageBase64(fiPlot, { format: 'png', width: 1000 * scale, height: 800 * scale });
-                    if (base64) {
-                        fiFolder.file(`feature_importance_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, base64, { base64: true });
+                    const blob = await getPlotlyImageBlob(fiPlot, { format: 'png', width: 1000 * scale, height: 800 * scale });
+                    if (blob) {
+                        fiFolder.file(`feature_importance_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, blob);
                     }
                 }
             }
@@ -6610,11 +6614,11 @@ async function downloadReportAndGraphsZip() {
                 if (shapSelect) {
                     shapSelect.value = pheno;
                     if (typeof updateSHAPPlot === 'function') updateSHAPPlot();
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 600));
                     const shapPlot = document.getElementById('shapPlot');
-                    const base64 = await getPlotlyImageBase64(shapPlot, { format: 'png', width: 1000 * scale, height: 800 * scale });
-                    if (base64) {
-                        shapFolder.file(`shap_values_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, base64, { base64: true });
+                    const blob = await getPlotlyImageBlob(shapPlot, { format: 'png', width: 1000 * scale, height: 800 * scale });
+                    if (blob) {
+                        shapFolder.file(`shap_values_${pheno.replace(/[\/\\:*?"<>|]/g, '_')}.png`, blob);
                     }
                 }
             }
@@ -6622,29 +6626,29 @@ async function downloadReportAndGraphsZip() {
 
         // 7. 후대 예측 요약
         const predPlot = document.getElementById('predSummaryPlot');
-        const predBase64 = await getPlotlyImageBase64(predPlot, { format: 'png', width: 1200 * scale, height: 800 * scale });
-        if (predBase64) {
+        const predBlob = await getPlotlyImageBlob(predPlot, { format: 'png', width: 1200 * scale, height: 800 * scale });
+        if (predBlob) {
             const predFolder = zip.folder('06_후대예측');
-            predFolder.file('prediction_summary.png', predBase64, { base64: true });
+            predFolder.file('prediction_summary.png', predBlob);
         }
 
         // 8. 유사도 분포
         const simHistPlot = document.getElementById('simHistPlot');
         const simBoxPlot = document.getElementById('simBoxPlot');
-        const simHistBase64 = await getPlotlyImageBase64(simHistPlot, { format: 'png', width: 800 * scale, height: 600 * scale });
-        const simBoxBase64 = await getPlotlyImageBase64(simBoxPlot, { format: 'png', width: 800 * scale, height: 600 * scale });
-        if (simHistBase64 || simBoxBase64) {
+        const simHistBlob = await getPlotlyImageBlob(simHistPlot, { format: 'png', width: 800 * scale, height: 600 * scale });
+        const simBoxBlob = await getPlotlyImageBlob(simBoxPlot, { format: 'png', width: 800 * scale, height: 600 * scale });
+        if (simHistBlob || simBoxBlob) {
             const simFolder = zip.folder('07_유사도분포');
-            if (simHistBase64) simFolder.file('similarity_histogram.png', simHistBase64, { base64: true });
-            if (simBoxBase64) simFolder.file('similarity_boxplot.png', simBoxBase64, { base64: true });
+            if (simHistBlob) simFolder.file('similarity_histogram.png', simHistBlob);
+            if (simBoxBlob) simFolder.file('similarity_boxplot.png', simBoxBlob);
         }
 
         // 9. 상관관계 히트맵
         const corrPlot = document.getElementById('corrHeatmapPlot');
-        const corrBase64 = await getPlotlyImageBase64(corrPlot, { format: 'png', width: 1000 * scale, height: 1000 * scale });
-        if (corrBase64) {
+        const corrBlob = await getPlotlyImageBlob(corrPlot, { format: 'png', width: 1000 * scale, height: 1000 * scale });
+        if (corrBlob) {
             const corrFolder = zip.folder('08_상관관계');
-            corrFolder.file('trait_correlation_heatmap.png', corrBase64, { base64: true });
+            corrFolder.file('trait_correlation_heatmap.png', corrBlob);
         }
 
         // 10. 시뮬레이션 결과 (있으면)
@@ -6653,17 +6657,17 @@ async function downloadReportAndGraphsZip() {
         const linkagePlot = document.getElementById('linkagePlot');
         const genomeRecoveryPlot = document.getElementById('genomeRecoveryPlot');
 
-        const phenoBase64 = await getPlotlyImageBase64(phenotypePlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
-        const fixBase64 = await getPlotlyImageBase64(fixationPlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
-        const linkBase64 = await getPlotlyImageBase64(linkagePlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
-        const grBase64 = await getPlotlyImageBase64(genomeRecoveryPlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
+        const phenoBlob = await getPlotlyImageBlob(phenotypePlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
+        const fixBlob = await getPlotlyImageBlob(fixationPlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
+        const linkBlob = await getPlotlyImageBlob(linkagePlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
+        const grBlob = await getPlotlyImageBlob(genomeRecoveryPlot, { format: 'png', width: 1000 * scale, height: 600 * scale });
 
-        if (phenoBase64 || fixBase64 || linkBase64 || grBase64) {
+        if (phenoBlob || fixBlob || linkBlob || grBlob) {
             const simFolder = zip.folder('09_시뮬레이션');
-            if (phenoBase64) simFolder.file('phenotype_progression.png', phenoBase64, { base64: true });
-            if (fixBase64) simFolder.file('fixation_rate.png', fixBase64, { base64: true });
-            if (linkBase64) simFolder.file('linkage_retention.png', linkBase64, { base64: true });
-            if (grBase64) simFolder.file('genome_recovery.png', grBase64, { base64: true });
+            if (phenoBlob) simFolder.file('phenotype_progression.png', phenoBlob);
+            if (fixBlob) simFolder.file('fixation_rate.png', fixBlob);
+            if (linkBlob) simFolder.file('linkage_retention.png', linkBlob);
+            if (grBlob) simFolder.file('genome_recovery.png', grBlob);
         }
 
         // ZIP 파일 생성 및 다운로드
