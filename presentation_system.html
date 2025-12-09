@@ -1161,21 +1161,23 @@
             startWidth = webappViewer.getBoundingClientRect().width;
             resizeHandle.classList.add('dragging');
             document.body.style.cursor = 'ew-resize';
+            // 드래그 중 transition 비활성화
+            webappViewer.style.transition = 'none';
             e.preventDefault();
         });
 
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
-            
+
             const diff = e.clientX - startX;
             const newWidth = startWidth + diff;
             const container = document.querySelector('.presentation-container');
             const containerWidth = container.offsetWidth;
-            
+
             // 최소 20%, 최대 80% 제한
             const minWidth = containerWidth * 0.2;
             const maxWidth = containerWidth * 0.8;
-            
+
             if (newWidth >= minWidth && newWidth <= maxWidth) {
                 const widthPercent = (newWidth / containerWidth) * 100;
                 // flex를 명시적으로 설정
@@ -1191,6 +1193,8 @@
                 isResizing = false;
                 resizeHandle.classList.remove('dragging');
                 document.body.style.cursor = '';
+                // 드래그 끝나면 transition 복원
+                webappViewer.style.transition = '';
             }
         });
 
@@ -1853,17 +1857,19 @@
                             border-radius: 8px;
                             border-left: 4px solid #67c8a5;
                             margin-bottom: 20px;
+                            min-height: 150px;
                         }
-                        .presenter-notes h3 { 
-                            color: #0c3026; 
+                        .presenter-notes h3 {
+                            color: #0c3026;
                             margin-bottom: 15px;
-                            font-size: 1em;
+                            font-size: 1.1em;
                         }
-                        .presenter-notes p { 
-                            color: #1a1a1a; 
-                            line-height: 1.8; 
-                            font-size: 1em; 
-                            white-space: pre-wrap; 
+                        .presenter-notes p {
+                            color: #1a1a1a;
+                            line-height: 1.8;
+                            font-size: 1.1em;
+                            white-space: pre-wrap;
+                            min-height: 80px;
                         }
                         .control-btn {
                             background: white;
