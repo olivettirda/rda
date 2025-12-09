@@ -4665,8 +4665,23 @@ selected_combos
 
 // === 선택한 최적해 일괄 예측 결과 표시 ===
 function displaySelectedBatchResults(predictions, selectedIndices) {
+    // GA 목표 형질 정보 가져오기
+    const targetPhenoNames = gaSelectedObjectives.length > 0
+        ? gaSelectedObjectives.map(i => phenotypeNames[i])
+        : (predictions[0]?.targetPhenoNames || []);
+
+    console.log('📊 일괄 결과 표시 - 목표 형질:', targetPhenoNames);
+
+    // GA 목표 형질 정보 박스
+    const targetInfoHtml = targetPhenoNames.length > 0
+        ? `<div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #2196F3;">
+            <strong>🎯 GA 목표 형질:</strong> ${targetPhenoNames.join(', ')}
+           </div>`
+        : '';
+
     let html = `<div class="result-card">
         <h3>✅ 선택한 최적해 일괄 예측 결과</h3>
+        ${targetInfoHtml}
         <p>선택한 최적해: <strong>${selectedIndices.length}개</strong> (${selectedIndices.map(i => `#${i+1}`).join(', ')})</p>
         <p>총 <strong>${predictions.length}개</strong> 교배 조합의 후대가 예측되었습니다.</p>
         <button class="btn" onclick="downloadOffspringPredictionsExcel()" style="margin-top: 10px;">📥 후대 예측 결과 엑셀 다운로드</button>
@@ -4690,19 +4705,36 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
     const displayGeneCount = Math.min(15, geneNames.length);
     const displayGenes = geneNames.slice(0, displayGeneCount);
 
-    // 전체 형질 목록 사용 (일부가 아닌 전체)
-    const allPhenoList = phenotypeNames;
+    // 목표 형질만 표시 (없으면 전체 형질)
+    const displayPhenoList = targetPhenoNames.length > 0 ? targetPhenoNames : phenotypeNames;
 
     for (const [solIdx, preds] of Object.entries(groupedByOptimal)) {
         const fitnessSum = preds[0]?.optimalFitness?.toFixed(3) || 'N/A';
+
+        // 해당 최적해의 GA 적합도 정보
+        const optIdx = parseInt(solIdx) - 1;
+        const optSol = optimalSolutions[optIdx] || {};
+        const gaFitness = optSol.fitness || [];
+
         html += `<div class="result-card">
-            <h4>최적해 #${solIdx} (적합도: ${fitnessSum}) - ${preds.length}개 조합</h4>
-            <div style="overflow-x: auto;">
+            <h4>최적해 #${solIdx} (적합도: ${fitnessSum}) - ${preds.length}개 조합</h4>`;
+
+        // GA 적합도 표시
+        if (gaFitness.length > 0 && targetPhenoNames.length > 0) {
+            html += `<p style="color: #2196F3; font-size: 0.9em;">📊 GA 적합도: ${gaFitness.map((f, i) => `${targetPhenoNames[i] || '형질'+(i+1)}: ${(f*100).toFixed(1)}%`).join(', ')}</p>`;
+        }
+
+        html += `<div style="overflow-x: auto;">
             <table class="data-table"><thead><tr>
                 <th>부모1</th><th>재배형</th><th>부모2</th><th>재배형</th><th>유사도</th>`;
 
-        // 전체 형질 헤더
-        allPhenoList.forEach(p => html += `<th style="background: #00b894; color: white;">${p}</th>`);
+        // 목표 형질 헤더 (주황색 강조)
+        displayPhenoList.forEach(p => {
+            const isTarget = targetPhenoNames.includes(p);
+            const bgColor = isTarget ? '#ff9800' : '#00b894';
+            const prefix = isTarget ? '⭐ ' : '';
+            html += `<th style="background: ${bgColor}; color: white;">${prefix}${p}</th>`;
+        });
 
         // 유전자 헤더 (DMRT 청록색 배경)
         displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${gene}</th>`);
@@ -4714,8 +4746,8 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
             html += `<tr><td>${pred.parent1}</td><td>${pred.parent1Type}</td><td>${pred.parent2}</td><td>${pred.parent2Type}</td>
                 <td>${(pred.similarity * 100).toFixed(1)}%</td>`;
 
-            // 전체 형질 예측값 (없으면 '-' 표시)
-            allPhenoList.forEach(p => {
+            // 목표 형질 예측값 (없으면 '-' 표시)
+            displayPhenoList.forEach(p => {
                 const predValue = pred.predictions ? pred.predictions[p] : null;
                 if (predValue === null || predValue === undefined) {
                     html += `<td><span style="color: #999;">-</span></td>`;
