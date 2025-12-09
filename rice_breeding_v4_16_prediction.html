@@ -1046,6 +1046,7 @@ let imputedGenotypeData = null; // ML 결측치 예측 결과
 let imputationDone = false;
 let geneNames = [], phenotypeNames = [], varietyNames = [], varietyTypes = [];
 let optimalSolutions = [], currentCrossResults = [];
+let gaSelectedObjectives = []; // GA에서 선택한 목표 형질 인덱스 저장
 let markerInfo = []; // 연관 정보
 let pyodide = null;
 let correlationMatrix = null;
@@ -2872,12 +2873,19 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
         const results = await pyodide.runPythonAsync(pythonCode);
         const resultsJs = results.toJs({dict_converter: Object.fromEntries});
         
+        // GA에서 선택한 목표 형질 저장 (전역 변수)
+        gaSelectedObjectives = selectedObjectives.slice();
+        const targetPhenoNames = gaSelectedObjectives.map(i => phenotypeNames[i]);
+
         optimalSolutions = [];
         if (resultsJs.pareto_front && Array.isArray(resultsJs.pareto_front)) {
             for (const sol of resultsJs.pareto_front) {
                 optimalSolutions.push({
                     genotype: Array.isArray(sol.genotype) ? Array.from(sol.genotype) : [],
-                    fitness: Array.isArray(sol.fitness) ? Array.from(sol.fitness) : []
+                    fitness: Array.isArray(sol.fitness) ? Array.from(sol.fitness) : [],
+                    // 목표 형질 정보 추가
+                    targetObjectives: gaSelectedObjectives.slice(),
+                    targetPhenoNames: targetPhenoNames.slice()
                 });
             }
         }
@@ -3660,6 +3668,12 @@ function displayCrossoverResults(results, dataType) {
     const tongilCombos = results.filter(r => r.type1 === 'Tongil' || r.type2 === 'Tongil');
     const indicaCombos = results.filter(r => r.type1 === 'Indica' || r.type2 === 'Indica');
     
+    // 현재 선택한 최적해의 목표 형질 정보 가져오기
+    const solIdx = parseInt(document.getElementById('optimalSolutionSelect').value) || 0;
+    const selectedSolution = optimalSolutions[solIdx] || {};
+    const targetObjectives = selectedSolution.targetObjectives || gaSelectedObjectives || [];
+    const targetPhenoNames = selectedSolution.targetPhenoNames || targetObjectives.map(i => phenotypeNames[i]);
+
     currentCrossResults = results.map(combo => ({
         parent1_idx: combo.parent1_idx,
         parent2_idx: combo.parent2_idx,
@@ -3667,10 +3681,24 @@ function displayCrossoverResults(results, dataType) {
         parent2: varietyNames[combo.parent2_idx],
         type1: combo.type1,
         type2: combo.type2,
-        similarity: combo.similarity
+        similarity: combo.similarity,
+        // GA 목표 형질 정보 추가
+        targetObjectives: targetObjectives.slice(),
+        targetPhenoNames: targetPhenoNames.slice(),
+        gaFitness: selectedSolution.fitness ? selectedSolution.fitness.slice() : [],
+        basedOnOptimalIdx: solIdx
     }));
     
+    // 목표 형질 정보 표시
+    const targetInfo = targetPhenoNames.length > 0
+        ? `<div style="background: #e3f2fd; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3;">
+            <strong>🎯 GA 목표 형질:</strong> ${targetPhenoNames.join(', ')}
+            ${selectedSolution.fitness ? `<br><strong>📊 GA 적합도:</strong> ${selectedSolution.fitness.map((f, i) => `${targetPhenoNames[i]}: ${(f*100).toFixed(1)}%`).join(', ')}` : ''}
+           </div>`
+        : '';
+
     let html = `<div class="result-card"><h3>💑 추천 교배 조합 (재배형별 균등 제시)</h3>
+        ${targetInfo}
         <p style="color: ${dataType === 'imputed' ? '#00b894' : '#0c3026'}; margin-bottom: 10px;">
             📊 ${dataType === 'imputed' ? '결측치 예측' : '원본'} 데이터 사용 | 각 재배형별 최대 10개씩 (유사도 높은 순)
         </p></div>`;
@@ -4253,8 +4281,15 @@ for pheno_name in phenotype_names:
 function displayOffspringResults(results, p1Idx, p2Idx, similarity, p1Type, p2Type, method, dataType) {
     const p1 = varietyNames[p1Idx];
     const p2 = varietyNames[p2Idx];
-    
-    // 결과 저장
+
+    // 현재 선택된 교배조합에서 GA 목표 형질 정보 가져오기
+    const comboIdx = parseInt(document.getElementById('crossComboSelect').value) || 0;
+    const selectedCombo = currentCrossResults[comboIdx] || {};
+    const targetObjectives = selectedCombo.targetObjectives || gaSelectedObjectives || [];
+    const targetPhenoNames = selectedCombo.targetPhenoNames || targetObjectives.map(i => phenotypeNames[i]);
+    const gaFitness = selectedCombo.gaFitness || [];
+
+    // 결과 저장 (GA 목표 형질 정보 포함)
     offspringPredictions.push({
         parent1: p1,
         parent2: p2,
@@ -4268,35 +4303,83 @@ function displayOffspringResults(results, p1Idx, p2Idx, similarity, p1Type, p2Ty
         predictions: results.predictions,
         modelInfo: results.model_info,
         timestamp: new Date().toLocaleString('ko-KR'),
-        dataType: dataType
+        dataType: dataType,
+        // GA 목표 형질 정보 추가
+        targetObjectives: targetObjectives.slice(),
+        targetPhenoNames: targetPhenoNames.slice(),
+        gaFitness: gaFitness.slice(),
+        basedOnOptimalIdx: selectedCombo.basedOnOptimalIdx
     });
     
+    // GA 목표 형질 정보 표시
+    const targetInfoHtml = targetPhenoNames.length > 0
+        ? `<div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #2196F3;">
+            <strong>🎯 GA 목표 형질:</strong> ${targetPhenoNames.join(', ')}
+            ${gaFitness.length > 0 ? `<br><strong>📊 GA 적합도:</strong> ${gaFitness.map((f, i) => `${targetPhenoNames[i]}: ${(f*100).toFixed(1)}%`).join(', ')}` : ''}
+           </div>`
+        : '';
+
     let html = `
         <div class="result-card">
             <h3>👶 후대 예측 결과</h3>
             <p style="color: ${dataType === 'imputed' ? '#00b894' : '#0c3026'};">📊 ${dataType === 'imputed' ? '결측치 예측' : '원본'} 데이터 사용</p>
+            ${targetInfoHtml}
             <p style="font-size: 1.2em;"><strong>교배:</strong> ${p1} (${p1Type}) × ${p2} (${p2Type})</p>
             <p><strong>유사도:</strong> <span class="quality-badge quality-high">${(similarity * 100).toFixed(1)}%</span></p>
             <p><strong>방식:</strong> ${method === 'deterministic' ? '결정론적 (OR)' : '확률적 (멘델 분리 100개)'}</p>
         </div>
         <div class="result-card">
             <h3>📊 예측 표현형 (최적 ML 모델)</h3>
+            <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">⭐ 표시된 형질은 GA 목표 형질입니다</p>
             <table class="data-table">
-                <thead><tr><th>형질</th><th>예측값</th><th>모델</th><th>F1</th><th>Precision</th><th>Recall</th><th>Accuracy</th></tr></thead>
+                <thead><tr><th>형질</th><th>예측값</th><th>GA 목표</th><th>모델</th><th>F1</th><th>Precision</th><th>Recall</th><th>Accuracy</th></tr></thead>
                 <tbody>
     `;
     
     if (results.predictions && typeof results.predictions === 'object') {
-        for (const [pheno, stats] of Object.entries(results.predictions)) {
+        // GA 목표 형질 먼저 표시, 그 다음 나머지 형질 표시
+        const sortedPhenos = Object.keys(results.predictions).sort((a, b) => {
+            const aIsTarget = targetPhenoNames.includes(a);
+            const bIsTarget = targetPhenoNames.includes(b);
+            if (aIsTarget && !bIsTarget) return -1;
+            if (!aIsTarget && bIsTarget) return 1;
+            return 0;
+        });
+
+        for (const pheno of sortedPhenos) {
+            const stats = results.predictions[pheno];
             if (stats && typeof stats === 'object') {
                 const mean = stats.mean || 0;
                 const displayValue = mean >= 0.5 ? '저항성/양호 (1)' : '감수성/불량 (0)';
                 const badge = mean >= 0.5 ? 'quality-high' : 'quality-low';
-                
+
+                // GA 목표 형질인지 확인
+                const isTargetPheno = targetPhenoNames.includes(pheno);
+                const targetIdx = targetPhenoNames.indexOf(pheno);
+                const gaFitnessValue = targetIdx >= 0 && gaFitness[targetIdx] !== undefined ? gaFitness[targetIdx] : null;
+
+                // 목표 형질은 강조 표시
+                const rowStyle = isTargetPheno ? 'background: #fff3e0; font-weight: bold;' : '';
+                const phenoDisplay = isTargetPheno ? `⭐ ${pheno}` : pheno;
+
+                // GA 목표 열 - 적합도와 예측 비교
+                let gaTargetCell = '';
+                if (isTargetPheno && gaFitnessValue !== null) {
+                    const gaPercent = (gaFitnessValue * 100).toFixed(1);
+                    const predPercent = (mean * 100).toFixed(1);
+                    const diff = mean - gaFitnessValue;
+                    const diffIcon = diff >= 0 ? '✅' : '⚠️';
+                    gaTargetCell = `<span style="color: #2196F3;">${gaPercent}%</span> → <span style="color: ${diff >= 0 ? '#00b894' : '#e74c3c'};">${predPercent}%</span> ${diffIcon}`;
+                } else if (isTargetPheno) {
+                    gaTargetCell = '⭐ 목표';
+                } else {
+                    gaTargetCell = '-';
+                }
+
                 let modelInfo = results.model_info && results.model_info[pheno] ? results.model_info[pheno] : null;
-                
-                html += `<tr><td><strong>${pheno}</strong></td><td><span class="quality-badge ${badge}">${displayValue}</span></td>`;
-                
+
+                html += `<tr style="${rowStyle}"><td><strong>${phenoDisplay}</strong></td><td><span class="quality-badge ${badge}">${displayValue}</span></td><td>${gaTargetCell}</td>`;
+
                 if (modelInfo && typeof modelInfo === 'object') {
                     const f1Class = modelInfo.f1 >= 0.85 ? 'quality-high' : modelInfo.f1 >= 0.70 ? 'quality-medium' : 'quality-low';
                     html += `<td>${modelInfo.name || 'N/A'}</td>
@@ -4313,7 +4396,69 @@ function displayOffspringResults(results, p1Idx, p2Idx, similarity, p1Type, p2Ty
     }
     
     html += '</tbody></table></div>';
-    
+
+    // GA 적합도와 후대 예측 비교 요약 카드
+    if (targetPhenoNames.length > 0 && gaFitness.length > 0) {
+        let comparisonHtml = `<div class="result-card" style="background: #f3e5f5; border-left: 4px solid #9c27b0;">
+            <h3>📊 GA 목표 vs 후대 예측 비교</h3>
+            <table class="data-table" style="margin-top: 10px;">
+                <thead><tr><th>목표 형질</th><th>GA 적합도</th><th>후대 예측</th><th>차이</th><th>평가</th></tr></thead>
+                <tbody>`;
+
+        let totalMatch = 0;
+        let totalTarget = 0;
+
+        targetPhenoNames.forEach((phenoName, i) => {
+            const gaFit = gaFitness[i];
+            const predStats = results.predictions && results.predictions[phenoName];
+            const predMean = predStats ? (predStats.mean || 0) : null;
+
+            if (gaFit !== undefined && predMean !== null) {
+                totalTarget++;
+                const gaPercent = (gaFit * 100).toFixed(1);
+                const predPercent = (predMean * 100).toFixed(1);
+                const diff = predMean - gaFit;
+                const diffPercent = (diff * 100).toFixed(1);
+
+                // 평가: GA 목표치 달성 여부
+                let evaluation = '';
+                let evalStyle = '';
+                if (predMean >= 0.5 && gaFit >= 0.5) {
+                    evaluation = '✅ 목표 달성';
+                    evalStyle = 'color: #00b894;';
+                    totalMatch++;
+                } else if (predMean < 0.5 && gaFit >= 0.5) {
+                    evaluation = '⚠️ 미달성';
+                    evalStyle = 'color: #e74c3c;';
+                } else if (predMean >= 0.5 && gaFit < 0.5) {
+                    evaluation = '🎉 초과 달성';
+                    evalStyle = 'color: #00b894;';
+                    totalMatch++;
+                } else {
+                    evaluation = '➖ 목표 낮음';
+                    evalStyle = 'color: #95a5a6;';
+                }
+
+                comparisonHtml += `<tr>
+                    <td><strong>${phenoName}</strong></td>
+                    <td><span style="color: #2196F3;">${gaPercent}%</span></td>
+                    <td><span style="color: ${predMean >= 0.5 ? '#00b894' : '#e74c3c'};">${predPercent}%</span></td>
+                    <td><span style="color: ${diff >= 0 ? '#00b894' : '#e74c3c'};">${diff >= 0 ? '+' : ''}${diffPercent}%</span></td>
+                    <td style="${evalStyle}">${evaluation}</td>
+                </tr>`;
+            }
+        });
+
+        comparisonHtml += `</tbody></table>
+            <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 8px;">
+                <strong>📈 종합 평가:</strong> ${totalTarget}개 목표 형질 중 <span style="color: ${totalMatch >= totalTarget * 0.7 ? '#00b894' : '#e74c3c'}; font-weight: bold;">${totalMatch}개 달성</span> (${totalTarget > 0 ? ((totalMatch / totalTarget) * 100).toFixed(0) : 0}%)
+                ${totalMatch < totalTarget ? `<br><span style="color: #e74c3c;">💡 팁: 유사도가 높은 다른 교배 조합을 시도하거나, GA에서 다른 최적해를 선택해보세요.</span>` : ''}
+            </div>
+        </div>`;
+
+        html += comparisonHtml;
+    }
+
     // 유전자형 표시
     if (results.genotypes && results.genotypes.length > 0) {
         const geno = results.genotypes[0];
