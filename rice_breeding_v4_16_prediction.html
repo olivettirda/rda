@@ -777,7 +777,7 @@
             </div>
             <div style="margin: 10px 0;">
                 <label><strong>2단계 - 교배 조합:</strong> <span style="font-size: 0.85em; color: #666;">(선택한 최적해의 교배 조합)</span></label>
-                <select id="simCrossCombo" style="width: 100%;"><option value="">-- 최적해를 먼저 선택하세요 --</option></select>
+                <select id="simCrossCombo" style="width: 100%;" onchange="onSimCrossComboChange()"><option value="">-- 최적해를 먼저 선택하세요 --</option></select>
             </div>
             <div style="margin: 10px 0;">
                 <label><strong>목표 형질:</strong> <span style="font-size: 0.85em; color: #666;">(예측 및 선발할 형질)</span></label>
@@ -793,6 +793,55 @@
                 <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="phenotype" checked> 표현형 선발 <span style="font-size: 0.85em; color: #888;">(권장)</span></label>
                 <label style="margin: 5px 10px;"><input type="radio" name="selectionStrategy" value="marker"> MAS <span style="font-size: 0.85em; color: #888;">(마커 기반)</span></label>
             </div>
+
+            <!-- 여교배(Backcross) 설정 -->
+            <div style="margin: 10px 0; padding: 15px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 8px; border-left: 4px solid #1976d2;">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="enableBackcross" onchange="toggleBackcrossOptions()">
+                    <strong style="color: #1976d2;">🔄 여교배(Backcross) 사용</strong>
+                    <span style="font-size: 0.85em; color: #666;">- 특정 품종의 유전자 비율을 높이기 위해 반복친과 교배</span>
+                </label>
+                <div id="backcrossOptions" style="display: none; margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.8); border-radius: 6px;">
+                    <div style="margin-bottom: 10px;">
+                        <label><strong>반복친(Recurrent Parent) 선택:</strong></label>
+                        <span style="font-size: 0.85em; color: #666; display: block; margin: 5px 0;">여교배 시 유전자를 더 많이 받을 품종</span>
+                        <div style="margin-top: 8px;">
+                            <label style="margin-right: 20px;">
+                                <input type="radio" name="recurrentParent" value="mother" checked>
+                                <strong>모본 (P1)</strong> - <span id="recurrentP1Name" style="color: #1976d2;">미선택</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="recurrentParent" value="father">
+                                <strong>부본 (P2)</strong> - <span id="recurrentP2Name" style="color: #e17055;">미선택</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label>
+                            <strong>여교배 세대 수:</strong>
+                            <select id="backcrossGenerations" style="margin-left: 10px;">
+                                <option value="1">BC1 (75% 반복친)</option>
+                                <option value="2" selected>BC2 (87.5% 반복친)</option>
+                                <option value="3">BC3 (93.75% 반복친)</option>
+                                <option value="4">BC4 (96.875% 반복친)</option>
+                                <option value="5">BC5 (98.44% 반복친)</option>
+                            </select>
+                        </label>
+                        <span style="font-size: 0.85em; color: #666; margin-left: 10px;">이후 자가수정 진행</span>
+                    </div>
+                    <div style="padding: 10px; background: #fff3e0; border-radius: 6px; margin-top: 10px;">
+                        <strong style="color: #e65100;">📖 여교배 원리:</strong>
+                        <ul style="margin: 8px 0 0 20px; font-size: 0.9em; color: #555;">
+                            <li><strong>공여친(Donor)</strong>: 도입하려는 목표 형질(저항성 등)을 가진 품종</li>
+                            <li><strong>반복친(Recurrent)</strong>: 우수한 농업 형질을 가진 품종 (대부분의 유전자 유지)</li>
+                            <li>BC1: F1 × 반복친 → 75% 반복친 유전체</li>
+                            <li>BC2: BC1 × 반복친 → 87.5% 반복친 유전체</li>
+                            <li>BCn 이후 자가수정으로 목표 형질 동형접합 고정</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <button class="btn btn-success" onclick="runLinkageSimulation()" style="font-size: 1.1em; padding: 15px 40px;">🚀 연관 시뮬레이션 실행</button>
         </div>
         <div class="loading" id="simLoading"><div class="spinner"></div><p>시뮬레이션 중... (연관 기반 분리 계산)</p></div>
@@ -800,6 +849,15 @@
         <div class="result-card"><h3>📊 세대별 표현형</h3><div id="phenotypePlot" style="height: 400px;"></div></div>
         <div class="result-card"><h3>🎯 형질 고정률</h3><div id="fixationPlot" style="height: 350px;"></div></div>
         <div class="result-card"><h3>🔗 연관 블록 유지율</h3><div id="linkagePlot" style="height: 350px;"></div></div>
+        <!-- 여교배 전용 차트 -->
+        <div class="result-card" id="genomeRecoveryCard" style="display: none;">
+            <h3>🧬 게놈 회복률 (Genome Recovery Rate)</h3>
+            <div id="genomeRecoveryPlot" style="height: 350px;"></div>
+        </div>
+        <div class="result-card" id="donorTraitCard" style="display: none;">
+            <h3>🎯 공여친 형질 유지율 (Donor Trait Retention)</h3>
+            <div id="donorTraitPlot" style="height: 350px;"></div>
+        </div>
         <div id="simSummary"></div>
     </div>
     <!-- Tab 10: 종합 리포트 -->
@@ -1804,6 +1862,56 @@ function selfFertilize(haplotypes) {
     return [meiosis(haplotypes), meiosis(haplotypes)];
 }
 
+// 여교배 (Backcross): 잡종 × 반복친
+// hybrid: 잡종 개체의 haplotypes [hap1, hap2]
+// recurrentHaps: 반복친의 haplotypes [hap1, hap2]
+function backcross(hybridHaps, recurrentHaps) {
+    const gameteFromHybrid = meiosis(hybridHaps);
+    const gameteFromRecurrent = meiosis(recurrentHaps);
+    return [gameteFromHybrid, gameteFromRecurrent];
+}
+
+// 게놈 회복률 계산 (Genome Recovery Rate)
+// 반복친 유전체와 얼마나 유사한지 계산 (0~1)
+function calcGenomeRecoveryRate(population, recurrentGeno) {
+    if (!population.length) return 0;
+
+    let totalMatch = 0;
+    let totalLoci = 0;
+
+    population.forEach(ind => {
+        const geno = hapsToGeno(ind);
+        geno.forEach((g, i) => {
+            totalLoci++;
+            // 반복친과 동일하면 회복
+            if (g === recurrentGeno[i]) totalMatch++;
+            // 이형접합이면 절반 회복으로 계산
+            else if (g === 1 && (recurrentGeno[i] === 0 || recurrentGeno[i] === 2)) totalMatch += 0.5;
+        });
+    });
+
+    return totalLoci > 0 ? totalMatch / totalLoci : 0;
+}
+
+// 목표 형질 유전자 보유율 계산 (공여친에서 온 목표 유전자 유지율)
+function calcDonorTraitRetention(population, donorGeno, targetGeneIdx) {
+    if (!population.length || !targetGeneIdx.length) return 0;
+
+    let retained = 0;
+    let total = 0;
+
+    population.forEach(ind => {
+        const geno = hapsToGeno(ind);
+        targetGeneIdx.forEach(i => {
+            total++;
+            // 공여친의 저항성 유전자(R=1,2)가 유지되었는지 확인
+            if (donorGeno[i] >= 1 && geno[i] >= 1) retained++;
+        });
+    });
+
+    return total > 0 ? retained / total : 0;
+}
+
 // Haplotype → Genotype
 function hapsToGeno(haps) {
     return haps[0].map((h1, i) => h1 + haps[1][i]);
@@ -1832,18 +1940,23 @@ function calcLinkageRetention(pop) {
 async function runLinkageSimulation() {
     const combo = document.getElementById('simCrossCombo').value;
     if (!combo) { alert('교배 조합을 선택하세요.'); return; }
-    
+
     const targetTraits = Array.from(document.querySelectorAll('input[name="simTrait"]:checked')).map(c => c.value);
     if (!targetTraits.length) { alert('목표 형질을 선택하세요.'); return; }
-    
+
     const iterations = parseInt(document.getElementById('simIterations').value) || 500;
     const finalGen = parseInt(document.getElementById('simFinalGen').value) || 7;
     const strategy = document.querySelector('input[name="selectionStrategy"]:checked')?.value || 'phenotype';
-    
+
+    // 여교배 설정
+    const enableBackcross = document.getElementById('enableBackcross')?.checked || false;
+    const recurrentParentChoice = document.querySelector('input[name="recurrentParent"]:checked')?.value || 'mother';
+    const bcGenerations = parseInt(document.getElementById('backcrossGenerations')?.value) || 2;
+
     // 선택된 데이터
     const activeData = getSelectedGenotypeData('simData');
     const dataType = document.querySelector('input[name="simData"]:checked')?.value || 'original';
-    
+
     // 부모 인덱스
     let p1Idx, p2Idx, p1Name, p2Name;
     if (combo.startsWith('pred_')) {
@@ -1872,7 +1985,7 @@ async function runLinkageSimulation() {
         p1Name = c.parent1;
         p2Name = c.parent2;
     }
-    
+
     // 목표 유전자 인덱스
     const targetGeneIdx = [];
     targetTraits.forEach(t => {
@@ -1883,102 +1996,275 @@ async function runLinkageSimulation() {
             }
         });
     });
-    
+
     document.getElementById('simLoading').classList.add('active');
     document.getElementById('simProgress').style.display = 'block';
-    document.getElementById('simDataStatus').innerHTML = dataType === 'imputed' ? 
-        '<span style="color: #00b894;">📊 결측치 예측 데이터 사용</span>' : 
+
+    // 데이터 상태 표시 (여교배 포함)
+    let statusHtml = dataType === 'imputed' ?
+        '<span style="color: #00b894;">📊 결측치 예측 데이터 사용</span>' :
         '<span style="color: #0c3026;">📊 원본 데이터 사용</span>';
-    
+    if (enableBackcross) {
+        const recurrentName = recurrentParentChoice === 'mother' ? p1Name : p2Name;
+        statusHtml += ` | <span style="color: #1976d2;">🔄 여교배 BC${bcGenerations} (반복친: ${recurrentName})</span>`;
+    }
+    document.getElementById('simDataStatus').innerHTML = statusHtml;
+
     // 부모 유전자형 → haplotype (선택된 데이터 사용)
     const p1Geno = geneNames.map(g => activeData[p1Idx][g]);
     const p2Geno = geneNames.map(g => activeData[p2Idx][g]);
     const p1Haps = createParentHaplotypes(p1Geno);
     const p2Haps = createParentHaplotypes(p2Geno);
-    
-    const results = { generations: [], phenotypeMean: [], phenotypeStd: [], fixationRate: [], linkageRetention: [] };
-    
+
+    // 숫자형 유전자형 배열 (게놈 회복률 계산용)
+    const p1GenoNum = p1Geno.map(g => typeof g === 'string' ? (['R', '1', 'X', 'x'].includes(g) ? 2 : 0) : (g >= 1 ? 2 : 0));
+    const p2GenoNum = p2Geno.map(g => typeof g === 'string' ? (['R', '1', 'X', 'x'].includes(g) ? 2 : 0) : (g >= 1 ? 2 : 0));
+
+    // 반복친/공여친 설정
+    let recurrentHaps, recurrentGeno, donorGeno, recurrentName, donorName;
+    if (enableBackcross) {
+        if (recurrentParentChoice === 'mother') {
+            recurrentHaps = p1Haps;
+            recurrentGeno = p1GenoNum;
+            recurrentName = p1Name;
+            donorGeno = p2GenoNum;
+            donorName = p2Name;
+        } else {
+            recurrentHaps = p2Haps;
+            recurrentGeno = p2GenoNum;
+            recurrentName = p2Name;
+            donorGeno = p1GenoNum;
+            donorName = p1Name;
+        }
+    }
+
+    const results = {
+        generations: [],
+        phenotypeMean: [],
+        phenotypeStd: [],
+        fixationRate: [],
+        linkageRetention: [],
+        genomeRecovery: [],      // 여교배: 반복친 게놈 회복률
+        donorTraitRetention: []  // 여교배: 공여친 목표 형질 유지율
+    };
+
     // F1 집단
     let population = [];
     for (let i = 0; i < iterations; i++) population.push(createF1(p1Haps, p2Haps));
-    
-    // 세대 진전
-    for (let gen = 1; gen <= finalGen; gen++) {
-        results.generations.push(`F${gen}`);
-        
-        // 진행률 업데이트
-        const progress = Math.round((gen / finalGen) * 100);
-        document.getElementById('simProgressBar').style.width = progress + '%';
-        document.getElementById('simProgressBar').textContent = progress + '%';
-        await new Promise(r => setTimeout(r, 10));
-        
-        if (gen > 1) {
-            // 자가수정
-            let newPop = population.map(ind => selfFertilize(ind));
-            
-            // 선발
+
+    // 총 세대 수 계산
+    const totalGenerations = enableBackcross ? (1 + bcGenerations + finalGen - 1) : finalGen;
+    let genCounter = 0;
+
+    // === F1 세대 기록 ===
+    genCounter++;
+    results.generations.push('F1');
+    recordGenerationStats(results, population, targetGeneIdx, enableBackcross ? recurrentGeno : null, enableBackcross ? donorGeno : null);
+    updateProgress(genCounter, totalGenerations);
+    await new Promise(r => setTimeout(r, 10));
+
+    // === 여교배 세대 (BC1, BC2, ...) ===
+    if (enableBackcross) {
+        for (let bc = 1; bc <= bcGenerations; bc++) {
+            genCounter++;
+            results.generations.push(`BC${bc}`);
+
+            // 여교배: 잡종 × 반복친
+            let newPop = population.map(ind => backcross(ind, recurrentHaps));
+
+            // MAS 선발: 목표 형질 유전자 보유 개체 우선 선발
             if (strategy !== 'none') {
                 const scores = newPop.map(ind => {
                     const geno = hapsToGeno(ind);
+                    // 목표 형질 유전자 보유 점수 (공여친에서 온 저항성 유전자)
                     return targetGeneIdx.reduce((sum, i) => sum + (geno[i] >= 1 ? 1 : 0), 0) / Math.max(1, targetGeneIdx.length);
                 });
                 const sorted = newPop.map((ind, i) => ({ ind, score: scores[i] })).sort((a, b) => b.score - a.score);
+                // 상위 50% 선발 (목표 형질 유전자 보유 개체)
                 const selected = sorted.slice(0, Math.ceil(sorted.length * 0.5)).map(x => x.ind);
                 population = [];
                 while (population.length < iterations) population.push(selected[population.length % selected.length]);
             } else {
                 population = newPop;
             }
+
+            recordGenerationStats(results, population, targetGeneIdx, recurrentGeno, donorGeno);
+            updateProgress(genCounter, totalGenerations);
+            await new Promise(r => setTimeout(r, 10));
         }
-        
-        // 통계
-        const genotypes = population.map(hapsToGeno);
-        const phenoScores = genotypes.map(g => targetGeneIdx.reduce((s, i) => s + (g[i] >= 1 ? 1 : 0), 0) / Math.max(1, targetGeneIdx.length));
-        const mean = phenoScores.reduce((a, b) => a + b, 0) / phenoScores.length;
-        results.phenotypeMean.push(mean);
-        results.phenotypeStd.push(Math.sqrt(phenoScores.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0) / phenoScores.length));
-        
-        const fixCount = genotypes.filter(g => targetGeneIdx.every(i => g[i] === 0 || g[i] === 2)).length;
-        results.fixationRate.push(fixCount / genotypes.length);
-        results.linkageRetention.push(calcLinkageRetention(population));
-        
-        // 타임라인 업데이트
-        const circle = document.getElementById(`gen-F${gen}`);
-        if (circle) circle.classList.add('completed');
     }
-    
+
+    // === 자가수정 세대 (F2~Fn 또는 BCnF1~BCnFn) ===
+    const selfingStart = enableBackcross ? 2 : 2;  // F2부터 또는 BCnF2부터
+    const selfingEnd = finalGen;
+
+    for (let sf = selfingStart; sf <= selfingEnd; sf++) {
+        genCounter++;
+        const genLabel = enableBackcross ? `BC${bcGenerations}F${sf - 1}` : `F${sf}`;
+        results.generations.push(genLabel);
+
+        // 자가수정
+        let newPop = population.map(ind => selfFertilize(ind));
+
+        // 선발
+        if (strategy !== 'none') {
+            const scores = newPop.map(ind => {
+                const geno = hapsToGeno(ind);
+                return targetGeneIdx.reduce((sum, i) => sum + (geno[i] >= 1 ? 1 : 0), 0) / Math.max(1, targetGeneIdx.length);
+            });
+            const sorted = newPop.map((ind, i) => ({ ind, score: scores[i] })).sort((a, b) => b.score - a.score);
+            const selected = sorted.slice(0, Math.ceil(sorted.length * 0.5)).map(x => x.ind);
+            population = [];
+            while (population.length < iterations) population.push(selected[population.length % selected.length]);
+        } else {
+            population = newPop;
+        }
+
+        recordGenerationStats(results, population, targetGeneIdx, enableBackcross ? recurrentGeno : null, enableBackcross ? donorGeno : null);
+        updateProgress(genCounter, totalGenerations);
+        await new Promise(r => setTimeout(r, 10));
+    }
+
     document.getElementById('simLoading').classList.remove('active');
     document.getElementById('simProgress').style.display = 'none';
-    
-    displaySimResults(results, varietyNames[p1Idx], varietyNames[p2Idx], targetTraits);
+
+    // 여교배 정보 포함하여 결과 표시
+    const simConfig = {
+        enableBackcross,
+        bcGenerations,
+        recurrentName: enableBackcross ? recurrentName : null,
+        donorName: enableBackcross ? donorName : null
+    };
+    displaySimResults(results, p1Name, p2Name, targetTraits, simConfig);
 }
 
-function displaySimResults(results, p1, p2, traits) {
+// 진행률 업데이트
+function updateProgress(current, total) {
+    const progress = Math.round((current / total) * 100);
+    document.getElementById('simProgressBar').style.width = progress + '%';
+    document.getElementById('simProgressBar').textContent = progress + '%';
+}
+
+// 세대 통계 기록
+function recordGenerationStats(results, population, targetGeneIdx, recurrentGeno, donorGeno) {
+    const genotypes = population.map(hapsToGeno);
+
+    // 표현형 점수 (목표 형질 보유율)
+    const phenoScores = genotypes.map(g =>
+        targetGeneIdx.reduce((s, i) => s + (g[i] >= 1 ? 1 : 0), 0) / Math.max(1, targetGeneIdx.length)
+    );
+    const mean = phenoScores.reduce((a, b) => a + b, 0) / phenoScores.length;
+    results.phenotypeMean.push(mean);
+    results.phenotypeStd.push(Math.sqrt(phenoScores.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0) / phenoScores.length));
+
+    // 고정률
+    const fixCount = genotypes.filter(g => targetGeneIdx.every(i => g[i] === 0 || g[i] === 2)).length;
+    results.fixationRate.push(fixCount / genotypes.length);
+
+    // 연관 블록 유지율
+    results.linkageRetention.push(calcLinkageRetention(population));
+
+    // 여교배 전용 통계
+    if (recurrentGeno) {
+        results.genomeRecovery.push(calcGenomeRecoveryRate(population, recurrentGeno));
+    }
+    if (donorGeno && targetGeneIdx.length > 0) {
+        results.donorTraitRetention.push(calcDonorTraitRetention(population, donorGeno, targetGeneIdx));
+    }
+}
+
+function displaySimResults(results, p1, p2, traits, simConfig = {}) {
+    const { enableBackcross, bcGenerations, recurrentName, donorName } = simConfig;
+
+    // 표현형 차트 제목
+    const crossTitle = enableBackcross
+        ? `여교배 시뮬레이션: ${donorName}(공여친) × ${recurrentName}(반복친)`
+        : `세대별 표현형: ${p1} × ${p2}`;
+
     // 표현형 차트
     Plotly.newPlot('phenotypePlot', [{
         x: results.generations, y: results.phenotypeMean, type: 'scatter', mode: 'lines+markers',
         name: '평균', error_y: { type: 'data', array: results.phenotypeStd, visible: true },
         line: { color: '#0c3026', width: 3 }, marker: { size: 10 }
-    }], { title: `세대별 표현형: ${p1} × ${p2}`, xaxis: { title: '세대' }, yaxis: { title: '목표 형질 점수', range: [0, 1.1] } }, { responsive: true });
-    
+    }], { title: crossTitle, xaxis: { title: '세대' }, yaxis: { title: '목표 형질 점수', range: [0, 1.1] } }, { responsive: true });
+
     // 고정률 차트
     Plotly.newPlot('fixationPlot', [{
         x: results.generations, y: results.fixationRate, type: 'scatter', mode: 'lines+markers', fill: 'tozeroy',
         line: { color: '#00b894', width: 3 }, marker: { size: 8 }
     }], { title: '형질 고정률 (동형접합 비율)', xaxis: { title: '세대' }, yaxis: { title: '고정률', range: [0, 1.1] } }, { responsive: true });
-    
+
     // 연관 블록 유지율
     Plotly.newPlot('linkagePlot', [{
         x: results.generations, y: results.linkageRetention, type: 'scatter', mode: 'lines+markers',
         line: { color: '#e17055', width: 3 }, marker: { size: 8 }
     }], { title: '연관 블록 유지율 (v4.16)', xaxis: { title: '세대' }, yaxis: { title: '유지율', range: [0, 1.1] } }, { responsive: true });
-    
+
+    // 여교배 전용 차트
+    if (enableBackcross && results.genomeRecovery && results.genomeRecovery.length > 0) {
+        document.getElementById('genomeRecoveryCard').style.display = 'block';
+        document.getElementById('donorTraitCard').style.display = 'block';
+
+        // 게놈 회복률 차트 (이론값과 비교)
+        const theoreticalRecovery = results.generations.map((gen, i) => {
+            if (gen === 'F1') return 0.5;
+            if (gen.startsWith('BC')) {
+                const bcNum = parseInt(gen.replace('BC', '').replace(/F.*/, ''));
+                return 1 - Math.pow(0.5, bcNum + 1);
+            }
+            // 자가수정 세대에서는 마지막 BC 수준 유지
+            return results.genomeRecovery[i] || (1 - Math.pow(0.5, bcGenerations + 1));
+        });
+
+        Plotly.newPlot('genomeRecoveryPlot', [
+            {
+                x: results.generations, y: results.genomeRecovery, type: 'scatter', mode: 'lines+markers',
+                name: '실제 회복률', line: { color: '#1976d2', width: 3 }, marker: { size: 10 }
+            },
+            {
+                x: results.generations, y: theoreticalRecovery, type: 'scatter', mode: 'lines+markers',
+                name: '이론 기댓값', line: { color: '#9e9e9e', width: 2, dash: 'dash' }, marker: { size: 6 }
+            }
+        ], {
+            title: `게놈 회복률: 반복친(${recurrentName}) 유전체 비율`,
+            xaxis: { title: '세대' },
+            yaxis: { title: '회복률', range: [0.4, 1.05] },
+            legend: { x: 0.02, y: 0.98 }
+        }, { responsive: true });
+
+        // 공여친 형질 유지율 차트
+        if (results.donorTraitRetention && results.donorTraitRetention.length > 0) {
+            Plotly.newPlot('donorTraitPlot', [{
+                x: results.generations, y: results.donorTraitRetention, type: 'scatter', mode: 'lines+markers', fill: 'tozeroy',
+                name: '목표 형질 유지율', line: { color: '#ff9800', width: 3 }, marker: { size: 10 }
+            }], {
+                title: `공여친(${donorName}) 목표 형질 유전자 유지율`,
+                xaxis: { title: '세대' },
+                yaxis: { title: '유지율', range: [0, 1.1] },
+                annotations: [{
+                    x: results.generations[results.generations.length - 1],
+                    y: results.donorTraitRetention[results.donorTraitRetention.length - 1],
+                    text: `${(results.donorTraitRetention[results.donorTraitRetention.length - 1] * 100).toFixed(1)}%`,
+                    showarrow: true, arrowhead: 2
+                }]
+            }, { responsive: true });
+        }
+    } else {
+        document.getElementById('genomeRecoveryCard').style.display = 'none';
+        document.getElementById('donorTraitCard').style.display = 'none';
+    }
+
     // 요약
     const finalMean = results.phenotypeMean[results.phenotypeMean.length - 1];
     const finalFix = results.fixationRate[results.fixationRate.length - 1];
     const finalLink = results.linkageRetention[results.linkageRetention.length - 1];
-    const gain = finalMean - results.phenotypeMean[1];
-    
+    const firstSelfingIdx = enableBackcross ? bcGenerations + 1 : 1;
+    const gain = finalMean - results.phenotypeMean[firstSelfingIdx];
+
+    // 여교배 전용 통계
+    const finalGenomeRecovery = enableBackcross && results.genomeRecovery ? results.genomeRecovery[results.genomeRecovery.length - 1] : null;
+    const finalDonorRetention = enableBackcross && results.donorTraitRetention ? results.donorTraitRetention[results.donorTraitRetention.length - 1] : null;
+
     // 결과 해석 메시지 생성
     const phenoInterpret = finalMean >= 0.8 ? '매우 우수 - 목표 형질 대부분 달성' :
                            finalMean >= 0.6 ? '양호 - 목표 형질 상당 부분 달성' :
@@ -1993,10 +2279,50 @@ function displaySimResults(results, p1, p2, traits) {
                           gain >= 0.05 ? '양호한 유전 이득' :
                           gain >= 0 ? '소폭 개선 또는 유지' : '유전 이득 없음 - 선발 전략 재검토';
 
+    // 여교배 해석
+    let bcInterpret = '', donorInterpret = '';
+    if (enableBackcross) {
+        const expectedRecovery = (1 - Math.pow(0.5, bcGenerations + 1)) * 100;
+        bcInterpret = finalGenomeRecovery >= 0.95 ? '우수 - 반복친 유전체 거의 회복' :
+                      finalGenomeRecovery >= 0.90 ? '양호 - 반복친 유전체 대부분 회복' :
+                      finalGenomeRecovery >= 0.85 ? '보통 - 추가 여교배 고려' : '미흡 - 여교배 세대 증가 필요';
+        donorInterpret = finalDonorRetention >= 0.9 ? '우수 - 목표 형질 유전자 대부분 유지' :
+                         finalDonorRetention >= 0.7 ? '양호 - 목표 형질 유전자 다수 유지' :
+                         finalDonorRetention >= 0.5 ? '보통 - MAS 선발 강화 필요' : '주의 - 목표 형질 유전자 상실 위험';
+    }
+
+    // 최종 세대 라벨
+    const finalGenLabel = results.generations[results.generations.length - 1];
+
+    // 여교배 정보 카드
+    let backcrossInfoHtml = '';
+    if (enableBackcross) {
+        backcrossInfoHtml = `
+        <div class="result-card" style="background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%); color: white; margin-bottom: 15px;">
+            <h3 style="color: white;">🔄 여교배(Backcross) 정보</h3>
+            <p><strong>반복친:</strong> ${recurrentName} | <strong>공여친:</strong> ${donorName} | <strong>여교배 세대:</strong> BC${bcGenerations}</p>
+            <div class="stats-grid" style="margin-top: 15px;">
+                <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #1976d2;">
+                    <div>게놈 회복률</div><div class="stat-value">${(finalGenomeRecovery * 100).toFixed(1)}%</div>
+                    <div style="font-size: 0.75em; color: #666;">이론값: ${((1 - Math.pow(0.5, bcGenerations + 1)) * 100).toFixed(1)}%</div>
+                </div>
+                <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #ff9800;">
+                    <div>목표 형질 유지</div><div class="stat-value">${(finalDonorRetention * 100).toFixed(1)}%</div>
+                    <div style="font-size: 0.75em; color: #666;">공여친 유전자</div>
+                </div>
+                <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #4caf50;">
+                    <div>여교배 효율</div><div class="stat-value">${((finalGenomeRecovery * finalDonorRetention) * 100).toFixed(1)}%</div>
+                    <div style="font-size: 0.75em; color: #666;">회복률 × 유지율</div>
+                </div>
+            </div>
+        </div>`;
+    }
+
     document.getElementById('simSummary').innerHTML = `
+        ${backcrossInfoHtml}
         <div class="result-card" style="background: linear-gradient(135deg, #0c3026 0%, #017f97 100%); color: white;">
             <h3 style="color: white;">📊 시뮬레이션 결과 요약</h3>
-            <p><strong>교배:</strong> ${p1} × ${p2} | <strong>목표 형질:</strong> ${traits.join(', ')}</p>
+            <p><strong>교배:</strong> ${p1} × ${p2} | <strong>목표 형질:</strong> ${traits.join(', ')}${enableBackcross ? ` | <strong>방식:</strong> 여교배 BC${bcGenerations}` : ''}</p>
             <div class="stats-grid" style="margin-top: 15px;">
                 <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #017f97;">
                     <div>최종 표현형</div><div class="stat-value">${(finalMean * 100).toFixed(1)}%</div>
@@ -2008,18 +2334,34 @@ function displaySimResults(results, p1, p2, traits) {
                     <div>연관 블록 유지</div><div class="stat-value">${(finalLink * 100).toFixed(1)}%</div>
                 </div>
                 <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #017f97;">
-                    <div>유전 이득 (F2→F7)</div><div class="stat-value" style="color: ${gain >= 0 ? '#00b894' : '#e74c3c'};">${gain >= 0 ? '+' : ''}${(gain * 100).toFixed(1)}%</div>
+                    <div>유전 이득</div><div class="stat-value" style="color: ${gain >= 0 ? '#00b894' : '#e74c3c'};">${gain >= 0 ? '+' : ''}${(gain * 100).toFixed(1)}%</div>
                 </div>
             </div>
         </div>
         <div class="result-card" style="background: #f8f9fa; border-left: 4px solid #017f97;">
             <h3 style="color: #017f97;">📖 결과 해설</h3>
             <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                ${enableBackcross ? `
+                <tr style="border-bottom: 1px solid #ddd; background: #e3f2fd;">
+                    <td style="padding: 12px; width: 140px; font-weight: bold; color: #1976d2;">🔄 게놈 회복률</td>
+                    <td style="padding: 12px;">
+                        <strong>${(finalGenomeRecovery * 100).toFixed(1)}%</strong> - ${bcInterpret}<br>
+                        <span style="font-size: 0.85em; color: #666;">반복친(${recurrentName}) 유전체가 회복된 비율. BC${bcGenerations} 이론값은 ${((1 - Math.pow(0.5, bcGenerations + 1)) * 100).toFixed(1)}%입니다. 여교배는 우수한 농업 형질을 가진 반복친의 유전적 배경을 유지하면서 공여친의 특정 형질(저항성 등)만 도입하는 방법입니다.</span>
+                    </td>
+                </tr>
+                <tr style="border-bottom: 1px solid #ddd; background: #fff3e0;">
+                    <td style="padding: 12px; font-weight: bold; color: #ff9800;">🎯 형질 유지율</td>
+                    <td style="padding: 12px;">
+                        <strong>${(finalDonorRetention * 100).toFixed(1)}%</strong> - ${donorInterpret}<br>
+                        <span style="font-size: 0.85em; color: #666;">공여친(${donorName})에서 온 목표 형질 유전자가 유지된 비율. 여교배 중 MAS(Marker-Assisted Selection)로 목표 유전자를 보유한 개체를 선발해야 유지율이 높습니다.</span>
+                    </td>
+                </tr>
+                ` : ''}
                 <tr style="border-bottom: 1px solid #ddd;">
                     <td style="padding: 12px; width: 140px; font-weight: bold; color: #017f97;">최종 표현형</td>
                     <td style="padding: 12px;">
                         <strong>${(finalMean * 100).toFixed(1)}%</strong> - ${phenoInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">F7 세대에서 목표 형질(${traits.join(', ')})이 발현된 개체 비율. 선발한 형질에 해당하는 유전자가 우성(R)으로 고정된 정도를 나타냅니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">${finalGenLabel} 세대에서 목표 형질(${traits.join(', ')})이 발현된 개체 비율. 선발한 형질에 해당하는 유전자가 우성(R)으로 고정된 정도를 나타냅니다.</span>
                     </td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ddd;">
@@ -2040,11 +2382,44 @@ function displaySimResults(results, p1, p2, traits) {
                     <td style="padding: 12px; font-weight: bold; color: #017f97;">유전 이득</td>
                     <td style="padding: 12px;">
                         <strong style="color: ${gain >= 0 ? '#00b894' : '#e74c3c'};">${gain >= 0 ? '+' : ''}${(gain * 100).toFixed(1)}%</strong> - ${gainInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">F2 대비 F7의 표현형 개선 정도. 양수면 선발 효과가 있음을 의미합니다. 선발 전략(표현형/MAS)에 따라 달라집니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">${enableBackcross ? `BC${bcGenerations}F1` : 'F2'} 대비 ${finalGenLabel}의 표현형 개선 정도. 양수면 선발 효과가 있음을 의미합니다. 선발 전략(표현형/MAS)에 따라 달라집니다.</span>
                     </td>
                 </tr>
             </table>
-        </div>`;
+        </div>
+        ${enableBackcross ? `
+        <div class="result-card" style="background: #fff8e1; border-left: 4px solid #ff9800;">
+            <h3 style="color: #ff9800;">📚 여교배(Backcross) 육종 해설</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <tr style="border-bottom: 1px solid #ffe0b2;">
+                    <td style="padding: 10px; width: 120px; font-weight: bold;">목적</td>
+                    <td style="padding: 10px;">우수한 품종(반복친)의 유전적 배경을 유지하면서 특정 형질(저항성 등)만 도입</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #ffe0b2;">
+                    <td style="padding: 10px; font-weight: bold;">반복친</td>
+                    <td style="padding: 10px;"><strong>${recurrentName}</strong> - 우수한 농업 형질을 가진 품종. 여교배를 반복하여 이 품종의 유전체를 최대한 회복</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #ffe0b2;">
+                    <td style="padding: 10px; font-weight: bold;">공여친</td>
+                    <td style="padding: 10px;"><strong>${donorName}</strong> - 도입하려는 목표 형질(${traits.join(', ')})을 가진 품종</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #ffe0b2;">
+                    <td style="padding: 10px; font-weight: bold;">게놈 회복</td>
+                    <td style="padding: 10px;">
+                        BC1: 75% → BC2: 87.5% → BC3: 93.75% → BC4: 96.875% → BC5: 98.44%<br>
+                        <span style="font-size: 0.85em; color: #666;">일반적으로 BC2~BC4까지 진행하며, BC4 이상이면 반복친과 거의 동일한 유전적 배경</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; font-weight: bold;">MAS 선발</td>
+                    <td style="padding: 10px;">
+                        여교배 과정에서 분자 마커를 이용한 선발(Marker-Assisted Selection)로 목표 형질 유전자 보유 개체를 선발해야 효율적입니다.
+                        전경 선발(목표 유전자)과 배경 선발(반복친 게놈 회복)을 병행하면 육종 기간을 단축할 수 있습니다.
+                    </td>
+                </tr>
+            </table>
+        </div>
+        ` : ''}`;
 }
 
 // ==================== UI 업데이트 ====================
@@ -2138,6 +2513,7 @@ function updateSimCrossComboByOptimal() {
 
     if (!selectedOptimal) {
         crossSelect.innerHTML = '<option value="">-- 최적해를 먼저 선택하세요 --</option>';
+        updateBackcrossParentNames('', '');
         return;
     }
 
@@ -2159,6 +2535,60 @@ function updateSimCrossComboByOptimal() {
             crossSelect.innerHTML = '<option value="">-- 해당 최적해의 교배조합 없음 --</option>';
         }
     }
+
+    // 첫 번째 조합 자동 선택 시 부모 이름 업데이트
+    updateBackcrossParentNames('', '');
+}
+
+// 여교배 옵션 토글
+function toggleBackcrossOptions() {
+    const enabled = document.getElementById('enableBackcross').checked;
+    document.getElementById('backcrossOptions').style.display = enabled ? 'block' : 'none';
+}
+
+// 여교배 부모 이름 업데이트
+function updateBackcrossParentNames(p1Name, p2Name) {
+    const p1Span = document.getElementById('recurrentP1Name');
+    const p2Span = document.getElementById('recurrentP2Name');
+    if (p1Span) p1Span.textContent = p1Name || '미선택';
+    if (p2Span) p2Span.textContent = p2Name || '미선택';
+}
+
+// 교배 조합 선택 변경 시 부모 이름 업데이트
+function onSimCrossComboChange() {
+    const combo = document.getElementById('simCrossCombo').value;
+    if (!combo) {
+        updateBackcrossParentNames('', '');
+        return;
+    }
+
+    let p1Name = '', p2Name = '';
+
+    if (combo.startsWith('pred_')) {
+        const parts = combo.split('_');
+        const optimalIdx = parseInt(parts[1]);
+        const comboIdx = parseInt(parts[2]);
+        const filteredCombos = offspringPredictions.filter(p => p.optimalSolution === optimalIdx);
+        if (filteredCombos.length > comboIdx) {
+            const c = filteredCombos[comboIdx];
+            p1Name = c.parent1;
+            p2Name = c.parent2;
+        }
+    } else if (combo.startsWith('m_')) {
+        const parts = combo.split('_');
+        const p1Idx = parseInt(parts[1]);
+        const p2Idx = parseInt(parts[2]);
+        p1Name = varietyNames[p1Idx];
+        p2Name = varietyNames[p2Idx];
+    } else {
+        const c = currentCrossResults[parseInt(combo)];
+        if (c) {
+            p1Name = c.parent1;
+            p2Name = c.parent2;
+        }
+    }
+
+    updateBackcrossParentNames(p1Name, p2Name);
 }
 
 function initGenerationTimeline() {
