@@ -1703,6 +1703,12 @@
             const features = `width=${windowWidth},height=${windowHeight},left=${newLeft},top=${newTop},menubar=no,toolbar=no,location=no,status=no`;
             presenterWindow = window.open('', 'presenter', features);
 
+            // 팝업 차단 확인
+            if (!presenterWindow || presenterWindow.closed || typeof presenterWindow.closed === 'undefined') {
+                console.log('팝업이 차단되었습니다. 발표자 도구 없이 진행합니다.');
+                return;
+            }
+
             // 창이 열린 후 위치 재조정 (브라우저 보안으로 인해 left/top이 무시될 수 있음)
             setTimeout(() => {
                 if (presenterWindow && !presenterWindow.closed) {
@@ -1715,7 +1721,7 @@
                     }
                 }
             }, 100);
-            
+
             presenterWindow.document.write(`
                 <!DOCTYPE html>
                 <html lang="ko">
