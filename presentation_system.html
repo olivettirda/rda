@@ -243,8 +243,8 @@
         }
 
         .slide-container {
-            max-width: 100%;
-            max-height: 100%;
+            width: 100%;
+            height: 100%;
             background: white;
             position: relative;
         }
@@ -254,6 +254,16 @@
             height: 100%;
             padding: 60px;
             overflow-y: auto;
+        }
+
+        /* PPTX 파일용 슬라이드 콘텐츠 */
+        .slide-content:has(.pptx-slide) {
+            padding: 0;
+        }
+
+        #slideContent {
+            width: 100%;
+            height: 100%;
         }
 
         .slide-content h2 {
@@ -307,6 +317,24 @@
 
         .slide-content table tr:hover {
             background: var(--dmrt-bg-light);
+        }
+
+        /* PPTX 슬라이드 스타일 */
+        .pptx-slide {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+            position: relative;
+            background: white;
+            color: #333;
+        }
+        .pptx-slide p {
+            font-size: 1em;
+            line-height: 1.5;
+            margin: 0.2em 0;
+        }
+        .slide-view .pptx-slide {
+            min-height: calc(100vh - 250px);
         }
 
         /* 웹앱 실행 버튼 */
@@ -1528,6 +1556,9 @@
 
             for (let i = 0; i < paragraphs.length; i++) {
                 const p = paragraphs[i];
+                // p 태그가 txBody의 직접 자식인지 확인
+                if (p.parentNode !== txBody && p.parentNode.localName !== 'txBody') continue;
+
                 const pPr = xmlQuery(p, 'a\\:pPr, pPr');
 
                 // 단락 스타일
@@ -1551,18 +1582,27 @@
                     if (lvl) pStyle += `padding-left: ${parseInt(lvl) * 1.5}em; `;
                 }
 
-                // 런(텍스트 조각) 파싱
-                const runs = xmlQueryAll(p, 'a\\:r, r');
+                // 런(텍스트 조각) 파싱 - 직접 자식만
                 let pContent = listPrefix;
+                const children = p.children;
+                for (let j = 0; j < children.length; j++) {
+                    const child = children[j];
+                    if (child.localName !== 'r') continue;
 
-                for (let j = 0; j < runs.length; j++) {
-                    const run = runs[j];
+                    const run = child;
                     const rPr = xmlQuery(run, 'a\\:rPr, rPr');
-                    const t = xmlQuery(run, 'a\\:t, t');
-                    if (!t) continue;
 
-                    let text = t.textContent;
-                    let rStyle = '';
+                    // 텍스트 찾기 - 직접 자식에서
+                    let text = '';
+                    for (let k = 0; k < run.children.length; k++) {
+                        if (run.children[k].localName === 't') {
+                            text = run.children[k].textContent;
+                            break;
+                        }
+                    }
+                    if (!text) continue;
+
+                    let rStyle = 'color: #333; '; // 기본 텍스트 색상
 
                     if (rPr) {
                         // 폰트 크기 (EMU 단위, 100 = 1pt)
@@ -1581,15 +1621,31 @@
                         const u = rPr.getAttribute('u');
                         if (u && u !== 'none') rStyle += 'text-decoration: underline; ';
 
-                        // 색상
+                        // 색상 - srgbClr 또는 schemeClr
                         const solidFill = xmlQuery(rPr, 'a\\:solidFill, solidFill');
                         if (solidFill) {
                             const srgb = xmlQuery(solidFill, 'a\\:srgbClr, srgbClr');
-                            if (srgb) rStyle += `color: #${srgb.getAttribute('val')}; `;
+                            const scheme = xmlQuery(solidFill, 'a\\:schemeClr, schemeClr');
+                            if (srgb) {
+                                rStyle = rStyle.replace('color: #333; ', '') + `color: #${srgb.getAttribute('val')}; `;
+                            } else if (scheme) {
+                                // 테마 색상 매핑
+                                const schemeVal = scheme.getAttribute('val');
+                                const schemeColors = {
+                                    'tx1': '#000000', 'tx2': '#333333',
+                                    'bg1': '#ffffff', 'bg2': '#eeeeee',
+                                    'accent1': '#0c3026', 'accent2': '#017f97',
+                                    'dk1': '#000000', 'dk2': '#333333',
+                                    'lt1': '#ffffff', 'lt2': '#eeeeee'
+                                };
+                                if (schemeColors[schemeVal]) {
+                                    rStyle = rStyle.replace('color: #333; ', '') + `color: ${schemeColors[schemeVal]}; `;
+                                }
+                            }
                         }
                     }
 
-                    pContent += rStyle ? `<span style="${rStyle}">${escapeHtml(text)}</span>` : escapeHtml(text);
+                    pContent += `<span style="${rStyle}">${escapeHtml(text)}</span>`;
                 }
 
                 if (pContent.trim() || listPrefix) {
