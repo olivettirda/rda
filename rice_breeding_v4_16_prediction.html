@@ -366,7 +366,7 @@
     </div>
     <!-- Tab 2: 모델 테스트 (순서 변경) -->
     <div class="tab-content">
-        <div class="info-box"><h3>⚡ 빠른 모델 테스트</h3><p>4가지 ML 모델(RF, GB, SVM, LR)의 성능을 비교합니다.</p></div>
+        <div class="info-box"><h3>⚡ 빠른 모델 테스트</h3><p>6가지 ML 모델(RF, GB, SVM, LR, ExtraTrees, MLP)의 성능을 비교합니다.</p></div>
         <div class="result-card" style="background: #e3f2fd; border-left: 4px solid #2196F3; margin-bottom: 15px;">
             <h3 style="color: #2196F3;">✨ Option A: 관련 유전자 선택</h3>
             <div style="margin-top: 10px;">
@@ -538,7 +538,7 @@
                 </label>
                 <p style="color: #e65100; margin: 10px 0 0 30px; font-size: 0.9em;">
                     ⚙️ 각 모델의 최적 하이퍼파라미터를 자동 탐색 (학습 시간 3~5배 증가)<br>
-                    📊 RF: n_estimators, max_depth | GB: learning_rate, max_depth | SVM: C, gamma | LR: C
+                    📊 RF/ExtraTrees: n_estimators, max_depth | GB: learning_rate | SVM: C, gamma | LR: C | MLP: hidden_layers, alpha
                 </p>
             </div>
             
@@ -1335,7 +1335,7 @@ const chartInterpretations = {
     modelPerf: `<h5>📊 결과 해석</h5>
         <ul>
             <li><strong>F1 Score:</strong> 정밀도(Precision)와 재현율(Recall)의 조화평균. 0.85 이상이면 우수한 예측 성능.</li>
-            <li><strong>모델 비교:</strong> RF(Random Forest), GB(Gradient Boosting), SVM, LR(Logistic Regression) 중 형질마다 최적 모델이 다를 수 있음.</li>
+            <li><strong>모델 비교:</strong> RF(Random Forest), GB(Gradient Boosting), SVM, LR(Logistic Regression), ExtraTrees, MLP(Neural Network) 중 형질마다 최적 모델이 다를 수 있음.</li>
             <li><strong>Option A:</strong> 관련 유전자만 사용 시 과적합 방지 및 생물학적 해석력 향상.</li>
             <li><strong>GridSearch:</strong> 활성화 시 하이퍼파라미터 최적화로 성능 향상 가능 (학습 시간 증가).</li>
         </ul>`,
@@ -4659,9 +4659,10 @@ async function trainRandomForestModels(useRelatedGenes = false, useGridSearch = 
     const multiModelCode = `
 import numpy as np
 import json
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import cross_val_score, cross_val_predict, GridSearchCV
 from sklearn.metrics import confusion_matrix, roc_curve, auc
@@ -4710,6 +4711,17 @@ param_grids = {
         'C': [0.01, 0.1, 1, 10],
         'penalty': ['l2'],
         'solver': ['lbfgs', 'liblinear']
+    },
+    'ExtraTrees': {
+        'n_estimators': [50, 100, 150],
+        'max_depth': [5, 10, 15, None],
+        'min_samples_split': [2, 5, 10]
+    },
+    'MLP': {
+        'hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50)],
+        'activation': ['relu', 'tanh'],
+        'alpha': [0.0001, 0.001, 0.01],
+        'max_iter': [500]
     }
 }
 
@@ -4747,14 +4759,18 @@ for i, pheno_name in enumerate(phenotype_names):
             'RandomForest': (RandomForestClassifier(random_state=42), param_grids['RandomForest']),
             'GradientBoosting': (GradientBoostingClassifier(random_state=42), param_grids['GradientBoosting']),
             'SVM': (SVC(random_state=42, probability=True), param_grids['SVM']),
-            'LogisticRegression': (LogisticRegression(random_state=42, max_iter=1000), param_grids['LogisticRegression'])
+            'LogisticRegression': (LogisticRegression(random_state=42, max_iter=1000), param_grids['LogisticRegression']),
+            'ExtraTrees': (ExtraTreesClassifier(random_state=42), param_grids['ExtraTrees']),
+            'MLP': (MLPClassifier(random_state=42, max_iter=500), param_grids['MLP'])
         }
     else:
         models_to_test = {
             'RandomForest': RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10),
             'GradientBoosting': GradientBoostingClassifier(n_estimators=100, random_state=42, max_depth=5),
             'SVM': SVC(kernel='rbf', random_state=42, probability=True),
-            'LogisticRegression': LogisticRegression(random_state=42, max_iter=1000)
+            'LogisticRegression': LogisticRegression(random_state=42, max_iter=1000),
+            'ExtraTrees': ExtraTreesClassifier(n_estimators=100, random_state=42, max_depth=10),
+            'MLP': MLPClassifier(hidden_layer_sizes=(100, 50), random_state=42, max_iter=500, early_stopping=True)
         }
     
     pheno_models = {}
@@ -4885,7 +4901,7 @@ for i, pheno_name in enumerate(phenotype_names):
         print(f"🏆 {pheno_name} 최적 모델: {best_model_name} (F1={best_f1:.3f}, AUC={best_auc:.3f})")
         
         # Feature Importance 계산 (전체 유전자에 대해)
-        if best_model_name in ['RandomForest', 'GradientBoosting'] and best_model_name in pheno_models:
+        if best_model_name in ['RandomForest', 'GradientBoosting', 'ExtraTrees'] and best_model_name in pheno_models:
             best_model = pheno_models[best_model_name]
             importances = best_model.feature_importances_
             
@@ -4963,6 +4979,42 @@ for i, pheno_name in enumerate(phenotype_names):
                 'model': best_model_name
             }
             
+            shap_values_data[pheno_name] = {
+                'genes': [used_genes[j] for j in sorted_indices],
+                'values': [float(importances[j]) for j in sorted_indices],
+                'std': [float(importances[j] * 0.1) for j in sorted_indices],
+                'model': best_model_name
+            }
+        elif best_model_name == 'MLP' and best_model_name in pheno_models:
+            # MLP는 coefs_를 사용하여 Feature Importance 근사 (첫 번째 레이어 가중치)
+            if used_gene_indices is not None:
+                used_genes = [gene_names_list[j] for j in used_gene_indices]
+            else:
+                used_genes = gene_names_list
+
+            best_model = pheno_models[best_model_name]
+            # 첫 번째 레이어 가중치의 절대값 평균을 Feature Importance로 사용
+            if hasattr(best_model, 'coefs_') and len(best_model.coefs_) > 0:
+                importances = np.abs(best_model.coefs_[0]).mean(axis=1)
+            else:
+                # Fallback: Permutation Importance
+                base_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_train, y_train, cv=2, scoring='f1', n_jobs=1)))
+                perm_importance = []
+                for j in range(min(X_train.shape[1], 50)):  # 최대 50개 유전자만 (시간 절약)
+                    X_perm = X_train.copy()
+                    np.random.shuffle(X_perm[:, j])
+                    perm_score = float(np.mean(cross_val_score(pheno_models[best_model_name], X_perm, y_train, cv=2, scoring='f1', n_jobs=1)))
+                    perm_importance.append(max(0, base_score - perm_score))
+                importances = np.array(perm_importance)
+
+            sorted_indices = np.argsort(importances)[::-1]
+
+            feature_importance_data[pheno_name] = {
+                'genes': [used_genes[j] for j in sorted_indices],
+                'importances': [float(importances[j]) for j in sorted_indices],
+                'model': best_model_name
+            }
+
             shap_values_data[pheno_name] = {
                 'genes': [used_genes[j] for j in sorted_indices],
                 'values': [float(importances[j]) for j in sorted_indices],
@@ -6853,7 +6905,9 @@ function generateModelPerformanceChart() {
         'RandomForest': DMRT_COLORS.primary[0],
         'GradientBoosting': DMRT_COLORS.accent[0],
         'SVM': DMRT_COLORS.categorical[3],
-        'LogisticRegression': DMRT_COLORS.categorical[4]
+        'LogisticRegression': DMRT_COLORS.categorical[4],
+        'ExtraTrees': '#00b894',
+        'MLP': '#6c5ce7'
     };
     const barColors = modelNames.map(m => modelColorMap[m] || DMRT_COLORS.primary[2]);
     
@@ -7496,7 +7550,9 @@ function updateROCCurve() {
             'RandomForest': '#0c3026',
             'GradientBoosting': '#017f97',
             'SVM': '#e17055',
-            'LogisticRegression': '#fdcb6e'
+            'LogisticRegression': '#fdcb6e',
+            'ExtraTrees': '#00b894',
+            'MLP': '#6c5ce7'
         };
         
         for (const [modelName, modelData] of Object.entries(data.allModels)) {
@@ -8553,7 +8609,7 @@ function generateReport() {
         
         // Sheet 10: 전체 모델 비교
         if (Object.keys(modelPerformance).length > 0) {
-            const allModelData = [['형질', 'RandomForest F1', 'GradientBoosting F1', 'SVM F1', 'LogisticRegression F1', '최적 모델']];
+            const allModelData = [['형질', 'RandomForest F1', 'GradientBoosting F1', 'SVM F1', 'LogisticRegression F1', 'ExtraTrees F1', 'MLP F1', '최적 모델']];
             for (const [pheno, perf] of Object.entries(modelPerformance)) {
                 if (perf && perf.models) {
                     allModelData.push([
@@ -8562,6 +8618,8 @@ function generateReport() {
                         perf.models.GradientBoosting?.f1?.toFixed(4) || '-',
                         perf.models.SVM?.f1?.toFixed(4) || '-',
                         perf.models.LogisticRegression?.f1?.toFixed(4) || '-',
+                        perf.models.ExtraTrees?.f1?.toFixed(4) || '-',
+                        perf.models.MLP?.f1?.toFixed(4) || '-',
                         perf.best_model || '-'
                     ]);
                 }
