@@ -1501,11 +1501,39 @@
                     } else if (tagName === 'graphicFrame') {
                         // 테이블/차트
                         html += parseGraphicFrame(shape);
+                    } else if (tagName === 'grpSp') {
+                        // 그룹 셰이프 - 재귀적으로 파싱
+                        html += parseGroupShape(shape, relMap);
                     }
                 }
             }
 
             html += '</div>';
+            return html;
+        }
+
+        // 그룹 셰이프 파싱
+        function parseGroupShape(grpSp, relMap) {
+            let html = '';
+
+            // 그룹 내 모든 셰이프 파싱
+            const children = grpSp.children;
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const tagName = child.localName || child.tagName || child.nodeName;
+
+                if (tagName === 'sp') {
+                    html += parseShape(child);
+                } else if (tagName === 'pic') {
+                    html += parsePicture(child, relMap);
+                } else if (tagName === 'graphicFrame') {
+                    html += parseGraphicFrame(child);
+                } else if (tagName === 'grpSp') {
+                    // 중첩 그룹 재귀 처리
+                    html += parseGroupShape(child, relMap);
+                }
+            }
+
             return html;
         }
 
@@ -1582,12 +1610,13 @@
                     if (lvl) pStyle += `padding-left: ${parseInt(lvl) * 1.5}em; `;
                 }
 
-                // 런(텍스트 조각) 파싱 - 직접 자식만
+                // 런(텍스트 조각) 파싱 - 직접 자식만 (r과 fld 요소)
                 let pContent = listPrefix;
                 const children = p.children;
                 for (let j = 0; j < children.length; j++) {
                     const child = children[j];
-                    if (child.localName !== 'r') continue;
+                    // r (런) 또는 fld (필드) 요소 처리
+                    if (child.localName !== 'r' && child.localName !== 'fld') continue;
 
                     const run = child;
                     const rPr = xmlQuery(run, 'a\\:rPr, rPr');
