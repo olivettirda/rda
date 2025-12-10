@@ -802,6 +802,9 @@
                     <span style="font-size: 0.85em; color: #666;">- 특정 품종의 유전자 비율을 높이기 위해 반복친과 교배</span>
                 </label>
                 <div id="backcrossOptions" style="display: none; margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.8); border-radius: 6px;">
+                    <!-- 여교배/약배양 추천 영역 -->
+                    <div id="breedingRecommendation" style="display: none; margin-bottom: 15px; padding: 12px; border-radius: 8px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-left: 4px solid #4caf50;">
+                    </div>
                     <div style="margin-bottom: 10px;">
                         <label><strong>반복친(Recurrent Parent) 선택:</strong></label>
                         <span style="font-size: 0.85em; color: #666; display: block; margin: 5px 0;">여교배 시 유전자를 더 많이 받을 품종</span>
@@ -2512,7 +2515,7 @@ function updateSimulationTab() {
     const traitDiv = document.getElementById('simTargetTraits');
     if (traitDiv) {
         traitDiv.innerHTML = phenotypeNames.map(t =>
-            `<label style="margin: 5px 10px;"><input type="checkbox" name="simTrait" value="${t}"> ${t}</label>`).join('');
+            `<label style="margin: 5px 10px;"><input type="checkbox" name="simTrait" value="${t}" onchange="onSimTraitChange()"> ${t}</label>`).join('');
     }
 
     initGenerationTimeline();
@@ -2569,6 +2572,203 @@ function updateBackcrossParentNames(p1Name, p2Name) {
     if (p2Span) p2Span.textContent = p2Name || '미선택';
 }
 
+// 여교배 방향 및 약배양 추천 분석
+function analyzeBreedingRecommendation(p1Name, p2Name) {
+    const recDiv = document.getElementById('breedingRecommendation');
+    if (!recDiv || !p1Name || !p2Name) {
+        if (recDiv) recDiv.style.display = 'none';
+        return;
+    }
+
+    // 선택된 데이터 가져오기
+    const activeData = getSelectedGenotypeData('simData');
+    if (!activeData || !geneNames || geneNames.length === 0) {
+        recDiv.style.display = 'none';
+        return;
+    }
+
+    const p1Idx = varietyNames.indexOf(p1Name);
+    const p2Idx = varietyNames.indexOf(p2Name);
+    if (p1Idx === -1 || p2Idx === -1) {
+        recDiv.style.display = 'none';
+        return;
+    }
+
+    // 선택된 목표 형질 가져오기
+    const targetTraits = Array.from(document.querySelectorAll('input[name="simTrait"]:checked')).map(c => c.value);
+
+    // 목표 형질 관련 유전자 인덱스
+    const targetGeneIdx = [];
+    targetTraits.forEach(t => {
+        const related = traitGeneMapping[t] || [];
+        geneNames.forEach((g, i) => {
+            if (related.some(r => g.toLowerCase().includes(r.toLowerCase())) && !targetGeneIdx.includes(i)) {
+                targetGeneIdx.push(i);
+            }
+        });
+    });
+
+    // 품종별 유전자형 가져오기
+    const p1Geno = geneNames.map(g => activeData[p1Idx][g]);
+    const p2Geno = geneNames.map(g => activeData[p2Idx][g]);
+
+    // 유전자형을 숫자로 변환 (R/1/X = 2, H = 1, 기타 = 0)
+    const toNum = g => {
+        if (typeof g === 'string') {
+            if (['R', '1', 'X', 'x'].includes(g)) return 2;
+            if (['H', 'h'].includes(g)) return 1;
+            return 0;
+        }
+        return g >= 1 ? 2 : 0;
+    };
+
+    const p1GenoNum = p1Geno.map(toNum);
+    const p2GenoNum = p2Geno.map(toNum);
+
+    // 1. 전체 유전자에서 R(우성) 유전자 수 비교
+    const p1TotalR = p1GenoNum.filter(g => g === 2).length;
+    const p2TotalR = p2GenoNum.filter(g => g === 2).length;
+
+    // 2. 목표 형질 관련 유전자에서 R 유전자 수 비교
+    let p1TargetR = 0, p2TargetR = 0;
+    if (targetGeneIdx.length > 0) {
+        targetGeneIdx.forEach(i => {
+            if (p1GenoNum[i] === 2) p1TargetR++;
+            if (p2GenoNum[i] === 2) p2TargetR++;
+        });
+    }
+
+    // 3. 두 품종 간 유전자 차이 분석 (약배양 추천용)
+    let sameCount = 0, diffCount = 0;
+    for (let i = 0; i < geneNames.length; i++) {
+        if (p1GenoNum[i] === p2GenoNum[i]) {
+            sameCount++;
+        } else {
+            diffCount++;
+        }
+    }
+    const similarityRate = (sameCount / geneNames.length * 100).toFixed(1);
+    const segregatingGenes = diffCount;
+
+    // 추천 결과 생성
+    let html = '';
+    let recommendRecurrent = '';
+    let recommendReason = '';
+
+    // 여교배 방향 추천 로직
+    if (targetGeneIdx.length > 0 && targetTraits.length > 0) {
+        // 목표 형질 기준으로 추천
+        if (p1TargetR > p2TargetR) {
+            // P1이 목표 형질 유전자를 더 많이 가짐 → P1이 공여친, P2가 반복친
+            recommendRecurrent = 'father';
+            recommendReason = `<strong>${p1Name}</strong>이 목표 형질(${targetTraits.join(', ')}) 유전자를 더 많이 보유 (${p1TargetR}개 vs ${p2TargetR}개)`;
+        } else if (p2TargetR > p1TargetR) {
+            recommendRecurrent = 'mother';
+            recommendReason = `<strong>${p2Name}</strong>이 목표 형질(${targetTraits.join(', ')}) 유전자를 더 많이 보유 (${p2TargetR}개 vs ${p1TargetR}개)`;
+        } else {
+            // 목표 형질 유전자 수가 같으면 전체 R 유전자 수로 판단
+            if (p1TotalR >= p2TotalR) {
+                recommendRecurrent = 'mother';
+                recommendReason = `목표 형질 유전자 수 동일. <strong>${p1Name}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
+            } else {
+                recommendRecurrent = 'father';
+                recommendReason = `목표 형질 유전자 수 동일. <strong>${p2Name}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
+            }
+        }
+    } else {
+        // 목표 형질 미선택 시 전체 R 유전자 수로 판단
+        if (p1TotalR >= p2TotalR) {
+            recommendRecurrent = 'mother';
+            recommendReason = `<strong>${p1Name}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
+        } else {
+            recommendRecurrent = 'father';
+            recommendReason = `<strong>${p2Name}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
+        }
+    }
+
+    const recurrentName = recommendRecurrent === 'mother' ? p1Name : p2Name;
+    const donorName = recommendRecurrent === 'mother' ? p2Name : p1Name;
+
+    html += `<div style="margin-bottom: 10px;">
+        <strong style="color: #2e7d32;">💡 여교배 방향 추천</strong>
+        <div style="margin-top: 8px; font-size: 0.95em;">
+            <div style="margin-bottom: 5px;">${recommendReason}</div>
+            <div style="background: #fff; padding: 8px 12px; border-radius: 6px; margin-top: 8px;">
+                <span style="color: #1976d2;">반복친(Recurrent): <strong>${recurrentName}</strong></span> ←
+                <span style="color: #e65100;">공여친(Donor): <strong>${donorName}</strong></span>
+            </div>
+        </div>
+    </div>`;
+
+    // 약배양(DH) 추천 분석
+    const dhThreshold = 80; // 유사도 80% 이상이면 약배양 추천
+    const lowSegregation = 20; // 분리 유전자 20개 이하면 약배양 추천
+
+    if (parseFloat(similarityRate) >= dhThreshold || segregatingGenes <= lowSegregation) {
+        html += `<div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #4caf50;">
+            <strong style="color: #6a1b9a;">🧪 약배양(DH) 추천</strong>
+            <div style="margin-top: 8px; font-size: 0.95em; background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); padding: 10px; border-radius: 6px;">
+                <div style="margin-bottom: 5px;">두 품종의 유전자 유사도가 <strong>${similarityRate}%</strong>로 높습니다.</div>
+                <div style="margin-bottom: 5px;">분리 검정이 필요한 유전자: <strong>${segregatingGenes}개</strong> / ${geneNames.length}개</div>
+                <div style="color: #7b1fa2; margin-top: 8px;">
+                    → 분리할 유전자가 적어 <strong>약배양(Doubled Haploid)</strong>으로 빠르게 동형접합 고정이 가능합니다.
+                </div>
+            </div>
+        </div>`;
+    } else {
+        html += `<div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #4caf50;">
+            <strong style="color: #455a64;">📊 유전자 분리 정보</strong>
+            <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                유전자 유사도: ${similarityRate}% | 분리 유전자: ${segregatingGenes}개
+                ${segregatingGenes > 50 ? '<br><span style="color: #f57c00;">→ 분리 유전자가 많아 일반 자가수정 육종이 적합합니다.</span>' : ''}
+            </div>
+        </div>`;
+    }
+
+    // 추천에 따라 라디오 버튼 자동 선택 (사용자가 변경 가능)
+    const recurrentRadio = document.querySelector(`input[name="recurrentParent"][value="${recommendRecurrent}"]`);
+    if (recurrentRadio) {
+        recurrentRadio.checked = true;
+    }
+
+    recDiv.innerHTML = html;
+    recDiv.style.display = 'block';
+}
+
+// 목표 형질 선택 변경 시 추천 갱신
+function onSimTraitChange() {
+    const combo = document.getElementById('simCrossCombo').value;
+    if (!combo) return;
+
+    let p1Name = '', p2Name = '';
+    if (combo.startsWith('pred_')) {
+        const parts = combo.split('_');
+        const optimalIdx = parseInt(parts[1]);
+        const comboIdx = parseInt(parts[2]);
+        const filteredCombos = offspringPredictions.filter(p => p.optimalSolution === optimalIdx);
+        if (filteredCombos.length > comboIdx) {
+            const c = filteredCombos[comboIdx];
+            p1Name = c.parent1;
+            p2Name = c.parent2;
+        }
+    } else if (combo.startsWith('m_')) {
+        const parts = combo.split('_');
+        const p1Idx = parseInt(parts[1]);
+        const p2Idx = parseInt(parts[2]);
+        p1Name = varietyNames[p1Idx];
+        p2Name = varietyNames[p2Idx];
+    } else {
+        const c = currentCrossResults[parseInt(combo)];
+        if (c) {
+            p1Name = c.parent1;
+            p2Name = c.parent2;
+        }
+    }
+
+    // 추천 갱신
+    analyzeBreedingRecommendation(p1Name, p2Name);
+}
+
 // 교배 조합 선택 변경 시 부모 이름 업데이트
 function onSimCrossComboChange() {
     const combo = document.getElementById('simCrossCombo').value;
@@ -2604,6 +2804,9 @@ function onSimCrossComboChange() {
     }
 
     updateBackcrossParentNames(p1Name, p2Name);
+
+    // 여교배 방향 및 약배양 추천 분석
+    analyzeBreedingRecommendation(p1Name, p2Name);
 }
 
 function initGenerationTimeline() {
