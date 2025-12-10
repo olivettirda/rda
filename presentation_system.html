@@ -1390,12 +1390,18 @@
                     const slidePromises = slideFiles.map((sf, idx) => {
                         const relsPath = `ppt/slides/_rels/slide${sf.num}.xml.rels`;
                         const relsFile = zip.file(relsPath);
+                        const notesPath = `ppt/notesSlides/notesSlide${sf.num}.xml`;
+                        const notesFile = zip.file(notesPath);
 
                         return Promise.all([
                             sf.file.async('string'),
-                            relsFile ? relsFile.async('string') : Promise.resolve('')
-                        ]).then(([slideXml, relsXml]) => {
-                            return parseSlideXML(slideXml, relsXml, idx + 1);
+                            relsFile ? relsFile.async('string') : Promise.resolve(''),
+                            notesFile ? notesFile.async('string') : Promise.resolve('')
+                        ]).then(([slideXml, relsXml, notesXml]) => {
+                            return {
+                                content: parseSlideXML(slideXml, relsXml, idx + 1),
+                                notes: notesXml ? parseNotesXML(notesXml) : ''
+                            };
                         });
                     });
 
@@ -1404,10 +1410,10 @@
                 .then(parsedSlides => {
                     document.body.removeChild(loadingMsg);
 
-                    slides = parsedSlides.map((content, idx) => ({
+                    slides = parsedSlides.map((slide, idx) => ({
                         title: `슬라이드 ${idx + 1}`,
-                        content: content,
-                        notes: `업로드된 PowerPoint의 ${idx + 1}번째 슬라이드`
+                        content: slide.content,
+                        notes: slide.notes || `슬라이드 ${idx + 1}`
                     }));
 
                     showModeStartTime = Date.now();
@@ -1454,6 +1460,63 @@
             return results;
         }
 
+        // 슬라이드 노트 XML 파싱
+        function parseNotesXML(notesXml) {
+            const parser = new DOMParser();
+            const notesDoc = parser.parseFromString(notesXml, 'text/xml');
+
+            // 노트 텍스트 추출 - txBody에서 모든 텍스트 추출
+            let notesText = '';
+            const txBodies = notesDoc.getElementsByTagName('*');
+
+            for (let i = 0; i < txBodies.length; i++) {
+                const el = txBodies[i];
+                if (el.localName === 'txBody') {
+                    // p:sp 내의 txBody인지 확인 (슬라이드 번호 플레이스홀더 제외)
+                    const parent = el.parentNode;
+                    if (parent) {
+                        // nvSpPr에서 placeholder type 확인
+                        const nvSpPr = xmlQuery(parent, 'p\\:nvSpPr, nvSpPr');
+                        if (nvSpPr) {
+                            const ph = xmlQuery(nvSpPr, 'p\\:ph, ph');
+                            if (ph) {
+                                const phType = ph.getAttribute('type');
+                                // 슬라이드 번호, 날짜/시간, 바닥글 등은 제외
+                                if (phType === 'sldNum' || phType === 'dt' || phType === 'ftr' || phType === 'hdr' || phType === 'sldImg') {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    // 텍스트 추출
+                    const paragraphs = el.getElementsByTagName('*');
+                    for (let j = 0; j < paragraphs.length; j++) {
+                        if (paragraphs[j].localName === 't') {
+                            const text = paragraphs[j].textContent;
+                            if (text && text.trim()) {
+                                notesText += text;
+                            }
+                        }
+                    }
+
+                    // 단락 구분
+                    const pElements = el.getElementsByTagName('*');
+                    let lastWasP = false;
+                    for (let j = 0; j < pElements.length; j++) {
+                        if (pElements[j].localName === 'p') {
+                            if (lastWasP && notesText && !notesText.endsWith('\n')) {
+                                notesText += '\n';
+                            }
+                            lastWasP = true;
+                        }
+                    }
+                }
+            }
+
+            return notesText.trim();
+        }
+
         // 슬라이드 XML 파싱
         function parseSlideXML(slideXml, relsXml, slideNum) {
             const parser = new DOMParser();
@@ -1494,7 +1557,7 @@
 
                     if (tagName === 'sp') {
                         // 텍스트 박스/도형
-                        html += parseShape(shape);
+                        html += parseShape(shape, relMap);
                     } else if (tagName === 'pic') {
                         // 이미지
                         html += parsePicture(shape, relMap);
@@ -1523,7 +1586,7 @@
                 const tagName = child.localName || child.tagName || child.nodeName;
 
                 if (tagName === 'sp') {
-                    html += parseShape(child);
+                    html += parseShape(child, relMap);
                 } else if (tagName === 'pic') {
                     html += parsePicture(child, relMap);
                 } else if (tagName === 'graphicFrame') {
@@ -1538,7 +1601,7 @@
         }
 
         // 도형/텍스트 박스 파싱
-        function parseShape(shape) {
+        function parseShape(shape, relMap) {
             const xfrm = xmlQuery(shape, 'a\\:xfrm, xfrm');
             if (!xfrm) return '';
 
@@ -1557,12 +1620,38 @@
             const wPct = (w / slideWidth * 100).toFixed(2);
             const hPct = (h / slideHeight * 100).toFixed(2);
 
-            // 도형 배경색
+            // spPr (shape properties) 에서 채우기 확인
+            const spPr = xmlQuery(shape, 'p\\:spPr, spPr');
             let shapeBg = 'transparent';
-            const solidFill = xmlQuery(shape, 'a\\:solidFill, solidFill');
-            if (solidFill) {
-                const srgb = xmlQuery(solidFill, 'a\\:srgbClr, srgbClr');
-                if (srgb) shapeBg = '#' + srgb.getAttribute('val');
+            let bgImage = '';
+
+            if (spPr) {
+                // noFill 체크 - 명시적으로 채우기 없음
+                const noFill = xmlQuery(spPr, 'a\\:noFill, noFill');
+                if (!noFill) {
+                    // solidFill - 단색 채우기
+                    const solidFill = xmlQuery(spPr, 'a\\:solidFill, solidFill');
+                    if (solidFill) {
+                        const srgb = xmlQuery(solidFill, 'a\\:srgbClr, srgbClr');
+                        if (srgb) shapeBg = '#' + srgb.getAttribute('val');
+                    }
+
+                    // blipFill - 이미지 채우기
+                    const blipFill = xmlQuery(spPr, 'a\\:blipFill, blipFill');
+                    if (blipFill && relMap) {
+                        const blip = xmlQuery(blipFill, 'a\\:blip, blip');
+                        if (blip) {
+                            const embedId = blip.getAttribute('r:embed') || blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed');
+                            if (embedId && relMap[embedId]) {
+                                const imgPath = relMap[embedId];
+                                const imgName = imgPath.split('/').pop();
+                                if (pptxImages[imgName]) {
+                                    bgImage = `background-image: url('${pptxImages[imgName]}'); background-size: cover; background-position: center;`;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // 텍스트 파싱
@@ -1572,9 +1661,10 @@
                 textHtml = parseTextBody(txBody);
             }
 
-            if (!textHtml && shapeBg === 'transparent') return '';
+            // 텍스트도 없고 배경도 없고 이미지도 없으면 스킵
+            if (!textHtml && shapeBg === 'transparent' && !bgImage) return '';
 
-            return `<div style="position: absolute; left: ${xPct}%; top: ${yPct}%; width: ${wPct}%; height: ${hPct}%; background: ${shapeBg}; overflow: hidden; display: flex; flex-direction: column; justify-content: center;">${textHtml}</div>`;
+            return `<div style="position: absolute; left: ${xPct}%; top: ${yPct}%; width: ${wPct}%; height: ${hPct}%; background: ${shapeBg}; ${bgImage} overflow: hidden; display: flex; flex-direction: column; justify-content: center;">${textHtml}</div>`;
         }
 
         // 텍스트 본문 파싱
