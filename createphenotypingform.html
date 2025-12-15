@@ -274,6 +274,7 @@
                             <button class="btn btn-secondary" onclick="copyListToClipboard()">📋 복사하기</button>
                             <button class="btn btn-secondary" onclick="downloadListExcel()">📊 엑셀 다운로드</button>
                             <button class="btn btn-secondary" onclick="downloadListCSV()">💾 CSV 다운로드</button>
+                            <button class="btn btn-success" onclick="saveListToFolder()" id="listFolderBtn" style="display:none;">📁 폴더에 저장</button>
                             <button class="btn btn-danger" onclick="clearListOutput()">🗑️ 초기화</button>
                         </div>
                     </div>
@@ -368,6 +369,7 @@
                         <button class="btn btn-success" onclick="calculateAllStats()">📊 통계 계산</button>
                         <button class="btn btn-secondary" onclick="saveSurveyData()">💾 데이터 저장</button>
                         <button class="btn btn-secondary" onclick="downloadSurveyExcel()">📥 엑셀 다운로드</button>
+                        <button class="btn btn-success" onclick="saveSurveyToFolder()" id="surveyFolderBtn" style="display:none;">📁 폴더에 저장</button>
                     </div>
                 </div>
             </div>
@@ -737,6 +739,7 @@
                         <button class="btn btn-primary" onclick="downloadFullResultsZip()">📦 전체 다운로드 (엑셀+이미지)</button>
                         <button class="btn btn-secondary" onclick="downloadExcelReport()">📊 엑셀만 다운로드</button>
                         <button class="btn btn-info" onclick="downloadAllChartsZip()">🖼️ 이미지만 다운로드</button>
+                        <button class="btn btn-success" onclick="saveAnalysisToFolder()" id="analysisFolderBtn" style="display:none;">📁 폴더에 저장</button>
                         <button class="btn" onclick="sendPhenotypeToSimulator()" style="background: linear-gradient(135deg, #017f97 0%, #00a1b8 100%); color: white;">🌾 시뮬레이터로 전송</button>
                     </div>
                 </div>
@@ -1024,6 +1027,7 @@
                         <button class="btn btn-success" onclick="printLabels()">🖨️ 인쇄</button>
                         <button class="btn btn-secondary" onclick="downloadLabelsPDF()">📄 PDF 다운로드</button>
                         <button class="btn btn-secondary" onclick="downloadLabelsExcel()">📊 datatrans 입력용 엑셀 다운로드</button>
+                        <button class="btn btn-success" onclick="saveLabelsToFolder()" id="labelFolderBtn" style="display:none;">📁 폴더에 저장</button>
                     </div>
                 </div>
             </div>
@@ -1060,7 +1064,52 @@
         
         // DMRT 컬러 팔레트 (연한색 → 진한색)
         const COLOR_PALETTE = ['#cce3dd', '#b2d9d8', '#8dccd3', '#54b7c6', '#00a1b8', '#017f97', '#0c3026'];
-        
+
+        // File System Access API 지원 여부
+        const hasFolderAccess = 'showDirectoryPicker' in window;
+
+        // 날짜/시간 폴더명 생성
+        function getDateTimeFolderName(prefix = 'export') {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `${prefix}_${year}${month}${day}_${hours}${minutes}${seconds}`;
+        }
+
+        // 폴더에 파일 저장 공통 함수
+        async function saveFilesToFolder(files, folderPrefix) {
+            if (!hasFolderAccess) {
+                alert('이 브라우저는 폴더 저장 기능을 지원하지 않습니다.\nChrome 또는 Edge 브라우저를 사용해주세요.');
+                return false;
+            }
+
+            try {
+                const dirHandle = await window.showDirectoryPicker();
+                const folderName = getDateTimeFolderName(folderPrefix);
+                const subDirHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
+
+                for (const file of files) {
+                    const fileHandle = await subDirHandle.getFileHandle(file.name, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(file.blob);
+                    await writable.close();
+                }
+
+                alert(`${files.length}개 파일이 "${folderName}" 폴더에 저장되었습니다.`);
+                return true;
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    alert('폴더 저장 중 오류가 발생했습니다.');
+                    console.error(error);
+                }
+                return false;
+            }
+        }
+
         // 흑백 채우기 (연한색 → 진한색)
         const GRAYSCALE_FILLS = ['#f0f0f0', '#d0d0d0', '#b0b0b0', '#909090', '#707070', '#505050', '#303030'];
         
@@ -7265,6 +7314,164 @@
                 return (sorted[middle - 1] + sorted[middle]) / 2;
             }
             return sorted[middle];
+        }
+
+        // ========== 폴더 저장 함수들 ==========
+
+        // 페이지 로드 시 폴더 저장 버튼 표시
+        document.addEventListener('DOMContentLoaded', function() {
+            if (hasFolderAccess) {
+                const folderBtns = ['listFolderBtn', 'surveyFolderBtn', 'analysisFolderBtn', 'labelFolderBtn'];
+                folderBtns.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.style.display = 'inline-flex';
+                });
+            }
+        });
+
+        // 품종목록 폴더에 저장
+        async function saveListToFolder() {
+            if (varieties.length === 0) {
+                alert('저장할 품종 목록이 없습니다.');
+                return;
+            }
+
+            const files = [];
+
+            // 엑셀 파일 생성
+            const wb = XLSX.utils.book_new();
+            const data = [['품종', '반복']];
+            varieties.forEach(v => {
+                data.push([v.name, v.repeat]);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{ wch: 20 }, { wch: 10 }];
+            XLSX.utils.book_append_sheet(wb, ws, '품종목록');
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            files.push({ name: '품종목록.xlsx', blob: new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) });
+
+            // CSV 파일 생성
+            let csvContent = '품종,반복\n';
+            varieties.forEach(v => {
+                csvContent += `${v.name},${v.repeat}\n`;
+            });
+            files.push({ name: '품종목록.csv', blob: new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' }) });
+
+            await saveFilesToFolder(files, '품종목록');
+        }
+
+        // 생육조사 양식 폴더에 저장
+        async function saveSurveyToFolder() {
+            const table = document.querySelector('#surveyTableOutput table');
+            if (!table) {
+                alert('저장할 조사표가 없습니다.');
+                return;
+            }
+
+            const files = [];
+
+            // 엑셀 파일 생성
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.table_to_sheet(table);
+            XLSX.utils.book_append_sheet(wb, ws, '생육조사');
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            files.push({ name: '생육조사양식.xlsx', blob: new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) });
+
+            await saveFilesToFolder(files, '생육조사');
+        }
+
+        // 데이터 분석 결과 폴더에 저장
+        async function saveAnalysisToFolder() {
+            const allTraits = Object.keys(allTraitsResults);
+            if (allTraits.length === 0) {
+                alert('저장할 분석 결과가 없습니다.');
+                return;
+            }
+
+            const files = [];
+
+            // 엑셀 파일 생성
+            const wb = XLSX.utils.book_new();
+
+            allTraits.forEach(trait => {
+                const result = allTraitsResults[trait];
+                if (!result) return;
+
+                const sheetData = [];
+                sheetData.push(['형질명', trait]);
+                sheetData.push([]);
+                sheetData.push(['품종', '평균', '표준편차', 'N', 'DMRT그룹']);
+
+                result.sortedVarieties.forEach(v => {
+                    sheetData.push([
+                        v.name,
+                        v.mean.toFixed(2),
+                        v.std.toFixed(2),
+                        v.n,
+                        v.dmrtGroup || ''
+                    ]);
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(sheetData);
+                ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 12 }];
+                XLSX.utils.book_append_sheet(wb, ws, trait.substring(0, 31));
+            });
+
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            files.push({ name: '분석결과.xlsx', blob: new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) });
+
+            // 현재 차트 이미지 저장
+            const canvas = document.getElementById('analysisChart');
+            if (canvas && canvas.width > 0) {
+                const dataUrl = canvas.toDataURL('image/png');
+                const response = await fetch(dataUrl);
+                const blob = await response.blob();
+                const selectedTrait = document.getElementById('selectedTrait')?.value || '차트';
+                files.push({ name: `${selectedTrait}_차트.png`, blob: blob });
+            }
+
+            await saveFilesToFolder(files, '분석결과');
+        }
+
+        // 라벨 폴더에 저장
+        async function saveLabelsToFolder() {
+            const labelPreview = document.getElementById('labelPreview');
+            if (!labelPreview || labelPreview.querySelector('.output-empty')) {
+                alert('저장할 라벨이 없습니다.');
+                return;
+            }
+
+            const files = [];
+
+            // PDF 생성
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const containers = labelPreview.querySelectorAll('.barcode-label-container');
+            for (let i = 0; i < containers.length; i++) {
+                if (i > 0) pdf.addPage();
+                const canvas = await html2canvas(containers[i], { scale: 2 });
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+            }
+
+            const pdfBlob = pdf.output('blob');
+            files.push({ name: '라벨.pdf', blob: pdfBlob });
+
+            // 엑셀 파일 생성
+            if (qrLabelData && qrLabelData.length > 0) {
+                const wb = XLSX.utils.book_new();
+                const data = [['시험번호', '품종명', '샘플코드']];
+                qrLabelData.forEach(item => {
+                    data.push([item.testNumber, item.varietyName, item.sampleCode]);
+                });
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, '라벨데이터');
+                const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                files.push({ name: '라벨데이터.xlsx', blob: new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) });
+            }
+
+            await saveFilesToFolder(files, '라벨');
         }
     </script>
 </body>
