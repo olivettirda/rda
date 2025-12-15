@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>이미지 압축기 - Image Compressor</title>
     <link rel="icon" type="image/x-icon" href="ssallogo.ico">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -544,8 +545,11 @@
                 <button class="btn btn-primary" id="compressBtn" disabled>
                     <span>🗜️</span> 압축 시작
                 </button>
-                <button class="btn btn-success" id="downloadAllBtn" disabled>
-                    <span>💾</span> 전체 다운로드
+                <button class="btn btn-success" id="downloadZipBtn" disabled>
+                    <span>📦</span> ZIP 다운로드
+                </button>
+                <button class="btn btn-success" id="downloadFolderBtn" disabled style="display: none;">
+                    <span>📁</span> 폴더에 저장
                 </button>
                 <button class="btn btn-danger" id="clearAllBtn" disabled>
                     <span>🗑️</span> 전체 삭제
@@ -574,8 +578,14 @@
         const resultsCard = document.getElementById('resultsCard');
         const imageList = document.getElementById('imageList');
         const compressBtn = document.getElementById('compressBtn');
-        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const downloadZipBtn = document.getElementById('downloadZipBtn');
+        const downloadFolderBtn = document.getElementById('downloadFolderBtn');
         const clearAllBtn = document.getElementById('clearAllBtn');
+
+        // File System Access API 지원 확인
+        if ('showDirectoryPicker' in window) {
+            downloadFolderBtn.style.display = 'inline-flex';
+        }
         const progressBar = document.getElementById('progressBar');
         const progressFill = document.getElementById('progressFill');
 
@@ -666,7 +676,9 @@
 
             // 버튼 상태
             compressBtn.disabled = images.length === 0;
-            downloadAllBtn.disabled = !images.some(img => img.compressed);
+            const hasCompressed = images.some(img => img.compressed);
+            downloadZipBtn.disabled = !hasCompressed;
+            downloadFolderBtn.disabled = !hasCompressed;
             clearAllBtn.disabled = images.length === 0;
 
             // 이미지 리스트 렌더링
@@ -784,20 +796,98 @@
             compressBtn.innerHTML = '<span>🗜️</span> 압축 시작';
         });
 
-        // 전체 다운로드
-        downloadAllBtn.addEventListener('click', async () => {
+        // 날짜/시간 폴더명 생성
+        function getDateTimeFolderName() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `compressed_${year}${month}${day}_${hours}${minutes}${seconds}`;
+        }
+
+        // Base64를 Blob으로 변환
+        function dataUrlToBlob(dataUrl) {
+            const arr = dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], { type: mime });
+        }
+
+        // ZIP 다운로드
+        downloadZipBtn.addEventListener('click', async () => {
             const compressedImages = images.filter(img => img.compressed);
+            if (compressedImages.length === 0) return;
 
-            if (compressedImages.length === 1) {
-                downloadImage(compressedImages[0].compressed, compressedImages[0].name);
-                return;
+            downloadZipBtn.disabled = true;
+            downloadZipBtn.innerHTML = '<span>⏳</span> ZIP 생성 중...';
+
+            try {
+                const zip = new JSZip();
+                const folderName = getDateTimeFolderName();
+                const folder = zip.folder(folderName);
+
+                compressedImages.forEach(img => {
+                    const blob = dataUrlToBlob(img.compressed);
+                    folder.file(img.name, blob);
+                });
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = `${folderName}.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            } catch (error) {
+                alert('ZIP 파일 생성 중 오류가 발생했습니다.');
+                console.error(error);
             }
 
-            // 여러 파일인 경우 순차 다운로드
-            for (let i = 0; i < compressedImages.length; i++) {
-                await new Promise(resolve => setTimeout(resolve, 300));
-                downloadImage(compressedImages[i].compressed, compressedImages[i].name);
+            downloadZipBtn.disabled = false;
+            downloadZipBtn.innerHTML = '<span>📦</span> ZIP 다운로드';
+        });
+
+        // 폴더에 저장 (File System Access API)
+        downloadFolderBtn.addEventListener('click', async () => {
+            const compressedImages = images.filter(img => img.compressed);
+            if (compressedImages.length === 0) return;
+
+            try {
+                // 폴더 선택
+                const dirHandle = await window.showDirectoryPicker();
+                const folderName = getDateTimeFolderName();
+                const subDirHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
+
+                downloadFolderBtn.disabled = true;
+                downloadFolderBtn.innerHTML = '<span>⏳</span> 저장 중...';
+
+                for (const img of compressedImages) {
+                    const blob = dataUrlToBlob(img.compressed);
+                    const fileHandle = await subDirHandle.getFileHandle(img.name, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                }
+
+                alert(`${compressedImages.length}개 파일이 "${folderName}" 폴더에 저장되었습니다.`);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    alert('폴더 저장 중 오류가 발생했습니다.');
+                    console.error(error);
+                }
             }
+
+            downloadFolderBtn.disabled = false;
+            downloadFolderBtn.innerHTML = '<span>📁</span> 폴더에 저장';
         });
 
         // 파일 다운로드 헬퍼
