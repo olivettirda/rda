@@ -668,6 +668,9 @@
             <button class="tab" onclick="showTab('color')">
                 🎨 색상 분석
             </button>
+            <button class="tab" onclick="showTab('flatfield')">
+                💡 플랫필드 보정
+            </button>
             <button class="tab" onclick="showTab('batch')">
                 📁 일괄 처리
             </button>
@@ -995,6 +998,116 @@
             </div>
         </div>
 
+        <!-- 플랫필드 보정 -->
+        <div class="tab-content" id="flatfield-tab">
+            <div class="card">
+                <div class="card-title">💡 플랫필드 보정 (조명 균일화)</div>
+
+                <div class="instruction-banner">
+                    💡 <strong>사용 방법:</strong> 1) 레퍼런스 이미지 업로드 (균일한 흰색/회색 표면) → 2) 분석할 이미지 업로드 → 3) 자동 보정 및 균일도 분석
+                </div>
+
+                <div class="help-text" style="margin-bottom: 16px;">
+                    플랫필드 보정은 조명의 불균일성을 제거하여 이미지 분석의 정확도를 높입니다.
+                    레퍼런스 이미지는 동일한 조명 조건에서 촬영한 균일한 표면(흰색 종이 등)을 사용하세요.
+                </div>
+
+                <!-- 레퍼런스 이미지 -->
+                <div style="margin-bottom: 24px;">
+                    <div style="font-weight: 600; margin-bottom: 12px; color: var(--primary);">
+                        1️⃣ 레퍼런스 이미지 (균일한 표면)
+                    </div>
+                    <div class="upload-zone" id="flatfieldRefUploadZone" onclick="document.getElementById('flatfieldRefInput').click()">
+                        <input type="file" id="flatfieldRefInput" accept="image/*" style="display: none;" onchange="handleFlatfieldRefUpload(event)">
+                        <div class="upload-icon">📋</div>
+                        <div class="upload-text">레퍼런스 이미지 업로드</div>
+                        <div class="upload-hint">균일한 흰색/회색 표면을 촬영한 이미지</div>
+                    </div>
+                    <div class="image-preview" id="flatfieldRefPreview" style="display: none;">
+                        <div style="text-align: center; padding: 12px; background: #f5f5f5; border-radius: 8px;">
+                            <img id="flatfieldRefImage" style="max-width: 100%; max-height: 200px; border-radius: 8px;">
+                            <div style="margin-top: 8px; color: var(--text-light); font-size: 0.9em;">
+                                레퍼런스 이미지 로드됨 ✓
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 분석 이미지 -->
+                <div style="margin-bottom: 24px;">
+                    <div style="font-weight: 600; margin-bottom: 12px; color: var(--primary);">
+                        2️⃣ 분석할 이미지
+                    </div>
+                    <div class="upload-zone" id="flatfieldSampleUploadZone" onclick="document.getElementById('flatfieldSampleInput').click()">
+                        <input type="file" id="flatfieldSampleInput" accept="image/*" style="display: none;" onchange="handleFlatfieldSampleUpload(event)">
+                        <div class="upload-icon">🖼️</div>
+                        <div class="upload-text">보정할 이미지 업로드</div>
+                        <div class="upload-hint">레퍼런스와 동일한 조명 조건에서 촬영한 이미지</div>
+                    </div>
+                </div>
+
+                <!-- 보정 설정 -->
+                <div class="slider-container" id="flatfieldSettings" style="display: none;">
+                    <div class="slider-label">
+                        <span>보정 강도</span>
+                        <span id="flatfieldIntensityValue">100</span>%
+                    </div>
+                    <input type="range" id="flatfieldIntensity" min="0" max="100" value="100" oninput="updateFlatfieldIntensity()">
+                </div>
+
+                <!-- 결과 표시 -->
+                <div class="image-preview" id="flatfieldResults" style="display: none;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 8px; text-align: center;">보정 전</div>
+                            <div style="background: #f5f5f5; border-radius: 8px; padding: 8px;">
+                                <canvas id="flatfieldOriginalCanvas" style="width: 100%; border-radius: 4px;"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 8px; text-align: center;">보정 후</div>
+                            <div style="background: #f5f5f5; border-radius: 8px; padding: 8px;">
+                                <canvas id="flatfieldCorrectedCanvas" style="width: 100%; border-radius: 4px;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 균일도 분석 결과 -->
+                    <div class="analysis-results">
+                        <div class="analysis-grid">
+                            <div class="result-item">
+                                <div class="result-label">보정 전 균일도</div>
+                                <div class="result-value" id="flatfieldOriginalUniformity">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">보정 후 균일도</div>
+                                <div class="result-value" id="flatfieldCorrectedUniformity">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">개선도</div>
+                                <div class="result-value" id="flatfieldImprovement">-</div>
+                            </div>
+                            <div class="result-item">
+                                <div class="result-label">평균 밝기 변화</div>
+                                <div class="result-value" id="flatfieldBrightnessChange">-</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 16px;">
+                            <div class="result-label">균일도 히스토그램</div>
+                            <canvas id="flatfieldHistogram" style="width: 100%; height: 150px; background: white; border-radius: 8px; margin-top: 8px;"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn" onclick="applyFlatfieldCorrection()">🔄 다시 보정</button>
+                        <button class="btn btn-outline" onclick="downloadFlatfieldResult()">💾 보정 이미지 다운로드</button>
+                        <button class="btn btn-danger" onclick="clearFlatfield()">🗑️ 초기화</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 일괄 처리 -->
         <div class="tab-content" id="batch-tab">
             <div class="card">
@@ -1049,6 +1162,12 @@
         let referenceLineEnd = null;
         let pixelsPerUnit = null;
 
+        // 플랫필드 보정용 상태
+        let flatfieldRefImage = null;
+        let flatfieldSampleImage = null;
+        let flatfieldRefData = null;
+        let flatfieldCorrectedData = null;
+
         // 잎 분석용 상태
         let leafBgColor = { r: 255, g: 255, b: 255 };
         let leafEyedropperMode = false;
@@ -1066,7 +1185,7 @@
         let seedMinSize = 100;
 
         // 드래그 앤 드롭 설정
-        ['leafUploadZone', 'seedUploadZone', 'colorUploadZone', 'batchUploadZone'].forEach(id => {
+        ['leafUploadZone', 'seedUploadZone', 'colorUploadZone', 'flatfieldRefUploadZone', 'flatfieldSampleUploadZone', 'batchUploadZone'].forEach(id => {
             const zone = document.getElementById(id);
             if (zone) {
                 zone.addEventListener('dragover', (e) => {
@@ -1083,6 +1202,10 @@
                     if (files.length > 0) {
                         if (id === 'batchUploadZone') {
                             handleBatchFiles(files);
+                        } else if (id === 'flatfieldRefUploadZone') {
+                            handleFlatfieldRefUpload({ target: { files: files } });
+                        } else if (id === 'flatfieldSampleUploadZone') {
+                            handleFlatfieldSampleUpload({ target: { files: files } });
                         } else {
                             handleImageFile(files[0], id.replace('UploadZone', ''));
                         }
@@ -2352,6 +2475,286 @@
             a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        // ==================== 플랫필드 보정 ====================
+
+        function handleFlatfieldRefUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    flatfieldRefImage = img;
+                    document.getElementById('flatfieldRefImage').src = e.target.result;
+                    document.getElementById('flatfieldRefPreview').style.display = 'block';
+
+                    // 레퍼런스 데이터 추출
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    flatfieldRefData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                    // 샘플 이미지가 이미 업로드되어 있으면 자동 보정
+                    if (flatfieldSampleImage) {
+                        applyFlatfieldCorrection();
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleFlatfieldSampleUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!flatfieldRefImage) {
+                alert('먼저 레퍼런스 이미지를 업로드하세요.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    flatfieldSampleImage = img;
+
+                    // 이미지 크기 확인
+                    if (img.width !== flatfieldRefImage.width || img.height !== flatfieldRefImage.height) {
+                        const proceed = confirm(
+                            `이미지 크기가 다릅니다.\n레퍼런스: ${flatfieldRefImage.width}x${flatfieldRefImage.height}\n분석 이미지: ${img.width}x${img.height}\n\n계속하시겠습니까? (분석 이미지가 레퍼런스 크기로 조정됩니다)`
+                        );
+                        if (!proceed) {
+                            flatfieldSampleImage = null;
+                            return;
+                        }
+                    }
+
+                    applyFlatfieldCorrection();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function applyFlatfieldCorrection() {
+            if (!flatfieldRefImage || !flatfieldSampleImage || !flatfieldRefData) {
+                alert('레퍼런스 이미지와 분석 이미지를 모두 업로드하세요.');
+                return;
+            }
+
+            showLoading('플랫필드 보정 중...');
+
+            setTimeout(() => {
+                const width = flatfieldRefImage.width;
+                const height = flatfieldRefImage.height;
+
+                // 샘플 이미지 데이터 추출
+                const sampleCanvas = document.createElement('canvas');
+                sampleCanvas.width = width;
+                sampleCanvas.height = height;
+                const sampleCtx = sampleCanvas.getContext('2d');
+                sampleCtx.drawImage(flatfieldSampleImage, 0, 0, width, height);
+                const sampleData = sampleCtx.getImageData(0, 0, width, height);
+
+                // 레퍼런스 이미지의 평균 밝기 계산
+                const refPixels = flatfieldRefData.data;
+                let totalBrightness = 0;
+                for (let i = 0; i < refPixels.length; i += 4) {
+                    const brightness = (refPixels[i] + refPixels[i + 1] + refPixels[i + 2]) / 3;
+                    totalBrightness += brightness;
+                }
+                const avgBrightness = totalBrightness / (refPixels.length / 4);
+
+                // 보정 계수 계산 및 적용
+                const correctedData = sampleCtx.createImageData(width, height);
+                const intensity = parseFloat(document.getElementById('flatfieldIntensity').value) / 100;
+
+                for (let i = 0; i < sampleData.data.length; i += 4) {
+                    const refBrightness = (refPixels[i] + refPixels[i + 1] + refPixels[i + 2]) / 3;
+                    const correctionFactor = avgBrightness / Math.max(refBrightness, 1);
+
+                    // 보정 강도 적용 (0 = 보정 없음, 1 = 완전 보정)
+                    const factor = 1 + (correctionFactor - 1) * intensity;
+
+                    for (let j = 0; j < 3; j++) {
+                        const correctedValue = sampleData.data[i + j] * factor;
+                        correctedData.data[i + j] = Math.min(255, Math.max(0, correctedValue));
+                    }
+                    correctedData.data[i + 3] = sampleData.data[i + 3]; // Alpha
+                }
+
+                flatfieldCorrectedData = correctedData;
+
+                // 캔버스에 표시
+                const originalCanvas = document.getElementById('flatfieldOriginalCanvas');
+                const correctedCanvas = document.getElementById('flatfieldCorrectedCanvas');
+
+                originalCanvas.width = width;
+                originalCanvas.height = height;
+                correctedCanvas.width = width;
+                correctedCanvas.height = height;
+
+                const originalCtx = originalCanvas.getContext('2d');
+                const correctedCtx = correctedCanvas.getContext('2d');
+
+                originalCtx.putImageData(sampleData, 0, 0);
+                correctedCtx.putImageData(correctedData, 0, 0);
+
+                // 균일도 계산
+                const originalUniformity = calculateUniformity(sampleData);
+                const correctedUniformity = calculateUniformity(correctedData);
+                const improvement = ((correctedUniformity - originalUniformity) / originalUniformity * 100);
+
+                // 평균 밝기 변화 계산
+                let originalBrightness = 0, correctedBrightness = 0;
+                for (let i = 0; i < sampleData.data.length; i += 4) {
+                    originalBrightness += (sampleData.data[i] + sampleData.data[i + 1] + sampleData.data[i + 2]) / 3;
+                    correctedBrightness += (correctedData.data[i] + correctedData.data[i + 1] + correctedData.data[i + 2]) / 3;
+                }
+                originalBrightness /= (sampleData.data.length / 4);
+                correctedBrightness /= (correctedData.data.length / 4);
+                const brightnessChange = ((correctedBrightness - originalBrightness) / originalBrightness * 100);
+
+                // 결과 표시
+                document.getElementById('flatfieldOriginalUniformity').innerHTML =
+                    (100 - originalUniformity).toFixed(2) + '<span class="result-unit">%</span>';
+                document.getElementById('flatfieldCorrectedUniformity').innerHTML =
+                    (100 - correctedUniformity).toFixed(2) + '<span class="result-unit">%</span>';
+                document.getElementById('flatfieldImprovement').innerHTML =
+                    improvement.toFixed(2) + '<span class="result-unit">%</span>';
+                document.getElementById('flatfieldBrightnessChange').innerHTML =
+                    (brightnessChange >= 0 ? '+' : '') + brightnessChange.toFixed(2) + '<span class="result-unit">%</span>';
+
+                // 히스토그램 그리기
+                drawFlatfieldHistogram(sampleData, correctedData);
+
+                // UI 업데이트
+                document.getElementById('flatfieldSettings').style.display = 'block';
+                document.getElementById('flatfieldResults').style.display = 'block';
+
+                hideLoading();
+            }, 100);
+        }
+
+        function calculateUniformity(imageData) {
+            // 표준편차 계산 (값이 낮을수록 균일함)
+            const data = imageData.data;
+            let sum = 0, sumSq = 0;
+            const pixelCount = data.length / 4;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                sum += brightness;
+                sumSq += brightness * brightness;
+            }
+
+            const mean = sum / pixelCount;
+            const variance = (sumSq / pixelCount) - (mean * mean);
+            const stdDev = Math.sqrt(variance);
+
+            // 변동계수 (CV) 반환: (표준편차 / 평균) * 100
+            return (stdDev / mean) * 100;
+        }
+
+        function drawFlatfieldHistogram(originalData, correctedData) {
+            const canvas = document.getElementById('flatfieldHistogram');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.offsetWidth;
+            const height = canvas.height = 150;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // 히스토그램 생성
+            const bins = 50;
+            const originalHist = new Array(bins).fill(0);
+            const correctedHist = new Array(bins).fill(0);
+
+            for (let i = 0; i < originalData.data.length; i += 4) {
+                const originalBrightness = (originalData.data[i] + originalData.data[i + 1] + originalData.data[i + 2]) / 3;
+                const correctedBrightness = (correctedData.data[i] + correctedData.data[i + 1] + correctedData.data[i + 2]) / 3;
+
+                const originalBin = Math.min(bins - 1, Math.floor(originalBrightness / 255 * bins));
+                const correctedBin = Math.min(bins - 1, Math.floor(correctedBrightness / 255 * bins));
+
+                originalHist[originalBin]++;
+                correctedHist[correctedBin]++;
+            }
+
+            const maxCount = Math.max(...originalHist, ...correctedHist);
+            const barWidth = width / bins;
+
+            // 보정 전 (파란색, 투명)
+            ctx.fillStyle = 'rgba(33, 150, 243, 0.5)';
+            for (let i = 0; i < bins; i++) {
+                const barHeight = (originalHist[i] / maxCount) * (height - 20);
+                ctx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+            }
+
+            // 보정 후 (초록색, 투명)
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.5)';
+            for (let i = 0; i < bins; i++) {
+                const barHeight = (correctedHist[i] / maxCount) * (height - 20);
+                ctx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+            }
+
+            // 범례
+            ctx.font = '12px sans-serif';
+            ctx.fillStyle = 'rgba(33, 150, 243, 0.8)';
+            ctx.fillRect(10, 10, 15, 15);
+            ctx.fillStyle = '#333';
+            ctx.fillText('보정 전', 30, 22);
+
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.8)';
+            ctx.fillRect(100, 10, 15, 15);
+            ctx.fillStyle = '#333';
+            ctx.fillText('보정 후', 120, 22);
+        }
+
+        function updateFlatfieldIntensity() {
+            const value = document.getElementById('flatfieldIntensity').value;
+            document.getElementById('flatfieldIntensityValue').textContent = value;
+
+            if (flatfieldSampleImage && flatfieldRefImage) {
+                applyFlatfieldCorrection();
+            }
+        }
+
+        function downloadFlatfieldResult() {
+            if (!flatfieldCorrectedData) {
+                alert('보정된 이미지가 없습니다.');
+                return;
+            }
+
+            const canvas = document.getElementById('flatfieldCorrectedCanvas');
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'flatfield_corrected.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        function clearFlatfield() {
+            flatfieldRefImage = null;
+            flatfieldSampleImage = null;
+            flatfieldRefData = null;
+            flatfieldCorrectedData = null;
+
+            document.getElementById('flatfieldRefInput').value = '';
+            document.getElementById('flatfieldSampleInput').value = '';
+            document.getElementById('flatfieldRefPreview').style.display = 'none';
+            document.getElementById('flatfieldSettings').style.display = 'none';
+            document.getElementById('flatfieldResults').style.display = 'none';
+            document.getElementById('flatfieldIntensity').value = 100;
+            document.getElementById('flatfieldIntensityValue').textContent = '100';
         }
     </script>
 </body>
