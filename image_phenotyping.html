@@ -732,8 +732,36 @@
                         </div>
                     </div>
 
+                    <!-- 균일도 분석 결과 -->
+                    <div class="analysis-results" style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 15px;">📊 균일도 분석</h4>
+                        <div class="analysis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div class="result-item" style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div class="result-label" style="color: #666; font-size: 0.9em; margin-bottom: 5px;">보정 전 균일도</div>
+                                <div class="result-value" id="flatfieldOriginalUniformity" style="font-size: 1.5em; font-weight: bold; color: #333;">-</div>
+                            </div>
+                            <div class="result-item" style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div class="result-label" style="color: #666; font-size: 0.9em; margin-bottom: 5px;">보정 후 균일도</div>
+                                <div class="result-value" id="flatfieldCorrectedUniformity" style="font-size: 1.5em; font-weight: bold; color: #333;">-</div>
+                            </div>
+                            <div class="result-item" style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div class="result-label" style="color: #666; font-size: 0.9em; margin-bottom: 5px;">개선도</div>
+                                <div class="result-value" id="flatfieldImprovement" style="font-size: 1.5em; font-weight: bold; color: #4285f4;">-</div>
+                            </div>
+                            <div class="result-item" style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                                <div class="result-label" style="color: #666; font-size: 0.9em; margin-bottom: 5px;">평균 밝기 변화</div>
+                                <div class="result-value" id="flatfieldBrightnessChange" style="font-size: 1.5em; font-weight: bold; color: #333;">-</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 20px;">
+                            <div class="result-label" style="color: #666; font-weight: bold; margin-bottom: 10px;">밝기 분포 히스토그램</div>
+                            <canvas id="flatfieldHistogram" style="width: 100%; height: 150px; background: white; border-radius: 8px; border: 1px solid #ddd;"></canvas>
+                        </div>
+                    </div>
+
                     <!-- 액션 버튼들 -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;">
                         <button class="btn-secondary" onclick="downloadCorrectedImage()">
                             💾 보정된 이미지 다운로드
                         </button>
@@ -2281,10 +2309,115 @@
             correctedImage = new Image();
             correctedImage.src = corrCanvas.toDataURL();
 
+            // 균일도 분석
+            const originalUniformity = calculateUniformity(origData);
+            const correctedUniformity = calculateUniformity(corrData);
+            const improvement = originalUniformity - correctedUniformity;
+
+            // 평균 밝기 계산
+            let originalBrightness = 0, correctedBrightness = 0;
+            for (let i = 0; i < origData.data.length; i += 4) {
+                originalBrightness += (origData.data[i] + origData.data[i + 1] + origData.data[i + 2]) / 3;
+                correctedBrightness += (corrData.data[i] + corrData.data[i + 1] + corrData.data[i + 2]) / 3;
+            }
+            originalBrightness /= pixelCount;
+            correctedBrightness /= pixelCount;
+            const brightnessChange = ((correctedBrightness - originalBrightness) / originalBrightness * 100);
+
+            // 균일도 결과 표시
+            document.getElementById('flatfieldOriginalUniformity').innerHTML =
+                (100 - originalUniformity).toFixed(2) + '<span class="result-unit" style="font-size: 0.8em; color: #999;">%</span>';
+            document.getElementById('flatfieldCorrectedUniformity').innerHTML =
+                (100 - correctedUniformity).toFixed(2) + '<span class="result-unit" style="font-size: 0.8em; color: #999;">%</span>';
+            document.getElementById('flatfieldImprovement').innerHTML =
+                improvement.toFixed(2) + '<span class="result-unit" style="font-size: 0.8em; color: #999;">%</span>';
+            document.getElementById('flatfieldBrightnessChange').innerHTML =
+                (brightnessChange >= 0 ? '+' : '') + brightnessChange.toFixed(2) + '<span class="result-unit" style="font-size: 0.8em; color: #999;">%</span>';
+
+            // 히스토그램 그리기
+            drawFlatfieldHistogram(origData, corrData);
+
             // 결과 표시
             document.getElementById('flatFieldResults').style.display = 'block';
 
             hideLoading();
+        }
+
+        function calculateUniformity(imageData) {
+            const pixels = imageData.data;
+            const length = pixels.length;
+
+            // 평균 밝기 계산
+            let sum = 0;
+            for (let i = 0; i < length; i += 4) {
+                const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                sum += brightness;
+            }
+            const mean = sum / (length / 4);
+
+            // 표준편차 계산
+            let variance = 0;
+            for (let i = 0; i < length; i += 4) {
+                const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                variance += Math.pow(brightness - mean, 2);
+            }
+            const stdDev = Math.sqrt(variance / (length / 4));
+
+            // 변동계수 (CV) 반환: (표준편차 / 평균) * 100
+            return (stdDev / mean) * 100;
+        }
+
+        function drawFlatfieldHistogram(originalData, correctedData) {
+            const canvas = document.getElementById('flatfieldHistogram');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.offsetWidth;
+            const height = canvas.height = 150;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // 히스토그램 데이터 계산
+            const bins = 256;
+            const originalHist = new Array(bins).fill(0);
+            const correctedHist = new Array(bins).fill(0);
+
+            for (let i = 0; i < originalData.data.length; i += 4) {
+                const origBrightness = Math.floor((originalData.data[i] + originalData.data[i + 1] + originalData.data[i + 2]) / 3);
+                const corrBrightness = Math.floor((correctedData.data[i] + correctedData.data[i + 1] + correctedData.data[i + 2]) / 3);
+                originalHist[origBrightness]++;
+                correctedHist[corrBrightness]++;
+            }
+
+            // 최대값 찾기
+            const maxCount = Math.max(...originalHist, ...correctedHist);
+
+            // 히스토그램 그리기
+            const barWidth = width / bins;
+
+            // 보정 전 (빨간색, 반투명)
+            ctx.fillStyle = 'rgba(255, 99, 132, 0.5)';
+            for (let i = 0; i < bins; i++) {
+                const barHeight = (originalHist[i] / maxCount) * (height - 30);
+                ctx.fillRect(i * barWidth, height - barHeight - 10, barWidth, barHeight);
+            }
+
+            // 보정 후 (파란색, 반투명)
+            ctx.fillStyle = 'rgba(54, 162, 235, 0.5)';
+            for (let i = 0; i < bins; i++) {
+                const barHeight = (correctedHist[i] / maxCount) * (height - 30);
+                ctx.fillRect(i * barWidth, height - barHeight - 10, barWidth, barHeight);
+            }
+
+            // 범례
+            ctx.fillStyle = 'rgba(255, 99, 132, 0.8)';
+            ctx.fillRect(20, 10, 15, 15);
+            ctx.fillStyle = '#333';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('보정 전', 40, 22);
+
+            ctx.fillStyle = 'rgba(54, 162, 235, 0.8)';
+            ctx.fillRect(120, 10, 15, 15);
+            ctx.fillStyle = '#333';
+            ctx.fillText('보정 후', 140, 22);
         }
 
         function downloadCorrectedImage() {
