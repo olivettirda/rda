@@ -1706,7 +1706,17 @@
             canvas.style.cursor = 'default';
             canvas.onclick = null;
 
-            analyzeSeed();
+            // 10회 반복 분석
+            (async function() {
+                for (let i = 0; i < 10; i++) {
+                    document.getElementById('modeIndicator').textContent = `🔍 분석 중... (${i + 1}/10)`;
+                    document.getElementById('modeIndicator').classList.add('show');
+                    await analyzeSeed();
+                    // 짧은 지연 (UI 업데이트를 위해)
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                document.getElementById('modeIndicator').classList.remove('show');
+            })();
         }
 
         // 종자 편집 모드
@@ -2023,8 +2033,10 @@
             );
 
             validSeeds.forEach((seed) => {
-                const length = seed.maxY - seed.minY;
-                const width = seed.maxX - seed.minX;
+                // 축 계산 (PCA 기반)
+                const axes = calculateAxes(seed);
+                const length = axes ? axes.majorAxis.length : (seed.maxY - seed.minY);
+                const width = axes ? axes.minorAxis.length : (seed.maxX - seed.minX);
 
                 totalLength += length;
                 totalWidth += width;
@@ -2045,10 +2057,40 @@
                     strokeColor = '#4caf50';
                 }
 
+                // 윤곽선 그리기
+                const contour = extractContour(seed, binaryData, canvas.width, canvas.height);
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = 2;
-                ctx.strokeRect(seed.minX, seed.minY, width, length);
+                ctx.beginPath();
+                if (contour.length > 0) {
+                    ctx.moveTo(contour[0].x, contour[0].y);
+                    for (let i = 1; i < contour.length; i++) {
+                        ctx.lineTo(contour[i].x, contour[i].y);
+                    }
+                    ctx.closePath();
+                }
+                ctx.stroke();
 
+                // 장축(빨간색)과 단축(파란색) 그리기
+                if (axes) {
+                    // 장축 (빨간색)
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(axes.majorAxis.start.x, axes.majorAxis.start.y);
+                    ctx.lineTo(axes.majorAxis.end.x, axes.majorAxis.end.y);
+                    ctx.stroke();
+
+                    // 단축 (파란색)
+                    ctx.strokeStyle = '#0000ff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(axes.minorAxis.start.x, axes.minorAxis.start.y);
+                    ctx.lineTo(axes.minorAxis.end.x, axes.minorAxis.end.y);
+                    ctx.stroke();
+                }
+
+                // 번호 표시
                 ctx.fillStyle = strokeColor;
                 ctx.font = 'bold 14px sans-serif';
                 ctx.fillText(`#${++idx}`, seed.minX, seed.minY - 5);
@@ -2152,6 +2194,114 @@
             }
 
             return components;
+        }
+
+        // 윤곽선 추출 함수
+        function extractContour(component, binaryData, width, height) {
+            const contour = [];
+            const pixelSet = new Set(component.pixels.map(p => `${p.x},${p.y}`));
+
+            // 경계선 픽셀 찾기
+            for (const pixel of component.pixels) {
+                const { x, y } = pixel;
+                // 인접한 8방향 중 하나라도 배경이면 경계선
+                const neighbors = [
+                    [x-1, y-1], [x, y-1], [x+1, y-1],
+                    [x-1, y], [x+1, y],
+                    [x-1, y+1], [x, y+1], [x+1, y+1]
+                ];
+
+                let isBoundary = false;
+                for (const [nx, ny] of neighbors) {
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+                        isBoundary = true;
+                        break;
+                    }
+                    if (!pixelSet.has(`${nx},${ny}`)) {
+                        isBoundary = true;
+                        break;
+                    }
+                }
+
+                if (isBoundary) {
+                    contour.push({ x, y });
+                }
+            }
+
+            return contour;
+        }
+
+        // 장축과 단축 계산 (PCA 기반)
+        function calculateAxes(component) {
+            const pixels = component.pixels;
+            if (pixels.length === 0) return null;
+
+            // 중심점 계산
+            let centerX = 0, centerY = 0;
+            for (const p of pixels) {
+                centerX += p.x;
+                centerY += p.y;
+            }
+            centerX /= pixels.length;
+            centerY /= pixels.length;
+
+            // 공분산 행렬 계산
+            let cov_xx = 0, cov_xy = 0, cov_yy = 0;
+            for (const p of pixels) {
+                const dx = p.x - centerX;
+                const dy = p.y - centerY;
+                cov_xx += dx * dx;
+                cov_xy += dx * dy;
+                cov_yy += dy * dy;
+            }
+            cov_xx /= pixels.length;
+            cov_xy /= pixels.length;
+            cov_yy /= pixels.length;
+
+            // 고유값과 고유벡터 계산 (2x2 행렬)
+            const trace = cov_xx + cov_yy;
+            const det = cov_xx * cov_yy - cov_xy * cov_xy;
+            const lambda1 = trace / 2 + Math.sqrt(trace * trace / 4 - det);
+            const lambda2 = trace / 2 - Math.sqrt(trace * trace / 4 - det);
+
+            // 장축 (더 큰 고유값에 해당하는 고유벡터)
+            let v1_x, v1_y;
+            if (Math.abs(cov_xy) > 1e-10) {
+                v1_x = lambda1 - cov_yy;
+                v1_y = cov_xy;
+            } else {
+                v1_x = cov_xx > cov_yy ? 1 : 0;
+                v1_y = cov_xx > cov_yy ? 0 : 1;
+            }
+
+            // 정규화
+            const len1 = Math.sqrt(v1_x * v1_x + v1_y * v1_y);
+            v1_x /= len1;
+            v1_y /= len1;
+
+            // 단축 (장축에 수직)
+            const v2_x = -v1_y;
+            const v2_y = v1_x;
+
+            // 장축과 단축 길이 계산 (고유값의 제곱근 * 2)
+            const majorLength = 2 * Math.sqrt(lambda1);
+            const minorLength = 2 * Math.sqrt(lambda2);
+
+            return {
+                center: { x: centerX, y: centerY },
+                majorAxis: {
+                    vector: { x: v1_x, y: v1_y },
+                    length: majorLength,
+                    start: { x: centerX - v1_x * majorLength / 2, y: centerY - v1_y * majorLength / 2 },
+                    end: { x: centerX + v1_x * majorLength / 2, y: centerY + v1_y * majorLength / 2 }
+                },
+                minorAxis: {
+                    vector: { x: v2_x, y: v2_y },
+                    length: minorLength,
+                    start: { x: centerX - v2_x * minorLength / 2, y: centerY - v2_y * minorLength / 2 },
+                    end: { x: centerX + v2_x * minorLength / 2, y: centerY + v2_y * minorLength / 2 }
+                }
+            };
         }
 
         function clearSeed() {
