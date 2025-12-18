@@ -1225,6 +1225,7 @@
         let seedBgColorSamples = []; // 배경색 10번 추출 샘플
         let seedColorSamples = []; // 종자색 10번 추출 샘플
         let seedEyedropperMode = null; // 'bg' or 'seed'
+        let seedReextractSampleIndex = null; // 개별 샘플 재추출용 인덱스
         let seedComponents = [];
         let removedSeeds = new Set();
         let addedSeeds = [];
@@ -1727,12 +1728,21 @@
                 document.getElementById('seedColorEyedropper').classList.remove('active');
             }
 
-            // 10회 반복 색상 추출
+            // 개별 샘플 재추출 또는 10회 반복 색상 추출
             (async function() {
+                const isReextractingSingleSample = seedReextractSampleIndex !== null;
+                const reextractIndex = seedReextractSampleIndex;
+                seedReextractSampleIndex = null; // 초기화
+
+                const iterations = isReextractingSingleSample ? 1 : 10;
                 const samples = [];
 
-                for (let i = 0; i < 10; i++) {
-                    document.getElementById('modeIndicator').textContent = `🔍 색상 추출 중... (${i + 1}/10)`;
+                for (let i = 0; i < iterations; i++) {
+                    if (isReextractingSingleSample) {
+                        document.getElementById('modeIndicator').textContent = `🔍 샘플 ${reextractIndex + 1} 재추출 중...`;
+                    } else {
+                        document.getElementById('modeIndicator').textContent = `🔍 색상 추출 중... (${i + 1}/10)`;
+                    }
                     document.getElementById('modeIndicator').classList.add('show');
 
                     // 원본 이미지에서 색상 추출 (10x10 영역 평균)
@@ -1777,18 +1787,34 @@
                 }
 
                 // 샘플 저장 및 렌더링
-                if (mode === 'bg') {
-                    seedBgColorSamples = samples;
-                    // 첫 번째 샘플을 현재 색상으로 설정
-                    seedBgColor = samples[0];
-                    document.getElementById('seedBgColorPreview').style.background =
-                        `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                if (isReextractingSingleSample) {
+                    // 개별 샘플만 교체
+                    if (mode === 'bg') {
+                        seedBgColorSamples[reextractIndex] = samples[0];
+                        seedBgColor = samples[0];
+                        document.getElementById('seedBgColorPreview').style.background =
+                            `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                    } else {
+                        seedColorSamples[reextractIndex] = samples[0];
+                        seedColor = samples[0];
+                        document.getElementById('seedColorPreview').style.background =
+                            `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                    }
                 } else {
-                    seedColorSamples = samples;
-                    // 첫 번째 샘플을 현재 색상으로 설정
-                    seedColor = samples[0];
-                    document.getElementById('seedColorPreview').style.background =
-                        `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                    // 전체 샘플 교체
+                    if (mode === 'bg') {
+                        seedBgColorSamples = samples;
+                        // 첫 번째 샘플을 현재 색상으로 설정
+                        seedBgColor = samples[0];
+                        document.getElementById('seedBgColorPreview').style.background =
+                            `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                    } else {
+                        seedColorSamples = samples;
+                        // 첫 번째 샘플을 현재 색상으로 설정
+                        seedColor = samples[0];
+                        document.getElementById('seedColorPreview').style.background =
+                            `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                    }
                 }
 
                 renderColorSamples();
@@ -1822,6 +1848,29 @@
                 `;
                 sample.onmouseover = () => sample.style.transform = 'scale(1.1)';
                 sample.onmouseout = () => sample.style.transform = 'scale(1)';
+
+                // 재추출 버튼
+                const reextractBtn = document.createElement('div');
+                reextractBtn.innerHTML = '🔄';
+                reextractBtn.style.cssText = `
+                    position: absolute;
+                    top: -8px;
+                    left: -8px;
+                    width: 20px;
+                    height: 20px;
+                    background: #4CAF50;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                    cursor: pointer;
+                `;
+                reextractBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    reextractSingleBgSample(index);
+                };
 
                 // 삭제 버튼
                 const deleteBtn = document.createElement('div');
@@ -1859,6 +1908,7 @@
                     color: #666;
                 `;
 
+                sample.appendChild(reextractBtn);
                 sample.appendChild(deleteBtn);
                 sample.appendChild(indexLabel);
                 sample.onclick = () => selectBgColorSample(index);
@@ -1881,6 +1931,29 @@
                 `;
                 sample.onmouseover = () => sample.style.transform = 'scale(1.1)';
                 sample.onmouseout = () => sample.style.transform = 'scale(1)';
+
+                // 재추출 버튼
+                const reextractBtn = document.createElement('div');
+                reextractBtn.innerHTML = '🔄';
+                reextractBtn.style.cssText = `
+                    position: absolute;
+                    top: -8px;
+                    left: -8px;
+                    width: 20px;
+                    height: 20px;
+                    background: #4CAF50;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                    cursor: pointer;
+                `;
+                reextractBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    reextractSingleSeedSample(index);
+                };
 
                 // 삭제 버튼
                 const deleteBtn = document.createElement('div');
@@ -1918,6 +1991,7 @@
                     color: #666;
                 `;
 
+                sample.appendChild(reextractBtn);
                 sample.appendChild(deleteBtn);
                 sample.appendChild(indexLabel);
                 sample.onclick = () => selectSeedColorSample(index);
@@ -1985,6 +2059,44 @@
                 return;
             }
             startSeedColorEyedropper();
+        }
+
+        // 개별 배경색 샘플 재추출
+        function reextractSingleBgSample(index) {
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+            seedReextractSampleIndex = index;
+            seedEyedropperMode = 'bg';
+            document.getElementById('seedBgEyedropper').classList.add('active');
+            document.getElementById('seedColorEyedropper').classList.remove('active');
+            document.getElementById('modeIndicator').textContent = `🔍 샘플 ${index + 1} 재추출: 배경색을 클릭하세요`;
+            document.getElementById('modeIndicator').classList.add('show');
+
+            const canvas = document.getElementById('seedCanvas');
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+            canvas.onclick = handleSeedEyedropperClick;
+        }
+
+        // 개별 종자색 샘플 재추출
+        function reextractSingleSeedSample(index) {
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+            seedReextractSampleIndex = index;
+            seedEyedropperMode = 'seed';
+            document.getElementById('seedColorEyedropper').classList.add('active');
+            document.getElementById('seedBgEyedropper').classList.remove('active');
+            document.getElementById('modeIndicator').textContent = `🔍 샘플 ${index + 1} 재추출: 종자색을 클릭하세요`;
+            document.getElementById('modeIndicator').classList.add('show');
+
+            const canvas = document.getElementById('seedCanvas');
+            canvas.style.pointerEvents = 'auto';
+            canvas.style.cursor = 'crosshair';
+            canvas.onclick = handleSeedEyedropperClick;
         }
 
         // 종자 편집 모드
