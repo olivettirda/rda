@@ -1009,6 +1009,15 @@
                         <span style="margin-left: 12px; font-size: 0.85em;" id="seedEditStatus">현재: 추가 모드</span>
                     </div>
 
+                    <!-- 다중 분석 결과 리스트 -->
+                    <div id="analysisResultsList" style="display: none; margin-top: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="margin: 0; font-size: 1.1em;">📊 분석 결과 목록</h3>
+                            <button class="btn btn-sm" onclick="extractNewAnalysis()" style="padding: 6px 12px; font-size: 0.85em;">➕ 추가 추출</button>
+                        </div>
+                        <div id="analysisCardsContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+
                     <div class="slider-container">
                         <div class="slider-label">
                             <span>최소 종자 크기 (픽셀)</span>
@@ -1175,6 +1184,9 @@
         let seedEditMode = false;
         let seedEditAction = 'add'; // 'add' or 'remove'
         let seedMinSize = 100;
+        // 다중 분석 결과 저장
+        let seedAnalysisResults = [];
+        let currentAnalysisIndex = -1;
 
         // 드래그 앤 드롭 설정
         ['leafUploadZone', 'seedUploadZone', 'colorUploadZone', 'batchUploadZone'].forEach(id => {
@@ -1706,16 +1718,40 @@
             canvas.style.cursor = 'default';
             canvas.onclick = null;
 
-            // 10회 반복 분석
+            // 10회 반복 분석 및 각 결과 저장
             (async function() {
+                // 분석 결과 배열 초기화
+                seedAnalysisResults = [];
+
                 for (let i = 0; i < 10; i++) {
                     document.getElementById('modeIndicator').textContent = `🔍 분석 중... (${i + 1}/10)`;
                     document.getElementById('modeIndicator').classList.add('show');
+
+                    // 분석 실행
                     await analyzeSeed();
+
+                    // 현재 캔버스 상태를 이미지로 저장
+                    const canvas = document.getElementById('seedCanvas');
+                    const imageDataUrl = canvas.toDataURL('image/png');
+
+                    // 분석 결과 저장
+                    seedAnalysisResults.push({
+                        id: Date.now() + i,
+                        index: i + 1,
+                        imageData: imageDataUrl,
+                        components: JSON.parse(JSON.stringify(seedComponents)),
+                        seedCount: seedComponents.filter(s => s.pixels.length >= seedMinSize).length,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+
                     // 짧은 지연 (UI 업데이트를 위해)
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
+
                 document.getElementById('modeIndicator').classList.remove('show');
+
+                // 분석 결과 리스트 UI 표시
+                displayAnalysisResults();
             })();
         }
 
@@ -2309,9 +2345,12 @@
             seedComponents = [];
             removedSeeds.clear();
             addedSeeds = [];
+            seedAnalysisResults = [];
+            currentAnalysisIndex = -1;
             document.getElementById('seedPreview').classList.remove('show');
             document.getElementById('seedFileInput').value = '';
             document.getElementById('seedEditMode').classList.remove('active');
+            document.getElementById('analysisResultsList').style.display = 'none';
             seedBgColor = { r: 255, g: 255, b: 255 };
             seedColor = { r: 166, g: 124, b: 82 };
             document.getElementById('seedBgColorPreview').style.background = '#ffffff';
@@ -2334,6 +2373,137 @@
             };
 
             downloadJSON(results, 'seed_analysis_results.json');
+        }
+
+        // ==================== 다중 분석 결과 관리 ====================
+        // 분석 결과 리스트 표시
+        function displayAnalysisResults() {
+            if (seedAnalysisResults.length === 0) {
+                document.getElementById('analysisResultsList').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('analysisResultsList').style.display = 'block';
+            const container = document.getElementById('analysisCardsContainer');
+            container.innerHTML = '';
+
+            seedAnalysisResults.forEach((result, index) => {
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    position: relative;
+                    border: 2px solid ${currentAnalysisIndex === index ? '#4caf50' : '#ddd'};
+                    border-radius: 8px;
+                    padding: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    background: ${currentAnalysisIndex === index ? '#f0f8f0' : 'white'};
+                `;
+
+                card.innerHTML = `
+                    <div style="position: relative;">
+                        <img src="${result.imageData}" style="width: 100%; border-radius: 4px; display: block;">
+                        <button onclick="deleteAnalysisResult(${index}); event.stopPropagation();"
+                                style="position: absolute; top: 4px; right: 4px; background: #f44336; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 1;">
+                            ×
+                        </button>
+                    </div>
+                    <div style="margin-top: 6px; font-size: 0.85em; text-align: center;">
+                        <div style="font-weight: bold;">#${result.index}</div>
+                        <div style="color: #666; font-size: 0.9em;">${result.seedCount}개</div>
+                        <div style="color: #999; font-size: 0.8em;">${result.timestamp}</div>
+                    </div>
+                `;
+
+                card.onclick = () => selectAnalysisResult(index);
+                container.appendChild(card);
+            });
+        }
+
+        // 분석 결과 선택
+        function selectAnalysisResult(index) {
+            if (index < 0 || index >= seedAnalysisResults.length) return;
+
+            currentAnalysisIndex = index;
+            const result = seedAnalysisResults[index];
+
+            // 선택한 결과의 이미지를 캔버스에 표시
+            const canvas = document.getElementById('seedCanvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            img.onload = function() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = result.imageData;
+
+            // seedComponents 복원
+            seedComponents = JSON.parse(JSON.stringify(result.components));
+
+            // 결과 업데이트
+            updateSeedResults();
+
+            // UI 업데이트
+            displayAnalysisResults();
+        }
+
+        // 분석 결과 삭제
+        function deleteAnalysisResult(index) {
+            if (index < 0 || index >= seedAnalysisResults.length) return;
+
+            seedAnalysisResults.splice(index, 1);
+
+            // 현재 선택된 인덱스 조정
+            if (currentAnalysisIndex >= index && currentAnalysisIndex > 0) {
+                currentAnalysisIndex--;
+            }
+
+            // 결과가 남아있으면 첫 번째 항목 선택
+            if (seedAnalysisResults.length > 0) {
+                selectAnalysisResult(0);
+            } else {
+                currentAnalysisIndex = -1;
+                document.getElementById('analysisResultsList').style.display = 'none';
+            }
+
+            displayAnalysisResults();
+        }
+
+        // 추가 분석 실행
+        async function extractNewAnalysis() {
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하고 배경색/종자색을 선택하세요!');
+                return;
+            }
+
+            document.getElementById('modeIndicator').textContent = '🔍 분석 중...';
+            document.getElementById('modeIndicator').classList.add('show');
+
+            // 분석 실행
+            await analyzeSeed();
+
+            // 현재 캔버스 상태를 이미지로 저장
+            const canvas = document.getElementById('seedCanvas');
+            const imageDataUrl = canvas.toDataURL('image/png');
+
+            // 분석 결과 추가
+            const newIndex = seedAnalysisResults.length + 1;
+            seedAnalysisResults.push({
+                id: Date.now(),
+                index: newIndex,
+                imageData: imageDataUrl,
+                components: JSON.parse(JSON.stringify(seedComponents)),
+                seedCount: seedComponents.filter(s => s.pixels.length >= seedMinSize).length,
+                timestamp: new Date().toLocaleTimeString()
+            });
+
+            document.getElementById('modeIndicator').classList.remove('show');
+
+            // UI 업데이트
+            displayAnalysisResults();
+
+            // 새로 추가된 결과 선택
+            selectAnalysisResult(seedAnalysisResults.length - 1);
         }
 
         // ==================== 플랫 필드 보정 ====================
