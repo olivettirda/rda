@@ -1042,6 +1042,35 @@
                         <input type="range" id="seedMinSize" min="20" max="500" value="100" onchange="updateSeedMinSize()">
                     </div>
 
+                    <!-- 고급 종자 분리 설정 -->
+                    <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <strong>🔬 고급 종자 분리 설정</strong>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="enableSeedSeparation" checked onchange="analyzeSeed()">
+                                <span style="font-size: 0.9em;">자동 분리 활성화</span>
+                            </label>
+                        </div>
+                        <div id="seedSeparationSettings">
+                            <div style="margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 4px;">
+                                    <span>곡률 민감도</span>
+                                    <span id="curvatureSensitivityValue">중간</span>
+                                </div>
+                                <input type="range" id="curvatureSensitivity" min="1" max="3" value="2" step="1"
+                                    style="width: 100%;" oninput="updateCurvatureSensitivity()">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75em; color: #666; margin-top: 2px;">
+                                    <span>낮음</span>
+                                    <span>중간</span>
+                                    <span>높음</span>
+                                </div>
+                            </div>
+                            <div style="font-size: 0.85em; color: #666; line-height: 1.4;">
+                                💡 낮음: 뚜렷하게 붙은 종자만 분리 | 높음: 약하게 닿은 종자도 분리
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="controls">
                         <button class="btn" onclick="analyzeSeed()">🔍 다시 분석</button>
                         <button class="btn btn-outline" onclick="startSeedEditMode()">✏️ 종자 편집</button>
@@ -2149,15 +2178,428 @@
             }
         }
 
-        // 원형도(Circularity) 계산: 4π × Area / Perimeter²
-        function calculateCircularity(component, width) {
-            const area = component.pixels.length;
-            // 둘레 계산 (경계 픽셀 수)
+        function updateCurvatureSensitivity() {
+            const sensitivity = parseInt(document.getElementById('curvatureSensitivity').value);
+            const labels = ['낮음', '중간', '높음'];
+            document.getElementById('curvatureSensitivityValue').textContent = labels[sensitivity - 1];
+            if (currentSeedImage) {
+                analyzeSeed();
+            }
+        }
+
+        function getCurvatureThreshold() {
+            const sensitivity = parseInt(document.getElementById('curvatureSensitivity').value);
+            // 낮음: 0.020 (덜 민감), 중간: 0.015 (기본), 높음: 0.010 (더 민감)
+            const thresholds = [0.020, 0.015, 0.010];
+            return thresholds[sensitivity - 1];
+        }
+
+        // ==================== 종자 분리 알고리즘 시작 ====================
+
+        // 1D Gaussian 스무딩
+        function gaussianSmooth1D(data, sigma) {
+            const result = new Float32Array(data.length);
+            const kernelSize = Math.ceil(sigma * 3);
+            const kernel = [];
+            let kernelSum = 0;
+
+            for (let i = -kernelSize; i <= kernelSize; i++) {
+                const val = Math.exp(-(i * i) / (2 * sigma * sigma));
+                kernel.push(val);
+                kernelSum += val;
+            }
+
+            // Normalize kernel
+            for (let i = 0; i < kernel.length; i++) {
+                kernel[i] /= kernelSum;
+            }
+
+            // Apply convolution with circular boundary
+            for (let i = 0; i < data.length; i++) {
+                let sum = 0;
+                for (let j = 0; j < kernel.length; j++) {
+                    const idx = (i + j - kernelSize + data.length) % data.length;
+                    sum += data[idx] * kernel[j];
+                }
+                result[i] = sum;
+            }
+
+            return result;
+        }
+
+        // 곡률 계산
+        function computeCurvature(contour, smoothSigma = 3.0) {
+            if (contour.length < 10) return null;
+
+            const pad = 5;
+            const n = contour.length;
+
+            // Extract x, y coordinates with padding
+            const x = new Float32Array(n + 2 * pad);
+            const y = new Float32Array(n + 2 * pad);
+
+            for (let i = 0; i < pad; i++) {
+                x[i] = contour[n - pad + i].x;
+                y[i] = contour[n - pad + i].y;
+            }
+            for (let i = 0; i < n; i++) {
+                x[i + pad] = contour[i].x;
+                y[i + pad] = contour[i].y;
+            }
+            for (let i = 0; i < pad; i++) {
+                x[n + pad + i] = contour[i].x;
+                y[n + pad + i] = contour[i].y;
+            }
+
+            // Smooth
+            const xSmooth = gaussianSmooth1D(x, smoothSigma);
+            const ySmooth = gaussianSmooth1D(y, smoothSigma);
+
+            // Compute derivatives
+            const dx = new Float32Array(n);
+            const dy = new Float32Array(n);
+            const ddx = new Float32Array(n);
+            const ddy = new Float32Array(n);
+
+            for (let i = 0; i < n; i++) {
+                const idx = i + pad;
+                dx[i] = (xSmooth[idx + 1] - xSmooth[idx - 1]) / 2;
+                dy[i] = (ySmooth[idx + 1] - ySmooth[idx - 1]) / 2;
+            }
+
+            for (let i = 0; i < n; i++) {
+                const prev = (i - 1 + n) % n;
+                const next = (i + 1) % n;
+                ddx[i] = (dx[next] - dx[prev]) / 2;
+                ddy[i] = (dy[next] - dy[prev]) / 2;
+            }
+
+            // Compute curvature: k = (x'y'' - y'x'') / (x'^2 + y'^2)^(3/2)
+            const curvature = new Float32Array(n);
+            for (let i = 0; i < n; i++) {
+                const numerator = dx[i] * ddy[i] - dy[i] * ddx[i];
+                const denominator = Math.max(Math.pow(dx[i] * dx[i] + dy[i] * dy[i], 1.5), 1e-10);
+                curvature[i] = numerator / denominator;
+            }
+
+            return curvature;
+        }
+
+        // 오목점 찾기
+        function findConcavePoints(contour, curvatureThreshold = 0.015, minPeakDistance = 15) {
+            if (!contour || contour.length < 10) return [];
+
+            const curvature = computeCurvature(contour);
+            if (!curvature) return [];
+
+            // Find peaks in negative curvature (concave points)
+            const negCurvature = new Float32Array(curvature.length);
+            for (let i = 0; i < curvature.length; i++) {
+                negCurvature[i] = -curvature[i];
+            }
+
+            const peaks = [];
+            for (let i = 1; i < negCurvature.length - 1; i++) {
+                if (negCurvature[i] > curvatureThreshold &&
+                    negCurvature[i] > negCurvature[i - 1] &&
+                    negCurvature[i] > negCurvature[i + 1]) {
+                    peaks.push({
+                        idx: i,
+                        point: contour[i],
+                        curvature: curvature[i],
+                        value: negCurvature[i]
+                    });
+                }
+            }
+
+            // Filter by minimum distance
+            const filtered = [];
+            peaks.sort((a, b) => b.value - a.value);
+
+            for (const peak of peaks) {
+                let tooClose = false;
+                for (const existing of filtered) {
+                    const dist = Math.min(
+                        Math.abs(peak.idx - existing.idx),
+                        contour.length - Math.abs(peak.idx - existing.idx)
+                    );
+                    if (dist < minPeakDistance) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (!tooClose) {
+                    filtered.push(peak);
+                }
+            }
+
+            return filtered;
+        }
+
+        // 분리선을 형성할 오목점 쌍 찾기
+        function findSeparationPairs(concavePoints, contour, maxDistanceRatio = 0.35) {
+            if (concavePoints.length < 2) return [];
+
+            const n = contour.length;
             let perimeter = 0;
+            for (let i = 0; i < n; i++) {
+                const next = (i + 1) % n;
+                const dx = contour[next].x - contour[i].x;
+                const dy = contour[next].y - contour[i].y;
+                perimeter += Math.sqrt(dx * dx + dy * dy);
+            }
+
+            const maxDistance = perimeter * maxDistanceRatio;
+            const pairs = [];
+            const used = new Set();
+
+            const sorted = [...concavePoints].sort((a, b) => Math.abs(b.curvature) - Math.abs(a.curvature));
+
+            for (let i = 0; i < sorted.length; i++) {
+                const p1 = sorted[i];
+                if (used.has(p1.idx)) continue;
+
+                let bestPair = null;
+                let bestScore = Infinity;
+
+                for (let j = i + 1; j < sorted.length; j++) {
+                    const p2 = sorted[j];
+                    if (used.has(p2.idx)) continue;
+
+                    // Euclidean distance
+                    const dx = p1.point.x - p2.point.x;
+                    const dy = p1.point.y - p2.point.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist > maxDistance || dist < 10) continue;
+
+                    // Arc distance ratio
+                    const arcDist = Math.min(Math.abs(p1.idx - p2.idx), n - Math.abs(p1.idx - p2.idx));
+                    const arcRatio = arcDist / n;
+
+                    if (arcRatio < 0.20 || arcRatio > 0.80) continue;
+
+                    // Score: prefer shorter distance and higher curvature
+                    const score = dist / (Math.abs(p1.curvature) + Math.abs(p2.curvature) + 0.001);
+
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestPair = p2;
+                    }
+                }
+
+                if (bestPair) {
+                    pairs.push([p1, bestPair]);
+                    used.add(p1.idx);
+                    used.add(bestPair.idx);
+                }
+            }
+
+            return pairs;
+        }
+
+        // 거리 변환 (Distance Transform)
+        function distanceTransform(binaryData, width, height) {
+            const dist = new Float32Array(width * height);
+            const INF = width + height;
+
+            // Initialize
+            for (let i = 0; i < dist.length; i++) {
+                dist[i] = binaryData[i] === 1 ? 0 : INF;
+            }
+
+            // Forward pass
+            for (let y = 1; y < height; y++) {
+                for (let x = 1; x < width; x++) {
+                    const idx = y * width + x;
+                    if (binaryData[idx] === 1) {
+                        const d1 = dist[(y - 1) * width + x] + 1;
+                        const d2 = dist[y * width + (x - 1)] + 1;
+                        const d3 = dist[(y - 1) * width + (x - 1)] + 1.414;
+                        dist[idx] = Math.min(dist[idx], d1, d2, d3);
+                    }
+                }
+            }
+
+            // Backward pass
+            for (let y = height - 2; y >= 0; y--) {
+                for (let x = width - 2; x >= 0; x--) {
+                    const idx = y * width + x;
+                    if (binaryData[idx] === 1) {
+                        const d1 = dist[(y + 1) * width + x] + 1;
+                        const d2 = dist[y * width + (x + 1)] + 1;
+                        const d3 = dist[(y + 1) * width + (x + 1)] + 1.414;
+                        dist[idx] = Math.min(dist[idx], d1, d2, d3);
+                    }
+                }
+            }
+
+            return dist;
+        }
+
+        // Watershed 분할
+        function watershedSegmentation(binaryData, width, height, distTransform, thresholdRatio = 0.4) {
+            // Find local maxima
+            const maxFilterSize = 25;
+            const halfSize = Math.floor(maxFilterSize / 2);
+            const localMax = new Float32Array(width * height);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = y * width + x;
+                    if (binaryData[idx] === 0) continue;
+
+                    let maxVal = distTransform[idx];
+                    for (let dy = -halfSize; dy <= halfSize; dy++) {
+                        for (let dx = -halfSize; dx <= halfSize; dx++) {
+                            const ny = y + dy;
+                            const nx = x + dx;
+                            if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                                const nidx = ny * width + nx;
+                                if (distTransform[nidx] > maxVal) {
+                                    maxVal = distTransform[nidx];
+                                }
+                            }
+                        }
+                    }
+                    localMax[idx] = maxVal;
+                }
+            }
+
+            // Find seeds
+            let maxDist = 0;
+            for (let i = 0; i < distTransform.length; i++) {
+                if (distTransform[i] > maxDist) maxDist = distTransform[i];
+            }
+            const threshold = maxDist * thresholdRatio;
+
+            const seeds = [];
+            for (let i = 0; i < distTransform.length; i++) {
+                if (binaryData[i] === 1 &&
+                    distTransform[i] === localMax[i] &&
+                    distTransform[i] > threshold) {
+                    seeds.push(i);
+                }
+            }
+
+            if (seeds.length === 0) return null;
+
+            // Label seeds
+            const labels = new Int32Array(width * height);
+            for (let i = 0; i < seeds.length; i++) {
+                labels[seeds[i]] = i + 1;
+            }
+
+            // Region growing
+            const queue = seeds.map((idx, label) => ({ idx, label: label + 1 }));
+            const visited = new Uint8Array(width * height);
+            seeds.forEach(idx => visited[idx] = 1);
+
+            while (queue.length > 0) {
+                const { idx, label } = queue.shift();
+                const y = Math.floor(idx / width);
+                const x = idx % width;
+
+                const neighbors = [
+                    [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1],
+                    [x - 1, y - 1], [x + 1, y - 1], [x - 1, y + 1], [x + 1, y + 1]
+                ];
+
+                for (const [nx, ny] of neighbors) {
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        const nidx = ny * width + nx;
+                        if (binaryData[nidx] === 1 && !visited[nidx]) {
+                            visited[nidx] = 1;
+                            labels[nidx] = label;
+                            queue.push({ idx: nidx, label });
+                        }
+                    }
+                }
+            }
+
+            return labels;
+        }
+
+        // 종자 분리 메인 함수
+        function separateTouchingSeeds(component, binaryData, width, height, singleSeedArea, curvatureThreshold = 0.015) {
+            const area = component.pixels.length;
+
+            // 분리 필요 판단
+            const perimeter = calculatePerimeter(component);
+            const circularity = perimeter > 0 ? (4 * Math.PI * area) / (perimeter * perimeter) : 1;
+            const needsSeparation = area > singleSeedArea * 1.4 || circularity < 0.65;
+
+            if (!needsSeparation) {
+                return [component];
+            }
+
+            // 개별 마스크 생성
+            const individualMask = new Uint8Array(width * height);
+            for (const p of component.pixels) {
+                individualMask[p.y * width + p.x] = 1;
+            }
+
+            // 윤곽선 추출
+            const contour = extractContour(component, binaryData, width, height);
+            if (contour.length < 10) {
+                return [component];
+            }
+
+            // 곡률 분석
+            const concavePoints = findConcavePoints(contour, curvatureThreshold);
+            const separationPairs = findSeparationPairs(concavePoints, contour);
+
+            // 분리선 적용
+            const tempMask = new Uint8Array(individualMask);
+            if (separationPairs.length > 0) {
+                // Draw separation lines
+                for (const [p1, p2] of separationPairs) {
+                    drawLine(tempMask, width, height, p1.point, p2.point, 2);
+                }
+            }
+
+            // Watershed 적용
+            const dist = distanceTransform(tempMask, width, height);
+            const labels = watershedSegmentation(tempMask, width, height, dist);
+
+            if (!labels) {
+                return [component];
+            }
+
+            // 라벨별로 종자 분리
+            const separated = [];
+            const labelSet = new Set();
+            for (let i = 0; i < labels.length; i++) {
+                if (labels[i] > 0) labelSet.add(labels[i]);
+            }
+
+            for (const label of labelSet) {
+                const subMask = new Uint8Array(width * height);
+                for (let i = 0; i < labels.length; i++) {
+                    if (labels[i] === label) subMask[i] = 1;
+                }
+
+                const subComponents = findConnectedComponents(subMask, width, height);
+                if (subComponents.length > 0) {
+                    const largest = subComponents.reduce((a, b) =>
+                        a.pixels.length > b.pixels.length ? a : b
+                    );
+                    if (largest.pixels.length >= singleSeedArea * 0.5) {
+                        separated.push(largest);
+                    }
+                }
+            }
+
+            return separated.length > 0 ? separated : [component];
+        }
+
+        // 둘레 계산
+        function calculatePerimeter(component) {
             const pixelSet = new Set();
             component.pixels.forEach(p => pixelSet.add(`${p.x},${p.y}`));
 
-            component.pixels.forEach(p => {
+            let perimeter = 0;
+            for (const p of component.pixels) {
                 const neighbors = [
                     `${p.x-1},${p.y}`, `${p.x+1},${p.y}`,
                     `${p.x},${p.y-1}`, `${p.x},${p.y+1}`
@@ -2168,8 +2610,58 @@
                         break;
                     }
                 }
-            });
+            }
+            return perimeter;
+        }
 
+        // 선 그리기 (Bresenham's algorithm)
+        function drawLine(mask, width, height, p1, p2, thickness = 2) {
+            const x0 = Math.round(p1.x);
+            const y0 = Math.round(p1.y);
+            const x1 = Math.round(p2.x);
+            const y1 = Math.round(p2.y);
+
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = x0 < x1 ? 1 : -1;
+            const sy = y0 < y1 ? 1 : -1;
+            let err = dx - dy;
+
+            let x = x0;
+            let y = y0;
+
+            while (true) {
+                // Draw with thickness
+                for (let ty = -thickness; ty <= thickness; ty++) {
+                    for (let tx = -thickness; tx <= thickness; tx++) {
+                        const nx = x + tx;
+                        const ny = y + ty;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                            mask[ny * width + nx] = 0;
+                        }
+                    }
+                }
+
+                if (x === x1 && y === y1) break;
+
+                const e2 = 2 * err;
+                if (e2 > -dy) {
+                    err -= dy;
+                    x += sx;
+                }
+                if (e2 < dx) {
+                    err += dx;
+                    y += sy;
+                }
+            }
+        }
+
+        // ==================== 종자 분리 알고리즘 끝 ====================
+
+        // 원형도(Circularity) 계산: 4π × Area / Perimeter²
+        function calculateCircularity(component, width) {
+            const area = component.pixels.length;
+            const perimeter = calculatePerimeter(component);
             if (perimeter === 0) return 1;
             return (4 * Math.PI * area) / (perimeter * perimeter);
         }
@@ -2228,9 +2720,51 @@
             updateProgress(40);
 
             // 연결 성분 분석
-            seedComponents = findConnectedComponents(binaryData, canvas.width, canvas.height);
+            const initialComponents = findConnectedComponents(binaryData, canvas.width, canvas.height);
 
-            updateProgress(60);
+            // 단일 종자 크기 추정 (중앙값 기반)
+            const areas = initialComponents
+                .map(c => c.pixels.length)
+                .filter(a => a >= seedMinSize)
+                .sort((a, b) => a - b);
+
+            let singleSeedArea = seedMinSize * 2;
+            if (areas.length > 0) {
+                const median = areas[Math.floor(areas.length / 2)];
+                const filtered = areas.filter(a => a >= median * 0.5 && a <= median * 1.5);
+                singleSeedArea = filtered.length > 0
+                    ? filtered.reduce((a, b) => a + b, 0) / filtered.length
+                    : median;
+            }
+
+            updateProgress(50);
+
+            // 종자 분리 적용
+            const enableSeparation = document.getElementById('enableSeedSeparation').checked;
+            const curvatureThreshold = getCurvatureThreshold();
+
+            seedComponents = [];
+            for (let i = 0; i < initialComponents.length; i++) {
+                const component = initialComponents[i];
+                if (component.pixels.length < seedMinSize) continue;
+
+                if (enableSeparation) {
+                    const separated = separateTouchingSeeds(
+                        component,
+                        binaryData,
+                        canvas.width,
+                        canvas.height,
+                        singleSeedArea,
+                        curvatureThreshold
+                    );
+                    seedComponents.push(...separated);
+                } else {
+                    // 분리 비활성화 시 원본 컴포넌트 사용
+                    seedComponents.push(component);
+                }
+            }
+
+            updateProgress(70);
 
             // 각 종자의 품질 분석
             seedComponents.forEach(seed => {
