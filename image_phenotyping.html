@@ -933,6 +933,31 @@
                     </div>
                 </div>
 
+                <!-- 추출된 색상 샘플 표시 영역 -->
+                <div id="seedColorSamplesContainer" style="display: none; margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+                    <div style="margin-bottom: 15px;">
+                        <strong>📊 추출된 색상 샘플 (10회)</strong>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="font-size: 12px; color: #666; font-weight: bold;">배경색 샘플:</div>
+                            <button onclick="reextractBgColor()" style="padding: 4px 10px; font-size: 11px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                🔄 다시 추출
+                            </button>
+                        </div>
+                        <div id="seedBgColorSamplesList" style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; min-height: 40px;"></div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="font-size: 12px; color: #666; font-weight: bold;">종자색 샘플:</div>
+                            <button onclick="reextractSeedColor()" style="padding: 4px 10px; font-size: 11px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                🔄 다시 추출
+                            </button>
+                        </div>
+                        <div id="seedColorSamplesList" style="display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px;"></div>
+                    </div>
+                </div>
+
                 <div class="upload-zone" id="seedUploadZone" onclick="document.getElementById('seedFileInput').click()">
                     <input type="file" id="seedFileInput" accept="image/*" style="display: none;" onchange="handleSeedUpload(event)">
                     <div class="upload-icon">🌾</div>
@@ -1168,6 +1193,8 @@
         // 종자 분석용 상태
         let seedBgColor = { r: 255, g: 255, b: 255 };
         let seedColor = { r: 166, g: 124, b: 82 };
+        let seedBgColorSamples = []; // 배경색 10번 추출 샘플
+        let seedColorSamples = []; // 종자색 10번 추출 샘플
         let seedEyedropperMode = null; // 'bg' or 'seed'
         let seedComponents = [];
         let removedSeeds = new Set();
@@ -1658,65 +1685,277 @@
             const x = Math.floor((e.clientX - rect.left) * scaleX);
             const y = Math.floor((e.clientY - rect.top) * scaleY);
 
-            // 원본 이미지에서 색상 추출 (10x10 영역 평균)
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = currentSeedImage.width;
-            tempCanvas.height = currentSeedImage.height;
-            tempCtx.drawImage(currentSeedImage, 0, 0);
-
-            // 10x10 영역 샘플링
-            const sampleSize = 10;
-            const halfSize = Math.floor(sampleSize / 2);
-            const startX = Math.max(0, x - halfSize);
-            const startY = Math.max(0, y - halfSize);
-            const endX = Math.min(currentSeedImage.width, x + halfSize);
-            const endY = Math.min(currentSeedImage.height, y + halfSize);
-
-            const imageData = tempCtx.getImageData(startX, startY, endX - startX, endY - startY);
-            const pixels = imageData.data;
-
-            let totalR = 0, totalG = 0, totalB = 0, count = 0;
-            for (let i = 0; i < pixels.length; i += 4) {
-                totalR += pixels[i];
-                totalG += pixels[i + 1];
-                totalB += pixels[i + 2];
-                count++;
-            }
-
-            const avgR = Math.round(totalR / count);
-            const avgG = Math.round(totalG / count);
-            const avgB = Math.round(totalB / count);
-
-            if (seedEyedropperMode === 'bg') {
-                seedBgColor = { r: avgR, g: avgG, b: avgB };
-                document.getElementById('seedBgColorPreview').style.background =
-                    `rgb(${avgR}, ${avgG}, ${avgB})`;
-                document.getElementById('seedBgEyedropper').classList.remove('active');
-            } else {
-                seedColor = { r: avgR, g: avgG, b: avgB };
-                document.getElementById('seedColorPreview').style.background =
-                    `rgb(${avgR}, ${avgG}, ${avgB})`;
-                document.getElementById('seedColorEyedropper').classList.remove('active');
-            }
-
+            const mode = seedEyedropperMode;
             seedEyedropperMode = null;
-            document.getElementById('modeIndicator').classList.remove('show');
             canvas.style.pointerEvents = 'none';
             canvas.style.cursor = 'default';
             canvas.onclick = null;
 
-            // 10회 반복 분석
+            // 버튼 비활성화
+            if (mode === 'bg') {
+                document.getElementById('seedBgEyedropper').classList.remove('active');
+            } else {
+                document.getElementById('seedColorEyedropper').classList.remove('active');
+            }
+
+            // 10회 반복 색상 추출
             (async function() {
+                const samples = [];
+
                 for (let i = 0; i < 10; i++) {
-                    document.getElementById('modeIndicator').textContent = `🔍 분석 중... (${i + 1}/10)`;
+                    document.getElementById('modeIndicator').textContent = `🔍 색상 추출 중... (${i + 1}/10)`;
                     document.getElementById('modeIndicator').classList.add('show');
-                    await analyzeSeed();
+
+                    // 원본 이미지에서 색상 추출 (10x10 영역 평균)
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = currentSeedImage.width;
+                    tempCanvas.height = currentSeedImage.height;
+                    tempCtx.drawImage(currentSeedImage, 0, 0);
+
+                    // 각 반복마다 약간씩 다른 영역 샘플링 (±5px 랜덤 오프셋)
+                    const offsetX = Math.floor(Math.random() * 11) - 5; // -5 ~ 5
+                    const offsetY = Math.floor(Math.random() * 11) - 5;
+                    const adjustedX = Math.max(0, Math.min(currentSeedImage.width - 1, x + offsetX));
+                    const adjustedY = Math.max(0, Math.min(currentSeedImage.height - 1, y + offsetY));
+
+                    const sampleSize = 10;
+                    const halfSize = Math.floor(sampleSize / 2);
+                    const startX = Math.max(0, adjustedX - halfSize);
+                    const startY = Math.max(0, adjustedY - halfSize);
+                    const endX = Math.min(currentSeedImage.width, adjustedX + halfSize);
+                    const endY = Math.min(currentSeedImage.height, adjustedY + halfSize);
+
+                    const imageData = tempCtx.getImageData(startX, startY, endX - startX, endY - startY);
+                    const pixels = imageData.data;
+
+                    let totalR = 0, totalG = 0, totalB = 0, count = 0;
+                    for (let j = 0; j < pixels.length; j += 4) {
+                        totalR += pixels[j];
+                        totalG += pixels[j + 1];
+                        totalB += pixels[j + 2];
+                        count++;
+                    }
+
+                    const avgR = Math.round(totalR / count);
+                    const avgG = Math.round(totalG / count);
+                    const avgB = Math.round(totalB / count);
+
+                    samples.push({ r: avgR, g: avgG, b: avgB });
+
                     // 짧은 지연 (UI 업데이트를 위해)
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
+
+                // 샘플 저장 및 렌더링
+                if (mode === 'bg') {
+                    seedBgColorSamples = samples;
+                    // 첫 번째 샘플을 현재 색상으로 설정
+                    seedBgColor = samples[0];
+                    document.getElementById('seedBgColorPreview').style.background =
+                        `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                } else {
+                    seedColorSamples = samples;
+                    // 첫 번째 샘플을 현재 색상으로 설정
+                    seedColor = samples[0];
+                    document.getElementById('seedColorPreview').style.background =
+                        `rgb(${samples[0].r}, ${samples[0].g}, ${samples[0].b})`;
+                }
+
+                renderColorSamples();
+
+                // 분석 실행
+                document.getElementById('modeIndicator').textContent = '🔍 분석 중...';
+                await analyzeSeed();
+
                 document.getElementById('modeIndicator').classList.remove('show');
             })();
+        }
+
+        // 색상 샘플 렌더링 함수
+        function renderColorSamples() {
+            const bgList = document.getElementById('seedBgColorSamplesList');
+            const seedList = document.getElementById('seedColorSamplesList');
+
+            // 배경색 샘플 렌더링
+            bgList.innerHTML = '';
+            seedBgColorSamples.forEach((color, index) => {
+                const sample = document.createElement('div');
+                sample.style.cssText = `
+                    position: relative;
+                    width: 40px;
+                    height: 40px;
+                    background: rgb(${color.r}, ${color.g}, ${color.b});
+                    border: 2px solid #ddd;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                `;
+                sample.onmouseover = () => sample.style.transform = 'scale(1.1)';
+                sample.onmouseout = () => sample.style.transform = 'scale(1)';
+
+                // 삭제 버튼
+                const deleteBtn = document.createElement('div');
+                deleteBtn.innerHTML = '×';
+                deleteBtn.style.cssText = `
+                    position: absolute;
+                    top: -8px;
+                    right: -8px;
+                    width: 20px;
+                    height: 20px;
+                    background: #ff4444;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 16px;
+                    cursor: pointer;
+                    font-weight: bold;
+                `;
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteBgColorSample(index);
+                };
+
+                // 인덱스 표시
+                const indexLabel = document.createElement('div');
+                indexLabel.textContent = index + 1;
+                indexLabel.style.cssText = `
+                    position: absolute;
+                    bottom: -20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    font-size: 11px;
+                    color: #666;
+                `;
+
+                sample.appendChild(deleteBtn);
+                sample.appendChild(indexLabel);
+                sample.onclick = () => selectBgColorSample(index);
+                bgList.appendChild(sample);
+            });
+
+            // 종자색 샘플 렌더링
+            seedList.innerHTML = '';
+            seedColorSamples.forEach((color, index) => {
+                const sample = document.createElement('div');
+                sample.style.cssText = `
+                    position: relative;
+                    width: 40px;
+                    height: 40px;
+                    background: rgb(${color.r}, ${color.g}, ${color.b});
+                    border: 2px solid #ddd;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                `;
+                sample.onmouseover = () => sample.style.transform = 'scale(1.1)';
+                sample.onmouseout = () => sample.style.transform = 'scale(1)';
+
+                // 삭제 버튼
+                const deleteBtn = document.createElement('div');
+                deleteBtn.innerHTML = '×';
+                deleteBtn.style.cssText = `
+                    position: absolute;
+                    top: -8px;
+                    right: -8px;
+                    width: 20px;
+                    height: 20px;
+                    background: #ff4444;
+                    color: white;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 16px;
+                    cursor: pointer;
+                    font-weight: bold;
+                `;
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteSeedColorSample(index);
+                };
+
+                // 인덱스 표시
+                const indexLabel = document.createElement('div');
+                indexLabel.textContent = index + 1;
+                indexLabel.style.cssText = `
+                    position: absolute;
+                    bottom: -20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    font-size: 11px;
+                    color: #666;
+                `;
+
+                sample.appendChild(deleteBtn);
+                sample.appendChild(indexLabel);
+                sample.onclick = () => selectSeedColorSample(index);
+                seedList.appendChild(sample);
+            });
+
+            // 샘플 컨테이너 표시/숨김
+            const container = document.getElementById('seedColorSamplesContainer');
+            if (seedBgColorSamples.length > 0 || seedColorSamples.length > 0) {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        // 배경색 샘플 선택
+        function selectBgColorSample(index) {
+            const color = seedBgColorSamples[index];
+            seedBgColor = color;
+            document.getElementById('seedBgColorPreview').style.background =
+                `rgb(${color.r}, ${color.g}, ${color.b})`;
+            analyzeSeed();
+        }
+
+        // 종자색 샘플 선택
+        function selectSeedColorSample(index) {
+            const color = seedColorSamples[index];
+            seedColor = color;
+            document.getElementById('seedColorPreview').style.background =
+                `rgb(${color.r}, ${color.g}, ${color.b})`;
+            analyzeSeed();
+        }
+
+        // 배경색 샘플 삭제
+        function deleteBgColorSample(index) {
+            seedBgColorSamples.splice(index, 1);
+            renderColorSamples();
+            if (seedBgColorSamples.length > 0) {
+                selectBgColorSample(0); // 첫 번째 샘플 자동 선택
+            }
+        }
+
+        // 종자색 샘플 삭제
+        function deleteSeedColorSample(index) {
+            seedColorSamples.splice(index, 1);
+            renderColorSamples();
+            if (seedColorSamples.length > 0) {
+                selectSeedColorSample(0); // 첫 번째 샘플 자동 선택
+            }
+        }
+
+        // 배경색 다시 추출
+        function reextractBgColor() {
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+            startSeedBgEyedropper();
+        }
+
+        // 종자색 다시 추출
+        function reextractSeedColor() {
+            if (!currentSeedImage) {
+                alert('먼저 이미지를 업로드하세요!');
+                return;
+            }
+            startSeedColorEyedropper();
         }
 
         // 종자 편집 모드
@@ -2309,6 +2548,8 @@
             seedComponents = [];
             removedSeeds.clear();
             addedSeeds = [];
+            seedBgColorSamples = [];
+            seedColorSamples = [];
             document.getElementById('seedPreview').classList.remove('show');
             document.getElementById('seedFileInput').value = '';
             document.getElementById('seedEditMode').classList.remove('active');
@@ -2316,6 +2557,7 @@
             seedColor = { r: 166, g: 124, b: 82 };
             document.getElementById('seedBgColorPreview').style.background = '#ffffff';
             document.getElementById('seedColorPreview').style.background = '#a67c52';
+            renderColorSamples();
         }
 
         function exportSeedResults() {
