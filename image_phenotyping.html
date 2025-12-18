@@ -623,6 +623,73 @@
             color: white;
         }
 
+        .seed-mode-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .seed-mode-section > strong {
+            display: block;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .mode-option {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .mode-option input[type="radio"] {
+            display: none;
+        }
+
+        .mode-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .mode-option input[type="radio"]:checked + .mode-card {
+            border-color: var(--primary);
+            background: rgba(1, 127, 151, 0.1);
+        }
+
+        .mode-icon {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .mode-name {
+            font-weight: bold;
+            color: var(--header);
+            margin-bottom: 3px;
+        }
+
+        .mode-desc {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        .preset-section {
+            margin-top: 10px;
+        }
+
         @media (max-width: 768px) {
             .preview-container {
                 flex-direction: column;
@@ -1042,6 +1109,50 @@
                         <input type="range" id="seedMinSize" min="20" max="500" value="100" onchange="updateSeedMinSize()">
                     </div>
 
+                    <!-- 종자 타입 선택 -->
+                    <div class="seed-mode-section">
+                        <strong>🌾 종자 타입</strong>
+
+                        <div class="mode-selector">
+                            <label class="mode-option">
+                                <input type="radio" name="seedType" value="rough_rice" onchange="onSeedTypeChange()">
+                                <div class="mode-card">
+                                    <span class="mode-icon">🌾</span>
+                                    <span class="mode-name">정조</span>
+                                    <span class="mode-desc">왕겨 있음, 까락 제거 필요</span>
+                                </div>
+                            </label>
+
+                            <label class="mode-option">
+                                <input type="radio" name="seedType" value="brown_rice" checked onchange="onSeedTypeChange()">
+                                <div class="mode-card">
+                                    <span class="mode-icon">🍚</span>
+                                    <span class="mode-name">현미</span>
+                                    <span class="mode-desc">왕겨 제거됨, 매끈한 표면</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div id="roughRicePresets" class="preset-section" style="display: none;">
+                            <label style="font-size: 0.9em; color: #666;">정조 프리셋:</label>
+                            <select id="roughRicePreset" onchange="onPresetChange()" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd; margin-top: 5px;">
+                                <option value="default">기본</option>
+                                <option value="heavy_awn">까락 많음</option>
+                                <option value="no_awn">까락 없음</option>
+                            </select>
+                        </div>
+
+                        <div id="brownRicePresets" class="preset-section">
+                            <label style="font-size: 0.9em; color: #666;">현미 프리셋:</label>
+                            <select id="brownRicePreset" onchange="onPresetChange()" style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd; margin-top: 5px;">
+                                <option value="default">기본</option>
+                                <option value="touching">밀접 접촉</option>
+                                <option value="long_grain">장립종 (인디카)</option>
+                                <option value="short_grain">단립종 (자포니카)</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- 고급 종자 분리 설정 -->
                     <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
@@ -1232,6 +1343,168 @@
         let seedEditMode = false;
         let seedEditAction = 'add'; // 'add' or 'remove'
         let seedMinSize = 100;
+
+        // ==================== 종자 모드 설정 ====================
+        // 종자 타입
+        const SeedType = {
+            ROUGH_RICE: 'rough_rice',   // 정조
+            BROWN_RICE: 'brown_rice'    // 현미
+        };
+
+        // 현재 모드
+        let currentSeedType = SeedType.BROWN_RICE;
+        let currentPreset = 'default';
+
+        // 정조 프리셋
+        const ROUGH_RICE_PRESETS = {
+            default: {
+                curvatureThreshold: 0.012,
+                curvatureSmoothSigma: 4.0,
+                minPeakDistance: 12,
+                maxSeparationDistanceRatio: 0.40,
+                watershedThresholdRatio: 0.35,
+                areaRatioThreshold: 1.3,
+                circularityThreshold: 0.55,
+                minSeedArea: 800,
+                expectedCircularityRange: [0.45, 0.75],
+                expectedAspectRatioRange: [2.2, 3.8]
+            },
+            heavy_awn: {
+                curvatureThreshold: 0.010,
+                curvatureSmoothSigma: 5.0,
+                minPeakDistance: 10,
+                maxSeparationDistanceRatio: 0.45,
+                watershedThresholdRatio: 0.30,
+                areaRatioThreshold: 1.25,
+                circularityThreshold: 0.50,
+                minSeedArea: 700,
+                expectedCircularityRange: [0.40, 0.70],
+                expectedAspectRatioRange: [2.5, 4.0]
+            },
+            no_awn: {
+                curvatureThreshold: 0.015,
+                curvatureSmoothSigma: 3.5,
+                minPeakDistance: 15,
+                maxSeparationDistanceRatio: 0.35,
+                watershedThresholdRatio: 0.40,
+                areaRatioThreshold: 1.35,
+                circularityThreshold: 0.60,
+                minSeedArea: 800,
+                expectedCircularityRange: [0.55, 0.80],
+                expectedAspectRatioRange: [2.0, 3.5]
+            }
+        };
+
+        // 현미 프리셋
+        const BROWN_RICE_PRESETS = {
+            default: {
+                curvatureThreshold: 0.018,
+                curvatureSmoothSigma: 2.5,
+                minPeakDistance: 18,
+                maxSeparationDistanceRatio: 0.30,
+                watershedThresholdRatio: 0.45,
+                areaRatioThreshold: 1.5,
+                circularityThreshold: 0.70,
+                minSeedArea: 400,
+                expectedCircularityRange: [0.65, 0.90],
+                expectedAspectRatioRange: [1.8, 3.0]
+            },
+            touching: {
+                curvatureThreshold: 0.012,
+                curvatureSmoothSigma: 2.0,
+                minPeakDistance: 12,
+                maxSeparationDistanceRatio: 0.35,
+                watershedThresholdRatio: 0.35,
+                areaRatioThreshold: 1.3,
+                circularityThreshold: 0.65,
+                minSeedArea: 350,
+                expectedCircularityRange: [0.60, 0.88],
+                expectedAspectRatioRange: [1.8, 3.2]
+            },
+            long_grain: {
+                curvatureThreshold: 0.015,
+                curvatureSmoothSigma: 2.5,
+                minPeakDistance: 20,
+                maxSeparationDistanceRatio: 0.35,
+                watershedThresholdRatio: 0.40,
+                areaRatioThreshold: 1.4,
+                circularityThreshold: 0.55,
+                minSeedArea: 450,
+                expectedCircularityRange: [0.50, 0.75],
+                expectedAspectRatioRange: [2.5, 4.0]
+            },
+            short_grain: {
+                curvatureThreshold: 0.020,
+                curvatureSmoothSigma: 2.5,
+                minPeakDistance: 15,
+                maxSeparationDistanceRatio: 0.28,
+                watershedThresholdRatio: 0.50,
+                areaRatioThreshold: 1.6,
+                circularityThreshold: 0.75,
+                minSeedArea: 350,
+                expectedCircularityRange: [0.70, 0.92],
+                expectedAspectRatioRange: [1.5, 2.5]
+            }
+        };
+
+        // 현재 적용 중인 설정
+        let seedModeConfig = BROWN_RICE_PRESETS.default;
+
+        // 프리셋 가져오기 함수
+        function getSeedPreset(seedType, presetName) {
+            if (seedType === SeedType.ROUGH_RICE) {
+                return ROUGH_RICE_PRESETS[presetName] || ROUGH_RICE_PRESETS.default;
+            } else {
+                return BROWN_RICE_PRESETS[presetName] || BROWN_RICE_PRESETS.default;
+            }
+        }
+
+        // 모드 변경 함수
+        function changeSeedMode(seedType, presetName = 'default') {
+            currentSeedType = seedType;
+            currentPreset = presetName;
+            seedModeConfig = getSeedPreset(seedType, presetName);
+
+            // 최소 종자 크기 업데이트
+            seedMinSize = seedModeConfig.minSeedArea;
+            document.getElementById('seedMinSize').value = seedMinSize;
+            document.getElementById('seedMinSizeValue').textContent = seedMinSize;
+
+            // 분석 재실행
+            if (currentSeedImage) {
+                analyzeSeed();
+            }
+        }
+
+        // UI 이벤트 핸들러
+        function onSeedTypeChange() {
+            const seedType = document.querySelector('input[name="seedType"]:checked').value;
+            const isRoughRice = seedType === 'rough_rice';
+
+            // 프리셋 섹션 표시/숨김
+            document.getElementById('roughRicePresets').style.display = isRoughRice ? 'block' : 'none';
+            document.getElementById('brownRicePresets').style.display = isRoughRice ? 'none' : 'block';
+
+            // 프리셋 기본값으로 리셋
+            if (isRoughRice) {
+                document.getElementById('roughRicePreset').value = 'default';
+            } else {
+                document.getElementById('brownRicePreset').value = 'default';
+            }
+
+            // 모드 변경 적용
+            changeSeedMode(seedType, 'default');
+        }
+
+        function onPresetChange() {
+            const seedType = document.querySelector('input[name="seedType"]:checked').value;
+            const preset = seedType === 'rough_rice'
+                ? document.getElementById('roughRicePreset').value
+                : document.getElementById('brownRicePreset').value;
+
+            changeSeedMode(seedType, preset);
+        }
+        // ==================== 종자 모드 설정 끝 ====================
 
         // 드래그 앤 드롭 설정
         ['leafUploadZone', 'seedUploadZone', 'colorUploadZone', 'batchUploadZone'].forEach(id => {
@@ -2301,9 +2574,11 @@
 
         function getCurvatureThreshold() {
             const sensitivity = parseInt(document.getElementById('curvatureSensitivity').value);
-            // 낮음: 0.020 (덜 민감), 중간: 0.015 (기본), 높음: 0.010 (더 민감)
-            const thresholds = [0.020, 0.015, 0.010];
-            return thresholds[sensitivity - 1];
+            // 모드별 기본 임계값에 민감도 적용
+            const baseThreshold = seedModeConfig.curvatureThreshold;
+            // 낮음: 1.3배 (덜 민감), 중간: 1.0배 (기본), 높음: 0.7배 (더 민감)
+            const multipliers = [1.3, 1.0, 0.7];
+            return baseThreshold * multipliers[sensitivity - 1];
         }
 
         // ==================== 종자 분리 알고리즘 시작 ====================
@@ -2401,7 +2676,7 @@
         function findConcavePoints(contour, curvatureThreshold = 0.015, minPeakDistance = 15) {
             if (!contour || contour.length < 10) return [];
 
-            const curvature = computeCurvature(contour);
+            const curvature = computeCurvature(contour, seedModeConfig.curvatureSmoothSigma);
             if (!curvature) return [];
 
             // Find peaks in negative curvature (concave points)
@@ -2636,10 +2911,11 @@
         function separateTouchingSeeds(component, binaryData, width, height, singleSeedArea, curvatureThreshold = 0.015) {
             const area = component.pixels.length;
 
-            // 분리 필요 판단
+            // 분리 필요 판단 (모드별 설정 적용)
             const perimeter = calculatePerimeter(component);
             const circularity = perimeter > 0 ? (4 * Math.PI * area) / (perimeter * perimeter) : 1;
-            const needsSeparation = area > singleSeedArea * 1.4 || circularity < 0.65;
+            const needsSeparation = area > singleSeedArea * seedModeConfig.areaRatioThreshold ||
+                                    circularity < seedModeConfig.circularityThreshold;
 
             if (!needsSeparation) {
                 return [component];
@@ -2657,9 +2933,17 @@
                 return [component];
             }
 
-            // 곡률 분석
-            const concavePoints = findConcavePoints(contour, curvatureThreshold);
-            const separationPairs = findSeparationPairs(concavePoints, contour);
+            // 곡률 분석 (모드별 설정 적용)
+            const concavePoints = findConcavePoints(
+                contour,
+                curvatureThreshold,
+                seedModeConfig.minPeakDistance
+            );
+            const separationPairs = findSeparationPairs(
+                concavePoints,
+                contour,
+                seedModeConfig.maxSeparationDistanceRatio
+            );
 
             // 분리선 적용
             const tempMask = new Uint8Array(individualMask);
@@ -2670,9 +2954,15 @@
                 }
             }
 
-            // Watershed 적용
+            // Watershed 적용 (모드별 설정 적용)
             const dist = distanceTransform(tempMask, width, height);
-            const labels = watershedSegmentation(tempMask, width, height, dist);
+            const labels = watershedSegmentation(
+                tempMask,
+                width,
+                height,
+                dist,
+                seedModeConfig.watershedThresholdRatio
+            );
 
             if (!labels) {
                 return [component];
@@ -2890,14 +3180,22 @@
                 const width = seed.maxX - seed.minX;
                 seed.aspectRatio = length / width;
 
-                // 품질 판정 (원형도와 장폭비 기반)
-                // 원형도: 1에 가까울수록 원형, 낮을수록 불규칙
-                // 일반적인 종자는 0.6-0.9 정도
-                if (seed.circularity < 0.3 || seed.aspectRatio > 3 || seed.aspectRatio < 0.3) {
+                // 품질 판정 (원형도와 장폭비 기반 - 모드별 설정 적용)
+                const [circMin, circMax] = seedModeConfig.expectedCircularityRange;
+                const [arMin, arMax] = seedModeConfig.expectedAspectRatioRange;
+
+                // 범위 밖이면 깨진 종자
+                if (seed.circularity < circMin * 0.6 || seed.circularity > circMax * 1.2 ||
+                    seed.aspectRatio < arMin * 0.5 || seed.aspectRatio > arMax * 1.3) {
                     seed.quality = 'broken';
-                } else if (seed.circularity < 0.5 || seed.aspectRatio > 2.5 || seed.aspectRatio < 0.4) {
+                }
+                // 범위 경계에 있으면 의심 종자
+                else if (seed.circularity < circMin * 0.8 || seed.circularity > circMax * 1.1 ||
+                         seed.aspectRatio < arMin * 0.7 || seed.aspectRatio > arMax * 1.15) {
                     seed.quality = 'suspect';
-                } else {
+                }
+                // 범위 내이면 정상
+                else {
                     seed.quality = 'normal';
                 }
             });
