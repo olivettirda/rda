@@ -466,8 +466,22 @@
         }
 
         .eyedropper-btn.active {
-            border-color: var(--accent);
-            background: #e0f7fa;
+            border-color: #ff5722;
+            background: #fff3e0;
+            box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.3);
+            animation: pulse-eyedropper 1.5s infinite;
+        }
+
+        @keyframes pulse-eyedropper {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(255, 87, 34, 0.15); }
+        }
+
+        .eyedropper-btn.active::after {
+            content: ' (활성)';
+            font-size: 0.75em;
+            color: #ff5722;
+            font-weight: bold;
         }
 
         .color-preview {
@@ -901,8 +915,12 @@
             <div class="card">
                 <div class="card-title">🌾 종자 형태 측정</div>
 
-                <div class="instruction-banner">
-                    💡 <strong>사용 방법:</strong> 1) 이미지 업로드 → 2) 스포이드로 배경색/종자색 선택 → 3) 자동 분석 → 4) 필요시 종자 추가/제거
+                <div class="instruction-banner" style="line-height: 1.8;">
+                    💡 <strong>사용 방법:</strong><br>
+                    1️⃣ 이미지 업로드<br>
+                    2️⃣ <strong>🎯 배경 선택</strong> 버튼 클릭 → 이미지에서 배경 영역 10회 클릭<br>
+                    3️⃣ <strong>🎯 종자 선택</strong> 버튼 클릭 → 이미지에서 종자 영역 10회 클릭<br>
+                    4️⃣ 자동 분석 → 필요시 개별 샘플 🔄재추출 또는 ❌삭제
                 </div>
 
                 <div class="reference-input">
@@ -916,15 +934,15 @@
                     <div class="color-picker-item">
                         <span>배경색:</span>
                         <div class="color-preview" id="seedBgColorPreview" style="background: #ffffff;"></div>
-                        <button class="eyedropper-btn" id="seedBgEyedropper" onclick="startSeedBgEyedropper()">
-                            🔍 스포이드
+                        <button class="eyedropper-btn" id="seedBgEyedropper" onclick="startSeedBgEyedropper()" title="클릭 후 이미지에서 배경 영역을 10회 클릭하여 배경색을 추출합니다">
+                            🎯 배경 선택
                         </button>
                     </div>
                     <div class="color-picker-item">
                         <span>종자색:</span>
                         <div class="color-preview" id="seedColorPreview" style="background: #a67c52;"></div>
-                        <button class="eyedropper-btn" id="seedColorEyedropper" onclick="startSeedColorEyedropper()">
-                            🔍 스포이드
+                        <button class="eyedropper-btn" id="seedColorEyedropper" onclick="startSeedColorEyedropper()" title="클릭 후 이미지에서 종자 영역을 10회 클릭하여 종자색을 추출합니다">
+                            🎯 종자 선택
                         </button>
                     </div>
                     <div class="color-picker-item">
@@ -940,20 +958,22 @@
                     </div>
                     <div style="margin-bottom: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div style="font-size: 12px; color: #666; font-weight: bold;">배경색 샘플:</div>
-                            <button onclick="reextractBgColor()" style="padding: 4px 10px; font-size: 11px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                                🔄 다시 추출
+                            <div style="font-size: 12px; color: #666; font-weight: bold;">배경색 샘플 (10개):</div>
+                            <button onclick="reextractBgColor()" style="padding: 4px 10px; font-size: 11px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;" title="모든 배경색 샘플을 초기화하고 새로 10회 추출합니다">
+                                🔄 전체 재추출
                             </button>
                         </div>
+                        <div style="font-size: 10px; color: #888; margin-bottom: 8px;">💡 개별 샘플의 🔄 버튼을 클릭하면 해당 샘플만 다시 추출합니다</div>
                         <div id="seedBgColorSamplesList" style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; min-height: 40px;"></div>
                     </div>
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <div style="font-size: 12px; color: #666; font-weight: bold;">종자색 샘플:</div>
-                            <button onclick="reextractSeedColor()" style="padding: 4px 10px; font-size: 11px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                                🔄 다시 추출
+                            <div style="font-size: 12px; color: #666; font-weight: bold;">종자색 샘플 (10개):</div>
+                            <button onclick="reextractSeedColor()" style="padding: 4px 10px; font-size: 11px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;" title="모든 종자색 샘플을 초기화하고 새로 10회 추출합니다">
+                                🔄 전체 재추출
                             </button>
                         </div>
+                        <div style="font-size: 10px; color: #888; margin-bottom: 8px;">💡 개별 샘플의 🔄 버튼을 클릭하면 해당 샘플만 다시 추출합니다. ❌ 버튼으로 잘못된 샘플을 삭제할 수 있습니다</div>
                         <div id="seedColorSamplesList" style="display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px;"></div>
                     </div>
                 </div>
@@ -2803,6 +2823,47 @@
             const tolerance = parseInt(document.getElementById('seedColorTolerance').value) || 50;
             seedMinSize = parseInt(document.getElementById('seedMinSize').value) || 100;
 
+            // 종자색 샘플들의 평균과 스펙트럼 반경 계산
+            let seedColorAvg = { r: 0, g: 0, b: 0 };
+            let seedColorRadius = 0;
+            if (seedColorSamples.length > 0) {
+                for (const sample of seedColorSamples) {
+                    seedColorAvg.r += sample.r;
+                    seedColorAvg.g += sample.g;
+                    seedColorAvg.b += sample.b;
+                }
+                seedColorAvg.r /= seedColorSamples.length;
+                seedColorAvg.g /= seedColorSamples.length;
+                seedColorAvg.b /= seedColorSamples.length;
+                // 평균에서 가장 먼 샘플까지의 거리 = 스펙트럼 반경
+                for (const sample of seedColorSamples) {
+                    const dist = colorDistance(sample, seedColorAvg);
+                    if (dist > seedColorRadius) seedColorRadius = dist;
+                }
+            } else {
+                seedColorAvg = { ...seedColor };
+            }
+
+            // 배경색 샘플들의 평균과 스펙트럼 반경 계산
+            let bgColorAvg = { r: 0, g: 0, b: 0 };
+            let bgColorRadius = 0;
+            if (seedBgColorSamples.length > 0) {
+                for (const sample of seedBgColorSamples) {
+                    bgColorAvg.r += sample.r;
+                    bgColorAvg.g += sample.g;
+                    bgColorAvg.b += sample.b;
+                }
+                bgColorAvg.r /= seedBgColorSamples.length;
+                bgColorAvg.g /= seedBgColorSamples.length;
+                bgColorAvg.b /= seedBgColorSamples.length;
+                for (const sample of seedBgColorSamples) {
+                    const dist = colorDistance(sample, bgColorAvg);
+                    if (dist > bgColorRadius) bgColorRadius = dist;
+                }
+            } else {
+                bgColorAvg = { ...seedBgColor };
+            }
+
             // 종자색과 유사한 픽셀 찾기 (배경 제외)
             const binaryData = new Uint8Array(canvas.width * canvas.height);
             let greenPixels = 0, totalPixels = 0;
@@ -2812,38 +2873,39 @@
                 const g = data[i + 1];
                 const b = data[i + 2];
                 const idx = i / 4;
+                const pixel = { r, g, b };
 
-                // 배경색 샘플들 중 최소 거리 계산 (하나라도 가까우면 배경)
-                let minBgDist = Infinity;
-                if (seedBgColorSamples.length > 0) {
-                    for (const bgSample of seedBgColorSamples) {
-                        const dist = colorDistance({ r, g, b }, bgSample);
-                        if (dist < minBgDist) minBgDist = dist;
+                // 배경색 평균에서의 거리 (스펙트럼 범위 포함)
+                const distFromBgAvg = colorDistance(pixel, bgColorAvg);
+                const isInBgSpectrum = distFromBgAvg <= (bgColorRadius + 30);
+
+                // 종자색 평균에서의 거리 (스펙트럼 범위 + tolerance 포함)
+                const distFromSeedAvg = colorDistance(pixel, seedColorAvg);
+                const isInSeedSpectrum = distFromSeedAvg <= (seedColorRadius + tolerance);
+
+                // 경계 판단: 종자 스펙트럼에 있고, 배경보다 종자에 더 가까운 경우
+                if (isInSeedSpectrum) {
+                    // 배경 스펙트럼에도 속하면 더 가까운 쪽으로 판단
+                    if (isInBgSpectrum) {
+                        // 정규화된 거리 비교 (각 스펙트럼 범위 기준)
+                        const normalizedSeedDist = distFromSeedAvg / Math.max(seedColorRadius + tolerance, 1);
+                        const normalizedBgDist = distFromBgAvg / Math.max(bgColorRadius + 30, 1);
+                        if (normalizedSeedDist < normalizedBgDist) {
+                            binaryData[idx] = 1;
+                            totalPixels++;
+                        }
+                    } else {
+                        // 배경이 아니고 종자색에 가까운 픽셀
+                        binaryData[idx] = 1;
+                        totalPixels++;
                     }
-                } else {
-                    minBgDist = colorDistance({ r, g, b }, seedBgColor);
-                }
-
-                // 종자색 샘플들 중 최소 거리 계산 (하나라도 가까우면 종자)
-                let minSeedDist = Infinity;
-                if (seedColorSamples.length > 0) {
-                    for (const seedSample of seedColorSamples) {
-                        const dist = colorDistance({ r, g, b }, seedSample);
-                        if (dist < minSeedDist) minSeedDist = dist;
-                    }
-                } else {
-                    minSeedDist = colorDistance({ r, g, b }, seedColor);
-                }
-
-                // 배경이 아니고 종자색에 가까운 픽셀
-                if (minBgDist > 30 && minSeedDist < tolerance) {
-                    binaryData[idx] = 1;
-                    totalPixels++;
 
                     // 녹색 체크
-                    const hsv = rgbToHsv(r, g, b);
-                    if (hsv.h >= 60 && hsv.h <= 180 && hsv.s > 20) {
-                        greenPixels++;
+                    if (binaryData[idx] === 1) {
+                        const hsv = rgbToHsv(r, g, b);
+                        if (hsv.h >= 60 && hsv.h <= 180 && hsv.s > 20) {
+                            greenPixels++;
+                        }
                     }
                 }
             }
