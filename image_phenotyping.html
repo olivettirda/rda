@@ -2813,11 +2813,30 @@
                 const b = data[i + 2];
                 const idx = i / 4;
 
-                const bgDist = colorDistance({ r, g, b }, seedBgColor);
-                const seedDist = colorDistance({ r, g, b }, seedColor);
+                // 배경색 샘플들 중 최소 거리 계산 (하나라도 가까우면 배경)
+                let minBgDist = Infinity;
+                if (seedBgColorSamples.length > 0) {
+                    for (const bgSample of seedBgColorSamples) {
+                        const dist = colorDistance({ r, g, b }, bgSample);
+                        if (dist < minBgDist) minBgDist = dist;
+                    }
+                } else {
+                    minBgDist = colorDistance({ r, g, b }, seedBgColor);
+                }
+
+                // 종자색 샘플들 중 최소 거리 계산 (하나라도 가까우면 종자)
+                let minSeedDist = Infinity;
+                if (seedColorSamples.length > 0) {
+                    for (const seedSample of seedColorSamples) {
+                        const dist = colorDistance({ r, g, b }, seedSample);
+                        if (dist < minSeedDist) minSeedDist = dist;
+                    }
+                } else {
+                    minSeedDist = colorDistance({ r, g, b }, seedColor);
+                }
 
                 // 배경이 아니고 종자색에 가까운 픽셀
-                if (bgDist > 30 && seedDist < tolerance) {
+                if (minBgDist > 30 && minSeedDist < tolerance) {
                     binaryData[idx] = 1;
                     totalPixels++;
 
