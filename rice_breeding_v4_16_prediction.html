@@ -660,6 +660,63 @@
             <button class="btn btn-success" onclick="document.getElementById('linkageFileInput').click()">📤 사용자 데이터 업로드</button>
             <input type="file" id="linkageFileInput" accept=".xlsx,.xls,.csv" style="display: none;">
         </div>
+
+        <!-- 🆕 v5.0: 유전자 검색 및 추천 패널 -->
+        <div class="result-card" style="background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border-left: 4px solid #7c4dff;">
+            <h3 style="color: #5e35b1;">🔮 유전자 예측 및 제안 (v5.0)</h3>
+            <p style="color: #666; margin-bottom: 15px;">목표 형질을 선택하면 관련 유전자와 시너지 조합을 추천합니다.</p>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 0.9em; color: #333;"><strong>🎯 목표 형질 선택</strong></label>
+                    <select id="targetTraitSelect" style="width: 100%; padding: 10px; margin-top: 4px;" onchange="showTraitRecommendation()">
+                        <option value="">-- 형질 선택 --</option>
+                        <option value="도열병저항성">🦠 도열병저항성</option>
+                        <option value="흰잎마름병저항성">🦠 흰잎마름병저항성</option>
+                        <option value="출수기">🌸 출수기</option>
+                        <option value="종실크기">🌾 종실크기</option>
+                        <option value="초장">📏 초장 (반왜성)</option>
+                        <option value="품질">⭐ 품질 (식미)</option>
+                        <option value="수량">📊 수량</option>
+                        <option value="내냉성">❄️ 내냉성</option>
+                        <option value="내염성">🧂 내염성</option>
+                        <option value="침수저항성">💧 침수저항성</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 0.9em; color: #333;"><strong>🔍 키워드 검색</strong></label>
+                    <div style="display: flex; gap: 6px; margin-top: 4px;">
+                        <input type="text" id="geneKeywordInput" placeholder="예: 도열병, blast, 저항성" style="flex: 1; padding: 10px;">
+                        <button class="btn btn-sm" onclick="searchByKeyword()">검색</button>
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 0.9em; color: #333;"><strong>📍 좌표로 유전자 찾기</strong></label>
+                    <div style="display: flex; gap: 6px; margin-top: 4px;">
+                        <select id="searchChrSelect" style="width: 80px; padding: 10px;">
+                            <option value="">Chr</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12">12</option>
+                        </select>
+                        <input type="number" id="searchPosInput" placeholder="위치 (bp)" style="flex: 1; padding: 10px;">
+                        <button class="btn btn-sm btn-success" onclick="searchByPosition()">찾기</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="geneRecommendationPanel" style="margin-top: 15px;"></div>
+        </div>
+
         <div id="markerTable"></div>
     </div>
     <!-- Tab 8: 유전자 상호작용 -->
@@ -1198,6 +1255,490 @@ const knownInteractions = {
     'GS3+GW5': { type: 'synergy', effect: 1.2, trait: '종자크기', reference: 'Mao et al. (2010)' },
     'sd1+Ghd7': { type: 'antagonism', effect: 0.8, trait: '수량', reference: 'Xue et al. (2008)' }
 };
+
+// ==================== 형질-유전자 매핑 데이터베이스 (v5.0) ====================
+const traitGeneDatabase = {
+    "도열병저항성": {
+        genes: ["Pib", "Pi-ta", "Pita", "Pi9", "Pikm", "Pi2", "Pi54", "Piz-t", "Pi5", "Pi21"],
+        keywords: ["blast", "resistance", "도열병", "Magnaporthe", "pyricularia"],
+        description: "도열병균(Magnaporthe oryzae)에 대한 저항성",
+        synergies: [
+            { pair: ["Pib", "Pi-ta"], effect: 1.5, reference: "Fukuoka et al. (2015)", note: "광범위 저항성 강화" },
+            { pair: ["Pi9", "Pikm"], effect: 1.3, reference: "Liu et al. (2013)", note: "다양한 race 저항" }
+        ]
+    },
+    "흰잎마름병저항성": {
+        genes: ["Xa21", "Xa4", "Xa7", "xa5", "xa13", "Xa23", "Xa26"],
+        keywords: ["bacterial blight", "Xanthomonas", "흰잎마름병", "백엽고병"],
+        description: "흰잎마름병균(Xanthomonas oryzae)에 대한 저항성",
+        synergies: [
+            { pair: ["Xa21", "Xa4"], effect: 1.4, reference: "Huang et al. (1997)", note: "피라미딩 효과" }
+        ]
+    },
+    "출수기": {
+        genes: ["Hd1", "Hd3a", "Ghd7", "DTH8", "Ehd1", "Hd6", "RFT1", "Ghd8"],
+        keywords: ["heading", "flowering", "출수", "광주기", "photoperiod"],
+        description: "출수기/개화기 조절 - 광주기 반응성",
+        antagonisms: [
+            { pair: ["Hd1", "Ghd7"], effect: 0.85, note: "장일 조건에서 상호 억제" }
+        ]
+    },
+    "종실크기": {
+        genes: ["GS3", "GW2", "GW5", "qSW5", "TGW6", "GS5", "GW8", "GLW7"],
+        keywords: ["grain", "seed", "종실", "천립중", "size", "weight"],
+        description: "종실 크기, 무게, 형태 조절",
+        synergies: [
+            { pair: ["GS3", "GW5"], effect: 1.2, reference: "Mao et al. (2010)", note: "종실 크기 증대" },
+            { pair: ["GW2", "TGW6"], effect: 1.15, reference: "Song et al. (2015)", note: "천립중 증가" }
+        ]
+    },
+    "초장": {
+        genes: ["sd1", "Ghd7", "DEP1", "D2", "D11", "SLR1"],
+        keywords: ["height", "dwarf", "초장", "반왜성", "semi-dwarf", "gibberellin"],
+        description: "식물체 높이 조절 - 반왜성/지베렐린 관련",
+        antagonisms: [
+            { pair: ["sd1", "Ghd7"], effect: 0.8, reference: "Xue et al. (2008)", note: "수량 감소 가능성" }
+        ]
+    },
+    "품질": {
+        genes: ["Wx", "ALK", "SSIIa", "Chalk5", "fgr", "BADH2", "GS9"],
+        keywords: ["amylose", "quality", "아밀로스", "식미", "호화온도", "향기"],
+        description: "쌀 품질 - 아밀로스, 호화온도, 식미, 향기",
+        synergies: [
+            { pair: ["Wx", "SSIIa"], effect: 1.3, reference: "Tian et al. (2009)", note: "밥맛 개선" }
+        ]
+    },
+    "수량": {
+        genes: ["Gn1a", "DEP1", "IPA1", "GS3", "Ghd7", "NAL1", "WFP", "SPIKE"],
+        keywords: ["yield", "수량", "영화수", "이삭", "grain number"],
+        description: "수량 관련 - 이삭수, 영화수, 등숙률",
+        synergies: [
+            { pair: ["Gn1a", "DEP1"], effect: 1.25, reference: "Huang et al. (2009)", note: "이삭당 영화수 증가" },
+            { pair: ["IPA1", "DEP1"], effect: 1.3, reference: "Jiao et al. (2010)", note: "이상적 초형" }
+        ]
+    },
+    "내냉성": {
+        genes: ["COLD1", "CTB1", "qLTG3-1", "LTG1", "bZIP73"],
+        keywords: ["cold", "chilling", "저온", "내냉", "tolerance"],
+        description: "저온 스트레스 저항성",
+        synergies: []
+    },
+    "내염성": {
+        genes: ["SKC1", "OsHKT1;5", "OsSOS1", "OsNHX1"],
+        keywords: ["salt", "salinity", "염", "내염", "tolerance"],
+        description: "염 스트레스 저항성",
+        synergies: []
+    },
+    "침수저항성": {
+        genes: ["Sub1A", "SK1", "SK2", "SNORKEL"],
+        keywords: ["submergence", "flooding", "침수", "내수"],
+        description: "침수/담수 조건 저항성",
+        synergies: []
+    }
+};
+
+// 유전자 상세 정보 데이터베이스
+const geneDetailDatabase = {
+    'Pib': { fullName: 'Blast resistance Pib', chr: 2, function: '도열병 저항성', mechanism: 'NBS-LRR 단백질' },
+    'Pi-ta': { fullName: 'Blast resistance Pi-ta', chr: 12, function: '도열병 저항성', mechanism: 'NBS-LRR 단백질' },
+    'Pita': { fullName: 'Blast resistance Pi-ta', chr: 12, function: '도열병 저항성', mechanism: 'NBS-LRR 단백질' },
+    'Pi9': { fullName: 'Blast resistance Pi9', chr: 6, function: '도열병 저항성', mechanism: 'NBS-LRR 단백질' },
+    'Pikm': { fullName: 'Blast resistance Pikm', chr: 11, function: '도열병 저항성', mechanism: 'NBS-LRR 단백질' },
+    'Xa21': { fullName: 'Bacterial blight resistance 21', chr: 11, function: '흰잎마름병 저항성', mechanism: 'LRR receptor kinase' },
+    'Hd1': { fullName: 'Heading date 1', chr: 6, function: '출수기 조절', mechanism: 'CONSTANS-like 전사인자' },
+    'Hd3a': { fullName: 'Heading date 3a (Florigen)', chr: 6, function: '개화 촉진', mechanism: 'FT homolog 이동성 신호' },
+    'Ghd7': { fullName: 'Grain number, heading date 7', chr: 7, function: '출수기/영화수', mechanism: 'CCT domain 단백질' },
+    'sd1': { fullName: 'semi-dwarf 1', chr: 1, function: '초장 조절 (반왜성)', mechanism: 'GA20-oxidase (지베렐린 생합성)' },
+    'Wx': { fullName: 'Waxy (GBSS)', chr: 6, function: '아밀로스 함량', mechanism: '과립결합성 전분합성효소' },
+    'ALK': { fullName: 'Alkali degeneration', chr: 6, function: '호화온도', mechanism: 'SSIIa 전분합성효소' },
+    'SSIIa': { fullName: 'Soluble starch synthase IIa', chr: 6, function: '호화온도', mechanism: '전분합성효소' },
+    'GS3': { fullName: 'Grain Size 3', chr: 3, function: '종실 길이', mechanism: 'G protein γ subunit' },
+    'GW2': { fullName: 'Grain Width 2', chr: 2, function: '종실 폭/무게', mechanism: 'RING-type E3 ubiquitin ligase' },
+    'GW5': { fullName: 'Grain Width 5', chr: 5, function: '종실 폭', mechanism: 'Calmodulin binding protein' },
+    'qSW5': { fullName: 'QTL for Seed Width 5', chr: 5, function: '종실 폭', mechanism: '기능 상실 변이' },
+    'Gn1a': { fullName: 'Grain number 1a', chr: 1, function: '영화수', mechanism: 'Cytokinin oxidase (OsCKX2)' },
+    'DEP1': { fullName: 'Dense and erect panicle 1', chr: 9, function: '이삭 구조', mechanism: 'Gγ subunit' },
+    'IPA1': { fullName: 'Ideal Plant Architecture 1', chr: 8, function: '이상적 초형', mechanism: 'SPL14 전사인자' },
+    'Sub1A': { fullName: 'Submergence 1A', chr: 9, function: '침수 저항성', mechanism: 'ERF 전사인자' },
+    'COLD1': { fullName: 'Chilling-tolerance divergence 1', chr: 4, function: '저온 저항성', mechanism: 'G-protein regulator' },
+    'SKC1': { fullName: 'Shoot K+ concentration 1', chr: 1, function: '내염성', mechanism: 'HKT-type transporter' }
+};
+
+// ==================== 유전자 예측 및 제안 함수 ====================
+
+// 형질에서 유전자 추천
+function recommendGenesForTrait(traitName) {
+    const trait = traitGeneDatabase[traitName];
+    if (!trait) return null;
+
+    const recommendations = {
+        trait: traitName,
+        description: trait.description,
+        genes: trait.genes.map(g => ({
+            name: g,
+            detail: geneDetailDatabase[g] || null,
+            position: defaultMarkerPositions[g] || null
+        })),
+        synergies: trait.synergies || [],
+        antagonisms: trait.antagonisms || []
+    };
+
+    return recommendations;
+}
+
+// 좌표에서 주변 유전자 찾기
+function findGenesNearPosition(chr, position, windowBp = 100000) {
+    const results = [];
+
+    for (const [gene, pos] of Object.entries(defaultMarkerPositions)) {
+        if (pos.chr === chr) {
+            const distance = Math.abs(position - pos.start_bp);
+            if (distance <= windowBp) {
+                results.push({
+                    gene,
+                    distance,
+                    position: pos,
+                    detail: geneDetailDatabase[gene] || null
+                });
+            }
+        }
+    }
+
+    return results.sort((a, b) => a.distance - b.distance);
+}
+
+// 키워드로 관련 유전자 검색
+function searchGenesByKeyword(keyword) {
+    const results = [];
+    const keywordLower = keyword.toLowerCase();
+
+    for (const [trait, data] of Object.entries(traitGeneDatabase)) {
+        const matchedKeywords = data.keywords.filter(k => k.toLowerCase().includes(keywordLower));
+        if (matchedKeywords.length > 0 || trait.toLowerCase().includes(keywordLower)) {
+            results.push({
+                trait,
+                description: data.description,
+                genes: data.genes,
+                matchedKeywords
+            });
+        }
+    }
+
+    return results;
+}
+
+// 교배 조합의 유전자 시너지/길항 분석
+function analyzeGeneInteractions(parent1Genes, parent2Genes) {
+    const allGenes = [...new Set([...parent1Genes, ...parent2Genes])];
+    const interactions = [];
+
+    // 각 형질별로 시너지/길항 체크
+    for (const [trait, data] of Object.entries(traitGeneDatabase)) {
+        const traitGenes = data.genes.filter(g => allGenes.includes(g));
+
+        if (traitGenes.length >= 2) {
+            // 시너지 체크
+            if (data.synergies) {
+                for (const syn of data.synergies) {
+                    if (syn.pair.every(g => traitGenes.includes(g))) {
+                        interactions.push({
+                            type: 'synergy',
+                            trait,
+                            genes: syn.pair,
+                            effect: syn.effect,
+                            reference: syn.reference,
+                            note: syn.note
+                        });
+                    }
+                }
+            }
+            // 길항 체크
+            if (data.antagonisms) {
+                for (const ant of data.antagonisms) {
+                    if (ant.pair.every(g => traitGenes.includes(g))) {
+                        interactions.push({
+                            type: 'antagonism',
+                            trait,
+                            genes: ant.pair,
+                            effect: ant.effect,
+                            note: ant.note
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    return interactions;
+}
+
+// 유전자 정보 팝업 HTML 생성
+function createGeneInfoPopup(geneName) {
+    const pos = defaultMarkerPositions[geneName];
+    const detail = geneDetailDatabase[geneName];
+
+    if (!pos && !detail) return `<div class="gene-popup">유전자 정보를 찾을 수 없습니다.</div>`;
+
+    // 관련 형질 찾기
+    const relatedTraits = [];
+    for (const [trait, data] of Object.entries(traitGeneDatabase)) {
+        if (data.genes.includes(geneName)) {
+            relatedTraits.push(trait);
+        }
+    }
+
+    return `
+        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${geneName}</h4>
+                <button onclick="closeGenePopup()" style="background: none; border: none; font-size: 1.2em; cursor: pointer;">✕</button>
+            </div>
+            ${detail ? `<p style="color: var(--dmrt-secondary); font-weight: 500; margin-bottom: 8px;">${detail.fullName}</p>` : ''}
+            ${pos ? `
+                <div style="background: var(--dmrt-bg-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
+                    <strong>📍 위치:</strong> Chr${pos.chr}:${pos.start_bp.toLocaleString()} - ${pos.end_bp.toLocaleString()} bp
+                </div>
+            ` : ''}
+            ${detail ? `
+                <div style="margin-bottom: 10px;">
+                    <strong>🎯 기능:</strong> ${detail.function}<br>
+                    <strong>⚙️ 기작:</strong> ${detail.mechanism}
+                </div>
+            ` : ''}
+            ${relatedTraits.length > 0 ? `
+                <div style="margin-bottom: 10px;">
+                    <strong>📊 관련 형질:</strong>
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+                        ${relatedTraits.map(t => `<span class="gene-chip">${t}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
+                ${pos ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=Os${String(pos.chr).padStart(2,'0')}g${String(Math.floor(pos.start_bp/10000)).padStart(7,'0')}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
+                <a href="https://funricegenes.github.io/genes/${geneName}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
+                <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(geneName + ' rice')}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration: none;">📚 논문</a>
+            </div>
+        </div>
+    `;
+}
+
+// 형질 추천 패널 HTML 생성
+function createTraitRecommendationPanel(traitName) {
+    const rec = recommendGenesForTrait(traitName);
+    if (!rec) return '';
+
+    return `
+        <div class="result-card" style="background: #e3f2fd; border-left: 4px solid var(--dmrt-secondary);">
+            <h4>🎯 ${traitName} - 추천 유전자</h4>
+            <p style="color: #666; margin-bottom: 12px;">${rec.description}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+                ${rec.genes.map(g => `
+                    <span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${g.name}')">${g.name}</span>
+                `).join('')}
+            </div>
+            ${rec.synergies.length > 0 ? `
+                <div style="background: #e8f5e9; padding: 10px; border-radius: 8px; margin-top: 8px;">
+                    <strong>🚀 시너지 조합:</strong>
+                    ${rec.synergies.map(s => `
+                        <div style="margin-top: 6px;">
+                            <span class="gene-chip synergy">${s.pair.join(' + ')}</span>
+                            효과 ${s.effect}배 (${s.reference})
+                            <br><small style="color: #666;">${s.note || ''}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+            ${rec.antagonisms && rec.antagonisms.length > 0 ? `
+                <div style="background: #ffebee; padding: 10px; border-radius: 8px; margin-top: 8px;">
+                    <strong>⚠️ 주의 조합:</strong>
+                    ${rec.antagonisms.map(a => `
+                        <div style="margin-top: 6px;">
+                            <span class="gene-chip antagonism">${a.pair.join(' + ')}</span>
+                            효과 ${a.effect}배
+                            <br><small style="color: #666;">${a.note || ''}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// 팝업 표시/닫기
+let currentPopup = null;
+function showGeneInfoPopup(geneName, x, y) {
+    closeGenePopup();
+
+    const popup = document.createElement('div');
+    popup.id = 'geneInfoPopup';
+    popup.style.cssText = `position: fixed; z-index: 10000; ${x && y ? `left: ${x}px; top: ${y}px;` : 'left: 50%; top: 50%; transform: translate(-50%, -50%);'}`;
+    popup.innerHTML = createGeneInfoPopup(geneName);
+    document.body.appendChild(popup);
+    currentPopup = popup;
+
+    log(`유전자 정보 조회: ${geneName}`, 'info');
+}
+
+function closeGenePopup() {
+    if (currentPopup) {
+        currentPopup.remove();
+        currentPopup = null;
+    }
+}
+
+// ==================== UI 연결 함수 ====================
+
+// 형질 선택 시 추천 표시
+function showTraitRecommendation() {
+    const trait = document.getElementById('targetTraitSelect').value;
+    const panel = document.getElementById('geneRecommendationPanel');
+
+    if (!trait) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    panel.innerHTML = createTraitRecommendationPanel(trait);
+    log(`형질 "${trait}" 유전자 추천 표시`, 'success');
+}
+
+// 키워드 검색
+function searchByKeyword() {
+    const keyword = document.getElementById('geneKeywordInput').value.trim();
+    const panel = document.getElementById('geneRecommendationPanel');
+
+    if (!keyword) {
+        alert('검색 키워드를 입력해주세요.');
+        return;
+    }
+
+    const results = searchGenesByKeyword(keyword);
+
+    if (results.length === 0) {
+        panel.innerHTML = `
+            <div class="result-card" style="background: #fff3e0;">
+                <p>🔍 "${keyword}"에 해당하는 유전자를 찾을 수 없습니다.</p>
+                <p style="font-size: 0.9em; color: #666;">다른 키워드로 검색해보세요: 도열병, blast, 저항성, 출수, heading, 품질, yield 등</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `<div class="result-card" style="background: #e8f5e9; border-left: 4px solid #4caf50;">
+        <h4>🔍 "${keyword}" 검색 결과 (${results.length}개 형질)</h4>`;
+
+    for (const r of results) {
+        html += `
+            <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 8px;">
+                <strong style="color: var(--dmrt-primary);">${r.trait}</strong>
+                <span style="color: #666; font-size: 0.9em;"> - ${r.description}</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">
+                    ${r.genes.map(g => `<span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${g}')">${g}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+    html += '</div>';
+
+    panel.innerHTML = html;
+    log(`키워드 "${keyword}" 검색: ${results.length}개 형질 발견`, 'success');
+}
+
+// 좌표로 유전자 검색
+function searchByPosition() {
+    const chr = parseInt(document.getElementById('searchChrSelect').value);
+    const pos = parseInt(document.getElementById('searchPosInput').value);
+    const panel = document.getElementById('geneRecommendationPanel');
+
+    if (!chr || !pos) {
+        alert('염색체와 위치를 입력해주세요.');
+        return;
+    }
+
+    const results = findGenesNearPosition(chr, pos, 500000); // ±500kb 범위
+
+    if (results.length === 0) {
+        panel.innerHTML = `
+            <div class="result-card" style="background: #fff3e0;">
+                <p>📍 Chr${chr}:${pos.toLocaleString()} bp 근처 (±500kb)에서 유전자를 찾을 수 없습니다.</p>
+                <p style="font-size: 0.9em; color: #666;">더 넓은 범위에서 검색하거나, RAP-DB에서 직접 검색해보세요.</p>
+                <a href="https://rapdb.dna.affrc.go.jp/viewer/gbrowse/irgsp1?name=Chr${chr}:${Math.max(0, pos-500000)}..${pos+500000}" target="_blank" class="btn btn-sm" style="margin-top: 8px; text-decoration: none;">🔗 RAP-DB에서 보기</a>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `<div class="result-card" style="background: #e3f2fd; border-left: 4px solid #2196f3;">
+        <h4>📍 Chr${chr}:${pos.toLocaleString()} bp 근처 유전자 (${results.length}개)</h4>
+        <table class="data-table" style="margin-top: 10px;">
+            <thead><tr><th>유전자</th><th>거리</th><th>위치</th><th>기능</th><th>상세</th></tr></thead>
+            <tbody>`;
+
+    for (const r of results) {
+        const distanceKb = (r.distance / 1000).toFixed(1);
+        html += `
+            <tr>
+                <td><strong style="cursor: pointer; color: var(--dmrt-secondary);" onclick="showGeneInfoPopup('${r.gene}')">${r.gene}</strong></td>
+                <td>${distanceKb} kb</td>
+                <td>Chr${r.position.chr}:${r.position.start_bp.toLocaleString()}</td>
+                <td>${r.detail ? r.detail.function : '-'}</td>
+                <td><button class="btn btn-sm" onclick="showGeneInfoPopup('${r.gene}')">🔍</button></td>
+            </tr>
+        `;
+    }
+    html += '</tbody></table></div>';
+
+    panel.innerHTML = html;
+    log(`좌표 검색 Chr${chr}:${pos}: ${results.length}개 유전자 발견`, 'success');
+}
+
+// 교배 조합 분석 시 유전자 시너지 분석 추가
+function analyzeCrossGeneInteractions(parent1, parent2) {
+    // 부모 품종의 마커 유전자형에서 유전자 추출
+    const parent1Genes = [];
+    const parent2Genes = [];
+
+    if (window.parsedData && window.parsedData.markers) {
+        const p1Data = window.parsedData.data.find(d => d['품종명'] === parent1 || d['Line'] === parent1);
+        const p2Data = window.parsedData.data.find(d => d['품종명'] === parent2 || d['Line'] === parent2);
+
+        for (const marker of window.parsedData.markers) {
+            // 마커명이 유전자명과 일치하는지 확인
+            for (const geneName of Object.keys(geneDetailDatabase)) {
+                if (marker.toLowerCase().includes(geneName.toLowerCase()) || geneName.toLowerCase().includes(marker.toLowerCase())) {
+                    if (p1Data && p1Data[marker] && !['0', '-', 'NA', ''].includes(String(p1Data[marker]))) {
+                        parent1Genes.push(geneName);
+                    }
+                    if (p2Data && p2Data[marker] && !['0', '-', 'NA', ''].includes(String(p2Data[marker]))) {
+                        parent2Genes.push(geneName);
+                    }
+                }
+            }
+        }
+    }
+
+    const interactions = analyzeGeneInteractions(parent1Genes, parent2Genes);
+
+    if (interactions.length === 0) {
+        return '<p style="color: #666; font-size: 0.9em;">분석 가능한 유전자 상호작용이 없습니다.</p>';
+    }
+
+    let html = '<div style="margin-top: 10px;">';
+    for (const int of interactions) {
+        const color = int.type === 'synergy' ? '#e8f5e9' : '#ffebee';
+        const icon = int.type === 'synergy' ? '🚀' : '⚠️';
+        html += `
+            <div style="background: ${color}; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;">
+                ${icon} <strong>${int.trait}:</strong> ${int.genes.join(' + ')}
+                → 효과 ${int.effect}배
+                ${int.reference ? `<small style="color: #666;">(${int.reference})</small>` : ''}
+            </div>
+        `;
+    }
+    html += '</div>';
+
+    return html;
+}
 
 // ==================== 실행 로그 함수 ====================
 // ==================== 플로팅 로그 시스템 ====================
