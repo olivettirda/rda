@@ -994,6 +994,43 @@
             }
         };
 
+        // 정확한 유전자 위치 데이터 (RAP-DB 기반)
+        const knownGenePositions = {
+            'Hd1': { chr: 6, pos: 9342000, rapId: 'Os06g0275000', msuId: 'LOC_Os06g16370' },
+            'Hd3a': { chr: 6, pos: 2941000, rapId: 'Os06g0157700', msuId: 'LOC_Os06g06320' },
+            'Ghd7': { chr: 7, pos: 9151000, rapId: 'Os07g0261200', msuId: 'LOC_Os07g15770' },
+            'sd1': { chr: 1, pos: 38383000, rapId: 'Os01g0883800', msuId: 'LOC_Os01g66100' },
+            'Wx': { chr: 6, pos: 1768000, rapId: 'Os06g0133000', msuId: 'LOC_Os06g04200' },
+            'ALK': { chr: 6, pos: 6751000, rapId: 'Os06g0229800', msuId: 'LOC_Os06g12450' },
+            'SSIIa': { chr: 6, pos: 6751000, rapId: 'Os06g0229800', msuId: 'LOC_Os06g12450' },
+            'GW2': { chr: 2, pos: 8082000, rapId: 'Os02g0244100', msuId: 'LOC_Os02g14720' },
+            'GS3': { chr: 3, pos: 16732000, rapId: 'Os03g0407400', msuId: 'LOC_Os03g29360' },
+            'GW5': { chr: 5, pos: 5360000, rapId: 'Os05g0187500', msuId: 'LOC_Os05g09520' },
+            'qSW5': { chr: 5, pos: 5361000, rapId: 'Os05g0187500', msuId: 'LOC_Os05g09520' },
+            'Gn1a': { chr: 1, pos: 5271000, rapId: 'Os01g0197700', msuId: 'LOC_Os01g10110' },
+            'DEP1': { chr: 9, pos: 17015000, rapId: 'Os09g0441900', msuId: 'LOC_Os09g26999' },
+            'IPA1': { chr: 8, pos: 25650000, rapId: 'Os08g0509600', msuId: 'LOC_Os08g39890' },
+            'OsSPL14': { chr: 8, pos: 25650000, rapId: 'Os08g0509600', msuId: 'LOC_Os08g39890' },
+            'Pib': { chr: 2, pos: 35125000, rapId: 'Os02g0839800', msuId: 'LOC_Os02g57310' },
+            'Pi-ta': { chr: 12, pos: 10609000, rapId: 'Os12g0281300', msuId: 'LOC_Os12g18360' },
+            'Pita': { chr: 12, pos: 10609000, rapId: 'Os12g0281300', msuId: 'LOC_Os12g18360' },
+            'Pi9': { chr: 6, pos: 10386000, rapId: 'Os06g0286700', msuId: 'LOC_Os06g17900' },
+            'Pikm': { chr: 11, pos: 27532000, rapId: 'Os11g0642300', msuId: 'LOC_Os11g45990' },
+            'Xa21': { chr: 11, pos: 21280000, rapId: 'Os11g0619800', msuId: 'LOC_Os11g35500' },
+            'Sub1A': { chr: 9, pos: 6380000, rapId: 'Os09g0286600', msuId: 'LOC_Os09g11460' },
+            'COLD1': { chr: 4, pos: 26700000, rapId: 'Os04g0535600', msuId: 'LOC_Os04g45030' },
+            'OsNAC9': { chr: 3, pos: 35170000, rapId: 'Os03g0815100', msuId: 'LOC_Os03g60080' },
+            'GIF1': { chr: 4, pos: 20250000, rapId: 'Os04g0413500', msuId: 'LOC_Os04g33740' },
+            'Chalk5': { chr: 5, pos: 3335000, rapId: 'Os05g0134800', msuId: 'LOC_Os05g06480' },
+            'BADH2': { chr: 8, pos: 20380000, rapId: 'Os08g0424500', msuId: 'LOC_Os08g32870' },
+            'fgr': { chr: 8, pos: 20380000, rapId: 'Os08g0424500', msuId: 'LOC_Os08g32870' },
+            'TGW6': { chr: 6, pos: 29755000, rapId: 'Os06g0695800', msuId: 'LOC_Os06g41850' },
+            'GS5': { chr: 5, pos: 3421000, rapId: 'Os05g0158500', msuId: 'LOC_Os05g06660' },
+            'DTH8': { chr: 8, pos: 4331000, rapId: 'Os08g0174500', msuId: 'LOC_Os08g07740' },
+            'Ehd1': { chr: 10, pos: 17096000, rapId: 'Os10g0463400', msuId: 'LOC_Os10g32600' },
+            'SKC1': { chr: 1, pos: 11461000, rapId: 'Os01g0307500', msuId: 'LOC_Os01g20160' }
+        };
+
         // ============ 초기화 ============
         document.addEventListener('DOMContentLoaded', async () => {
             setupTabs();
@@ -1051,16 +1088,20 @@
                     const [symbol, rapId, msuId] = line.split('\t');
                     if (!symbol || !rapId) return null;
 
-                    // RAP ID에서 염색체와 위치 추출
+                    // RAP ID에서 염색체 추출
                     const chrMatch = rapId.match(/Os(\d{2})g(\d{7})/);
                     let chromosome = null;
                     let estimatedPosition = null;
 
                     if (chrMatch) {
                         chromosome = parseInt(chrMatch[1]);
-                        // 유전자 번호로 대략적 위치 추정 (정확하지 않음)
-                        const geneNum = parseInt(chrMatch[2]);
-                        estimatedPosition = Math.floor(geneNum * 10); // 대략적 추정
+                    }
+
+                    // 정확한 위치 데이터가 있으면 사용
+                    const knownPos = knownGenePositions[symbol];
+                    if (knownPos) {
+                        chromosome = knownPos.chr;
+                        estimatedPosition = knownPos.pos;
                     }
 
                     // 추가 주석 정보 병합
@@ -1078,6 +1119,24 @@
                         keywords: annotation.keywords || []
                     };
                 }).filter(g => g !== null);
+
+                // 정확한 위치 데이터가 있는 유전자만 따로 추가 (FunRiceGenes에 없을 수 있음)
+                for (const [symbol, posData] of Object.entries(knownGenePositions)) {
+                    if (!geneDatabase.find(g => g.symbol === symbol)) {
+                        const annotation = geneAnnotations[symbol] || {};
+                        geneDatabase.push({
+                            symbol,
+                            rapId: posData.rapId,
+                            msuId: posData.msuId,
+                            chromosome: posData.chr,
+                            estimatedPosition: posData.pos,
+                            fullName: annotation.fullName || null,
+                            description: annotation.description || null,
+                            function: annotation.function || null,
+                            keywords: annotation.keywords || []
+                        });
+                    }
+                }
 
                 statusDot.className = 'status-dot online';
                 statusText.textContent = `데이터베이스 로드 완료`;
@@ -1478,7 +1537,7 @@
                                     📖 RAP-DB
                                 </a>
                             ` : ''}
-                            <a href="https://funricegenes.github.io/genes/${gene.symbol}/" target="_blank" class="gene-link">
+                            <a href="https://funricegenes.github.io/${gene.symbol}/" target="_blank" class="gene-link">
                                 🌾 FunRiceGenes
                             </a>
                             ${gene.msuId ? `
