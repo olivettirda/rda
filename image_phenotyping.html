@@ -1037,10 +1037,6 @@
                                 </div>
                             </div>
 
-                            <div class="result-item">
-                                <div class="result-label">녹색 면적 비율 (배경 제외)</div>
-                                <div class="result-value" id="seedGreenRatio">-</div>
-                            </div>
                         </div>
                     </div>
 
@@ -1686,6 +1682,15 @@
         }
 
         // 종자 배경색 스포이드
+        // 스포이드 모드 시 원본 이미지 표시
+        function showOriginalImageForEyedropper() {
+            const canvas = document.getElementById('seedCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = currentSeedImage.width;
+            canvas.height = currentSeedImage.height;
+            ctx.drawImage(currentSeedImage, 0, 0);
+        }
+
         function startSeedBgEyedropper() {
             // 이미지가 로드되었는지 확인
             if (!currentSeedImage) {
@@ -1698,6 +1703,9 @@
             document.getElementById('seedColorEyedropper').classList.remove('active');
             document.getElementById('modeIndicator').textContent = '🔍 배경색을 클릭하세요';
             document.getElementById('modeIndicator').classList.add('show');
+
+            // 원본 이미지 표시 (분석 오버레이 없이)
+            showOriginalImageForEyedropper();
 
             const canvas = document.getElementById('seedCanvas');
             canvas.style.pointerEvents = 'auto';
@@ -1718,6 +1726,9 @@
             document.getElementById('seedBgEyedropper').classList.remove('active');
             document.getElementById('modeIndicator').textContent = '🔍 종자색을 클릭하세요';
             document.getElementById('modeIndicator').classList.add('show');
+
+            // 원본 이미지 표시 (분석 오버레이 없이)
+            showOriginalImageForEyedropper();
 
             const canvas = document.getElementById('seedCanvas');
             canvas.style.pointerEvents = 'auto';
@@ -1839,12 +1850,136 @@
 
                 renderColorSamples();
 
+                // 배경색 선택 완료 시 자동으로 종자 감지 및 종자색 추출
+                if (mode === 'bg' && !isReextractingSingleSample) {
+                    document.getElementById('modeIndicator').textContent = '🔍 종자 자동 감지 중...';
+                    await autoDetectSeedsAndExtractColors();
+                }
+
                 // 분석 실행
                 document.getElementById('modeIndicator').textContent = '🔍 분석 중...';
                 await analyzeSeed();
 
                 document.getElementById('modeIndicator').classList.remove('show');
             })();
+        }
+
+        // 배경색 기반 자동 종자 감지 및 종자색 추출
+        async function autoDetectSeedsAndExtractColors() {
+            if (!currentSeedImage || seedBgColorSamples.length === 0) return;
+
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = currentSeedImage.width;
+            tempCanvas.height = currentSeedImage.height;
+            tempCtx.drawImage(currentSeedImage, 0, 0);
+
+            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const data = imageData.data;
+            const width = tempCanvas.width;
+            const height = tempCanvas.height;
+
+            // 배경색 평균 및 반경 계산
+            let bgColorAvg = { r: 0, g: 0, b: 0 };
+            let bgColorRadius = 0;
+            for (const sample of seedBgColorSamples) {
+                bgColorAvg.r += sample.r;
+                bgColorAvg.g += sample.g;
+                bgColorAvg.b += sample.b;
+            }
+            bgColorAvg.r /= seedBgColorSamples.length;
+            bgColorAvg.g /= seedBgColorSamples.length;
+            bgColorAvg.b /= seedBgColorSamples.length;
+            for (const sample of seedBgColorSamples) {
+                const dist = colorDistance(sample, bgColorAvg);
+                if (dist > bgColorRadius) bgColorRadius = dist;
+            }
+
+            // 비배경 영역 찾기 (배경색에서 멀리 떨어진 픽셀)
+            const binaryData = new Uint8Array(width * height);
+            const bgThreshold = bgColorRadius + 40; // 배경 판정 임계값
+
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const idx = i / 4;
+
+                const distFromBg = colorDistance({ r, g, b }, bgColorAvg);
+                if (distFromBg > bgThreshold) {
+                    binaryData[idx] = 1;
+                }
+            }
+
+            // 연결 성분 분석으로 객체 찾기
+            const components = findConnectedComponents(binaryData, width, height);
+            const minSeedSize = parseInt(document.getElementById('seedMinSize').value) || 100;
+
+            // 타원형에 가까운 객체들만 필터링 (종자 후보)
+            const seedCandidates = components.filter(comp => {
+                if (comp.pixels.length < minSeedSize) return false;
+
+                // 원형도 계산
+                const circularity = calculateCircularity(comp, width);
+                // 장폭비 계산
+                const compWidth = comp.maxX - comp.minX;
+                const compHeight = comp.maxY - comp.minY;
+                const aspectRatio = Math.max(compWidth, compHeight) / Math.max(Math.min(compWidth, compHeight), 1);
+
+                // 타원형 조건: 원형도 0.4 이상, 장폭비 3 이하
+                return circularity >= 0.4 && aspectRatio <= 3;
+            });
+
+            if (seedCandidates.length === 0) {
+                console.log('자동 감지된 종자 후보가 없습니다.');
+                return;
+            }
+
+            // 감지된 종자들에서 색상 샘플 추출 (최대 10개)
+            const newSeedColorSamples = [];
+            const sampleCount = Math.min(10, seedCandidates.length);
+
+            for (let i = 0; i < sampleCount; i++) {
+                const candidate = seedCandidates[i % seedCandidates.length];
+                // 종자 중심 근처에서 색상 추출
+                const centerX = Math.floor((candidate.minX + candidate.maxX) / 2);
+                const centerY = Math.floor((candidate.minY + candidate.maxY) / 2);
+
+                // 중심 주변 10x10 영역 평균색
+                let totalR = 0, totalG = 0, totalB = 0, count = 0;
+                const sampleRadius = 5;
+                for (let dy = -sampleRadius; dy <= sampleRadius; dy++) {
+                    for (let dx = -sampleRadius; dx <= sampleRadius; dx++) {
+                        const px = centerX + dx;
+                        const py = centerY + dy;
+                        if (px >= 0 && px < width && py >= 0 && py < height) {
+                            const pidx = (py * width + px) * 4;
+                            totalR += data[pidx];
+                            totalG += data[pidx + 1];
+                            totalB += data[pidx + 2];
+                            count++;
+                        }
+                    }
+                }
+
+                if (count > 0) {
+                    newSeedColorSamples.push({
+                        r: Math.round(totalR / count),
+                        g: Math.round(totalG / count),
+                        b: Math.round(totalB / count)
+                    });
+                }
+            }
+
+            // 종자색 샘플이 추출되면 적용
+            if (newSeedColorSamples.length > 0) {
+                seedColorSamples = newSeedColorSamples;
+                seedColor = newSeedColorSamples[0];
+                document.getElementById('seedColorPreview').style.background =
+                    `rgb(${seedColor.r}, ${seedColor.g}, ${seedColor.b})`;
+                renderColorSamples();
+                console.log(`${newSeedColorSamples.length}개의 종자색 샘플이 자동 추출되었습니다.`);
+            }
         }
 
         // 색상 샘플 렌더링 함수
@@ -2866,7 +3001,7 @@
 
             // 종자색과 유사한 픽셀 찾기 (배경 제외)
             const binaryData = new Uint8Array(canvas.width * canvas.height);
-            let greenPixels = 0, totalPixels = 0;
+            let totalPixels = 0;
 
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
@@ -2898,14 +3033,6 @@
                         // 배경이 아니고 종자색에 가까운 픽셀
                         binaryData[idx] = 1;
                         totalPixels++;
-                    }
-
-                    // 녹색 체크
-                    if (binaryData[idx] === 1) {
-                        const hsv = rgbToHsv(r, g, b);
-                        if (hsv.h >= 60 && hsv.h <= 180 && hsv.s > 20) {
-                            greenPixels++;
-                        }
                     }
                 }
             }
@@ -3092,9 +3219,6 @@
                 const avgCircularity = validSeeds.length > 0 ?
                     (totalCircularity / validSeeds.length).toFixed(3) : '-';
 
-                // 녹색 비율 (배경 제외)
-                const greenRatio = totalPixels > 0 ? (greenPixels / totalPixels * 100).toFixed(1) : 0;
-
                 document.getElementById('seedCount').innerHTML = totalCount + '<span class="result-unit">개</span>';
                 document.getElementById('seedLength').innerHTML = avgLength + '<span class="result-unit">mm</span>';
                 document.getElementById('seedWidth').innerHTML = avgWidth + '<span class="result-unit">mm</span>';
@@ -3104,7 +3228,6 @@
                 document.getElementById('seedNormalCount').textContent = normalCount + '개';
                 document.getElementById('seedSuspectCount').textContent = suspectCount + '개';
                 document.getElementById('seedBrokenCount').textContent = brokenCount + '개';
-                document.getElementById('seedGreenRatio').innerHTML = greenRatio + '<span class="result-unit">%</span>';
             } else {
                 document.getElementById('seedCount').innerHTML = '0';
                 document.getElementById('seedLength').innerHTML = '-';
@@ -3115,7 +3238,6 @@
                 document.getElementById('seedNormalCount').textContent = '-';
                 document.getElementById('seedSuspectCount').textContent = '-';
                 document.getElementById('seedBrokenCount').textContent = '-';
-                document.getElementById('seedGreenRatio').innerHTML = '-';
             }
 
             hideLoading();
@@ -3162,15 +3284,14 @@
             return components;
         }
 
-        // 윤곽선 추출 함수
+        // 윤곽선 추출 함수 (순서대로 정렬된 윤곽선)
         function extractContour(component, binaryData, width, height) {
-            const contour = [];
             const pixelSet = new Set(component.pixels.map(p => `${p.x},${p.y}`));
+            const boundaryPixels = [];
 
             // 경계선 픽셀 찾기
             for (const pixel of component.pixels) {
                 const { x, y } = pixel;
-                // 인접한 8방향 중 하나라도 배경이면 경계선
                 const neighbors = [
                     [x-1, y-1], [x, y-1], [x+1, y-1],
                     [x-1, y], [x+1, y],
@@ -3190,11 +3311,128 @@
                 }
 
                 if (isBoundary) {
-                    contour.push({ x, y });
+                    boundaryPixels.push({ x, y });
                 }
             }
 
-            return contour;
+            if (boundaryPixels.length === 0) return [];
+
+            // 윤곽선 점들을 순서대로 정렬 (시계방향)
+            const orderedContour = orderContourPoints(boundaryPixels);
+
+            // 적응형 스무딩 적용
+            return smoothContourAdaptive(orderedContour);
+        }
+
+        // 윤곽선 점들을 순서대로 정렬
+        function orderContourPoints(points) {
+            if (points.length <= 2) return points;
+
+            const ordered = [];
+            const remaining = new Set(points.map((p, i) => i));
+
+            // 시작점: 가장 왼쪽 상단
+            let startIdx = 0;
+            let minVal = points[0].x + points[0].y * 10000;
+            for (let i = 1; i < points.length; i++) {
+                const val = points[i].x + points[i].y * 10000;
+                if (val < minVal) {
+                    minVal = val;
+                    startIdx = i;
+                }
+            }
+
+            ordered.push(points[startIdx]);
+            remaining.delete(startIdx);
+
+            // 가장 가까운 점을 순서대로 연결
+            while (remaining.size > 0) {
+                const last = ordered[ordered.length - 1];
+                let nearestIdx = -1;
+                let nearestDist = Infinity;
+
+                for (const idx of remaining) {
+                    const dx = points[idx].x - last.x;
+                    const dy = points[idx].y - last.y;
+                    const dist = dx * dx + dy * dy;
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestIdx = idx;
+                    }
+                }
+
+                if (nearestIdx === -1 || nearestDist > 8) break; // 너무 멀면 중단
+                ordered.push(points[nearestIdx]);
+                remaining.delete(nearestIdx);
+            }
+
+            return ordered;
+        }
+
+        // 적응형 윤곽선 스무딩 (각진 부분 유지, 부드러운 부분만 스무딩)
+        function smoothContourAdaptive(contour) {
+            if (contour.length < 5) return contour;
+
+            const smoothed = [];
+            const windowSize = 5;
+            const cornerThreshold = 0.5; // 라디안, 약 30도 이상이면 각진 부분으로 판단
+
+            // 각 점에서 곡률(각도 변화) 계산
+            const curvatures = [];
+            for (let i = 0; i < contour.length; i++) {
+                const prev = contour[(i - windowSize + contour.length) % contour.length];
+                const curr = contour[i];
+                const next = contour[(i + windowSize) % contour.length];
+
+                const v1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+                const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+
+                const len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+                const len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+                if (len1 > 0 && len2 > 0) {
+                    const dot = v1.x * v2.x + v1.y * v2.y;
+                    const cross = v1.x * v2.y - v1.y * v2.x;
+                    const angle = Math.abs(Math.atan2(cross, dot));
+                    curvatures.push(angle);
+                } else {
+                    curvatures.push(0);
+                }
+            }
+
+            // 적응형 스무딩 적용
+            for (let i = 0; i < contour.length; i++) {
+                if (curvatures[i] > cornerThreshold) {
+                    // 각진 부분은 원본 유지
+                    smoothed.push({ ...contour[i] });
+                } else {
+                    // 부드러운 부분은 평균 스무딩
+                    const radius = 2;
+                    let sumX = 0, sumY = 0, count = 0;
+                    for (let j = -radius; j <= radius; j++) {
+                        const idx = (i + j + contour.length) % contour.length;
+                        sumX += contour[idx].x;
+                        sumY += contour[idx].y;
+                        count++;
+                    }
+                    smoothed.push({
+                        x: Math.round(sumX / count),
+                        y: Math.round(sumY / count)
+                    });
+                }
+            }
+
+            // 중복 점 제거 및 간소화
+            const simplified = [];
+            for (let i = 0; i < smoothed.length; i++) {
+                const curr = smoothed[i];
+                const prev = simplified[simplified.length - 1];
+                if (!prev || Math.abs(curr.x - prev.x) > 1 || Math.abs(curr.y - prev.y) > 1) {
+                    simplified.push(curr);
+                }
+            }
+
+            return simplified;
         }
 
         // 장축과 단축 계산 (PCA 기반)
