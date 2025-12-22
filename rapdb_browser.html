@@ -428,6 +428,69 @@
             margin-bottom: 16px;
         }
 
+        /* 펼치기/접기 아이콘 */
+        .expand-icon {
+            font-size: 0.8em;
+            color: var(--secondary);
+            transition: transform 0.2s;
+        }
+
+        /* 유전자 상세 정보 */
+        .gene-detail {
+            padding-top: 12px;
+            margin-top: 12px;
+            border-top: 1px solid var(--border);
+            animation: slideDown 0.2s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* GBrowse iframe 컨테이너 */
+        .gbrowse-frame {
+            margin-top: 15px;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        /* 버튼 스타일 */
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85em;
+        }
+
+        .btn:not(.btn-secondary) {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn:not(.btn-secondary):hover {
+            background: var(--accent);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: var(--text);
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
         /* 캐시 정보 */
         .cache-info {
             margin-top: 20px;
@@ -1482,91 +1545,146 @@
 
         function createGeneCard(gene) {
             const isNotFound = gene.notFound;
+            const cardId = `gene-${gene.symbol.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
             return `
-                <div class="gene-card" style="${isNotFound ? 'opacity: 0.6; border-style: dashed;' : ''}">
-                    <div class="gene-header">
-                        <div>
+                <div class="gene-card" id="${cardId}" style="${isNotFound ? 'opacity: 0.6; border-style: dashed;' : ''}">
+                    <div class="gene-header" onclick="toggleGeneDetail('${cardId}')" style="cursor: pointer;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="expand-icon" id="${cardId}-icon">▶</span>
                             <span class="gene-symbol">${gene.symbol}</span>
-                            ${gene.fullName ? `<span style="color: var(--text-light); margin-left: 8px;">${gene.fullName}</span>` : ''}
+                            ${gene.fullName ? `<span style="color: var(--text-light); font-size: 0.9em;">${gene.fullName}</span>` : ''}
                         </div>
                         <div class="gene-ids">
+                            ${gene.chromosome && gene.estimatedPosition ? `<span class="gene-id-badge" style="background: #e8f5e9; color: #2e7d32;">Chr${gene.chromosome}:${(gene.estimatedPosition/1000000).toFixed(2)}Mb</span>` : ''}
                             ${gene.rapId ? `<span class="gene-id-badge rap">${gene.rapId}</span>` : ''}
                             ${gene.msuId ? `<span class="gene-id-badge msu">${gene.msuId}</span>` : ''}
-                            ${gene.source === 'NCBI' ? `<span class="gene-id-badge" style="background: #fce4ec; color: #c2185b;">NCBI</span>` : ''}
                         </div>
                     </div>
 
-                    ${!isNotFound ? `
-                        <div class="gene-info">
-                            ${gene.chromosome ? `
-                                <div class="info-item">
-                                    <span class="info-label">염색체</span>
-                                    <span class="info-value">Chr ${gene.chromosome}</span>
-                                </div>
-                            ` : ''}
-                            ${gene.estimatedPosition ? `
-                                <div class="info-item">
-                                    <span class="info-label">위치</span>
-                                    <span class="info-value">${gene.estimatedPosition.toLocaleString()} bp</span>
-                                </div>
-                            ` : ''}
-                            ${gene.function ? `
-                                <div class="info-item">
-                                    <span class="info-label">기능</span>
-                                    <span class="info-value">${gene.function}</span>
-                                </div>
-                            ` : ''}
-                        </div>
-                    ` : ''}
+                    <div class="gene-detail" id="${cardId}-detail" style="display: none;">
+                        ${!isNotFound ? `
+                            <div class="gene-info">
+                                ${gene.chromosome ? `
+                                    <div class="info-item">
+                                        <span class="info-label">염색체</span>
+                                        <span class="info-value">Chr ${gene.chromosome}</span>
+                                    </div>
+                                ` : ''}
+                                ${gene.estimatedPosition ? `
+                                    <div class="info-item">
+                                        <span class="info-label">위치</span>
+                                        <span class="info-value">${gene.estimatedPosition.toLocaleString()} bp</span>
+                                    </div>
+                                ` : ''}
+                                ${gene.function ? `
+                                    <div class="info-item">
+                                        <span class="info-label">기능</span>
+                                        <span class="info-value">${gene.function}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        ` : ''}
 
-                    ${gene.description ? `
-                        <div class="gene-description">${gene.description}</div>
-                    ` : ''}
+                        ${gene.description ? `
+                            <div class="gene-description">${gene.description}</div>
+                        ` : ''}
 
-                    ${gene.keywords && gene.keywords.length > 0 ? `
-                        <div class="gene-keywords">
-                            ${gene.keywords.map(k => `<span class="keyword-tag">${k}</span>`).join('')}
-                        </div>
-                    ` : ''}
+                        ${gene.keywords && gene.keywords.length > 0 ? `
+                            <div class="gene-keywords">
+                                ${gene.keywords.map(k => `<span class="keyword-tag">${k}</span>`).join('')}
+                            </div>
+                        ` : ''}
 
-                    ${!isNotFound ? `
-                        <div class="gene-links">
-                            ${gene.rapId ? `
-                                <a href="https://rapdb.dna.affrc.go.jp/locus/?name=${gene.rapId}" target="_blank" class="gene-link">
-                                    📖 RAP-DB
+                        ${!isNotFound ? `
+                            <div class="gene-links">
+                                ${gene.rapId ? `
+                                    <a href="https://rapdb.dna.affrc.go.jp/locus/?name=${gene.rapId}" target="_blank" class="gene-link">
+                                        📖 RAP-DB
+                                    </a>
+                                ` : ''}
+                                <a href="https://funricegenes.github.io/${gene.symbol}/" target="_blank" class="gene-link">
+                                    🌾 FunRiceGenes
                                 </a>
-                            ` : ''}
-                            <a href="https://funricegenes.github.io/${gene.symbol}/" target="_blank" class="gene-link">
-                                🌾 FunRiceGenes
-                            </a>
-                            ${gene.msuId ? `
-                                <a href="http://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${gene.msuId}" target="_blank" class="gene-link">
-                                    🔬 RGAP
+                                ${gene.msuId ? `
+                                    <a href="http://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${gene.msuId}" target="_blank" class="gene-link">
+                                        🔬 RGAP
+                                    </a>
+                                ` : ''}
+                                ${gene.rapId ? `
+                                    <a href="https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${gene.rapId}" target="_blank" class="gene-link">
+                                        🌱 Gramene
+                                    </a>
+                                ` : ''}
+                                ${gene.ncbiId ? `
+                                    <a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">
+                                        🧬 NCBI Gene
+                                    </a>
+                                ` : ''}
+                                <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.symbol + ' rice')}" target="_blank" class="gene-link">
+                                    📚 논문 검색
                                 </a>
-                            ` : ''}
-                            ${gene.rapId ? `
-                                <a href="https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${gene.rapId}" target="_blank" class="gene-link">
-                                    🌱 Gramene
-                                </a>
-                            ` : ''}
-                            ${gene.ncbiId ? `
-                                <a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">
-                                    🧬 NCBI Gene
-                                </a>
-                            ` : ''}
-                            <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.symbol + ' rice')}" target="_blank" class="gene-link">
-                                📚 논문 검색
-                            </a>
+                            </div>
+
                             ${gene.chromosome && gene.estimatedPosition ? `
-                                <a href="https://rapdb.dna.affrc.go.jp/viewer/gbrowse/irgsp1?name=Chr${gene.chromosome}:${gene.estimatedPosition - 50000}..${gene.estimatedPosition + 50000}" target="_blank" class="gene-link">
-                                    🗺️ GBrowse
-                                </a>
+                                <div style="margin-top: 12px;">
+                                    <button class="btn btn-sm" onclick="event.stopPropagation(); toggleGBrowse('${cardId}', ${gene.chromosome}, ${gene.estimatedPosition})">
+                                        🗺️ GBrowse 보기
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); window.open('https://rapdb.dna.affrc.go.jp/viewer/gbrowse/irgsp1?name=Chr${gene.chromosome}:${gene.estimatedPosition - 50000}..${gene.estimatedPosition + 50000}', '_blank')">
+                                        ↗️ 새 탭에서 열기
+                                    </button>
+                                </div>
+                                <div id="${cardId}-gbrowse" class="gbrowse-frame" style="display: none;"></div>
                             ` : ''}
-                        </div>
-                    ` : ''}
+                        ` : ''}
+                    </div>
                 </div>
             `;
+        }
+
+        // 유전자 상세 정보 펼치기/접기
+        function toggleGeneDetail(cardId) {
+            const detail = document.getElementById(`${cardId}-detail`);
+            const icon = document.getElementById(`${cardId}-icon`);
+
+            if (detail.style.display === 'none') {
+                detail.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                detail.style.display = 'none';
+                icon.textContent = '▶';
+                // GBrowse도 닫기
+                const gbrowse = document.getElementById(`${cardId}-gbrowse`);
+                if (gbrowse) gbrowse.style.display = 'none';
+            }
+        }
+
+        // GBrowse iframe 토글
+        function toggleGBrowse(cardId, chr, pos) {
+            const container = document.getElementById(`${cardId}-gbrowse`);
+
+            if (container.style.display === 'none' || container.innerHTML === '') {
+                const start = pos - 50000;
+                const end = pos + 50000;
+                // JBrowse2 사용 (더 안정적)
+                const jbrowseUrl = `https://rapdb.dna.affrc.go.jp/jbrowse2/?loc=chr${String(chr).padStart(2, '0')}:${start}..${end}&assembly=IRGSP-1.0`;
+
+                container.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
+                        <span style="font-weight: 500; color: var(--secondary);">📍 Chr${chr}:${start.toLocaleString()}-${end.toLocaleString()}</span>
+                        <button class="btn btn-sm btn-secondary" onclick="document.getElementById('${cardId}-gbrowse').style.display='none'">✕ 닫기</button>
+                    </div>
+                    <iframe src="${jbrowseUrl}" style="width: 100%; height: 400px; border: 1px solid var(--border); border-radius: 8px;"></iframe>
+                    <p style="font-size: 0.8em; color: var(--text-light); margin-top: 8px;">
+                        ※ JBrowse2 로딩 중... 표시되지 않으면
+                        <a href="${jbrowseUrl}" target="_blank">새 탭에서 열기</a>
+                    </p>
+                `;
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
         }
 
         // ============ 염색체 맵 렌더링 ============
