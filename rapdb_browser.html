@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAP-DB 유전자 브라우저 - 육종 도구 모음</title>
+    <link rel="icon" type="image/png" href="ssallogo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0c3026;
+            --secondary: #017f97;
+            --accent: #00a1b8;
+            --bg: #f8faf9;
+            --card-bg: #ffffff;
+            --border: #d4e5df;
+            --text: #0c3026;
+            --text-light: #5a6b65;
+            --success: #2e7d32;
+            --warning: #f57c00;
+            --error: #c62828;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 1.8em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            font-size: 0.95em;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            padding: 6px 12px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.online { background: #4caf50; }
+        .status-dot.loading { background: #ff9800; animation: pulse 1s infinite; }
+        .status-dot.offline { background: #f44336; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 탭 네비게이션 */
+        .tab-nav {
+            display: flex;
+            gap: 4px;
+            background: var(--card-bg);
+            padding: 6px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 500;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg);
+        }
+
+        .tab-btn.active {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 검색 카드 */
+        .search-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .search-card h2 {
+            font-size: 1.1em;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .input-group {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85em;
+            color: var(--text-light);
+            margin-bottom: 6px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .search-btn {
+            padding: 12px 28px;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-btn:hover {
+            background: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .search-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 퀵 검색 예시 */
+        .quick-examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .quick-example {
+            padding: 6px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-example:hover {
+            border-color: var(--secondary);
+            background: #e0f7fa;
+        }
+
+        /* 결과 영역 */
+        .results-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .results-title {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .results-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .results-count {
+            font-size: 0.9em;
+            color: var(--text-light);
+        }
+
+        .export-btn {
+            padding: 8px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .export-btn:hover {
+            background: #e3f2fd;
+            border-color: var(--secondary);
+        }
+
+        /* 유전자 카드 */
+        .gene-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+
+        .gene-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: var(--secondary);
+        }
+
+        .gene-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .gene-symbol {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+
+        .gene-ids {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .gene-id-badge {
+            padding: 4px 10px;
+            background: var(--bg);
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-family: monospace;
+        }
+
+        .gene-id-badge.rap { background: #e8f5e9; color: #2e7d32; }
+        .gene-id-badge.msu { background: #e3f2fd; color: #1565c0; }
+
+        .gene-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-label {
+            font-size: 0.8em;
+            color: var(--text-light);
+        }
+
+        .info-value {
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+
+        .gene-description {
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            font-size: 0.9em;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .gene-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .keyword-tag {
+            padding: 4px 10px;
+            background: #fff3e0;
+            color: #e65100;
+            border-radius: 12px;
+            font-size: 0.75em;
+        }
+
+        .gene-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .gene-link {
+            padding: 8px 14px;
+            background: var(--bg);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.85em;
+            color: var(--secondary);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .gene-link:hover {
+            background: #e0f7fa;
+        }
+
+        /* 로딩 상태 */
+        .loading-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .loading-state .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border);
+            border-top-color: var(--secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* 캐시 정보 */
+        .cache-info {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 0.85em;
+        }
+
+        .cache-info h3 {
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+
+        .cache-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .cache-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 지도 뷰 */
+        .chromosome-map {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 20px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .chr-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chr-label {
+            width: 60px;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+
+        .chr-bar {
+            flex: 1;
+            height: 24px;
+            background: linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%);
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .chr-bar:hover {
+            opacity: 0.9;
+        }
+
+        .gene-marker {
+            position: absolute;
+            top: 2px;
+            width: 4px;
+            height: 20px;
+            background: var(--secondary);
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .gene-marker:hover {
+            background: var(--accent);
+            transform: scaleX(1.5);
+        }
+
+        /* 상세 정보 모달 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: var(--bg);
+            border-radius: 50%;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .search-row {
+                flex-direction: column;
+            }
+
+            .input-group {
+                min-width: 100%;
+            }
+
+            .tab-btn {
+                padding: 12px;
+                font-size: 0.85em;
+            }
+
+            .tab-btn span {
+                display: none;
+            }
+
+            .gene-header {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
+
+        /* 히스토리 */
+        .history-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .history-header h3 {
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .history-clear {
+            font-size: 0.85em;
+            color: var(--text-light);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .history-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .history-item {
+            padding: 6px 12px;
+            background: var(--bg);
+            border-radius: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover {
+            background: #e3f2fd;
+        }
+
+        /* 통계 카드 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span>🧬</span>
+                RAP-DB 유전자 브라우저
+            </h1>
+            <p class="subtitle">벼 유전체 좌표 기반 유전자 검색 및 정보 조회</p>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-dot" id="dbStatusDot"></span>
+                    <span id="dbStatusText">데이터베이스 로딩 중...</span>
+                </div>
+                <div class="status-item">
+                    <span>📊</span>
+                    <span id="geneCountText">0개 유전자</span>
+                </div>
+                <div class="status-item">
+                    <span>💾</span>
+                    <span id="cacheStatusText">캐시: 0건</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 통계 카드 -->
+        <div class="stats-grid" id="statsGrid" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="statTotalGenes">0</div>
+                <div class="stat-label">전체 유전자</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statChromosomes">12</div>
+                <div class="stat-label">염색체</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statSearches">0</div>
+                <div class="stat-label">검색 횟수</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="statCached">0</div>
+                <div class="stat-label">캐시된 결과</div>
+            </div>
+        </div>
+
+        <!-- 탭 네비게이션 -->
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="position">
+                📍 <span>좌표 검색</span>
+            </button>
+            <button class="tab-btn" data-tab="gene">
+                🔤 <span>유전자명 검색</span>
+            </button>
+            <button class="tab-btn" data-tab="chromosome">
+                🧬 <span>염색체 브라우저</span>
+            </button>
+            <button class="tab-btn" data-tab="batch">
+                📋 <span>일괄 검색</span>
+            </button>
+        </div>
+
+        <!-- 검색 히스토리 -->
+        <div class="history-section" id="historySection" style="display: none;">
+            <div class="history-header">
+                <h3>🕐 최근 검색</h3>
+                <span class="history-clear" onclick="clearHistory()">전체 삭제</span>
+            </div>
+            <div class="history-list" id="historyList"></div>
+        </div>
+
+        <!-- 좌표 검색 탭 -->
+        <div class="tab-content active" id="tab-position">
+            <div class="search-card">
+                <h2>📍 염색체 좌표로 유전자 검색</h2>
+                <div class="search-row">
+                    <div class="input-group">
+                        <label>염색체</label>
+                        <select id="chrSelect">
+                            <option value="">선택...</option>
+                            <option value="1">Chr 1</option>
+                            <option value="2">Chr 2</option>
+                            <option value="3">Chr 3</option>
+                            <option value="4">Chr 4</option>
+                            <option value="5">Chr 5</option>
+                            <option value="6">Chr 6</option>
+                            <option value="7">Chr 7</option>
+                            <option value="8">Chr 8</option>
+                            <option value="9">Chr 9</option>
+                            <option value="10">Chr 10</option>
+                            <option value="11">Chr 11</option>
+                            <option value="12">Chr 12</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>위치 (bp)</label>
+                        <input type="number" id="positionInput" placeholder="예: 28500000">
+                    </div>
+                    <div class="input-group">
+                        <label>검색 범위 (±kb)</label>
+                        <select id="windowSelect">
+                            <option value="10000">±10 kb</option>
+                            <option value="25000">±25 kb</option>
+                            <option value="50000" selected>±50 kb</option>
+                            <option value="100000">±100 kb</option>
+                            <option value="250000">±250 kb</option>
+                            <option value="500000">±500 kb</option>
+                        </select>
+                    </div>
+                    <button class="search-btn" onclick="searchByPosition()">
+                        🔍 검색
+                    </button>
+                </div>
+                <div class="quick-examples">
+                    <span>예시:</span>
+                    <span class="quick-example" onclick="setPositionSearch(6, 9342000, 50000)">Hd1 (Chr6:9.3Mb)</span>
+                    <span class="quick-example" onclick="setPositionSearch(1, 38383000, 50000)">sd1 (Chr1:38.4Mb)</span>
+                    <span class="quick-example" onclick="setPositionSearch(6, 1768000, 50000)">Wx (Chr6:1.8Mb)</span>
+                    <span class="quick-example" onclick="setPositionSearch(2, 8082000, 50000)">GW2 (Chr2:8.1Mb)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 유전자명 검색 탭 -->
+        <div class="tab-content" id="tab-gene">
+            <div class="search-card">
+                <h2>🔤 유전자명/ID로 검색</h2>
+                <div class="search-row">
+                    <div class="input-group" style="flex: 3;">
+                        <label>유전자명 또는 Locus ID</label>
+                        <input type="text" id="geneNameInput" placeholder="예: Hd1, Os06g0275000, LOC_Os06g16370">
+                    </div>
+                    <button class="search-btn" onclick="searchByGeneName()">
+                        🔍 검색
+                    </button>
+                </div>
+                <div class="quick-examples">
+                    <span>예시:</span>
+                    <span class="quick-example" onclick="setGeneSearch('Hd1')">Hd1</span>
+                    <span class="quick-example" onclick="setGeneSearch('sd1')">sd1</span>
+                    <span class="quick-example" onclick="setGeneSearch('Wx')">Wx</span>
+                    <span class="quick-example" onclick="setGeneSearch('GW2')">GW2</span>
+                    <span class="quick-example" onclick="setGeneSearch('Gn1a')">Gn1a</span>
+                    <span class="quick-example" onclick="setGeneSearch('Pi-ta')">Pi-ta</span>
+                    <span class="quick-example" onclick="setGeneSearch('Sub1A')">Sub1A</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 염색체 브라우저 탭 -->
+        <div class="tab-content" id="tab-chromosome">
+            <div class="search-card">
+                <h2>🧬 염색체별 유전자 분포</h2>
+                <p style="color: var(--text-light); margin-bottom: 16px;">
+                    염색체를 클릭하여 해당 영역의 유전자를 조회할 수 있습니다.
+                </p>
+                <div class="chromosome-map" id="chromosomeMap">
+                    <!-- 동적으로 생성 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 일괄 검색 탭 -->
+        <div class="tab-content" id="tab-batch">
+            <div class="search-card">
+                <h2>📋 일괄 유전자 검색</h2>
+                <div class="input-group" style="margin-bottom: 16px;">
+                    <label>유전자 목록 (한 줄에 하나씩)</label>
+                    <textarea id="batchInput" rows="6" style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 0.95em; resize: vertical;" placeholder="Hd1&#10;sd1&#10;Wx&#10;GW2&#10;Os06g0275000"></textarea>
+                </div>
+                <button class="search-btn" onclick="searchBatch()">
+                    🔍 일괄 검색
+                </button>
+            </div>
+        </div>
+
+        <!-- 결과 영역 -->
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <div class="results-header">
+                <span class="results-title">검색 결과</span>
+                <div class="results-meta">
+                    <span class="results-count" id="resultsCount">0건</span>
+                    <button class="export-btn" onclick="exportResults('json')">📥 JSON</button>
+                    <button class="export-btn" onclick="exportResults('csv')">📥 CSV</button>
+                </div>
+            </div>
+            <div id="resultsContainer"></div>
+        </div>
+
+        <!-- 캐시 정보 -->
+        <div class="cache-info" id="cacheInfo" style="display: none;">
+            <h3>💾 캐시 정보</h3>
+            <div class="cache-stats">
+                <div class="cache-stat">
+                    <span>검색 결과:</span>
+                    <strong id="cacheCount">0</strong>건 캐시됨
+                </div>
+                <div class="cache-stat">
+                    <span>마지막 업데이트:</span>
+                    <strong id="lastUpdate">-</strong>
+                </div>
+                <button class="export-btn" onclick="clearCache()" style="margin-left: auto;">🗑️ 캐시 삭제</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상세 정보 모달 -->
+    <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="modalTitle">유전자 상세 정보</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============ 상태 관리 ============
+        let geneDatabase = [];
+        let searchHistory = JSON.parse(localStorage.getItem('rapdb_history') || '[]');
+        let searchCache = JSON.parse(localStorage.getItem('rapdb_cache') || '{}');
+        let searchCount = parseInt(localStorage.getItem('rapdb_searchCount') || '0');
+        let lastSearchResults = [];
+
+        // 염색체 길이 (bp) - IRGSP-1.0 기준
+        const chromosomeLengths = {
+            1: 43270923, 2: 35937250, 3: 36413819, 4: 35502694,
+            5: 29958434, 6: 31248787, 7: 29697621, 8: 28443022,
+            9: 23012720, 10: 23207287, 11: 29021106, 12: 27531856
+        };
+
+        // 잘 알려진 벼 유전자 추가 정보
+        const geneAnnotations = {
+            'Hd1': {
+                fullName: 'Heading date 1',
+                description: '출수기 조절 유전자. CONSTANS-like 전사인자로 광주기 반응을 조절하여 개화 시기를 결정함.',
+                function: '출수기 조절',
+                keywords: ['출수기', '광주기', '개화', 'CONSTANS']
+            },
+            'Hd3a': {
+                fullName: 'Heading date 3a',
+                description: 'Florigen 유전자. FT homolog로 꽃눈 분화를 촉진하는 이동성 신호 단백질.',
+                function: 'Florigen',
+                keywords: ['출수기', 'florigen', 'FT']
+            },
+            'sd1': {
+                fullName: 'semi-dwarf 1',
+                description: '반왜성 유전자. GA20-oxidase를 암호화하며 지베렐린 생합성에 관여. 녹색혁명의 핵심 유전자.',
+                function: '초장 조절 (반왜성)',
+                keywords: ['초장', '반왜성', '지베렐린', 'GA20ox']
+            },
+            'Gn1a': {
+                fullName: 'Grain number 1a',
+                description: '이삭당 영화수를 조절하는 유전자. Cytokinin oxidase/dehydrogenase를 암호화.',
+                function: '영화수 조절',
+                keywords: ['영화수', '수량', 'cytokinin']
+            },
+            'GW2': {
+                fullName: 'Grain Width 2',
+                description: '종실 폭과 무게를 조절하는 유전자. RING-type E3 ubiquitin ligase를 암호화.',
+                function: '종실 크기/무게',
+                keywords: ['종실', '폭', '무게', 'ubiquitin']
+            },
+            'GS3': {
+                fullName: 'Grain Size 3',
+                description: '종실 길이와 무게를 조절하는 주요 QTL. G protein γ subunit를 암호화.',
+                function: '종실 길이',
+                keywords: ['종실', '길이', 'G protein']
+            },
+            'Wx': {
+                fullName: 'Waxy',
+                description: '아밀로스 함량 조절 유전자. 과립결합성 전분합성효소(GBSS)를 암호화.',
+                function: '아밀로스 함량',
+                keywords: ['아밀로스', '전분', 'GBSS', '찰벼']
+            },
+            'ALK': {
+                fullName: 'Alkali degeneration',
+                description: '호화온도를 조절하는 유전자. Soluble starch synthase IIa를 암호화.',
+                function: '호화온도',
+                keywords: ['호화온도', '전분', 'SSIIa']
+            },
+            'Xa21': {
+                fullName: 'Bacterial blight resistance 21',
+                description: '흰잎마름병 저항성 유전자. LRR receptor kinase를 암호화.',
+                function: '흰잎마름병 저항성',
+                keywords: ['저항성', '흰잎마름병', 'LRR', 'kinase']
+            },
+            'Pi-ta': {
+                fullName: 'Pyricularia grisea resistance ta',
+                description: '도열병 저항성 유전자. NBS-LRR 단백질을 암호화.',
+                function: '도열병 저항성',
+                keywords: ['저항성', '도열병', 'NBS-LRR']
+            },
+            'Sub1A': {
+                fullName: 'Submergence 1A',
+                description: '침수 저항성 유전자. ERF transcription factor를 암호화.',
+                function: '침수 저항성',
+                keywords: ['저항성', '침수', 'ERF']
+            },
+            'COLD1': {
+                fullName: 'Chilling-tolerance divergence 1',
+                description: '저온 저항성 유전자. G-protein regulator를 암호화.',
+                function: '저온 저항성',
+                keywords: ['저항성', '저온', 'G-protein']
+            },
+            'DEP1': {
+                fullName: 'Dense and erect panicle 1',
+                description: '이삭 구조를 조절하는 유전자. Gγ subunit를 암호화하여 직립 밀수형 이삭 생성.',
+                function: '이삭 구조',
+                keywords: ['이삭', '직립', '밀수']
+            },
+            'IPA1': {
+                fullName: 'Ideal Plant Architecture 1',
+                description: 'Ideal plant architecture 유전자. SPL14 전사인자로 분얼수 감소, 이삭 크기 증가.',
+                function: '이상적 초형',
+                keywords: ['초형', '분얼', 'SPL14']
+            },
+            'GIF1': {
+                fullName: 'Grain Incomplete Filling 1',
+                description: '종실 충실도 조절 유전자. Cell-wall invertase를 암호화.',
+                function: '종실 충실',
+                keywords: ['종실', '충실', 'invertase']
+            },
+            'qSW5': {
+                fullName: 'QTL for Seed Width 5',
+                description: '종실 폭을 조절하는 QTL. 기능 상실 변이가 넓은 종실 표현형을 나타냄.',
+                function: '종실 폭',
+                keywords: ['종실', '폭', 'QTL']
+            },
+            'OsNAC9': {
+                fullName: 'NAC domain-containing protein 9',
+                description: '가뭄 저항성 관련 전사인자. 뿌리 발달을 촉진.',
+                function: '가뭄 저항성',
+                keywords: ['가뭄', '뿌리', 'NAC']
+            },
+            'OsSPL14': {
+                fullName: 'Squamosa promoter-binding-like 14',
+                description: 'Ideal plant architecture 유전자. 분얼수 감소, 이삭 크기 증가.',
+                function: 'Ideal plant architecture',
+                keywords: ['초형', 'SPL', '이삭']
+            }
+        };
+
+        // ============ 초기화 ============
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupTabs();
+            setupKeyboardShortcuts();
+            updateHistoryDisplay();
+            updateStatsDisplay();
+            await loadGeneDatabase();
+            renderChromosomeMap();
+        });
+
+        // 탭 설정
+        function setupTabs() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                    btn.classList.add('active');
+                    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+                });
+            });
+        }
+
+        // 키보드 단축키
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
+                    if (activeTab === 'position') searchByPosition();
+                    else if (activeTab === 'gene') searchByGeneName();
+                }
+                if (e.key === 'Escape') closeModal();
+            });
+        }
+
+        // ============ 데이터베이스 로딩 ============
+        async function loadGeneDatabase() {
+            const statusDot = document.getElementById('dbStatusDot');
+            const statusText = document.getElementById('dbStatusText');
+
+            statusDot.className = 'status-dot loading';
+            statusText.textContent = 'FunRiceGenes 데이터베이스 로딩 중...';
+
+            try {
+                // FunRiceGenes GitHub에서 데이터 가져오기
+                const response = await fetch('https://raw.githubusercontent.com/funRiceGenes/funRiceGenes.github.io/master/geneInfo.table.txt');
+
+                if (!response.ok) throw new Error('데이터 로드 실패');
+
+                const text = await response.text();
+                const lines = text.trim().split('\n');
+
+                // 헤더 스킵하고 파싱
+                geneDatabase = lines.slice(1).map(line => {
+                    const [symbol, rapId, msuId] = line.split('\t');
+                    if (!symbol || !rapId) return null;
+
+                    // RAP ID에서 염색체와 위치 추출
+                    const chrMatch = rapId.match(/Os(\d{2})g(\d{7})/);
+                    let chromosome = null;
+                    let estimatedPosition = null;
+
+                    if (chrMatch) {
+                        chromosome = parseInt(chrMatch[1]);
+                        // 유전자 번호로 대략적 위치 추정 (정확하지 않음)
+                        const geneNum = parseInt(chrMatch[2]);
+                        estimatedPosition = Math.floor(geneNum * 10); // 대략적 추정
+                    }
+
+                    // 추가 주석 정보 병합
+                    const annotation = geneAnnotations[symbol] || {};
+
+                    return {
+                        symbol,
+                        rapId,
+                        msuId: msuId || null,
+                        chromosome,
+                        estimatedPosition,
+                        fullName: annotation.fullName || null,
+                        description: annotation.description || null,
+                        function: annotation.function || null,
+                        keywords: annotation.keywords || []
+                    };
+                }).filter(g => g !== null);
+
+                statusDot.className = 'status-dot online';
+                statusText.textContent = `데이터베이스 로드 완료`;
+                document.getElementById('geneCountText').textContent = `${geneDatabase.length.toLocaleString()}개 유전자`;
+                document.getElementById('statTotalGenes').textContent = geneDatabase.length.toLocaleString();
+                document.getElementById('statsGrid').style.display = 'grid';
+
+                console.log(`Loaded ${geneDatabase.length} genes from FunRiceGenes`);
+
+            } catch (error) {
+                console.error('Database load error:', error);
+                statusDot.className = 'status-dot offline';
+                statusText.textContent = '데이터베이스 로드 실패 - 로컬 데이터 사용';
+
+                // 로컬 폴백 데이터
+                loadLocalFallback();
+            }
+        }
+
+        // 로컬 폴백 데이터
+        function loadLocalFallback() {
+            geneDatabase = Object.entries(geneAnnotations).map(([symbol, data]) => {
+                const knownPositions = {
+                    'Hd1': { chr: 6, pos: 9342000, rapId: 'Os06g0275000', msuId: 'LOC_Os06g16370' },
+                    'sd1': { chr: 1, pos: 38383000, rapId: 'Os01g0883800', msuId: 'LOC_Os01g66100' },
+                    'Wx': { chr: 6, pos: 1768000, rapId: 'Os06g0133000', msuId: 'LOC_Os06g04200' },
+                    'GW2': { chr: 2, pos: 8082000, rapId: 'Os02g0244100', msuId: 'LOC_Os02g14720' },
+                    'Gn1a': { chr: 1, pos: 5271000, rapId: 'Os01g0197700', msuId: 'LOC_Os01g10110' },
+                    'GS3': { chr: 3, pos: 16732000, rapId: 'Os03g0407400', msuId: 'LOC_Os03g29360' },
+                    'Xa21': { chr: 11, pos: 21280000, rapId: 'Os11g0619800', msuId: 'LOC_Os11g35500' },
+                    'Pi-ta': { chr: 12, pos: 10609000, rapId: 'Os12g0281300', msuId: 'LOC_Os12g18360' },
+                    'Sub1A': { chr: 9, pos: 6380000, rapId: 'Os09g0286600', msuId: 'LOC_Os09g11460' },
+                    'COLD1': { chr: 4, pos: 26700000, rapId: 'Os04g0535600', msuId: 'LOC_Os04g45030' },
+                    'DEP1': { chr: 9, pos: 17015000, rapId: 'Os09g0441900', msuId: 'LOC_Os09g26999' },
+                    'ALK': { chr: 6, pos: 6751000, rapId: 'Os06g0229800', msuId: 'LOC_Os06g12450' },
+                    'Hd3a': { chr: 6, pos: 2941000, rapId: 'Os06g0157700', msuId: 'LOC_Os06g06320' },
+                    'qSW5': { chr: 5, pos: 5361000, rapId: 'Os05g0187500', msuId: 'LOC_Os05g09520' },
+                    'OsSPL14': { chr: 8, pos: 25650000, rapId: 'Os08g0509600', msuId: 'LOC_Os08g39890' },
+                    'OsNAC9': { chr: 3, pos: 35170000, rapId: 'Os03g0815100', msuId: 'LOC_Os03g60080' }
+                };
+
+                const pos = knownPositions[symbol] || { chr: 1, pos: 1000000, rapId: 'Unknown', msuId: 'Unknown' };
+
+                return {
+                    symbol,
+                    rapId: pos.rapId,
+                    msuId: pos.msuId,
+                    chromosome: pos.chr,
+                    estimatedPosition: pos.pos,
+                    fullName: data.fullName,
+                    description: data.description,
+                    function: data.function,
+                    keywords: data.keywords
+                };
+            });
+
+            document.getElementById('geneCountText').textContent = `${geneDatabase.length}개 유전자 (로컬)`;
+            document.getElementById('statTotalGenes').textContent = geneDatabase.length;
+            document.getElementById('statsGrid').style.display = 'grid';
+        }
+
+        // ============ 좌표 기반 검색 ============
+        function setPositionSearch(chr, pos, window) {
+            document.getElementById('chrSelect').value = chr;
+            document.getElementById('positionInput').value = pos;
+            document.getElementById('windowSelect').value = window;
+            searchByPosition();
+        }
+
+        async function searchByPosition() {
+            const chr = parseInt(document.getElementById('chrSelect').value);
+            const pos = parseInt(document.getElementById('positionInput').value);
+            const window = parseInt(document.getElementById('windowSelect').value);
+
+            if (!chr || !pos) {
+                alert('염색체와 위치를 입력해주세요.');
+                return;
+            }
+
+            const start = pos - window;
+            const end = pos + window;
+            const cacheKey = `pos_${chr}_${start}_${end}`;
+
+            // 캐시 확인
+            if (searchCache[cacheKey]) {
+                displayResults(searchCache[cacheKey], `Chr${chr}:${start.toLocaleString()}-${end.toLocaleString()}`);
+                return;
+            }
+
+            showLoading();
+
+            // 로컬 데이터베이스에서 검색
+            const results = geneDatabase.filter(gene => {
+                if (gene.chromosome !== chr) return false;
+                if (!gene.estimatedPosition) return false;
+                return gene.estimatedPosition >= start && gene.estimatedPosition <= end;
+            });
+
+            // NCBI에서 추가 검색 시도
+            try {
+                const ncbiResults = await searchNCBIByPosition(chr, start, end);
+                const merged = mergeResults(results, ncbiResults);
+
+                // 캐시 저장
+                searchCache[cacheKey] = merged;
+                localStorage.setItem('rapdb_cache', JSON.stringify(searchCache));
+
+                displayResults(merged, `Chr${chr}:${start.toLocaleString()}-${end.toLocaleString()}`);
+            } catch (e) {
+                console.log('NCBI search failed:', e);
+                displayResults(results, `Chr${chr}:${start.toLocaleString()}-${end.toLocaleString()}`);
+            }
+
+            // 히스토리 저장
+            addToHistory(`Chr${chr}:${pos.toLocaleString()} ±${window/1000}kb`);
+            incrementSearchCount();
+        }
+
+        async function searchNCBIByPosition(chr, start, end) {
+            // NCBI E-utilities로 위치 기반 검색
+            try {
+                const term = `Oryza sativa[Organism] AND ${chr}[Chromosome] AND ${start}:${end}[Base Position]`;
+                const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gene&term=${encodeURIComponent(term)}&retmode=json&retmax=20`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.esearchresult && data.esearchresult.idlist) {
+                    const genes = [];
+                    for (const id of data.esearchresult.idlist.slice(0, 10)) {
+                        const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&id=${id}&retmode=json`;
+                        const summaryRes = await fetch(summaryUrl);
+                        const summaryData = await summaryRes.json();
+
+                        if (summaryData.result && summaryData.result[id]) {
+                            const gene = summaryData.result[id];
+                            genes.push({
+                                symbol: gene.name || `NCBI_${id}`,
+                                rapId: null,
+                                msuId: null,
+                                chromosome: chr,
+                                estimatedPosition: gene.chrstart || null,
+                                fullName: gene.description,
+                                description: gene.summary || gene.description,
+                                function: null,
+                                keywords: [],
+                                source: 'NCBI',
+                                ncbiId: id
+                            });
+                        }
+                    }
+                    return genes;
+                }
+            } catch (e) {
+                console.log('NCBI position search error:', e);
+            }
+            return [];
+        }
+
+        // ============ 유전자명 검색 ============
+        function setGeneSearch(name) {
+            document.getElementById('geneNameInput').value = name;
+            searchByGeneName();
+        }
+
+        async function searchByGeneName() {
+            const query = document.getElementById('geneNameInput').value.trim();
+            if (!query) {
+                alert('유전자명을 입력해주세요.');
+                return;
+            }
+
+            const cacheKey = `gene_${query.toLowerCase()}`;
+
+            // 캐시 확인
+            if (searchCache[cacheKey]) {
+                displayResults(searchCache[cacheKey], query);
+                return;
+            }
+
+            showLoading();
+
+            const queryLower = query.toLowerCase();
+
+            // 로컬 검색
+            let results = geneDatabase.filter(gene => {
+                if (gene.symbol.toLowerCase().includes(queryLower)) return true;
+                if (gene.rapId && gene.rapId.toLowerCase().includes(queryLower)) return true;
+                if (gene.msuId && gene.msuId.toLowerCase().includes(queryLower)) return true;
+                if (gene.fullName && gene.fullName.toLowerCase().includes(queryLower)) return true;
+                if (gene.keywords && gene.keywords.some(k => k.toLowerCase().includes(queryLower))) return true;
+                return false;
+            });
+
+            // NCBI에서 추가 검색
+            try {
+                const ncbiResults = await searchNCBIByName(query);
+                results = mergeResults(results, ncbiResults);
+            } catch (e) {
+                console.log('NCBI search failed:', e);
+            }
+
+            // 캐시 저장
+            searchCache[cacheKey] = results;
+            localStorage.setItem('rapdb_cache', JSON.stringify(searchCache));
+
+            displayResults(results, query);
+            addToHistory(query);
+            incrementSearchCount();
+        }
+
+        async function searchNCBIByName(query) {
+            try {
+                const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gene&term=${encodeURIComponent(query)}[Gene Name] AND Oryza sativa[Organism]&retmode=json&retmax=5`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.esearchresult && data.esearchresult.idlist) {
+                    const genes = [];
+                    for (const id of data.esearchresult.idlist.slice(0, 3)) {
+                        const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=gene&id=${id}&retmode=json`;
+                        const summaryRes = await fetch(summaryUrl);
+                        const summaryData = await summaryRes.json();
+
+                        if (summaryData.result && summaryData.result[id]) {
+                            const gene = summaryData.result[id];
+                            genes.push({
+                                symbol: gene.name || query,
+                                rapId: null,
+                                msuId: null,
+                                chromosome: parseInt(gene.chromosome) || null,
+                                estimatedPosition: gene.chrstart || null,
+                                fullName: gene.description,
+                                description: gene.summary || gene.description,
+                                function: null,
+                                keywords: gene.otheraliases ? gene.otheraliases.split(', ') : [],
+                                source: 'NCBI',
+                                ncbiId: id
+                            });
+                        }
+                    }
+                    return genes;
+                }
+            } catch (e) {
+                console.log('NCBI name search error:', e);
+            }
+            return [];
+        }
+
+        // ============ 일괄 검색 ============
+        async function searchBatch() {
+            const input = document.getElementById('batchInput').value.trim();
+            if (!input) {
+                alert('유전자 목록을 입력해주세요.');
+                return;
+            }
+
+            const queries = input.split('\n').map(q => q.trim()).filter(q => q);
+            if (queries.length === 0) return;
+
+            showLoading();
+
+            let allResults = [];
+
+            for (const query of queries) {
+                const queryLower = query.toLowerCase();
+                const matches = geneDatabase.filter(gene => {
+                    if (gene.symbol.toLowerCase() === queryLower) return true;
+                    if (gene.rapId && gene.rapId.toLowerCase() === queryLower) return true;
+                    if (gene.msuId && gene.msuId.toLowerCase() === queryLower) return true;
+                    return false;
+                });
+
+                if (matches.length > 0) {
+                    allResults = allResults.concat(matches);
+                } else {
+                    // 찾지 못한 경우 표시
+                    allResults.push({
+                        symbol: query,
+                        rapId: null,
+                        msuId: null,
+                        chromosome: null,
+                        estimatedPosition: null,
+                        fullName: null,
+                        description: '데이터베이스에서 찾을 수 없음',
+                        function: null,
+                        keywords: [],
+                        notFound: true
+                    });
+                }
+            }
+
+            displayResults(allResults, `일괄 검색 (${queries.length}개 쿼리)`);
+            addToHistory(`일괄: ${queries.slice(0, 3).join(', ')}${queries.length > 3 ? '...' : ''}`);
+            incrementSearchCount();
+        }
+
+        // ============ 결과 표시 ============
+        function showLoading() {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('resultsContainer');
+
+            resultsSection.style.display = 'block';
+            resultsContainer.innerHTML = `
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>검색 중...</p>
+                </div>
+            `;
+        }
+
+        function displayResults(results, queryInfo) {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsSection.style.display = 'block';
+            lastSearchResults = results;
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🔍</div>
+                        <h3>검색 결과가 없습니다</h3>
+                        <p>"${queryInfo}"에 해당하는 유전자를 찾을 수 없습니다.</p>
+                        <div style="margin-top: 20px;">
+                            <p style="font-size: 0.9em; color: var(--text-light);">외부 데이터베이스에서 직접 검색:</p>
+                            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
+                                <a href="https://rapdb.dna.affrc.go.jp/" target="_blank" class="gene-link">📖 RAP-DB</a>
+                                <a href="https://funricegenes.github.io/" target="_blank" class="gene-link">🌾 FunRiceGenes</a>
+                                <a href="https://rice.uga.edu/" target="_blank" class="gene-link">🔬 RGAP</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                resultsCount.textContent = '0건';
+                return;
+            }
+
+            resultsContainer.innerHTML = results.map(gene => createGeneCard(gene)).join('');
+            resultsCount.textContent = `${results.length}건`;
+        }
+
+        function createGeneCard(gene) {
+            const isNotFound = gene.notFound;
+
+            return `
+                <div class="gene-card" style="${isNotFound ? 'opacity: 0.6; border-style: dashed;' : ''}">
+                    <div class="gene-header">
+                        <div>
+                            <span class="gene-symbol">${gene.symbol}</span>
+                            ${gene.fullName ? `<span style="color: var(--text-light); margin-left: 8px;">${gene.fullName}</span>` : ''}
+                        </div>
+                        <div class="gene-ids">
+                            ${gene.rapId ? `<span class="gene-id-badge rap">${gene.rapId}</span>` : ''}
+                            ${gene.msuId ? `<span class="gene-id-badge msu">${gene.msuId}</span>` : ''}
+                            ${gene.source === 'NCBI' ? `<span class="gene-id-badge" style="background: #fce4ec; color: #c2185b;">NCBI</span>` : ''}
+                        </div>
+                    </div>
+
+                    ${!isNotFound ? `
+                        <div class="gene-info">
+                            ${gene.chromosome ? `
+                                <div class="info-item">
+                                    <span class="info-label">염색체</span>
+                                    <span class="info-value">Chr ${gene.chromosome}</span>
+                                </div>
+                            ` : ''}
+                            ${gene.estimatedPosition ? `
+                                <div class="info-item">
+                                    <span class="info-label">위치</span>
+                                    <span class="info-value">${gene.estimatedPosition.toLocaleString()} bp</span>
+                                </div>
+                            ` : ''}
+                            ${gene.function ? `
+                                <div class="info-item">
+                                    <span class="info-label">기능</span>
+                                    <span class="info-value">${gene.function}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+
+                    ${gene.description ? `
+                        <div class="gene-description">${gene.description}</div>
+                    ` : ''}
+
+                    ${gene.keywords && gene.keywords.length > 0 ? `
+                        <div class="gene-keywords">
+                            ${gene.keywords.map(k => `<span class="keyword-tag">${k}</span>`).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${!isNotFound ? `
+                        <div class="gene-links">
+                            ${gene.rapId ? `
+                                <a href="https://rapdb.dna.affrc.go.jp/locus/?name=${gene.rapId}" target="_blank" class="gene-link">
+                                    📖 RAP-DB
+                                </a>
+                            ` : ''}
+                            <a href="https://funricegenes.github.io/genes/${gene.symbol}/" target="_blank" class="gene-link">
+                                🌾 FunRiceGenes
+                            </a>
+                            ${gene.msuId ? `
+                                <a href="http://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${gene.msuId}" target="_blank" class="gene-link">
+                                    🔬 RGAP
+                                </a>
+                            ` : ''}
+                            ${gene.rapId ? `
+                                <a href="https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${gene.rapId}" target="_blank" class="gene-link">
+                                    🌱 Gramene
+                                </a>
+                            ` : ''}
+                            ${gene.ncbiId ? `
+                                <a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">
+                                    🧬 NCBI Gene
+                                </a>
+                            ` : ''}
+                            <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(gene.symbol + ' rice')}" target="_blank" class="gene-link">
+                                📚 논문 검색
+                            </a>
+                            ${gene.chromosome && gene.estimatedPosition ? `
+                                <a href="https://rapdb.dna.affrc.go.jp/viewer/gbrowse/irgsp1?name=Chr${gene.chromosome}:${gene.estimatedPosition - 50000}..${gene.estimatedPosition + 50000}" target="_blank" class="gene-link">
+                                    🗺️ GBrowse
+                                </a>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // ============ 염색체 맵 렌더링 ============
+        function renderChromosomeMap() {
+            const mapContainer = document.getElementById('chromosomeMap');
+
+            let html = '';
+            for (let chr = 1; chr <= 12; chr++) {
+                const chrLength = chromosomeLengths[chr];
+                const chrGenes = geneDatabase.filter(g => g.chromosome === chr && g.estimatedPosition);
+
+                html += `
+                    <div class="chr-row">
+                        <span class="chr-label">Chr ${chr}</span>
+                        <div class="chr-bar" onclick="handleChrClick(${chr}, event)" data-chr="${chr}" data-length="${chrLength}">
+                            ${chrGenes.map(gene => {
+                                const pos = (gene.estimatedPosition / chrLength) * 100;
+                                return `<div class="gene-marker" style="left: ${pos}%;" title="${gene.symbol}" onclick="event.stopPropagation(); setGeneSearch('${gene.symbol}');"></div>`;
+                            }).join('')}
+                        </div>
+                        <span style="font-size: 0.8em; color: var(--text-light); width: 50px; text-align: right;">
+                            ${(chrLength / 1000000).toFixed(1)}Mb
+                        </span>
+                    </div>
+                `;
+            }
+
+            mapContainer.innerHTML = html;
+        }
+
+        function handleChrClick(chr, event) {
+            const bar = event.currentTarget;
+            const rect = bar.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const percentage = x / rect.width;
+            const position = Math.floor(chromosomeLengths[chr] * percentage);
+
+            setPositionSearch(chr, position, 100000);
+
+            // 좌표 검색 탭으로 전환
+            document.querySelector('[data-tab="position"]').click();
+        }
+
+        // ============ 유틸리티 함수 ============
+        function mergeResults(local, online) {
+            const merged = [...local];
+            const existingSymbols = new Set(local.map(g => g.symbol.toLowerCase()));
+
+            for (const gene of online) {
+                if (!existingSymbols.has(gene.symbol.toLowerCase())) {
+                    merged.push(gene);
+                }
+            }
+
+            return merged;
+        }
+
+        function addToHistory(query) {
+            searchHistory = searchHistory.filter(h => h !== query);
+            searchHistory.unshift(query);
+            searchHistory = searchHistory.slice(0, 10);
+            localStorage.setItem('rapdb_history', JSON.stringify(searchHistory));
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const section = document.getElementById('historySection');
+            const list = document.getElementById('historyList');
+
+            if (searchHistory.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            list.innerHTML = searchHistory.map(h => `
+                <span class="history-item" onclick="replayHistory('${h}')">${h}</span>
+            `).join('');
+        }
+
+        function replayHistory(query) {
+            // 쿼리 유형 판별
+            if (query.startsWith('Chr')) {
+                const match = query.match(/Chr(\d+):([0-9,]+)\s*±(\d+)kb/);
+                if (match) {
+                    setPositionSearch(parseInt(match[1]), parseInt(match[2].replace(/,/g, '')), parseInt(match[3]) * 1000);
+                    document.querySelector('[data-tab="position"]').click();
+                }
+            } else if (query.startsWith('일괄:')) {
+                document.querySelector('[data-tab="batch"]').click();
+            } else {
+                setGeneSearch(query);
+                document.querySelector('[data-tab="gene"]').click();
+            }
+        }
+
+        function clearHistory() {
+            if (confirm('검색 히스토리를 모두 삭제하시겠습니까?')) {
+                searchHistory = [];
+                localStorage.removeItem('rapdb_history');
+                updateHistoryDisplay();
+            }
+        }
+
+        function incrementSearchCount() {
+            searchCount++;
+            localStorage.setItem('rapdb_searchCount', searchCount);
+            updateStatsDisplay();
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('statSearches').textContent = searchCount;
+            document.getElementById('statCached').textContent = Object.keys(searchCache).length;
+            document.getElementById('cacheStatusText').textContent = `캐시: ${Object.keys(searchCache).length}건`;
+        }
+
+        function clearCache() {
+            if (confirm('캐시된 검색 결과를 모두 삭제하시겠습니까?')) {
+                searchCache = {};
+                localStorage.removeItem('rapdb_cache');
+                updateStatsDisplay();
+                alert('캐시가 삭제되었습니다.');
+            }
+        }
+
+        // ============ 내보내기 기능 ============
+        function exportResults(format) {
+            if (lastSearchResults.length === 0) {
+                alert('내보낼 결과가 없습니다.');
+                return;
+            }
+
+            let content, filename, mimeType;
+
+            if (format === 'json') {
+                content = JSON.stringify(lastSearchResults, null, 2);
+                filename = `rapdb_results_${new Date().toISOString().slice(0, 10)}.json`;
+                mimeType = 'application/json';
+            } else if (format === 'csv') {
+                const headers = ['Symbol', 'RAP-DB ID', 'MSU ID', 'Chromosome', 'Position', 'Full Name', 'Function', 'Description'];
+                const rows = lastSearchResults.map(g => [
+                    g.symbol,
+                    g.rapId || '',
+                    g.msuId || '',
+                    g.chromosome || '',
+                    g.estimatedPosition || '',
+                    g.fullName || '',
+                    g.function || '',
+                    (g.description || '').replace(/"/g, '""')
+                ].map(v => `"${v}"`).join(','));
+
+                content = [headers.join(','), ...rows].join('\n');
+                filename = `rapdb_results_${new Date().toISOString().slice(0, 10)}.csv`;
+                mimeType = 'text/csv';
+            }
+
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ============ 모달 ============
+        function openModal(title, content) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = content;
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        function closeModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('detailModal').classList.remove('active');
+        }
+    </script>
+</body>
+</html>
