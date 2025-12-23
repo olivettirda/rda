@@ -1690,6 +1690,195 @@
             return html;
         }
 
+        // ========== dCAPS 마커 설계 ==========
+        /**
+         * dCAPS 마커 설계
+         * SNP이 자연적 RE site에 없을 때, mismatch primer로 RE site 생성
+         * Mismatch는 3' 말단에서 2-4bp 떨어진 위치 권장
+         */
+        function designDCAPS(seq, snpPos, allele1, allele2, params) {
+            const results = [];
+            const minTm = params.targetTm - params.tmTolerance;
+            const maxTm = params.targetTm + params.tmTolerance;
+            const bases = ['A', 'T', 'G', 'C'];
+
+            // 각 제한효소에 대해 검사
+            for (const [enzyme, info] of Object.entries(RESTRICTION_ENZYMES)) {
+                const site = info.site;
+                const siteLen = site.length;
+
+                // 짧은 RE site만 사용 (4-6bp)
+                if (siteLen > 6) continue;
+
+                // SNP이 RE site 내에 위치하도록 여러 위치 시도
+                for (let snpInSite = 0; snpInSite < siteLen; snpInSite++) {
+                    // Forward primer: SNP가 3' 근처에 오도록
+                    for (let pLen = params.minLen; pLen <= params.maxLen; pLen++) {
+                        // Primer 3' 말단이 RE site 끝에 오도록
+                        const primerEnd = snpPos + (siteLen - snpInSite);
+                        const primerStart = primerEnd - pLen;
+
+                        if (primerStart < 0 || primerEnd > seq.length) continue;
+
+                        const originalPrimer = seq.substring(primerStart, primerEnd);
+                        const snpPosInPrimer = snpPos - primerStart;
+
+                        // 3' 말단에서 mismatch 위치 (2-4bp 떨어진 곳)
+                        for (let mmOffset = 2; mmOffset <= 4; mmOffset++) {
+                            const mmPos = pLen - mmOffset;
+                            if (mmPos < 0 || mmPos === snpPosInPrimer) continue;
+
+                            const originalBase = originalPrimer[mmPos];
+
+                            // 각 mismatch 염기 시도
+                            for (const newBase of bases) {
+                                if (newBase === originalBase) continue;
+
+                                // Mismatch 적용한 primer
+                                const modifiedPrimer = originalPrimer.substring(0, mmPos) + newBase + originalPrimer.substring(mmPos + 1);
+
+                                // Allele1, Allele2 각각에 대해 primer + SNP 조합
+                                const primer1 = modifiedPrimer.substring(0, snpPosInPrimer) + allele1 + modifiedPrimer.substring(snpPosInPrimer + 1);
+                                const primer2 = modifiedPrimer.substring(0, snpPosInPrimer) + allele2 + modifiedPrimer.substring(snpPosInPrimer + 1);
+
+                                // RE site 생성 여부 확인
+                                const siteRegex = new RegExp(expandIUPAC(site), 'i');
+                                const cuts1 = siteRegex.test(primer1) ? 1 : 0;
+                                const cuts2 = siteRegex.test(primer2) ? 1 : 0;
+
+                                // 한쪽만 절단되면 성공
+                                if (cuts1 === cuts2) continue;
+
+                                const tm = calculateTm(modifiedPrimer, params);
+                                if (tm < minTm || tm > maxTm) continue;
+
+                                // Reverse primer 설계
+                                for (let rLen = params.minLen; rLen <= params.maxLen; rLen++) {
+                                    for (let gap = 80; gap <= 200; gap += 30) {
+                                        const rEnd = primerEnd + gap;
+                                        if (rEnd > seq.length) continue;
+
+                                        const revSeq = reverseComplement(seq.substring(rEnd - rLen, rEnd));
+                                        const rTm = calculateTm(revSeq, params);
+
+                                        if (rTm < minTm || rTm > maxTm) continue;
+                                        if (Math.abs(tm - rTm) > params.maxTmDiff) continue;
+
+                                        const productSize = rEnd - primerStart;
+
+                                        results.push({
+                                            type: 'dCAPS',
+                                            enzyme: enzyme,
+                                            site: site,
+                                            mismatch: {
+                                                position: mmPos + 1, // 1-based
+                                                fromEnd: mmOffset,
+                                                original: originalBase,
+                                                modified: newBase
+                                            },
+                                            forward: {
+                                                name: 'Forward (mismatch)',
+                                                sequence: modifiedPrimer,
+                                                originalSeq: originalPrimer,
+                                                length: pLen,
+                                                tm: tm,
+                                                gc: calculateGC(modifiedPrimer)
+                                            },
+                                            reverse: {
+                                                name: 'Reverse',
+                                                sequence: revSeq,
+                                                length: rLen,
+                                                tm: rTm,
+                                                gc: calculateGC(revSeq)
+                                            },
+                                            allele1: { name: allele1, cuts: cuts1 },
+                                            allele2: { name: allele2, cuts: cuts2 },
+                                            productSize: productSize,
+                                            tmDiff: Math.abs(tm - rTm),
+                                            score: Math.abs(tm - params.targetTm) + Math.abs(tm - rTm)
+                                        });
+
+                                        break; // 하나만
+                                    }
+                                    if (results.length > 0 && results[results.length - 1].enzyme === enzyme) break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 중복 제거 및 정렬
+            const unique = [];
+            const seen = new Set();
+            for (const r of results) {
+                const key = r.enzyme + r.forward.sequence;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(r);
+                }
+            }
+
+            unique.sort((a, b) => a.score - b.score);
+            return unique.slice(0, 10);
+        }
+
+        /**
+         * dCAPS 결과 HTML 생성
+         */
+        function formatDCAPSResult(markers) {
+            if (markers.length === 0) {
+                return '<div class="status info">조건에 맞는 dCAPS 마커를 찾을 수 없습니다.</div>';
+            }
+
+            let html = '';
+            markers.forEach((m, idx) => {
+                // Mismatch 위치 하이라이트
+                const seq = m.forward.sequence;
+                const mmPos = m.mismatch.position - 1;
+                const highlightedSeq = seq.substring(0, mmPos) +
+                    `<span style="color:var(--error);font-weight:bold;text-decoration:underline;">${seq[mmPos]}</span>` +
+                    seq.substring(mmPos + 1);
+
+                html += `
+                    <div class="marker-card">
+                        <div class="marker-header">
+                            <span class="marker-type">${m.type} #${idx + 1} - ${m.enzyme}</span>
+                            <span class="marker-score">Score: ${m.score.toFixed(2)}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">RE Site:</span>
+                            <span class="primer-seq mono">${m.site}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Mismatch:</span>
+                            <span class="primer-info">Position ${m.mismatch.position} (3' -${m.mismatch.fromEnd}bp): ${m.mismatch.original} → ${m.mismatch.modified}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Forward:</span>
+                            <span class="primer-seq">${highlightedSeq}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.forward.length}bp | Tm: ${m.forward.tm}°C | GC: ${m.forward.gc}%</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Reverse:</span>
+                            <span class="primer-seq">${m.reverse.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.reverse.length}bp | Tm: ${m.reverse.tm}°C | GC: ${m.reverse.gc}%</span>
+                        </div>
+                        <div class="marker-meta">
+                            Product: ${m.productSize}bp |
+                            Allele ${m.allele1.name}: ${m.allele1.cuts > 0 ? 'cut' : 'uncut'} |
+                            Allele ${m.allele2.name}: ${m.allele2.cuts > 0 ? 'cut' : 'uncut'}
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
         /**
          * TaqMan 결과 HTML 생성
          */
@@ -1865,9 +2054,12 @@
                     resultsHTML += formatCAPSResult(capsResults);
                 }
 
-                // dCAPS (추후 구현)
+                // dCAPS 설계
                 if (selectedTypes.includes('dCAPS')) {
-                    resultsHTML += '<div class="status info" style="margin-top:1rem;">dCAPS 마커는 다음 단계에서 구현됩니다.</div>';
+                    const dcapsResults = designDCAPS(seq, snpPos, allele1, allele2, params);
+                    currentResults.dcaps = dcapsResults;
+                    resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">dCAPS 마커 (${dcapsResults.length}개)</h3>`;
+                    resultsHTML += formatDCAPSResult(dcapsResults);
                 }
 
             } else if (variantType === 'InDel') {
