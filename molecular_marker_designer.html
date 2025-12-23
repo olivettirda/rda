@@ -560,6 +560,140 @@
             color: var(--error);
         }
 
+        /* 서열 편집기 - 타겟 선택 */
+        .seq-editor-container {
+            position: relative;
+        }
+
+        .seq-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-size: 0.8rem;
+        }
+
+        .seq-legend:empty {
+            display: none;
+        }
+
+        .seq-legend:empty + .seq-editor {
+            border-radius: 8px;
+        }
+
+        .seq-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .seq-legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.15);
+        }
+
+        .seq-editor {
+            width: 100%;
+            min-height: 120px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 0.75rem;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 0 0 8px 8px;
+            word-break: break-all;
+            white-space: pre-wrap;
+            cursor: text;
+        }
+
+        .seq-editor:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .seq-editor[data-placeholder]:empty::before {
+            content: attr(data-placeholder);
+            color: var(--text-muted);
+        }
+
+        /* 타겟 하이라이트 색상 */
+        .seq-target-exclude {
+            background-color: #ffcdd2;
+            border-bottom: 2px solid #e53935;
+        }
+
+        .seq-target-include {
+            background-color: #c8e6c9;
+            border-bottom: 2px solid #43a047;
+        }
+
+        .seq-target-overlap {
+            background-color: #fff9c4;
+            border-bottom: 2px solid #fbc02d;
+        }
+
+        .seq-target-flank {
+            background-color: #bbdefb;
+            border-bottom: 2px solid #1e88e5;
+        }
+
+        /* 컨텍스트 메뉴 (드롭다운) */
+        .seq-context-menu {
+            position: fixed;
+            z-index: 1000;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            padding: 0.5rem 0;
+            min-width: 160px;
+            display: none;
+        }
+
+        .seq-context-menu.show {
+            display: block;
+            animation: fadeIn 0.15s ease;
+        }
+
+        .seq-context-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1rem;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-size: 0.9rem;
+        }
+
+        .seq-context-menu-item:hover {
+            background: var(--bg-light);
+        }
+
+        .seq-context-menu-item .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .seq-context-menu-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 0.3rem 0;
+        }
+
+        .seq-context-menu-item.danger {
+            color: var(--error);
+        }
+
         /* Utility */
         .hidden { display: none !important; }
         .mono { font-family: Consolas, 'Courier New', monospace; }
@@ -611,8 +745,12 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="required">레퍼런스 서열 (FASTA 또는 raw)</label>
-                            <textarea class="form-control" id="refSeq" placeholder=">SD1_gene&#10;ATGCGATCGATCGATCG...""></textarea>
+                            <label class="required">레퍼런스 서열 (FASTA 또는 raw) <small style="color: var(--text-muted);">- 서열 드래그로 타겟 지정</small></label>
+                            <div class="seq-editor-container">
+                                <div class="seq-legend" id="seqLegend"></div>
+                                <div class="seq-editor" id="refSeq" contenteditable="true" data-placeholder=">SD1_gene&#10;ATGCGATCGATCGATCG..."></div>
+                            </div>
+                            <input type="hidden" id="refSeqValue">
                         </div>
 
                         <div id="snpInputs">
@@ -1026,9 +1164,216 @@
         </div>
     </div>
 
+    <!-- 서열 선택 컨텍스트 메뉴 -->
+    <div class="seq-context-menu" id="seqContextMenu">
+        <div class="seq-context-menu-item" data-action="exclude" title="예: 반복서열, GC-rich 영역 등 프라이머 설계에 부적합한 구간">
+            <span class="color-dot" style="background: #ffcdd2; border: 1px solid #e53935;"></span>
+            <span>제외 (프라이머 위치 금지)</span>
+        </div>
+        <div class="seq-context-menu-item" data-action="include" title="예: SNP 위치를 프라이머 3' 말단에 반드시 포함시킬 때">
+            <span class="color-dot" style="background: #c8e6c9; border: 1px solid #43a047;"></span>
+            <span>포함 (프라이머에 반드시 포함)</span>
+        </div>
+        <div class="seq-context-menu-item" data-action="overlap" title="예: InDel 영역을 프라이머가 걸쳐서 증폭 산물 크기로 구별할 때">
+            <span class="color-dot" style="background: #fff9c4; border: 1px solid #fbc02d;"></span>
+            <span>겹침 (프라이머가 걸치도록)</span>
+        </div>
+        <div class="seq-context-menu-item" data-action="flank" title="예: 결실/삽입 영역 양쪽에 프라이머를 배치하여 크기 차이로 구별할 때">
+            <span class="color-dot" style="background: #bbdefb; border: 1px solid #1e88e5;"></span>
+            <span>주변 (Flanking 마커)</span>
+        </div>
+        <div class="seq-context-menu-divider"></div>
+        <div class="seq-context-menu-item danger" data-action="clear">
+            <span>모든 선택 해제</span>
+        </div>
+    </div>
+
     <!-- funRiceGenes 전체 데이터 (4,567개 유전자) -->
     <script src="funricegenes_data.js"></script>
     <script>
+        // ========== 서열 편집기 - 타겟 선택 기능 ==========
+        const SeqEditor = {
+            targets: [], // { start, end, type } 형태로 저장
+            colors: {
+                exclude: { bg: '#ffcdd2', border: '#e53935', label: '제외' },
+                include: { bg: '#c8e6c9', border: '#43a047', label: '포함' },
+                overlap: { bg: '#fff9c4', border: '#fbc02d', label: '겹침' },
+                flank: { bg: '#bbdefb', border: '#1e88e5', label: '주변' }
+            },
+            currentSelection: null,
+
+            init() {
+                const editor = document.getElementById('refSeq');
+                const menu = document.getElementById('seqContextMenu');
+                const legend = document.getElementById('seqLegend');
+
+                if (!editor) return;
+
+                // 마우스 업 이벤트 - 선택 완료 시 메뉴 표시
+                editor.addEventListener('mouseup', (e) => {
+                    const selection = window.getSelection();
+                    const selectedText = selection.toString().trim();
+
+                    if (selectedText.length > 0 && editor.contains(selection.anchorNode)) {
+                        // 선택 범위 저장
+                        const range = selection.getRangeAt(0);
+                        this.currentSelection = {
+                            text: selectedText,
+                            range: range.cloneRange()
+                        };
+
+                        // 메뉴 위치 계산 및 표시
+                        const rect = range.getBoundingClientRect();
+                        menu.style.left = `${Math.min(rect.left, window.innerWidth - 180)}px`;
+                        menu.style.top = `${rect.bottom + 5}px`;
+                        menu.classList.add('show');
+                    }
+                });
+
+                // 메뉴 아이템 클릭
+                menu.querySelectorAll('.seq-context-menu-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const action = item.dataset.action;
+                        if (action === 'clear') {
+                            this.clearAllTargets(editor, legend);
+                        } else if (this.currentSelection) {
+                            this.applyTarget(action, editor, legend);
+                        }
+                        menu.classList.remove('show');
+                    });
+                });
+
+                // 외부 클릭 시 메뉴 닫기
+                document.addEventListener('click', (e) => {
+                    if (!menu.contains(e.target) && !editor.contains(e.target)) {
+                        menu.classList.remove('show');
+                    }
+                });
+
+                // 붙여넣기 시 일반 텍스트로
+                editor.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const text = (e.clipboardData || window.clipboardData).getData('text');
+                    document.execCommand('insertText', false, text);
+                    this.updateHiddenInput(editor);
+                });
+
+                // 입력 시 hidden input 업데이트
+                editor.addEventListener('input', () => {
+                    this.updateHiddenInput(editor);
+                });
+            },
+
+            applyTarget(type, editor, legend) {
+                if (!this.currentSelection) return;
+
+                const selection = window.getSelection();
+                const range = this.currentSelection.range;
+
+                // 기존 선택 영역에 span 적용
+                const span = document.createElement('span');
+                span.className = `seq-target-${type}`;
+                span.dataset.targetType = type;
+
+                try {
+                    range.surroundContents(span);
+                } catch (e) {
+                    // 복잡한 선택의 경우 대안 처리
+                    const fragment = range.extractContents();
+                    span.appendChild(fragment);
+                    range.insertNode(span);
+                }
+
+                // 타겟 정보 저장
+                this.targets.push({
+                    type: type,
+                    text: this.currentSelection.text
+                });
+
+                // 범례 업데이트
+                this.updateLegend(legend);
+
+                // 선택 해제
+                selection.removeAllRanges();
+                this.currentSelection = null;
+
+                // hidden input 업데이트
+                this.updateHiddenInput(editor);
+            },
+
+            updateLegend(legend) {
+                const activeTypes = [...new Set(this.targets.map(t => t.type))];
+                legend.innerHTML = activeTypes.map(type => {
+                    const color = this.colors[type];
+                    return `
+                        <div class="seq-legend-item">
+                            <span class="seq-legend-color" style="background: ${color.bg}; border-color: ${color.border};"></span>
+                            <span>${color.label}</span>
+                        </div>
+                    `;
+                }).join('');
+            },
+
+            clearAllTargets(editor, legend) {
+                // 모든 하이라이트 제거
+                editor.querySelectorAll('[data-target-type]').forEach(span => {
+                    const text = document.createTextNode(span.textContent);
+                    span.parentNode.replaceChild(text, span);
+                });
+                editor.normalize(); // 인접 텍스트 노드 병합
+
+                this.targets = [];
+                legend.innerHTML = '';
+                this.updateHiddenInput(editor);
+            },
+
+            updateHiddenInput(editor) {
+                // 순수 텍스트만 hidden input에 저장
+                const hiddenInput = document.getElementById('refSeqValue');
+                if (hiddenInput) {
+                    hiddenInput.value = editor.textContent;
+                }
+            },
+
+            // 타겟 정보 가져오기 (마커 설계 시 활용)
+            getTargets() {
+                const editor = document.getElementById('refSeq');
+                if (!editor) return [];
+
+                const result = [];
+                const fullText = editor.textContent;
+
+                editor.querySelectorAll('[data-target-type]').forEach(span => {
+                    const text = span.textContent;
+                    const type = span.dataset.targetType;
+
+                    // 텍스트 내 위치 찾기 (간단한 구현)
+                    const start = fullText.indexOf(text);
+                    if (start !== -1) {
+                        result.push({
+                            type: type,
+                            start: start,
+                            end: start + text.length,
+                            sequence: text
+                        });
+                    }
+                });
+
+                return result;
+            },
+
+            // 서열 가져오기 (순수 텍스트)
+            getSequence() {
+                const editor = document.getElementById('refSeq');
+                return editor ? editor.textContent : '';
+            }
+        };
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            SeqEditor.init();
+        });
+
         // ========== Tab Navigation ==========
         document.querySelectorAll('.main-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -2326,7 +2671,7 @@
 
         // ========== UI 함수 ==========
         function designMarkers() {
-            const seq = cleanSequence(document.getElementById('refSeq').value);
+            const seq = cleanSequence(document.getElementById('refSeq').textContent || document.getElementById('refSeq').innerText);
             const variantType = document.querySelector('input[name="variantType"]:checked').value;
             const params = getDesignParams();
 
@@ -2455,10 +2800,13 @@
         }
 
         function clearInputs() {
-            document.getElementById('refSeq').value = '';
+            document.getElementById('refSeq').textContent = '';
             document.getElementById('snpPos').value = '';
             document.getElementById('allele1').value = '';
             document.getElementById('allele2').value = '';
+            // 타겟 선택도 초기화
+            SeqEditor.targets = [];
+            document.getElementById('seqLegend').innerHTML = '';
         }
 
         function convertMarker() {
