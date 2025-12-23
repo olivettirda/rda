@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molecular Marker Designer v1.0</title>
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f7f6;
+            --bg-card: #ffffff;
+            --accent-1: #cce3dd;
+            --accent-2: #b2d9d8;
+            --accent-3: #8dccd3;
+            --accent-4: #54b7c6;
+            --accent-5: #00a1b8;
+            --accent-6: #017f97;
+            --accent-7: #0c3026;
+            --text-primary: #1a1a1a;
+            --text-secondary: #5a6a62;
+            --border-color: #d0d8d4;
+            --error: #ef4444;
+            --success: #10b981;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "KoPub Dotum", "Malgun Gothic", -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        /* Header */
+        header { text-align: center; margin-bottom: 1.5rem; padding: 1.5rem 0; }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-7), var(--accent-6));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle { color: var(--text-secondary); font-size: 0.95rem; margin-top: 0.25rem; }
+
+        /* Main Tabs */
+        .main-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .main-tab {
+            padding: 0.7rem 1.2rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .main-tab:hover { border-color: var(--accent-5); color: var(--accent-6); }
+        .main-tab.active {
+            background: linear-gradient(135deg, var(--accent-5), var(--accent-6));
+            border-color: var(--accent-5);
+            color: #fff;
+        }
+
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Main Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--accent-6);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Form Elements */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.3rem;
+        }
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent-5); }
+        textarea.form-control {
+            min-height: 120px;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+
+        /* Radio & Checkbox */
+        .radio-group, .checkbox-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .radio-item, .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.9rem;
+        }
+        .radio-item input, .checkbox-item input { accent-color: var(--accent-5); }
+
+        /* Inline Form */
+        .form-inline {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+        .form-inline .form-group { margin-bottom: 0; flex: 1; min-width: 80px; }
+
+        /* Buttons */
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-5), var(--accent-6));
+            color: #fff;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 161, 184, 0.3);
+        }
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        .btn-secondary:hover { border-color: var(--accent-5); }
+        .btn-group { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+
+        /* Collapsible Section */
+        .collapsible { margin-bottom: 1rem; }
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--accent-6);
+        }
+        .collapsible-header:hover { border-color: var(--accent-5); }
+        .collapsible-header .arrow { transition: transform 0.2s; }
+        .collapsible.open .collapsible-header .arrow { transform: rotate(180deg); }
+        .collapsible-body {
+            display: none;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+        }
+        .collapsible.open .collapsible-body { display: block; }
+
+        /* Result Area */
+        .result-area { min-height: 300px; }
+        .result-tabs {
+            display: flex;
+            gap: 0.3rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .result-tab {
+            padding: 0.5rem 0.8rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px 6px 0 0;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .result-tab.active {
+            background: var(--accent-5);
+            border-color: var(--accent-5);
+            color: #fff;
+        }
+
+        /* Marker Card */
+        .marker-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        .marker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .marker-type {
+            font-weight: 600;
+            color: var(--accent-6);
+            font-size: 0.9rem;
+        }
+        .marker-score {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .primer-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+            align-items: flex-start;
+        }
+        .primer-name {
+            min-width: 100px;
+            font-weight: 500;
+            color: var(--accent-7);
+        }
+        .primer-seq {
+            font-family: Consolas, 'Courier New', monospace;
+            word-break: break-all;
+            flex: 1;
+        }
+        .primer-info {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .marker-meta {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+
+        /* Status Messages */
+        .status {
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+        .status.info {
+            background: rgba(0, 161, 184, 0.1);
+            border: 1px solid var(--accent-5);
+            color: var(--accent-6);
+        }
+
+        /* Single Column Layout (for tools) */
+        .single-layout { max-width: 600px; margin: 0 auto; }
+
+        /* Table */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .data-table th {
+            background: var(--bg-secondary);
+            padding: 0.6rem;
+            text-align: left;
+            font-weight: 500;
+            color: var(--accent-6);
+        }
+        .data-table td {
+            padding: 0.5rem 0.6rem;
+            border-top: 1px solid var(--border-color);
+        }
+        .data-table tr:hover { background: var(--bg-secondary); }
+
+        /* Utility */
+        .hidden { display: none !important; }
+        .mono { font-family: Consolas, 'Courier New', monospace; }
+        .text-center { text-align: center; }
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Molecular Marker Designer v1.0</h1>
+            <p class="subtitle">SNP/InDel 기반 분자마커 자동 설계 도구</p>
+        </header>
+
+        <!-- Main Tabs -->
+        <div class="main-tabs">
+            <button class="main-tab active" data-tab="design">신규 설계</button>
+            <button class="main-tab" data-tab="convert">마커 전환</button>
+            <button class="main-tab" data-tab="tm-calc">Tm 계산기</button>
+            <button class="main-tab" data-tab="seq-tools">서열 도구</button>
+            <button class="main-tab" data-tab="re-search">제한효소 검색</button>
+        </div>
+
+        <!-- Tab 1: 신규 설계 -->
+        <div id="tab-design" class="tab-content active">
+            <div class="main-layout">
+                <!-- Left Panel: Input -->
+                <div class="input-panel">
+                    <div class="card">
+                        <div class="card-title">다형성 정보</div>
+
+                        <div class="form-group">
+                            <label>다형성 타입</label>
+                            <div class="radio-group">
+                                <label class="radio-item">
+                                    <input type="radio" name="variantType" value="SNP" checked> SNP
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="variantType" value="InDel"> InDel
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="variantType" value="SSR"> SSR/STR
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>레퍼런스 서열 (FASTA 또는 raw)</label>
+                            <textarea class="form-control" id="refSeq" placeholder=">SD1_gene&#10;ATGCGATCGATCGATCG...""></textarea>
+                        </div>
+
+                        <div id="snpInputs">
+                            <div class="form-inline">
+                                <div class="form-group">
+                                    <label>SNP 위치 (1-based)</label>
+                                    <input type="number" class="form-control" id="snpPos" placeholder="379">
+                                </div>
+                                <div class="form-group">
+                                    <label>Allele 1 (FAM)</label>
+                                    <input type="text" class="form-control" id="allele1" placeholder="A" maxlength="10">
+                                </div>
+                                <div class="form-group">
+                                    <label>Allele 2 (HEX)</label>
+                                    <input type="text" class="form-control" id="allele2" placeholder="G" maxlength="10">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="indelInputs" class="hidden">
+                            <div class="form-inline">
+                                <div class="form-group">
+                                    <label>시작 위치</label>
+                                    <input type="number" class="form-control" id="indelStart" placeholder="100">
+                                </div>
+                                <div class="form-group">
+                                    <label>끝 위치</label>
+                                    <input type="number" class="form-control" id="indelEnd" placeholder="104">
+                                </div>
+                            </div>
+                            <div class="form-group mt-1">
+                                <label>Alternative Allele (결실이면 '-')</label>
+                                <input type="text" class="form-control" id="indelAlt" placeholder="-">
+                            </div>
+                        </div>
+
+                        <div id="ssrInputs" class="hidden">
+                            <div class="form-inline">
+                                <div class="form-group">
+                                    <label>반복 시작</label>
+                                    <input type="number" class="form-control" id="ssrStart" placeholder="100">
+                                </div>
+                                <div class="form-group">
+                                    <label>반복 끝</label>
+                                    <input type="number" class="form-control" id="ssrEnd" placeholder="124">
+                                </div>
+                                <div class="form-group">
+                                    <label>반복 단위</label>
+                                    <input type="text" class="form-control" id="ssrUnit" placeholder="AT">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Design Parameters (Collapsible) -->
+                    <div class="collapsible">
+                        <div class="collapsible-header" onclick="toggleCollapsible(this.parentElement)">
+                            <span>설계 파라미터</span>
+                            <span class="arrow">▼</span>
+                        </div>
+                        <div class="collapsible-body">
+                            <div class="form-inline mb-1">
+                                <div class="form-group">
+                                    <label>Target Tm (°C)</label>
+                                    <input type="number" class="form-control" id="targetTm" value="60">
+                                </div>
+                                <div class="form-group">
+                                    <label>Tm 허용 (±°C)</label>
+                                    <input type="number" class="form-control" id="tmTolerance" value="3">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Tm 차이</label>
+                                    <input type="number" class="form-control" id="maxTmDiff" value="3">
+                                </div>
+                            </div>
+                            <div class="form-inline mb-1">
+                                <div class="form-group">
+                                    <label>프라이머 최소 길이</label>
+                                    <input type="number" class="form-control" id="minLen" value="18">
+                                </div>
+                                <div class="form-group">
+                                    <label>최대 길이</label>
+                                    <input type="number" class="form-control" id="maxLen" value="28">
+                                </div>
+                            </div>
+                            <div class="form-inline mb-1">
+                                <div class="form-group">
+                                    <label>GC% 최소</label>
+                                    <input type="number" class="form-control" id="minGC" value="30">
+                                </div>
+                                <div class="form-group">
+                                    <label>GC% 최대</label>
+                                    <input type="number" class="form-control" id="maxGC" value="70">
+                                </div>
+                            </div>
+                            <div class="form-inline">
+                                <div class="form-group">
+                                    <label>앰플리콘 최소 (bp)</label>
+                                    <input type="number" class="form-control" id="minProduct" value="80">
+                                </div>
+                                <div class="form-group">
+                                    <label>앰플리콘 최대 (bp)</label>
+                                    <input type="number" class="form-control" id="maxProduct" value="300">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Marker Type Selection -->
+                    <div class="card">
+                        <div class="card-title">마커 타입 선택</div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="markerType" value="KASP" checked> KASP
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="markerType" value="TaqMan"> TaqMan
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="markerType" value="HRM"> HRM
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="markerType" value="CAPS"> CAPS
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="markerType" value="dCAPS"> dCAPS
+                            </label>
+                        </div>
+
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="designMarkers()">마커 설계</button>
+                            <button class="btn btn-secondary" onclick="clearInputs()">초기화</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Results -->
+                <div class="result-panel">
+                    <div class="card result-area">
+                        <div class="card-title">설계 결과</div>
+
+                        <div id="resultTabs" class="result-tabs hidden">
+                            <!-- Dynamically populated -->
+                        </div>
+
+                        <div id="resultContent">
+                            <div class="empty-state">
+                                <div class="icon">🧬</div>
+                                <p>서열과 다형성 정보를 입력하고<br>"마커 설계" 버튼을 클릭하세요</p>
+                            </div>
+                        </div>
+
+                        <div id="exportButtons" class="btn-group hidden">
+                            <button class="btn btn-secondary" onclick="exportCSV()">CSV 내보내기</button>
+                            <button class="btn btn-secondary" onclick="copyToClipboard()">클립보드 복사</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 마커 전환 -->
+        <div id="tab-convert" class="tab-content">
+            <div class="main-layout">
+                <div class="input-panel">
+                    <div class="card">
+                        <div class="card-title">기존 마커 정보</div>
+                        <div class="form-group">
+                            <label>마커 타입</label>
+                            <select class="form-control" id="sourceMarkerType">
+                                <option value="KASP">KASP</option>
+                                <option value="TaqMan">TaqMan</option>
+                                <option value="HRM">HRM</option>
+                                <option value="CAPS">CAPS</option>
+                                <option value="PCR">InDel PCR</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>프라이머/Probe 서열</label>
+                            <textarea class="form-control" id="sourceMarkerSeq" placeholder="ASP1: GAAGGTGACCAAGTTCATGCT...&#10;ASP2: GAAGGTCGGAGTCAACGGATT...&#10;Common: ..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>레퍼런스 서열</label>
+                            <textarea class="form-control" id="convertRefSeq" placeholder="FASTA 또는 raw 서열"></textarea>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">전환 대상</div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="targetType" value="KASP"> KASP
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="targetType" value="TaqMan"> TaqMan
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="targetType" value="HRM"> HRM
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="targetType" value="CAPS"> CAPS
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" name="targetType" value="dCAPS"> dCAPS
+                            </label>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="convertMarker()">마커 전환</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="result-panel">
+                    <div class="card result-area">
+                        <div class="card-title">전환 결과</div>
+                        <div id="convertResult">
+                            <div class="empty-state">
+                                <div class="icon">🔄</div>
+                                <p>기존 마커 정보를 입력하고<br>전환할 타입을 선택하세요</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Tm 계산기 -->
+        <div id="tab-tm-calc" class="tab-content">
+            <div class="single-layout">
+                <div class="card">
+                    <div class="card-title">Tm 계산기 (바이오니어 규칙)</div>
+                    <div class="form-group">
+                        <label>DNA 서열</label>
+                        <textarea class="form-control" id="tmSeq" placeholder="ATGCGATCGATCGATCG" style="min-height: 80px;"></textarea>
+                    </div>
+                    <div class="form-inline mb-2">
+                        <div class="form-group">
+                            <label>Na+ 농도 (mM)</label>
+                            <input type="number" class="form-control" id="naConc" value="50">
+                        </div>
+                        <div class="form-group">
+                            <label>Primer 농도 (nM)</label>
+                            <input type="number" class="form-control" id="primerConc" value="250">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="calculateTmUI()">Tm 계산</button>
+
+                    <div id="tmResult" class="mt-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: 서열 도구 -->
+        <div id="tab-seq-tools" class="tab-content">
+            <div class="single-layout">
+                <div class="card">
+                    <div class="card-title">서열 도구</div>
+                    <div class="form-group">
+                        <label>DNA 서열</label>
+                        <textarea class="form-control" id="seqToolInput" placeholder="ATGCGATCGATCGATCG"></textarea>
+                    </div>
+                    <div class="btn-group mb-2">
+                        <button class="btn btn-primary" onclick="getReverseComplement()">역상보 서열</button>
+                        <button class="btn btn-secondary" onclick="getSeqStats()">서열 통계</button>
+                    </div>
+                    <div id="seqToolResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 5: 제한효소 검색 -->
+        <div id="tab-re-search" class="tab-content">
+            <div class="main-layout">
+                <div class="input-panel">
+                    <div class="card">
+                        <div class="card-title">제한효소 사이트 검색</div>
+                        <div class="form-group">
+                            <label>DNA 서열</label>
+                            <textarea class="form-control" id="reSeq" placeholder="FASTA 또는 raw 서열"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>효소 선택 (선택사항)</label>
+                            <input type="text" class="form-control" id="reFilter" placeholder="예: EcoRI, BamHI (비워두면 모두 검색)">
+                        </div>
+                        <button class="btn btn-primary" onclick="searchRE()">검색</button>
+                    </div>
+                </div>
+                <div class="result-panel">
+                    <div class="card result-area">
+                        <div class="card-title">검색 결과</div>
+                        <div id="reResult">
+                            <div class="empty-state">
+                                <div class="icon">✂️</div>
+                                <p>서열을 입력하고 검색하세요</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== Tab Navigation ==========
+        document.querySelectorAll('.main-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active from all tabs
+                document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // Add active to clicked tab
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // ========== Variant Type Toggle ==========
+        document.querySelectorAll('input[name="variantType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('snpInputs').classList.add('hidden');
+                document.getElementById('indelInputs').classList.add('hidden');
+                document.getElementById('ssrInputs').classList.add('hidden');
+
+                if (e.target.value === 'SNP') {
+                    document.getElementById('snpInputs').classList.remove('hidden');
+                } else if (e.target.value === 'InDel') {
+                    document.getElementById('indelInputs').classList.remove('hidden');
+                } else if (e.target.value === 'SSR') {
+                    document.getElementById('ssrInputs').classList.remove('hidden');
+                }
+            });
+        });
+
+        // ========== Collapsible Toggle ==========
+        function toggleCollapsible(el) {
+            el.classList.toggle('open');
+        }
+
+        // ========== Placeholder Functions (to be implemented) ==========
+        function designMarkers() {
+            alert('마커 설계 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function clearInputs() {
+            document.getElementById('refSeq').value = '';
+            document.getElementById('snpPos').value = '';
+            document.getElementById('allele1').value = '';
+            document.getElementById('allele2').value = '';
+        }
+
+        function convertMarker() {
+            alert('마커 전환 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function calculateTmUI() {
+            alert('Tm 계산 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function getReverseComplement() {
+            alert('역상보 서열 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function getSeqStats() {
+            alert('서열 통계 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function searchRE() {
+            alert('제한효소 검색 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function exportCSV() {
+            alert('CSV 내보내기 기능은 다음 단계에서 구현됩니다.');
+        }
+
+        function copyToClipboard() {
+            alert('클립보드 복사 기능은 다음 단계에서 구현됩니다.');
+        }
+    </script>
+</body>
+</html>
