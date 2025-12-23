@@ -981,6 +981,248 @@
         }
 
         /**
+         * KASP InDel 마커 설계
+         * @param {string} seq - 레퍼런스 서열 (insertion allele 기준)
+         * @param {number} indelStart - InDel 시작 위치 (0-based)
+         * @param {number} indelEnd - InDel 끝 위치 (0-based, exclusive)
+         * @param {string} altAllele - Alternative allele ('-' for deletion)
+         * @param {object} params - 설계 파라미터
+         */
+        function designKASP_InDel(seq, indelStart, indelEnd, altAllele, params) {
+            const results = [];
+            const minTm = params.targetTm - params.tmTolerance;
+            const maxTm = params.targetTm + params.tmTolerance;
+            const indelLen = indelEnd - indelStart;
+            const refAllele = seq.substring(indelStart, indelEnd);
+
+            // 전략: InDel 3' 경계에 ASP 3' 말단 위치
+            for (let len = params.minLen; len <= params.maxLen; len++) {
+                // ASP1: Reference allele (InDel 포함)
+                const asp1End = indelEnd;
+                const asp1Start = asp1End - len;
+                if (asp1Start < 0) continue;
+
+                const asp1Core = seq.substring(asp1Start, asp1End);
+                const tm1 = calculateTm(asp1Core, params);
+                const gc1 = calculateGC(asp1Core);
+
+                if (tm1 < minTm || tm1 > maxTm) continue;
+                if (gc1 < params.minGC || gc1 > params.maxGC) continue;
+                if (hasPolyX(asp1Core, params.maxPolyX)) continue;
+
+                // ASP2: Alternative allele
+                let asp2Core;
+                if (altAllele === '-' || altAllele === '') {
+                    // Deletion: InDel 부분 건너뛰기
+                    const preIndel = seq.substring(asp1Start, indelStart);
+                    const neededFromPost = len - preIndel.length;
+                    const postIndel = seq.substring(indelEnd, indelEnd + neededFromPost);
+                    asp2Core = preIndel + postIndel;
+                } else {
+                    // Alternative sequence
+                    const preIndel = seq.substring(asp1Start, indelStart);
+                    asp2Core = preIndel + altAllele;
+                    if (asp2Core.length < len) {
+                        const needed = len - asp2Core.length;
+                        asp2Core += seq.substring(indelEnd, indelEnd + needed);
+                    } else if (asp2Core.length > len) {
+                        asp2Core = asp2Core.substring(0, len);
+                    }
+                }
+
+                if (asp2Core.length < params.minLen) continue;
+
+                const tm2 = calculateTm(asp2Core, params);
+                const gc2 = calculateGC(asp2Core);
+
+                if (tm2 < minTm || tm2 > maxTm) continue;
+                if (Math.abs(tm1 - tm2) > params.maxTmDiff) continue;
+
+                // Common primer
+                for (let cLen = params.minLen; cLen <= params.maxLen; cLen++) {
+                    for (let gap = 10; gap <= 50; gap += 5) {
+                        const cStart = indelEnd + gap;
+                        const cEnd = cStart + cLen;
+                        if (cEnd > seq.length) continue;
+
+                        const commonFwd = seq.substring(cStart, cEnd);
+                        const commonRev = reverseComplement(commonFwd);
+                        const cTm = calculateTm(commonRev, params);
+                        const cGc = calculateGC(commonRev);
+
+                        if (cTm < minTm || cTm > maxTm) continue;
+                        if (Math.abs(tm1 - cTm) > params.maxTmDiff) continue;
+                        if (cGc < params.minGC || cGc > params.maxGC) continue;
+                        if (hasPolyX(commonRev, params.maxPolyX)) continue;
+
+                        const productSize = cEnd - asp1Start;
+                        if (productSize < params.minProduct || productSize > params.maxProduct) continue;
+
+                        const score = Math.abs(tm1 - params.targetTm) +
+                                     Math.abs(tm2 - params.targetTm) +
+                                     Math.abs(cTm - params.targetTm) +
+                                     Math.abs(tm1 - cTm);
+
+                        results.push({
+                            type: 'KASP-InDel',
+                            indelSize: indelLen,
+                            asp1: {
+                                name: 'ASP1_FAM (Ref)',
+                                sequence: KASP_TAILS.FAM + asp1Core,
+                                core: asp1Core,
+                                length: asp1Core.length,
+                                tm: tm1,
+                                gc: gc1
+                            },
+                            asp2: {
+                                name: 'ASP2_HEX (Alt)',
+                                sequence: KASP_TAILS.HEX + asp2Core,
+                                core: asp2Core,
+                                length: asp2Core.length,
+                                tm: tm2,
+                                gc: gc2
+                            },
+                            common: {
+                                name: 'Common_Rev',
+                                sequence: commonRev,
+                                length: cLen,
+                                tm: cTm,
+                                gc: cGc
+                            },
+                            productSize: productSize,
+                            tmDiff: Math.abs(tm1 - cTm),
+                            score: Math.round(score * 100) / 100
+                        });
+                    }
+                }
+            }
+
+            results.sort((a, b) => a.score - b.score);
+            return results.slice(0, 10);
+        }
+
+        /**
+         * InDel PCR 마커 설계 (크기 차이로 구분)
+         */
+        function designInDelPCR(seq, indelStart, indelEnd, params) {
+            const results = [];
+            const minTm = params.targetTm - params.tmTolerance;
+            const maxTm = params.targetTm + params.tmTolerance;
+            const indelSize = indelEnd - indelStart;
+
+            if (indelSize < 3) {
+                return { error: 'InDel 크기가 너무 작습니다 (최소 3bp 권장). KASP-InDel을 사용하세요.' };
+            }
+
+            const indelCenter = Math.floor((indelStart + indelEnd) / 2);
+
+            for (let productSize = params.minProduct; productSize <= params.maxProduct; productSize += 20) {
+                const halfSize = Math.floor(productSize / 2);
+
+                for (let fLen = params.minLen; fLen <= params.maxLen; fLen++) {
+                    const fStart = indelCenter - halfSize;
+                    if (fStart < 0) continue;
+
+                    const fwdSeq = seq.substring(fStart, fStart + fLen);
+                    const fTm = calculateTm(fwdSeq, params);
+                    const fGc = calculateGC(fwdSeq);
+
+                    if (fTm < minTm || fTm > maxTm) continue;
+                    if (fGc < params.minGC || fGc > params.maxGC) continue;
+
+                    for (let rLen = params.minLen; rLen <= params.maxLen; rLen++) {
+                        const rEnd = indelCenter + halfSize;
+                        if (rEnd > seq.length) continue;
+
+                        const revFwd = seq.substring(rEnd - rLen, rEnd);
+                        const revSeq = reverseComplement(revFwd);
+                        const rTm = calculateTm(revSeq, params);
+                        const rGc = calculateGC(revSeq);
+
+                        if (rTm < minTm || rTm > maxTm) continue;
+                        if (Math.abs(fTm - rTm) > params.maxTmDiff) continue;
+                        if (rGc < params.minGC || rGc > params.maxGC) continue;
+
+                        const actualProductSize = rEnd - fStart;
+                        const band1 = actualProductSize;
+                        const band2 = actualProductSize - indelSize;
+
+                        const score = Math.abs(fTm - rTm) + Math.abs(fTm - params.targetTm);
+
+                        results.push({
+                            type: 'InDel-PCR',
+                            forward: {
+                                name: 'Forward',
+                                sequence: fwdSeq,
+                                length: fLen,
+                                tm: fTm,
+                                gc: fGc
+                            },
+                            reverse: {
+                                name: 'Reverse',
+                                sequence: revSeq,
+                                length: rLen,
+                                tm: rTm,
+                                gc: rGc
+                            },
+                            indelSize: indelSize,
+                            band1: { name: 'Reference', size: band1 },
+                            band2: { name: 'Alternative', size: band2 },
+                            productSize: actualProductSize,
+                            tmDiff: Math.abs(fTm - rTm),
+                            score: Math.round(score * 100) / 100
+                        });
+                    }
+                }
+            }
+
+            results.sort((a, b) => a.score - b.score);
+            return results.slice(0, 10);
+        }
+
+        /**
+         * InDel PCR 결과 HTML 생성
+         */
+        function formatInDelPCRResult(markers) {
+            if (markers.error) {
+                return `<div class="status error">${markers.error}</div>`;
+            }
+            if (markers.length === 0) {
+                return '<div class="status info">조건에 맞는 InDel PCR 마커를 찾을 수 없습니다.</div>';
+            }
+
+            let html = '';
+            markers.forEach((m, idx) => {
+                html += `
+                    <div class="marker-card">
+                        <div class="marker-header">
+                            <span class="marker-type">${m.type} #${idx + 1}</span>
+                            <span class="marker-score">Score: ${m.score}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Forward:</span>
+                            <span class="primer-seq">${m.forward.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.forward.length}bp | Tm: ${m.forward.tm}°C | GC: ${m.forward.gc}%</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Reverse:</span>
+                            <span class="primer-seq">${m.reverse.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.reverse.length}bp | Tm: ${m.reverse.tm}°C | GC: ${m.reverse.gc}%</span>
+                        </div>
+                        <div class="marker-meta">
+                            InDel: ${m.indelSize}bp | ${m.band1.name}: ${m.band1.size}bp | ${m.band2.name}: ${m.band2.size}bp
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        /**
          * KASP 결과 HTML 생성
          */
         function formatKASPResult(markers) {
@@ -1094,7 +1336,42 @@
                 }
 
             } else if (variantType === 'InDel') {
-                resultsHTML = '<div class="status info">InDel 마커 설계는 다음 단계에서 구현됩니다.</div>';
+                const indelStart = parseInt(document.getElementById('indelStart').value) - 1; // 1-based → 0-based
+                const indelEnd = parseInt(document.getElementById('indelEnd').value); // 1-based end → 0-based exclusive
+                const altAllele = document.getElementById('indelAlt').value.trim();
+
+                if (isNaN(indelStart) || isNaN(indelEnd) || indelStart < 0 || indelEnd > seq.length || indelStart >= indelEnd) {
+                    document.getElementById('resultContent').innerHTML =
+                        '<div class="status error">유효한 InDel 위치를 입력하세요 (1-based).</div>';
+                    return;
+                }
+
+                const indelSize = indelEnd - indelStart;
+                resultsHTML += `<div class="status info" style="margin-bottom:1rem;">InDel 크기: ${indelSize}bp | Reference: ${seq.substring(indelStart, indelEnd)}</div>`;
+
+                // KASP-InDel
+                if (selectedTypes.includes('KASP')) {
+                    const kaspResults = designKASP_InDel(seq, indelStart, indelEnd, altAllele, params);
+                    currentResults.kasp = kaspResults;
+                    resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">KASP-InDel 마커 (${kaspResults.length}개)</h3>`;
+                    resultsHTML += formatKASPResult(kaspResults);
+                }
+
+                // InDel PCR (3bp 이상이면 자동 추가)
+                if (indelSize >= 3) {
+                    const pcrResults = designInDelPCR(seq, indelStart, indelEnd, params);
+                    resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">InDel PCR 마커</h3>`;
+                    resultsHTML += formatInDelPCRResult(pcrResults);
+                }
+
+                // 다른 마커 타입
+                if (selectedTypes.includes('TaqMan')) {
+                    resultsHTML += '<div class="status info" style="margin-top:1rem;">TaqMan은 SNP 전용입니다.</div>';
+                }
+                if (selectedTypes.includes('HRM')) {
+                    resultsHTML += '<div class="status info" style="margin-top:1rem;">HRM은 SNP 전용입니다.</div>';
+                }
+
             } else if (variantType === 'SSR') {
                 resultsHTML = '<div class="status info">SSR 마커 설계는 다음 단계에서 구현됩니다.</div>';
             }
