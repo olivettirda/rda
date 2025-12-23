@@ -1222,6 +1222,180 @@
             return html;
         }
 
+        // ========== TaqMan 마커 설계 ==========
+        /**
+         * TaqMan 마커 설계
+         * Probe Tm = Primer Tm + 8~10°C
+         * Probe 길이: 18-28bp
+         * SNP은 Probe 중앙에 위치
+         * 5' 말단 G 회피 (quenching)
+         */
+        function designTaqMan(seq, snpPos, allele1, allele2, params) {
+            const results = [];
+            const minTm = params.targetTm - params.tmTolerance;
+            const maxTm = params.targetTm + params.tmTolerance;
+            const probeTmTarget = params.targetTm + 10;
+
+            // Probe 설계 (SNP 중앙 배치)
+            for (let pLen = 18; pLen <= 28; pLen++) {
+                const halfLen = Math.floor(pLen / 2);
+                const pStart = snpPos - halfLen;
+                const pEnd = pStart + pLen;
+
+                if (pStart < 0 || pEnd > seq.length) continue;
+
+                const probeSeq = seq.substring(pStart, pEnd);
+                const probeTm = calculateTm(probeSeq, params);
+                const probeGc = calculateGC(probeSeq);
+
+                // Probe Tm 검증 (프라이머보다 높아야 함)
+                if (probeTm < probeTmTarget - 5 || probeTm > probeTmTarget + 5) continue;
+
+                // 5' G 회피
+                if (probeSeq[0] === 'G') continue;
+
+                // GC 함량 체크
+                if (probeGc < 30 || probeGc > 80) continue;
+
+                // Forward primer (probe 앞)
+                for (let fLen = params.minLen; fLen <= params.maxLen; fLen++) {
+                    const fEnd = pStart - 3; // Probe에서 최소 3bp 떨어짐
+                    const fStart = fEnd - fLen;
+                    if (fStart < 0) continue;
+
+                    const fwdSeq = seq.substring(fStart, fEnd);
+                    const fTm = calculateTm(fwdSeq, params);
+                    const fGc = calculateGC(fwdSeq);
+
+                    if (fTm < minTm || fTm > maxTm) continue;
+                    if (fGc < params.minGC || fGc > params.maxGC) continue;
+                    if (hasPolyX(fwdSeq, params.maxPolyX)) continue;
+
+                    // Reverse primer (probe 뒤)
+                    for (let rLen = params.minLen; rLen <= params.maxLen; rLen++) {
+                        const rStart = pEnd + 3;
+                        const rEnd = rStart + rLen;
+                        if (rEnd > seq.length) continue;
+
+                        const revFwd = seq.substring(rStart, rEnd);
+                        const revSeq = reverseComplement(revFwd);
+                        const rTm = calculateTm(revSeq, params);
+                        const rGc = calculateGC(revSeq);
+
+                        if (rTm < minTm || rTm > maxTm) continue;
+                        if (Math.abs(fTm - rTm) > params.maxTmDiff) continue;
+                        if (rGc < params.minGC || rGc > params.maxGC) continue;
+                        if (hasPolyX(revSeq, params.maxPolyX)) continue;
+
+                        const productSize = rEnd - fStart;
+                        if (productSize < 60 || productSize > 150) continue; // TaqMan optimal
+
+                        // Probe에 각 allele 적용
+                        const snpPosInProbe = snpPos - pStart;
+                        const probe1 = probeSeq.substring(0, snpPosInProbe) + allele1 + probeSeq.substring(snpPosInProbe + 1);
+                        const probe2 = probeSeq.substring(0, snpPosInProbe) + allele2 + probeSeq.substring(snpPosInProbe + 1);
+
+                        const score = Math.abs(fTm - rTm) +
+                                     Math.abs(fTm - params.targetTm) +
+                                     Math.abs(probeTm - probeTmTarget);
+
+                        results.push({
+                            type: 'TaqMan',
+                            forward: {
+                                name: 'Forward',
+                                sequence: fwdSeq,
+                                length: fLen,
+                                tm: fTm,
+                                gc: fGc
+                            },
+                            reverse: {
+                                name: 'Reverse',
+                                sequence: revSeq,
+                                length: rLen,
+                                tm: rTm,
+                                gc: rGc
+                            },
+                            probe1: {
+                                name: `Probe_FAM (${allele1})`,
+                                sequence: `[FAM]${probe1}[BHQ1]`,
+                                core: probe1,
+                                length: pLen,
+                                tm: calculateTm(probe1, params),
+                                gc: calculateGC(probe1)
+                            },
+                            probe2: {
+                                name: `Probe_VIC (${allele2})`,
+                                sequence: `[VIC]${probe2}[BHQ1]`,
+                                core: probe2,
+                                length: pLen,
+                                tm: calculateTm(probe2, params),
+                                gc: calculateGC(probe2)
+                            },
+                            productSize: productSize,
+                            tmDiff: Math.abs(fTm - rTm),
+                            score: Math.round(score * 100) / 100
+                        });
+                    }
+                }
+            }
+
+            results.sort((a, b) => a.score - b.score);
+            return results.slice(0, 10);
+        }
+
+        /**
+         * TaqMan 결과 HTML 생성
+         */
+        function formatTaqManResult(markers) {
+            if (markers.length === 0) {
+                return '<div class="status info">조건에 맞는 TaqMan 마커를 찾을 수 없습니다.</div>';
+            }
+
+            let html = '';
+            markers.forEach((m, idx) => {
+                html += `
+                    <div class="marker-card">
+                        <div class="marker-header">
+                            <span class="marker-type">${m.type} #${idx + 1}</span>
+                            <span class="marker-score">Score: ${m.score}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Forward:</span>
+                            <span class="primer-seq">${m.forward.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.forward.length}bp | Tm: ${m.forward.tm}°C | GC: ${m.forward.gc}%</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Reverse:</span>
+                            <span class="primer-seq">${m.reverse.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.reverse.length}bp | Tm: ${m.reverse.tm}°C | GC: ${m.reverse.gc}%</span>
+                        </div>
+                        <div class="primer-row" style="background: rgba(0,161,184,0.1); padding: 0.3rem; border-radius: 4px; margin-top: 0.5rem;">
+                            <span class="primer-name">Probe FAM:</span>
+                            <span class="primer-seq">${m.probe1.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.probe1.length}bp | Tm: ${m.probe1.tm}°C | GC: ${m.probe1.gc}%</span>
+                        </div>
+                        <div class="primer-row" style="background: rgba(16,185,129,0.1); padding: 0.3rem; border-radius: 4px;">
+                            <span class="primer-name">Probe VIC:</span>
+                            <span class="primer-seq">${m.probe2.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.probe2.length}bp | Tm: ${m.probe2.tm}°C | GC: ${m.probe2.gc}%</span>
+                        </div>
+                        <div class="marker-meta">
+                            Product: ${m.productSize}bp | F-R Tm 차이: ${m.tmDiff.toFixed(1)}°C
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
         /**
          * KASP 결과 HTML 생성
          */
@@ -1321,10 +1495,15 @@
                     resultsHTML += formatKASPResult(kaspResults);
                 }
 
-                // 다른 마커 타입 (추후 구현)
+                // TaqMan 설계
                 if (selectedTypes.includes('TaqMan')) {
-                    resultsHTML += '<div class="status info" style="margin-top:1rem;">TaqMan 마커는 다음 단계에서 구현됩니다.</div>';
+                    const taqmanResults = designTaqMan(seq, snpPos, allele1, allele2, params);
+                    currentResults.taqman = taqmanResults;
+                    resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">TaqMan 마커 (${taqmanResults.length}개)</h3>`;
+                    resultsHTML += formatTaqManResult(taqmanResults);
                 }
+
+                // HRM (추후 구현)
                 if (selectedTypes.includes('HRM')) {
                     resultsHTML += '<div class="status info" style="margin-top:1rem;">HRM 마커는 다음 단계에서 구현됩니다.</div>';
                 }
