@@ -1484,6 +1484,212 @@
             return html;
         }
 
+        // ========== 제한효소 데이터베이스 ==========
+        const RESTRICTION_ENZYMES = {
+            'EcoRI':   { site: 'GAATTC', cut: 1 },
+            'BamHI':   { site: 'GGATCC', cut: 1 },
+            'HindIII': { site: 'AAGCTT', cut: 1 },
+            'XbaI':    { site: 'TCTAGA', cut: 1 },
+            'SalI':    { site: 'GTCGAC', cut: 1 },
+            'PstI':    { site: 'CTGCAG', cut: 5 },
+            'SmaI':    { site: 'CCCGGG', cut: 3 },
+            'KpnI':    { site: 'GGTACC', cut: 5 },
+            'SacI':    { site: 'GAGCTC', cut: 5 },
+            'XhoI':    { site: 'CTCGAG', cut: 1 },
+            'NcoI':    { site: 'CCATGG', cut: 1 },
+            'NdeI':    { site: 'CATATG', cut: 2 },
+            'BglII':   { site: 'AGATCT', cut: 1 },
+            'ClaI':    { site: 'ATCGAT', cut: 2 },
+            'EcoRV':   { site: 'GATATC', cut: 3 },
+            'HaeIII':  { site: 'GGCC', cut: 2 },
+            'AluI':    { site: 'AGCT', cut: 2 },
+            'HinfI':   { site: 'GANTC', cut: 1 },
+            'TaqI':    { site: 'TCGA', cut: 1 },
+            'MseI':    { site: 'TTAA', cut: 1 },
+            'DpnI':    { site: 'GATC', cut: 2 },
+            'DpnII':   { site: 'GATC', cut: 0 },
+            'MboI':    { site: 'GATC', cut: 0 },
+            'Sau3AI':  { site: 'GATC', cut: 0 },
+            'HhaI':    { site: 'GCGC', cut: 3 },
+            'MspI':    { site: 'CCGG', cut: 1 },
+            'HpaII':   { site: 'CCGG', cut: 1 },
+            'BstNI':   { site: 'CCWGG', cut: 2 },
+            'AvaI':    { site: 'CYCGRG', cut: 1 },
+            'AccI':    { site: 'GTMKAC', cut: 2 },
+            'BsaBI':   { site: 'GATNNNNATC', cut: 5 },
+            'RsaI':    { site: 'GTAC', cut: 2 },
+            'HpaI':    { site: 'GTTAAC', cut: 3 }
+        };
+
+        // IUPAC 코드 확장
+        const IUPAC = {
+            'A': '[A]', 'T': '[T]', 'G': '[G]', 'C': '[C]',
+            'R': '[AG]', 'Y': '[CT]', 'S': '[GC]', 'W': '[AT]',
+            'K': '[GT]', 'M': '[AC]', 'B': '[CGT]', 'D': '[AGT]',
+            'H': '[ACT]', 'V': '[ACG]', 'N': '[ACGT]'
+        };
+
+        function expandIUPAC(site) {
+            return site.split('').map(c => IUPAC[c] || c).join('');
+        }
+
+        /**
+         * CAPS 마커 설계
+         * SNP이 자연적으로 제한효소 인식부위에 위치하는지 확인
+         */
+        function designCAPS(seq, snpPos, allele1, allele2, params) {
+            const results = [];
+            const minTm = params.targetTm - params.tmTolerance;
+            const maxTm = params.targetTm + params.tmTolerance;
+
+            // 각 allele로 서열 생성
+            const seq1 = seq.substring(0, snpPos) + allele1 + seq.substring(snpPos + 1);
+            const seq2 = seq.substring(0, snpPos) + allele2 + seq.substring(snpPos + 1);
+
+            // 모든 제한효소 검사
+            for (const [enzyme, info] of Object.entries(RESTRICTION_ENZYMES)) {
+                const siteRegex = new RegExp(expandIUPAC(info.site), 'gi');
+                const siteLen = info.site.replace(/[^ACGT]/gi, '').length || info.site.length;
+
+                // SNP 주변 영역에서 검색 (±20bp)
+                const regionStart = Math.max(0, snpPos - 20);
+                const regionEnd = Math.min(seq.length, snpPos + 20);
+
+                const region1 = seq1.substring(regionStart, regionEnd);
+                const region2 = seq2.substring(regionStart, regionEnd);
+
+                const matches1 = [...region1.matchAll(siteRegex)];
+                const matches2 = [...region2.matchAll(siteRegex)];
+
+                const cuts1 = matches1.length;
+                const cuts2 = matches2.length;
+
+                // 한쪽만 절단되는 경우 CAPS 가능
+                if (cuts1 !== cuts2) {
+                    // Flanking primers 설계
+                    for (let productSize = 150; productSize <= 350; productSize += 50) {
+                        const halfSize = Math.floor(productSize / 2);
+
+                        for (let fLen = params.minLen; fLen <= params.maxLen; fLen++) {
+                            const fStart = snpPos - halfSize;
+                            if (fStart < 0) continue;
+
+                            const fwdSeq = seq.substring(fStart, fStart + fLen);
+                            const fTm = calculateTm(fwdSeq, params);
+
+                            if (fTm < minTm || fTm > maxTm) continue;
+
+                            for (let rLen = params.minLen; rLen <= params.maxLen; rLen++) {
+                                const rEnd = snpPos + halfSize;
+                                if (rEnd > seq.length) continue;
+
+                                const revSeq = reverseComplement(seq.substring(rEnd - rLen, rEnd));
+                                const rTm = calculateTm(revSeq, params);
+
+                                if (rTm < minTm || rTm > maxTm) continue;
+                                if (Math.abs(fTm - rTm) > params.maxTmDiff) continue;
+
+                                const actualProduct = rEnd - fStart;
+
+                                // 절단 후 예상 밴드 크기 계산
+                                const cutPos = snpPos - fStart; // product 내 SNP 위치
+                                let fragments1, fragments2;
+
+                                if (cuts1 > 0) {
+                                    fragments1 = [cutPos, actualProduct - cutPos];
+                                } else {
+                                    fragments1 = [actualProduct];
+                                }
+
+                                if (cuts2 > 0) {
+                                    fragments2 = [cutPos, actualProduct - cutPos];
+                                } else {
+                                    fragments2 = [actualProduct];
+                                }
+
+                                results.push({
+                                    type: 'CAPS',
+                                    enzyme: enzyme,
+                                    site: info.site,
+                                    allele1: { name: allele1, cuts: cuts1, fragments: cuts1 > 0 ? fragments1 : [actualProduct] },
+                                    allele2: { name: allele2, cuts: cuts2, fragments: cuts2 > 0 ? fragments2 : [actualProduct] },
+                                    forward: {
+                                        name: 'Forward',
+                                        sequence: fwdSeq,
+                                        length: fLen,
+                                        tm: fTm,
+                                        gc: calculateGC(fwdSeq)
+                                    },
+                                    reverse: {
+                                        name: 'Reverse',
+                                        sequence: revSeq,
+                                        length: rLen,
+                                        tm: rTm,
+                                        gc: calculateGC(revSeq)
+                                    },
+                                    productSize: actualProduct,
+                                    tmDiff: Math.abs(fTm - rTm),
+                                    score: Math.abs(fTm - rTm) + Math.abs(fTm - params.targetTm)
+                                });
+
+                                break; // 하나의 primer 세트만
+                            }
+                            break;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            results.sort((a, b) => a.score - b.score);
+            return results.slice(0, 10);
+        }
+
+        /**
+         * CAPS 결과 HTML 생성
+         */
+        function formatCAPSResult(markers) {
+            if (markers.length === 0) {
+                return '<div class="status info">조건에 맞는 CAPS 마커를 찾을 수 없습니다. SNP이 제한효소 인식부위에 위치하지 않습니다.</div>';
+            }
+
+            let html = '';
+            markers.forEach((m, idx) => {
+                html += `
+                    <div class="marker-card">
+                        <div class="marker-header">
+                            <span class="marker-type">${m.type} #${idx + 1} - ${m.enzyme}</span>
+                            <span class="marker-score">Score: ${m.score.toFixed(2)}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">RE Site:</span>
+                            <span class="primer-seq mono">${m.site}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Forward:</span>
+                            <span class="primer-seq">${m.forward.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.forward.length}bp | Tm: ${m.forward.tm}°C | GC: ${m.forward.gc}%</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Reverse:</span>
+                            <span class="primer-seq">${m.reverse.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.reverse.length}bp | Tm: ${m.reverse.tm}°C | GC: ${m.reverse.gc}%</span>
+                        </div>
+                        <div class="marker-meta">
+                            Product: ${m.productSize}bp |
+                            Allele ${m.allele1.name}: ${m.allele1.cuts > 0 ? m.allele1.fragments.join('+') + 'bp' : 'uncut'} |
+                            Allele ${m.allele2.name}: ${m.allele2.cuts > 0 ? m.allele2.fragments.join('+') + 'bp' : 'uncut'}
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
         /**
          * TaqMan 결과 HTML 생성
          */
@@ -1651,9 +1857,15 @@
                     resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">HRM 마커 (${hrmResults.length}개)</h3>`;
                     resultsHTML += formatHRMResult(hrmResults);
                 }
+                // CAPS 설계
                 if (selectedTypes.includes('CAPS')) {
-                    resultsHTML += '<div class="status info" style="margin-top:1rem;">CAPS 마커는 다음 단계에서 구현됩니다.</div>';
+                    const capsResults = designCAPS(seq, snpPos, allele1, allele2, params);
+                    currentResults.caps = capsResults;
+                    resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">CAPS 마커 (${capsResults.length}개)</h3>`;
+                    resultsHTML += formatCAPSResult(capsResults);
                 }
+
+                // dCAPS (추후 구현)
                 if (selectedTypes.includes('dCAPS')) {
                     resultsHTML += '<div class="status info" style="margin-top:1rem;">dCAPS 마커는 다음 단계에서 구현됩니다.</div>';
                 }
