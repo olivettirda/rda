@@ -1829,12 +1829,96 @@
             alert('제한효소 검색 기능은 다음 단계에서 구현됩니다.');
         }
 
-        function exportCSV() {
-            alert('CSV 내보내기 기능은 다음 단계에서 구현됩니다.');
+        /**
+         * 결과를 CSV 형식으로 변환
+         */
+        function resultsToCSV() {
+            let csv = 'Marker Type,Name,Sequence,Core Sequence,Length,Tm,GC%,Product Size,Score\n';
+
+            // KASP 마커
+            currentResults.kasp.forEach((m, idx) => {
+                csv += `${m.type},ASP1_FAM,"${m.asp1.sequence}","${m.asp1.core}",${m.asp1.length},${m.asp1.tm},${m.asp1.gc},${m.productSize},${m.score}\n`;
+                csv += `${m.type},ASP2_HEX,"${m.asp2.sequence}","${m.asp2.core}",${m.asp2.length},${m.asp2.tm},${m.asp2.gc},,\n`;
+                csv += `${m.type},Common,"${m.common.sequence}",,${m.common.length},${m.common.tm},${m.common.gc},,\n`;
+            });
+
+            // TaqMan 마커
+            currentResults.taqman.forEach((m, idx) => {
+                csv += `${m.type},Forward,"${m.forward.sequence}",,${m.forward.length},${m.forward.tm},${m.forward.gc},${m.productSize},${m.score}\n`;
+                csv += `${m.type},Reverse,"${m.reverse.sequence}",,${m.reverse.length},${m.reverse.tm},${m.reverse.gc},,\n`;
+                csv += `${m.type},Probe_FAM,"${m.probe1.sequence}","${m.probe1.core}",${m.probe1.length},${m.probe1.tm},${m.probe1.gc},,\n`;
+                csv += `${m.type},Probe_VIC,"${m.probe2.sequence}","${m.probe2.core}",${m.probe2.length},${m.probe2.tm},${m.probe2.gc},,\n`;
+            });
+
+            // HRM 마커
+            currentResults.hrm.forEach((m, idx) => {
+                csv += `${m.type},Forward,"${m.forward.sequence}",,${m.forward.length},${m.forward.tm},${m.forward.gc},${m.productSize},${m.score}\n`;
+                csv += `${m.type},Reverse,"${m.reverse.sequence}",,${m.reverse.length},${m.reverse.tm},${m.reverse.gc},,\n`;
+            });
+
+            return csv;
         }
 
+        /**
+         * CSV 파일 다운로드
+         */
+        function exportCSV() {
+            const csv = resultsToCSV();
+
+            if (csv.split('\n').length <= 1) {
+                alert('내보낼 결과가 없습니다.');
+                return;
+            }
+
+            // BOM 추가 (한글 지원)
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `marker_design_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        /**
+         * 결과를 클립보드에 복사 (탭 구분)
+         */
         function copyToClipboard() {
-            alert('클립보드 복사 기능은 다음 단계에서 구현됩니다.');
+            let text = 'Marker Type\tName\tSequence\tCore\tLength\tTm\tGC%\tProduct\tScore\n';
+
+            currentResults.kasp.forEach((m, idx) => {
+                text += `${m.type}\tASP1_FAM\t${m.asp1.sequence}\t${m.asp1.core}\t${m.asp1.length}\t${m.asp1.tm}\t${m.asp1.gc}\t${m.productSize}\t${m.score}\n`;
+                text += `${m.type}\tASP2_HEX\t${m.asp2.sequence}\t${m.asp2.core}\t${m.asp2.length}\t${m.asp2.tm}\t${m.asp2.gc}\t\t\n`;
+                text += `${m.type}\tCommon\t${m.common.sequence}\t\t${m.common.length}\t${m.common.tm}\t${m.common.gc}\t\t\n`;
+            });
+
+            currentResults.taqman.forEach((m, idx) => {
+                text += `${m.type}\tForward\t${m.forward.sequence}\t\t${m.forward.length}\t${m.forward.tm}\t${m.forward.gc}\t${m.productSize}\t${m.score}\n`;
+                text += `${m.type}\tReverse\t${m.reverse.sequence}\t\t${m.reverse.length}\t${m.reverse.tm}\t${m.reverse.gc}\t\t\n`;
+                text += `${m.type}\tProbe_FAM\t${m.probe1.sequence}\t${m.probe1.core}\t${m.probe1.length}\t${m.probe1.tm}\t${m.probe1.gc}\t\t\n`;
+                text += `${m.type}\tProbe_VIC\t${m.probe2.sequence}\t${m.probe2.core}\t${m.probe2.length}\t${m.probe2.tm}\t${m.probe2.gc}\t\t\n`;
+            });
+
+            currentResults.hrm.forEach((m, idx) => {
+                text += `${m.type}\tForward\t${m.forward.sequence}\t\t${m.forward.length}\t${m.forward.tm}\t${m.forward.gc}\t${m.productSize}\t${m.score}\n`;
+                text += `${m.type}\tReverse\t${m.reverse.sequence}\t\t${m.reverse.length}\t${m.reverse.tm}\t${m.reverse.gc}\t\t\n`;
+            });
+
+            if (text.split('\n').length <= 1) {
+                alert('복사할 결과가 없습니다.');
+                return;
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('클립보드에 복사되었습니다. Excel에 붙여넣기 하세요.');
+            }).catch(err => {
+                console.error('클립보드 복사 실패:', err);
+                alert('클립보드 복사에 실패했습니다.');
+            });
         }
     </script>
 </body>
