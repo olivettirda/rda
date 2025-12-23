@@ -849,9 +849,262 @@
             };
         }
 
+        // ========== KASP 마커 설계 ==========
+        const KASP_TAILS = {
+            FAM: 'GAAGGTGACCAAGTTCATGCT',  // 21bp
+            HEX: 'GAAGGTCGGAGTCAACGGATT'   // 21bp
+        };
+
+        /**
+         * 기본 설계 파라미터
+         */
+        function getDesignParams() {
+            return {
+                targetTm: parseFloat(document.getElementById('targetTm').value) || 60,
+                tmTolerance: parseFloat(document.getElementById('tmTolerance').value) || 3,
+                maxTmDiff: parseFloat(document.getElementById('maxTmDiff').value) || 3,
+                minLen: parseInt(document.getElementById('minLen').value) || 18,
+                maxLen: parseInt(document.getElementById('maxLen').value) || 28,
+                minGC: parseFloat(document.getElementById('minGC').value) || 30,
+                maxGC: parseFloat(document.getElementById('maxGC').value) || 70,
+                minProduct: parseInt(document.getElementById('minProduct').value) || 80,
+                maxProduct: parseInt(document.getElementById('maxProduct').value) || 300,
+                maxPolyX: 4,
+                naConc: 50,
+                primerConc: 250
+            };
+        }
+
+        /**
+         * 3' 말단 GC 클램프 검사 (마지막 5bp 중 G/C 개수)
+         */
+        function count3PrimeGC(seq, window = 5) {
+            const end = seq.slice(-window).toUpperCase();
+            return (end.match(/[GC]/g) || []).length;
+        }
+
+        /**
+         * KASP SNP 마커 설계
+         * @param {string} seq - 레퍼런스 서열
+         * @param {number} snpPos - SNP 위치 (0-based)
+         * @param {string} allele1 - Allele 1 (FAM)
+         * @param {string} allele2 - Allele 2 (HEX)
+         * @param {object} params - 설계 파라미터
+         */
+        function designKASP_SNP(seq, snpPos, allele1, allele2, params) {
+            const results = [];
+            const minTm = params.targetTm - params.tmTolerance;
+            const maxTm = params.targetTm + params.tmTolerance;
+
+            // Forward ASP 탐색 (SNP가 3' 말단)
+            for (let len = params.minLen; len <= params.maxLen; len++) {
+                const start = snpPos - len + 1;
+                if (start < 0) continue;
+
+                const aspCore = seq.substring(start, snpPos); // SNP 미포함
+                const asp1Full = aspCore + allele1;
+                const asp2Full = aspCore + allele2;
+
+                const tm1 = calculateTm(asp1Full, params);
+                const gc1 = calculateGC(asp1Full);
+
+                // ASP 필터링
+                if (tm1 < minTm || tm1 > maxTm) continue;
+                if (gc1 < params.minGC || gc1 > params.maxGC) continue;
+                if (hasPolyX(asp1Full, params.maxPolyX)) continue;
+
+                // Common primer 탐색 (SNP 다음부터)
+                for (let cLen = params.minLen; cLen <= params.maxLen; cLen++) {
+                    for (let gap = 10; gap <= 50; gap += 5) { // SNP에서 떨어진 거리
+                        const cStart = snpPos + 1 + gap;
+                        const cEnd = cStart + cLen;
+                        if (cEnd > seq.length) continue;
+
+                        const commonFwd = seq.substring(cStart, cEnd);
+                        const commonRev = reverseComplement(commonFwd);
+
+                        const cTm = calculateTm(commonRev, params);
+                        const cGc = calculateGC(commonRev);
+
+                        // Common 필터링
+                        if (cTm < minTm || cTm > maxTm) continue;
+                        if (Math.abs(tm1 - cTm) > params.maxTmDiff) continue;
+                        if (cGc < params.minGC || cGc > params.maxGC) continue;
+                        if (hasPolyX(commonRev, params.maxPolyX)) continue;
+
+                        const productSize = (cStart + cLen) - start;
+                        if (productSize < params.minProduct || productSize > params.maxProduct) continue;
+
+                        // 점수 계산 (낮을수록 좋음)
+                        const tm2 = calculateTm(asp2Full, params);
+                        const score = Math.abs(tm1 - params.targetTm) +
+                                     Math.abs(cTm - params.targetTm) +
+                                     Math.abs(tm1 - cTm) +
+                                     Math.abs(tm1 - tm2);
+
+                        results.push({
+                            type: 'KASP-SNP',
+                            asp1: {
+                                name: 'ASP1_FAM',
+                                sequence: KASP_TAILS.FAM + asp1Full,
+                                core: asp1Full,
+                                length: asp1Full.length,
+                                tm: tm1,
+                                gc: gc1
+                            },
+                            asp2: {
+                                name: 'ASP2_HEX',
+                                sequence: KASP_TAILS.HEX + asp2Full,
+                                core: asp2Full,
+                                length: asp2Full.length,
+                                tm: tm2,
+                                gc: calculateGC(asp2Full)
+                            },
+                            common: {
+                                name: 'Common_Rev',
+                                sequence: commonRev,
+                                length: cLen,
+                                tm: cTm,
+                                gc: cGc
+                            },
+                            productSize: productSize,
+                            tmDiff: Math.abs(tm1 - cTm),
+                            score: Math.round(score * 100) / 100
+                        });
+                    }
+                }
+            }
+
+            // 점수순 정렬
+            results.sort((a, b) => a.score - b.score);
+            return results.slice(0, 10); // Top 10
+        }
+
+        /**
+         * KASP 결과 HTML 생성
+         */
+        function formatKASPResult(markers) {
+            if (markers.length === 0) {
+                return '<div class="status info">조건에 맞는 KASP 마커를 찾을 수 없습니다. 파라미터를 조정해보세요.</div>';
+            }
+
+            let html = '';
+            markers.forEach((m, idx) => {
+                html += `
+                    <div class="marker-card">
+                        <div class="marker-header">
+                            <span class="marker-type">${m.type} #${idx + 1}</span>
+                            <span class="marker-score">Score: ${m.score}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">ASP1 (FAM):</span>
+                            <span class="primer-seq">${m.asp1.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">Core: ${m.asp1.core} | ${m.asp1.length}bp | Tm: ${m.asp1.tm}°C | GC: ${m.asp1.gc}%</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">ASP2 (HEX):</span>
+                            <span class="primer-seq">${m.asp2.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">Core: ${m.asp2.core} | ${m.asp2.length}bp | Tm: ${m.asp2.tm}°C | GC: ${m.asp2.gc}%</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-name">Common:</span>
+                            <span class="primer-seq">${m.common.sequence}</span>
+                        </div>
+                        <div class="primer-row">
+                            <span class="primer-info" style="margin-left:100px;">${m.common.length}bp | Tm: ${m.common.tm}°C | GC: ${m.common.gc}%</span>
+                        </div>
+                        <div class="marker-meta">
+                            Product: ${m.productSize}bp | ASP-Common Tm 차이: ${m.tmDiff.toFixed(1)}°C
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        // 설계 결과 저장 (내보내기용)
+        let currentResults = { kasp: [], taqman: [], hrm: [], caps: [], dcaps: [] };
+
         // ========== UI 함수 ==========
         function designMarkers() {
-            alert('마커 설계 기능은 다음 단계에서 구현됩니다.');
+            const seq = cleanSequence(document.getElementById('refSeq').value);
+            const variantType = document.querySelector('input[name="variantType"]:checked').value;
+            const params = getDesignParams();
+
+            // 입력 검증
+            if (seq.length === 0) {
+                document.getElementById('resultContent').innerHTML =
+                    '<div class="status error">레퍼런스 서열을 입력하세요.</div>';
+                return;
+            }
+
+            // 선택된 마커 타입
+            const selectedTypes = Array.from(document.querySelectorAll('input[name="markerType"]:checked'))
+                                       .map(cb => cb.value);
+
+            if (selectedTypes.length === 0) {
+                document.getElementById('resultContent').innerHTML =
+                    '<div class="status error">최소 하나의 마커 타입을 선택하세요.</div>';
+                return;
+            }
+
+            let resultsHTML = '';
+            currentResults = { kasp: [], taqman: [], hrm: [], caps: [], dcaps: [] };
+
+            if (variantType === 'SNP') {
+                const snpPos = parseInt(document.getElementById('snpPos').value) - 1; // 1-based → 0-based
+                const allele1 = document.getElementById('allele1').value.toUpperCase().trim();
+                const allele2 = document.getElementById('allele2').value.toUpperCase().trim();
+
+                if (isNaN(snpPos) || snpPos < 0 || snpPos >= seq.length) {
+                    document.getElementById('resultContent').innerHTML =
+                        '<div class="status error">유효한 SNP 위치를 입력하세요 (1-based).</div>';
+                    return;
+                }
+                if (!allele1 || !allele2) {
+                    document.getElementById('resultContent').innerHTML =
+                        '<div class="status error">Allele 1과 Allele 2를 입력하세요.</div>';
+                    return;
+                }
+
+                // KASP 설계
+                if (selectedTypes.includes('KASP')) {
+                    const kaspResults = designKASP_SNP(seq, snpPos, allele1, allele2, params);
+                    currentResults.kasp = kaspResults;
+                    resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">KASP 마커 (${kaspResults.length}개)</h3>`;
+                    resultsHTML += formatKASPResult(kaspResults);
+                }
+
+                // 다른 마커 타입 (추후 구현)
+                if (selectedTypes.includes('TaqMan')) {
+                    resultsHTML += '<div class="status info" style="margin-top:1rem;">TaqMan 마커는 다음 단계에서 구현됩니다.</div>';
+                }
+                if (selectedTypes.includes('HRM')) {
+                    resultsHTML += '<div class="status info" style="margin-top:1rem;">HRM 마커는 다음 단계에서 구현됩니다.</div>';
+                }
+                if (selectedTypes.includes('CAPS')) {
+                    resultsHTML += '<div class="status info" style="margin-top:1rem;">CAPS 마커는 다음 단계에서 구현됩니다.</div>';
+                }
+                if (selectedTypes.includes('dCAPS')) {
+                    resultsHTML += '<div class="status info" style="margin-top:1rem;">dCAPS 마커는 다음 단계에서 구현됩니다.</div>';
+                }
+
+            } else if (variantType === 'InDel') {
+                resultsHTML = '<div class="status info">InDel 마커 설계는 다음 단계에서 구현됩니다.</div>';
+            } else if (variantType === 'SSR') {
+                resultsHTML = '<div class="status info">SSR 마커 설계는 다음 단계에서 구현됩니다.</div>';
+            }
+
+            document.getElementById('resultContent').innerHTML = resultsHTML;
+
+            // 결과가 있으면 내보내기 버튼 표시
+            if (currentResults.kasp.length > 0) {
+                document.getElementById('exportButtons').classList.remove('hidden');
+            }
         }
 
         function clearInputs() {
