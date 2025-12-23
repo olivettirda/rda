@@ -1026,6 +1026,8 @@
         </div>
     </div>
 
+    <!-- funRiceGenes 전체 데이터 (4,567개 유전자) -->
+    <script src="funricegenes_data.js"></script>
     <script>
         // ========== Tab Navigation ==========
         document.querySelectorAll('.main-tab').forEach(tab => {
@@ -3021,30 +3023,15 @@
         // ========== 외부 DB 연동 함수 ==========
 
         /**
-         * funRiceGenes 데이터베이스 정보
+         * funRiceGenes 데이터베이스 URL
          * GitHub: https://github.com/funRiceGenes/funRiceGenes.github.io
          * Website: https://funricegenes.github.io/
+         * 데이터: funricegenes_data.js (4,567개 유전자)
          */
-        const FUNRICEGENES_DATA = {
-            baseUrl: 'https://funricegenes.github.io',
-            githubApi: 'https://api.github.com/repos/funRiceGenes/funRiceGenes.github.io/contents',
-            // 주요 유전자 정보 (예시 - 실제 사용 시 API 호출 권장)
-            popularGenes: [
-                { symbol: 'SD1', name: 'Semi-dwarf 1', locus: 'LOC_Os01g66100', function: 'Plant height, Gibberellin biosynthesis' },
-                { symbol: 'GW2', name: 'Grain Width 2', locus: 'LOC_Os02g14720', function: 'Grain size regulation' },
-                { symbol: 'Hd1', name: 'Heading date 1', locus: 'LOC_Os06g16370', function: 'Photoperiod sensitivity' },
-                { symbol: 'OsSPL14', name: 'IPA1', locus: 'LOC_Os08g39890', function: 'Ideal plant architecture' },
-                { symbol: 'Ghd7', name: 'Grain number, height, heading 7', locus: 'LOC_Os07g15770', function: 'Yield, heading date' },
-                { symbol: 'Wx', name: 'Waxy', locus: 'LOC_Os06g04200', function: 'Amylose content' },
-                { symbol: 'Pi-ta', name: 'Blast resistance', locus: 'LOC_Os12g18360', function: 'Disease resistance' },
-                { symbol: 'Sub1A', name: 'Submergence 1A', locus: 'LOC_Os09g11480', function: 'Submergence tolerance' },
-                { symbol: 'COLD1', name: 'Cold sensor', locus: 'LOC_Os04g51180', function: 'Cold tolerance' },
-                { symbol: 'OsDREB1A', name: 'Drought responsive', locus: 'LOC_Os09g35030', function: 'Drought/cold tolerance' }
-            ]
-        };
+        const FUNRICEGENES_URL = 'https://funricegenes.github.io';
 
         /**
-         * funRiceGenes 검색
+         * funRiceGenes 전체 데이터 검색 (4,567개 유전자)
          */
         function searchFunRiceGenes() {
             const query = document.getElementById('geneSearchQuery').value.trim();
@@ -3056,60 +3043,93 @@
                 return;
             }
 
-            // 로컬 검색 (인기 유전자)
-            const matches = FUNRICEGENES_DATA.popularGenes.filter(gene => {
-                const q = query.toUpperCase();
-                switch(searchType) {
-                    case 'gene':
-                        return gene.symbol.toUpperCase().includes(q) || gene.name.toUpperCase().includes(q);
-                    case 'keyword':
-                        return gene.function.toUpperCase().includes(q);
-                    case 'locus':
-                        return gene.locus.toUpperCase().includes(q);
-                    default:
-                        return gene.symbol.toUpperCase().includes(q);
-                }
-            });
+            // 전체 데이터에서 검색 (FUNRICEGENES_ALL from funricegenes_data.js)
+            const q = query.toUpperCase();
+            let matches = [];
+
+            if (typeof FUNRICEGENES_ALL !== 'undefined') {
+                matches = FUNRICEGENES_ALL.filter(gene => {
+                    switch(searchType) {
+                        case 'gene':
+                            return gene.s && gene.s.toUpperCase().includes(q);
+                        case 'locus':
+                            return (gene.m && gene.m.toUpperCase().includes(q)) ||
+                                   (gene.r && gene.r.toUpperCase().includes(q));
+                        case 'keyword':
+                            // 키워드 검색은 심볼에서만 (상세 키워드는 사이트에서)
+                            return gene.s && gene.s.toUpperCase().includes(q);
+                        default:
+                            return gene.s && gene.s.toUpperCase().includes(q);
+                    }
+                }).slice(0, 50); // 최대 50개 표시
+            }
 
             let html = '';
 
             if (matches.length > 0) {
-                html += '<div class="status success">로컬 데이터에서 ' + matches.length + '개 결과 발견</div>';
-                html += '<div class="table-container"><table class="data-table">';
-                html += '<thead><tr><th>유전자명</th><th>이름</th><th>유전자좌</th><th>기능</th><th>링크</th></tr></thead>';
+                html += `<div class="status success">funRiceGenes 데이터에서 ${matches.length}개 결과 발견 (총 4,567개 유전자 중)</div>`;
+                html += '<div class="table-container" style="max-height: 400px; overflow-y: auto;"><table class="data-table">';
+                html += '<thead><tr><th>유전자명</th><th>RAP-DB ID</th><th>MSU ID</th><th>링크</th></tr></thead>';
                 html += '<tbody>';
                 matches.forEach(gene => {
-                    const funRiceUrl = `${FUNRICEGENES_DATA.baseUrl}/${gene.symbol}/`;
-                    const rapdbUrl = `https://rapdb.dna.affrc.go.jp/locus/?name=${gene.locus}`;
+                    const funRiceUrl = `${FUNRICEGENES_URL}/${gene.s}/`;
+                    const rapdbUrl = gene.r && gene.r !== 'None' ?
+                        `https://rapdb.dna.affrc.go.jp/locus/?name=${gene.r}` : '#';
+                    const msuUrl = gene.m && gene.m !== 'None' ?
+                        `https://rice.uga.edu/cgi-bin/ORF_infopage.cgi?orf=${gene.m}` : '#';
                     html += `<tr>
-                        <td><strong>${gene.symbol}</strong></td>
-                        <td>${gene.name}</td>
-                        <td><code>${gene.locus}</code></td>
-                        <td>${gene.function}</td>
+                        <td><strong>${gene.s}</strong></td>
+                        <td><code>${gene.r || '-'}</code></td>
+                        <td><code>${gene.m || '-'}</code></td>
                         <td>
-                            <a href="${funRiceUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.25rem 0.5rem; min-height: auto;">funRiceGenes</a>
-                            <a href="${rapdbUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.25rem 0.5rem; min-height: auto;">RAP-DB</a>
+                            <a href="${funRiceUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.2rem 0.4rem; min-height: auto; font-size: 0.75rem;">funRice</a>
+                            ${gene.r && gene.r !== 'None' ? `<a href="${rapdbUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.2rem 0.4rem; min-height: auto; font-size: 0.75rem;">RAP-DB</a>` : ''}
+                            ${gene.m && gene.m !== 'None' ? `<a href="${msuUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.2rem 0.4rem; min-height: auto; font-size: 0.75rem;">MSU</a>` : ''}
                         </td>
                     </tr>`;
                 });
                 html += '</tbody></table></div>';
             } else {
-                html += '<div class="status info">로컬 데이터에서 결과가 없습니다.</div>';
+                html += '<div class="status info">검색 결과가 없습니다.</div>';
             }
 
             // funRiceGenes 사이트 검색 링크
             html += `
                 <div class="mt-2">
-                    <p style="font-size: 0.9rem; color: var(--text-secondary);">
-                        더 많은 결과를 보려면 funRiceGenes 사이트에서 직접 검색하세요:
+                    <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                        키워드별 상세 기능 정보는 funRiceGenes 사이트에서 확인하세요:
                     </p>
-                    <a href="https://funricegenes.github.io/" target="_blank" class="btn btn-primary" style="margin-top: 0.5rem;">
+                    <a href="${FUNRICEGENES_URL}" target="_blank" class="btn btn-primary" style="margin-top: 0.5rem;">
                         funRiceGenes에서 "${query}" 검색하기
                     </a>
                 </div>
             `;
 
             resultDiv.innerHTML = html;
+        }
+
+        /**
+         * 좌표로 유전자 검색 (변이 검색 시 활용)
+         * @param {string} chr - 염색체 (예: "1" 또는 "Chr1")
+         * @param {number} start - 시작 위치
+         * @param {number} end - 끝 위치
+         * @returns {Array} 해당 영역의 유전자 목록
+         */
+        function findGenesByLocation(chr, start, end) {
+            if (typeof FUNRICEGENES_ALL === 'undefined') return [];
+
+            const chrNum = chr.toString().replace(/[^0-9]/g, '').padStart(2, '0');
+            const pattern = new RegExp(`LOC_Os${chrNum}g(\\d+)`);
+
+            return FUNRICEGENES_ALL.filter(gene => {
+                if (!gene.m || gene.m === 'None') return false;
+                const match = gene.m.match(pattern);
+                if (!match) return false;
+                // MSU ID에서 대략적인 위치 추정 (정확한 좌표는 외부 API 필요)
+                // LOC_Os01g12345 -> 약 12345 * 100 위치
+                const approxPos = parseInt(match[1]) * 100;
+                return approxPos >= start && approxPos <= end;
+            }).slice(0, 20);
         }
 
         /**
@@ -3180,12 +3200,12 @@
         }
 
         /**
-         * RiceVarMap2 열기
+         * RiceVarMap2 열기 (funRiceGenes 유전자 정보 포함)
          */
         function openRiceVarMap2() {
             const chr = document.getElementById('varChr').value;
-            const start = document.getElementById('varStart').value;
-            const end = document.getElementById('varEnd').value;
+            const start = parseInt(document.getElementById('varStart').value) || 0;
+            const end = parseInt(document.getElementById('varEnd').value) || 0;
 
             let url = 'https://ricevarmap.ncpgr.cn/v2/';
 
@@ -3196,24 +3216,59 @@
 
             window.open(url, '_blank');
 
+            // funRiceGenes에서 해당 영역의 유전자 찾기
+            const genes = findGenesByLocation(chr, start, end);
+
             const resultDiv = document.getElementById('dbSearchResult');
-            resultDiv.innerHTML = `
+            let html = `
                 <div class="status success">RiceVarMap2 페이지가 열렸습니다.</div>
                 <div class="mt-1">
                     <p style="font-size: 0.9rem;">
                         <strong>RiceVarMap2 정보:</strong><br>
                         - 3,000+ 벼 품종의 변이 정보<br>
                         - SNP, InDel 정보 제공<br>
-                        - Japonica, Indica 집단별 allele frequency<br>
-                        - LD (Linkage Disequilibrium) 분석
+                        - Japonica, Indica 집단별 allele frequency
                     </p>
                     ${chr && start && end ? `
                         <p style="margin-top: 0.5rem;">
-                            <strong>검색 좌표:</strong> Chr${chr}:${start}-${end}
+                            <strong>검색 좌표:</strong> Chr${chr}:${start.toLocaleString()}-${end.toLocaleString()}
                         </p>
                     ` : ''}
                 </div>
             `;
+
+            // funRiceGenes 유전자 정보 표시
+            if (genes.length > 0) {
+                html += `
+                    <div class="mt-2">
+                        <div class="card-title" style="font-size: 0.95rem;">funRiceGenes 관련 유전자 (${genes.length}개)</div>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                            해당 영역에서 기능이 밝혀진 유전자 목록입니다. 마커 설계 시 참고하세요.
+                        </p>
+                        <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                            <table class="data-table">
+                                <thead><tr><th>유전자</th><th>RAP-DB</th><th>MSU</th><th>링크</th></tr></thead>
+                                <tbody>
+                `;
+                genes.forEach(gene => {
+                    const funRiceUrl = `${FUNRICEGENES_URL}/${gene.s}/`;
+                    html += `<tr>
+                        <td><strong>${gene.s}</strong></td>
+                        <td><code style="font-size:0.75rem;">${gene.r || '-'}</code></td>
+                        <td><code style="font-size:0.75rem;">${gene.m || '-'}</code></td>
+                        <td><a href="${funRiceUrl}" target="_blank" class="btn btn-ghost" style="padding:0.15rem 0.3rem;min-height:auto;font-size:0.7rem;">상세</a></td>
+                    </tr>`;
+                });
+                html += `</tbody></table></div></div>`;
+            } else if (chr && start && end) {
+                html += `
+                    <div class="mt-2 status info">
+                        해당 영역에서 funRiceGenes에 등록된 유전자가 없습니다.
+                    </div>
+                `;
+            }
+
+            resultDiv.innerHTML = html;
         }
 
         /**
