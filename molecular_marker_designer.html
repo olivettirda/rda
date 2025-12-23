@@ -2451,7 +2451,138 @@
         }
 
         function searchRE() {
-            alert('제한효소 검색 기능은 다음 단계에서 구현됩니다.');
+            const seqRaw = document.getElementById('reSeq').value.trim();
+            const filterText = document.getElementById('reFilter').value.trim();
+
+            if (!seqRaw) {
+                document.getElementById('reResult').innerHTML =
+                    '<div class="status error">DNA 서열을 입력하세요.</div>';
+                return;
+            }
+
+            const seq = cleanSequence(seqRaw.replace(/^>.*\n/gm, '')).toUpperCase();
+
+            if (seq.length < 4) {
+                document.getElementById('reResult').innerHTML =
+                    '<div class="status error">서열이 너무 짧습니다 (최소 4bp).</div>';
+                return;
+            }
+
+            // 필터할 효소 목록
+            let enzymeFilter = null;
+            if (filterText) {
+                enzymeFilter = filterText.split(/[,\s]+/).map(e => e.trim().toUpperCase()).filter(e => e);
+            }
+
+            // 모든 효소에 대해 검색
+            const results = [];
+
+            for (const [enzyme, info] of Object.entries(RESTRICTION_ENZYMES)) {
+                // 필터 적용
+                if (enzymeFilter && !enzymeFilter.includes(enzyme.toUpperCase())) {
+                    continue;
+                }
+
+                const sites = findREsites(seq, info.site);
+
+                if (sites.length > 0) {
+                    results.push({
+                        enzyme,
+                        site: info.site,
+                        cut: info.cut,
+                        positions: sites,
+                        count: sites.length
+                    });
+                }
+            }
+
+            // 결과 정렬 (발견 횟수 순)
+            results.sort((a, b) => a.count - b.count || a.enzyme.localeCompare(b.enzyme));
+
+            // 결과 출력
+            let html = `<div class="status success">서열 길이: ${seq.length}bp - ${results.length}종 효소의 인식 부위 발견</div>`;
+
+            if (results.length === 0) {
+                html += '<div class="status info">인식 부위를 찾지 못했습니다.</div>';
+            } else {
+                html += `<div class="table-container"><table>
+                    <thead>
+                        <tr>
+                            <th>효소</th>
+                            <th>인식서열</th>
+                            <th>절단위치</th>
+                            <th>발견수</th>
+                            <th>위치 (1-based)</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                for (const r of results) {
+                    // 인식서열에 절단 위치 표시
+                    const siteWithCut = r.site.slice(0, r.cut) + '|' + r.site.slice(r.cut);
+
+                    // 위치 목록 (최대 10개까지 표시)
+                    let posText = r.positions.slice(0, 10).map(p => p + 1).join(', ');
+                    if (r.positions.length > 10) {
+                        posText += ` ... (+${r.positions.length - 10}개)`;
+                    }
+
+                    html += `<tr>
+                        <td><strong>${r.enzyme}</strong></td>
+                        <td><code>${siteWithCut}</code></td>
+                        <td>${r.cut}</td>
+                        <td>${r.count}</td>
+                        <td style="font-size: 0.85rem;">${posText}</td>
+                    </tr>`;
+                }
+
+                html += '</tbody></table></div>';
+
+                // 요약 통계
+                const uniqueCutters = results.filter(r => r.count === 1);
+                html += `<div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 4px;">
+                    <strong>요약:</strong> 총 ${results.length}종 효소,
+                    유일 절단 효소(Unique cutter): ${uniqueCutters.length}종
+                    ${uniqueCutters.length > 0 ? '(' + uniqueCutters.map(r => r.enzyme).join(', ') + ')' : ''}
+                </div>`;
+            }
+
+            document.getElementById('reResult').innerHTML = html;
+        }
+
+        /**
+         * 서열에서 제한효소 인식 부위 찾기
+         */
+        function findREsites(seq, site) {
+            const positions = [];
+            const patterns = expandIUPAC(site);
+
+            for (const pattern of patterns) {
+                let pos = 0;
+                while ((pos = seq.indexOf(pattern, pos)) !== -1) {
+                    if (!positions.includes(pos)) {
+                        positions.push(pos);
+                    }
+                    pos++;
+                }
+            }
+
+            // Reverse complement에서도 검색 (palindrome이 아닌 경우)
+            const siteRC = reverseComplement(site);
+            if (siteRC !== site) {
+                const patternsRC = expandIUPAC(siteRC);
+                for (const pattern of patternsRC) {
+                    let pos = 0;
+                    while ((pos = seq.indexOf(pattern, pos)) !== -1) {
+                        if (!positions.includes(pos)) {
+                            positions.push(pos);
+                        }
+                        pos++;
+                    }
+                }
+            }
+
+            return positions.sort((a, b) => a - b);
         }
 
         /**
