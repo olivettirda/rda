@@ -584,6 +584,7 @@
             <button class="main-tab" data-tab="tm-calc">Tm 계산기</button>
             <button class="main-tab" data-tab="seq-tools">서열 도구</button>
             <button class="main-tab" data-tab="re-search">제한효소 검색</button>
+            <button class="main-tab" data-tab="db-search">외부 DB 연동</button>
         </div>
 
         <!-- Tab 1: 신규 설계 -->
@@ -904,6 +905,119 @@
                             <div class="empty-state">
                                 <div class="icon">✂️</div>
                                 <p>서열을 입력하고 검색하세요</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 6: 외부 DB 연동 -->
+        <div id="tab-db-search" class="tab-content">
+            <div class="main-layout">
+                <div class="input-panel">
+                    <!-- funRiceGenes 검색 -->
+                    <div class="card">
+                        <div class="card-title">funRiceGenes 유전자 검색</div>
+                        <div class="form-group">
+                            <label>유전자명 또는 키워드</label>
+                            <input type="text" class="form-control" id="geneSearchQuery" placeholder="예: SD1, GW2, OsSPL14">
+                        </div>
+                        <div class="form-group">
+                            <label>검색 유형</label>
+                            <div class="radio-group">
+                                <label class="radio-item">
+                                    <input type="radio" name="searchType" value="gene" checked> 유전자명
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="searchType" value="keyword"> 키워드
+                                </label>
+                                <label class="radio-item">
+                                    <input type="radio" name="searchType" value="locus"> 유전자좌 (LOC_Os)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="searchFunRiceGenes()">funRiceGenes 검색</button>
+                            <button class="btn btn-outline" onclick="openFunRiceGenes()">funRiceGenes 사이트 열기</button>
+                        </div>
+                    </div>
+
+                    <!-- BLAST 검색 -->
+                    <div class="card">
+                        <div class="card-title">BLAST 검색</div>
+                        <div class="form-group">
+                            <label>DNA 서열 (BLAST용)</label>
+                            <textarea class="form-control" id="blastSeq" placeholder="FASTA 또는 raw 서열"></textarea>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-secondary" onclick="openEnsemblBLAST()">Ensembl Plants BLAST</button>
+                            <button class="btn btn-secondary" onclick="openRAPDB()">RAP-DB BLAST</button>
+                        </div>
+                    </div>
+
+                    <!-- 변이 정보 검색 -->
+                    <div class="card">
+                        <div class="card-title">변이 정보 검색</div>
+                        <div class="form-group">
+                            <label>게놈 좌표</label>
+                            <div class="form-inline">
+                                <div class="form-group">
+                                    <label>염색체</label>
+                                    <select class="form-control" id="varChr">
+                                        <option value="1">Chr1</option>
+                                        <option value="2">Chr2</option>
+                                        <option value="3">Chr3</option>
+                                        <option value="4">Chr4</option>
+                                        <option value="5">Chr5</option>
+                                        <option value="6">Chr6</option>
+                                        <option value="7">Chr7</option>
+                                        <option value="8">Chr8</option>
+                                        <option value="9">Chr9</option>
+                                        <option value="10">Chr10</option>
+                                        <option value="11">Chr11</option>
+                                        <option value="12">Chr12</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>시작 위치</label>
+                                    <input type="number" class="form-control" id="varStart" placeholder="1000000">
+                                </div>
+                                <div class="form-group">
+                                    <label>끝 위치</label>
+                                    <input type="number" class="form-control" id="varEnd" placeholder="1001000">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="openRiceVarMap2()">RiceVarMap2에서 확인</button>
+                            <button class="btn btn-outline" onclick="openSNPSeek()">SNP-Seek 열기</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="result-panel">
+                    <div class="card result-area">
+                        <div class="card-title">검색 결과 / 외부 DB 정보</div>
+                        <div id="dbSearchResult">
+                            <div class="empty-state">
+                                <div class="icon">🔗</div>
+                                <p>유전자명, 서열 또는 좌표를 입력하여<br>외부 DB에서 정보를 검색하세요</p>
+                            </div>
+                        </div>
+
+                        <!-- DB 링크 모음 -->
+                        <div class="mt-2">
+                            <div class="card-title" style="font-size: 0.95rem;">주요 벼 유전체 데이터베이스</div>
+                            <div class="db-links" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <a href="https://funricegenes.github.io/" target="_blank" class="btn btn-ghost">funRiceGenes</a>
+                                <a href="https://plants.ensembl.org/Oryza_sativa/" target="_blank" class="btn btn-ghost">Ensembl Plants</a>
+                                <a href="https://rapdb.dna.affrc.go.jp/" target="_blank" class="btn btn-ghost">RAP-DB</a>
+                                <a href="https://ricevarmap.ncpgr.cn/v2/" target="_blank" class="btn btn-ghost">RiceVarMap2</a>
+                                <a href="https://snp-seek.irri.org/" target="_blank" class="btn btn-ghost">SNP-Seek</a>
+                                <a href="https://www.ricedata.cn/" target="_blank" class="btn btn-ghost">RiceData</a>
+                                <a href="https://rice.uga.edu/" target="_blank" class="btn btn-ghost">Rice Genome (MSU)</a>
+                                <a href="https://www.gramene.org/" target="_blank" class="btn btn-ghost">Gramene</a>
                             </div>
                         </div>
                     </div>
@@ -2902,6 +3016,243 @@
                 console.error('클립보드 복사 실패:', err);
                 alert('클립보드 복사에 실패했습니다.');
             });
+        }
+
+        // ========== 외부 DB 연동 함수 ==========
+
+        /**
+         * funRiceGenes 데이터베이스 정보
+         * GitHub: https://github.com/funRiceGenes/funRiceGenes.github.io
+         * Website: https://funricegenes.github.io/
+         */
+        const FUNRICEGENES_DATA = {
+            baseUrl: 'https://funricegenes.github.io',
+            githubApi: 'https://api.github.com/repos/funRiceGenes/funRiceGenes.github.io/contents',
+            // 주요 유전자 정보 (예시 - 실제 사용 시 API 호출 권장)
+            popularGenes: [
+                { symbol: 'SD1', name: 'Semi-dwarf 1', locus: 'LOC_Os01g66100', function: 'Plant height, Gibberellin biosynthesis' },
+                { symbol: 'GW2', name: 'Grain Width 2', locus: 'LOC_Os02g14720', function: 'Grain size regulation' },
+                { symbol: 'Hd1', name: 'Heading date 1', locus: 'LOC_Os06g16370', function: 'Photoperiod sensitivity' },
+                { symbol: 'OsSPL14', name: 'IPA1', locus: 'LOC_Os08g39890', function: 'Ideal plant architecture' },
+                { symbol: 'Ghd7', name: 'Grain number, height, heading 7', locus: 'LOC_Os07g15770', function: 'Yield, heading date' },
+                { symbol: 'Wx', name: 'Waxy', locus: 'LOC_Os06g04200', function: 'Amylose content' },
+                { symbol: 'Pi-ta', name: 'Blast resistance', locus: 'LOC_Os12g18360', function: 'Disease resistance' },
+                { symbol: 'Sub1A', name: 'Submergence 1A', locus: 'LOC_Os09g11480', function: 'Submergence tolerance' },
+                { symbol: 'COLD1', name: 'Cold sensor', locus: 'LOC_Os04g51180', function: 'Cold tolerance' },
+                { symbol: 'OsDREB1A', name: 'Drought responsive', locus: 'LOC_Os09g35030', function: 'Drought/cold tolerance' }
+            ]
+        };
+
+        /**
+         * funRiceGenes 검색
+         */
+        function searchFunRiceGenes() {
+            const query = document.getElementById('geneSearchQuery').value.trim();
+            const searchType = document.querySelector('input[name="searchType"]:checked').value;
+            const resultDiv = document.getElementById('dbSearchResult');
+
+            if (!query) {
+                resultDiv.innerHTML = '<div class="status warning">검색어를 입력하세요.</div>';
+                return;
+            }
+
+            // 로컬 검색 (인기 유전자)
+            const matches = FUNRICEGENES_DATA.popularGenes.filter(gene => {
+                const q = query.toUpperCase();
+                switch(searchType) {
+                    case 'gene':
+                        return gene.symbol.toUpperCase().includes(q) || gene.name.toUpperCase().includes(q);
+                    case 'keyword':
+                        return gene.function.toUpperCase().includes(q);
+                    case 'locus':
+                        return gene.locus.toUpperCase().includes(q);
+                    default:
+                        return gene.symbol.toUpperCase().includes(q);
+                }
+            });
+
+            let html = '';
+
+            if (matches.length > 0) {
+                html += '<div class="status success">로컬 데이터에서 ' + matches.length + '개 결과 발견</div>';
+                html += '<div class="table-container"><table class="data-table">';
+                html += '<thead><tr><th>유전자명</th><th>이름</th><th>유전자좌</th><th>기능</th><th>링크</th></tr></thead>';
+                html += '<tbody>';
+                matches.forEach(gene => {
+                    const funRiceUrl = `${FUNRICEGENES_DATA.baseUrl}/${gene.symbol}/`;
+                    const rapdbUrl = `https://rapdb.dna.affrc.go.jp/locus/?name=${gene.locus}`;
+                    html += `<tr>
+                        <td><strong>${gene.symbol}</strong></td>
+                        <td>${gene.name}</td>
+                        <td><code>${gene.locus}</code></td>
+                        <td>${gene.function}</td>
+                        <td>
+                            <a href="${funRiceUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.25rem 0.5rem; min-height: auto;">funRiceGenes</a>
+                            <a href="${rapdbUrl}" target="_blank" class="btn btn-ghost" style="padding: 0.25rem 0.5rem; min-height: auto;">RAP-DB</a>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html += '<div class="status info">로컬 데이터에서 결과가 없습니다.</div>';
+            }
+
+            // funRiceGenes 사이트 검색 링크
+            html += `
+                <div class="mt-2">
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">
+                        더 많은 결과를 보려면 funRiceGenes 사이트에서 직접 검색하세요:
+                    </p>
+                    <a href="https://funricegenes.github.io/" target="_blank" class="btn btn-primary" style="margin-top: 0.5rem;">
+                        funRiceGenes에서 "${query}" 검색하기
+                    </a>
+                </div>
+            `;
+
+            resultDiv.innerHTML = html;
+        }
+
+        /**
+         * funRiceGenes 사이트 열기
+         */
+        function openFunRiceGenes() {
+            const query = document.getElementById('geneSearchQuery').value.trim();
+            if (query) {
+                window.open(`https://funricegenes.github.io/${query}/`, '_blank');
+            } else {
+                window.open('https://funricegenes.github.io/', '_blank');
+            }
+        }
+
+        /**
+         * Ensembl Plants BLAST 열기
+         */
+        function openEnsemblBLAST() {
+            let seq = document.getElementById('blastSeq').value.trim();
+            seq = cleanSequence(seq);
+
+            if (seq) {
+                // Ensembl BLAST URL with sequence
+                const url = `https://plants.ensembl.org/Oryza_sativa/Tools/Blast?query_sequence=${encodeURIComponent(seq)}`;
+                window.open(url, '_blank');
+            } else {
+                window.open('https://plants.ensembl.org/Oryza_sativa/Tools/Blast', '_blank');
+            }
+
+            const resultDiv = document.getElementById('dbSearchResult');
+            resultDiv.innerHTML = `
+                <div class="status success">Ensembl Plants BLAST 페이지가 열렸습니다.</div>
+                <div class="mt-1">
+                    <p style="font-size: 0.9rem;">
+                        <strong>사용 방법:</strong><br>
+                        1. 서열이 자동 입력되지 않으면 아래 서열을 복사하여 붙여넣기<br>
+                        2. "Run" 버튼 클릭<br>
+                        3. 결과에서 게놈 위치 확인
+                    </p>
+                    ${seq ? `<textarea readonly style="width: 100%; height: 80px; font-family: monospace; font-size: 0.8rem; margin-top: 0.5rem;">${seq}</textarea>` : ''}
+                </div>
+            `;
+        }
+
+        /**
+         * RAP-DB BLAST 열기
+         */
+        function openRAPDB() {
+            window.open('https://rapdb.dna.affrc.go.jp/tools/blast', '_blank');
+
+            const seq = cleanSequence(document.getElementById('blastSeq').value || '');
+            const resultDiv = document.getElementById('dbSearchResult');
+            resultDiv.innerHTML = `
+                <div class="status success">RAP-DB BLAST 페이지가 열렸습니다.</div>
+                <div class="mt-1">
+                    <p style="font-size: 0.9rem;">
+                        <strong>RAP-DB (Rice Annotation Project Database)</strong><br>
+                        일본 벼 유전체 주석 프로젝트 데이터베이스<br>
+                        - IRGSP-1.0 기반 정확한 유전자 주석<br>
+                        - 유전자 기능 정보 제공
+                    </p>
+                    ${seq ? `
+                        <p style="margin-top: 0.5rem;">아래 서열을 복사하여 BLAST에 붙여넣기:</p>
+                        <textarea readonly style="width: 100%; height: 80px; font-family: monospace; font-size: 0.8rem; margin-top: 0.5rem;">${seq}</textarea>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        /**
+         * RiceVarMap2 열기
+         */
+        function openRiceVarMap2() {
+            const chr = document.getElementById('varChr').value;
+            const start = document.getElementById('varStart').value;
+            const end = document.getElementById('varEnd').value;
+
+            let url = 'https://ricevarmap.ncpgr.cn/v2/';
+
+            if (chr && start && end) {
+                // RiceVarMap2 region search format
+                url = `https://ricevarmap.ncpgr.cn/v2/search_snp_region.php?chr=${chr}&start=${start}&end=${end}`;
+            }
+
+            window.open(url, '_blank');
+
+            const resultDiv = document.getElementById('dbSearchResult');
+            resultDiv.innerHTML = `
+                <div class="status success">RiceVarMap2 페이지가 열렸습니다.</div>
+                <div class="mt-1">
+                    <p style="font-size: 0.9rem;">
+                        <strong>RiceVarMap2 정보:</strong><br>
+                        - 3,000+ 벼 품종의 변이 정보<br>
+                        - SNP, InDel 정보 제공<br>
+                        - Japonica, Indica 집단별 allele frequency<br>
+                        - LD (Linkage Disequilibrium) 분석
+                    </p>
+                    ${chr && start && end ? `
+                        <p style="margin-top: 0.5rem;">
+                            <strong>검색 좌표:</strong> Chr${chr}:${start}-${end}
+                        </p>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        /**
+         * SNP-Seek 열기
+         */
+        function openSNPSeek() {
+            const chr = document.getElementById('varChr').value;
+            const start = document.getElementById('varStart').value;
+            const end = document.getElementById('varEnd').value;
+
+            let url = 'https://snp-seek.irri.org/';
+
+            if (chr && start && end) {
+                url = `https://snp-seek.irri.org/_snpseek.zul?chr=${chr}&from=${start}&to=${end}`;
+            }
+
+            window.open(url, '_blank');
+
+            const resultDiv = document.getElementById('dbSearchResult');
+            resultDiv.innerHTML = `
+                <div class="status success">SNP-Seek 페이지가 열렸습니다.</div>
+                <div class="mt-1">
+                    <p style="font-size: 0.9rem;">
+                        <strong>SNP-Seek (IRRI) 정보:</strong><br>
+                        - 3,000 Rice Genomes Project 데이터<br>
+                        - Haplotype 분석<br>
+                        - 품종 간 비교 기능<br>
+                        - Phenotype 연관 정보
+                    </p>
+                </div>
+            `;
+        }
+
+        /**
+         * 유전자 정보를 마커 설계에 활용
+         */
+        function useGeneForMarker(locus) {
+            // RAP-DB API로 서열 조회 (실제 구현 시)
+            alert(`${locus} 유전자 서열을 마커 설계에 활용하려면:\n\n1. RAP-DB에서 서열 다운로드\n2. "신규 설계" 탭으로 이동\n3. 레퍼런스 서열에 붙여넣기`);
         }
     </script>
 </body>
