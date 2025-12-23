@@ -721,7 +721,135 @@
             el.classList.toggle('open');
         }
 
-        // ========== Placeholder Functions (to be implemented) ==========
+        // ========== Tm 계산 (바이오니어 규칙) ==========
+        /**
+         * Nearest-neighbor 파라미터 (SantaLucia 1998)
+         * dH: kcal/mol, dS: cal/(mol·K)
+         */
+        const NN_PARAMS = {
+            'AA': { dH: -7.9,  dS: -22.2 }, 'TT': { dH: -7.9,  dS: -22.2 },
+            'AT': { dH: -7.2,  dS: -20.4 }, 'TA': { dH: -7.2,  dS: -21.3 },
+            'CA': { dH: -8.5,  dS: -22.7 }, 'TG': { dH: -8.5,  dS: -22.7 },
+            'GT': { dH: -8.4,  dS: -22.4 }, 'AC': { dH: -8.4,  dS: -22.4 },
+            'CT': { dH: -7.8,  dS: -21.0 }, 'AG': { dH: -7.8,  dS: -21.0 },
+            'GA': { dH: -8.2,  dS: -22.2 }, 'TC': { dH: -8.2,  dS: -22.2 },
+            'CG': { dH: -10.6, dS: -27.2 }, 'GC': { dH: -9.8,  dS: -24.4 },
+            'GG': { dH: -8.0,  dS: -19.9 }, 'CC': { dH: -8.0,  dS: -19.9 }
+        };
+
+        /**
+         * Tm 계산 (바이오니어 규칙)
+         * @param {string} seq - DNA 서열 (ACGTN)
+         * @param {object} options - { naConc: mM, primerConc: nM }
+         * @returns {number} Tm (°C)
+         */
+        function calculateTm(seq, options = {}) {
+            const naConc = options.naConc || 50;          // Na+ (mM)
+            const primerConc = options.primerConc || 250; // primer (nM)
+
+            seq = seq.toUpperCase().replace(/[^ACGT]/g, '');
+            const len = seq.length;
+
+            if (len === 0) return 0;
+
+            // 15bp 미만: Wallace rule
+            if (len < 15) {
+                const gc = (seq.match(/[GC]/g) || []).length;
+                const at = (seq.match(/[AT]/g) || []).length;
+                return 2 * at + 4 * gc;
+            }
+
+            // 15bp 이상: Nearest-neighbor method
+            // Initiation
+            let dH = 0.1;   // kcal/mol
+            let dS = -2.8;  // cal/(mol·K)
+
+            // Sum NN contributions
+            for (let i = 0; i < len - 1; i++) {
+                const dinuc = seq.substring(i, i + 2);
+                if (NN_PARAMS[dinuc]) {
+                    dH += NN_PARAMS[dinuc].dH;
+                    dS += NN_PARAMS[dinuc].dS;
+                }
+            }
+
+            // Terminal AT penalty
+            if (seq[0] === 'A' || seq[0] === 'T') { dH += 2.3; dS += 4.1; }
+            if (seq[len-1] === 'A' || seq[len-1] === 'T') { dH += 2.3; dS += 4.1; }
+
+            // Salt correction (SantaLucia 1998)
+            const naM = naConc / 1000;
+            dS += 0.368 * (len - 1) * Math.log(naM);
+
+            // Tm calculation
+            const R = 1.987; // Gas constant cal/(mol·K)
+            const primerM = primerConc * 1e-9;
+            const tm = (dH * 1000) / (dS + R * Math.log(primerM / 4)) - 273.15;
+
+            return Math.round(tm * 10) / 10;
+        }
+
+        // ========== 서열 유틸리티 함수 ==========
+        /**
+         * GC 함량 계산
+         */
+        function calculateGC(seq) {
+            seq = seq.toUpperCase().replace(/[^ACGT]/g, '');
+            if (seq.length === 0) return 0;
+            const gc = (seq.match(/[GC]/g) || []).length;
+            return Math.round((gc / seq.length) * 1000) / 10;
+        }
+
+        /**
+         * 역상보 서열
+         */
+        function reverseComplement(seq) {
+            const comp = { 'A':'T', 'T':'A', 'G':'C', 'C':'G', 'N':'N',
+                           'a':'t', 't':'a', 'g':'c', 'c':'g', 'n':'n' };
+            return seq.split('').reverse().map(b => comp[b] || 'N').join('');
+        }
+
+        /**
+         * Poly-X 검사 (연속 동일 염기)
+         */
+        function hasPolyX(seq, maxLen = 4) {
+            const regex = new RegExp(`([ATGC])\\1{${maxLen},}`, 'i');
+            return regex.test(seq);
+        }
+
+        /**
+         * 서열 정리 (FASTA 헤더 제거, 공백 제거)
+         */
+        function cleanSequence(seq) {
+            // FASTA 헤더 제거
+            const lines = seq.trim().split('\n');
+            const seqLines = lines.filter(line => !line.startsWith('>'));
+            return seqLines.join('').replace(/\s/g, '').toUpperCase();
+        }
+
+        /**
+         * 서열 통계
+         */
+        function getSequenceStats(seq) {
+            seq = cleanSequence(seq);
+            const len = seq.length;
+            if (len === 0) return null;
+
+            const counts = { A: 0, T: 0, G: 0, C: 0, N: 0 };
+            for (const base of seq) {
+                if (counts.hasOwnProperty(base)) counts[base]++;
+                else counts.N++;
+            }
+
+            return {
+                length: len,
+                counts: counts,
+                gc: calculateGC(seq),
+                at: Math.round(((counts.A + counts.T) / len) * 1000) / 10
+            };
+        }
+
+        // ========== UI 함수 ==========
         function designMarkers() {
             alert('마커 설계 기능은 다음 단계에서 구현됩니다.');
         }
@@ -737,16 +865,111 @@
             alert('마커 전환 기능은 다음 단계에서 구현됩니다.');
         }
 
+        /**
+         * Tm 계산기 UI
+         */
         function calculateTmUI() {
-            alert('Tm 계산 기능은 다음 단계에서 구현됩니다.');
+            const seq = document.getElementById('tmSeq').value.trim();
+            const naConc = parseFloat(document.getElementById('naConc').value) || 50;
+            const primerConc = parseFloat(document.getElementById('primerConc').value) || 250;
+
+            const cleanSeq = cleanSequence(seq);
+
+            if (cleanSeq.length === 0) {
+                document.getElementById('tmResult').innerHTML =
+                    '<div class="status error">서열을 입력하세요.</div>';
+                return;
+            }
+
+            const tm = calculateTm(cleanSeq, { naConc, primerConc });
+            const gc = calculateGC(cleanSeq);
+            const method = cleanSeq.length < 15 ? 'Wallace rule' : 'Nearest-neighbor';
+
+            document.getElementById('tmResult').innerHTML = `
+                <div class="card" style="margin-top: 1rem;">
+                    <table class="data-table">
+                        <tr><th colspan="2">계산 결과</th></tr>
+                        <tr><td>서열 길이</td><td class="mono">${cleanSeq.length} bp</td></tr>
+                        <tr><td>Tm</td><td class="mono" style="font-weight:bold; color:var(--accent-6);">${tm} °C</td></tr>
+                        <tr><td>GC 함량</td><td class="mono">${gc} %</td></tr>
+                        <tr><td>계산 방법</td><td>${method}</td></tr>
+                        <tr><td>Na+ 농도</td><td class="mono">${naConc} mM</td></tr>
+                        <tr><td>Primer 농도</td><td class="mono">${primerConc} nM</td></tr>
+                    </table>
+                </div>
+            `;
         }
 
+        /**
+         * 역상보 서열 UI
+         */
         function getReverseComplement() {
-            alert('역상보 서열 기능은 다음 단계에서 구현됩니다.');
+            const seq = document.getElementById('seqToolInput').value.trim();
+            const cleanSeq = cleanSequence(seq);
+
+            if (cleanSeq.length === 0) {
+                document.getElementById('seqToolResult').innerHTML =
+                    '<div class="status error">서열을 입력하세요.</div>';
+                return;
+            }
+
+            const rc = reverseComplement(cleanSeq);
+
+            document.getElementById('seqToolResult').innerHTML = `
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-title">역상보 서열 (Reverse Complement)</div>
+                    <div class="form-group">
+                        <label>원본 (5' → 3')</label>
+                        <textarea class="form-control mono" readonly style="min-height:60px;">${cleanSeq}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>역상보 (5' → 3')</label>
+                        <textarea class="form-control mono" readonly style="min-height:60px;">${rc}</textarea>
+                    </div>
+                    <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${rc}')">역상보 서열 복사</button>
+                </div>
+            `;
         }
 
+        /**
+         * 서열 통계 UI
+         */
         function getSeqStats() {
-            alert('서열 통계 기능은 다음 단계에서 구현됩니다.');
+            const seq = document.getElementById('seqToolInput').value.trim();
+            const cleanSeq = cleanSequence(seq);
+
+            if (cleanSeq.length === 0) {
+                document.getElementById('seqToolResult').innerHTML =
+                    '<div class="status error">서열을 입력하세요.</div>';
+                return;
+            }
+
+            const stats = getSequenceStats(cleanSeq);
+            const tm = calculateTm(cleanSeq);
+            const polyX = hasPolyX(cleanSeq, 4);
+
+            document.getElementById('seqToolResult').innerHTML = `
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-title">서열 통계</div>
+                    <table class="data-table">
+                        <tr><td>서열 길이</td><td class="mono">${stats.length} bp</td></tr>
+                        <tr><td>GC 함량</td><td class="mono">${stats.gc} %</td></tr>
+                        <tr><td>AT 함량</td><td class="mono">${stats.at} %</td></tr>
+                        <tr><td>Tm (50mM Na+)</td><td class="mono">${tm} °C</td></tr>
+                        <tr><td>Poly-X (≥5bp)</td><td>${polyX ? '<span style="color:var(--error);">있음</span>' : '<span style="color:var(--success);">없음</span>'}</td></tr>
+                    </table>
+                    <table class="data-table mt-2">
+                        <tr><th>A</th><th>T</th><th>G</th><th>C</th><th>N</th></tr>
+                        <tr class="mono">
+                            <td>${stats.counts.A}</td>
+                            <td>${stats.counts.T}</td>
+                            <td>${stats.counts.G}</td>
+                            <td>${stats.counts.C}</td>
+                            <td>${stats.counts.N}</td>
+                        </tr>
+                    </table>
+                </div>
+            `;
         }
 
         function searchRE() {
