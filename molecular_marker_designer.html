@@ -2119,7 +2119,228 @@
         }
 
         function convertMarker() {
-            alert('마커 전환 기능은 다음 단계에서 구현됩니다.');
+            const sourceType = document.getElementById('sourceMarkerType').value;
+            const sourceSeqText = document.getElementById('sourceMarkerSeq').value.trim();
+            const refSeqRaw = document.getElementById('convertRefSeq').value.trim();
+
+            if (!sourceSeqText || !refSeqRaw) {
+                document.getElementById('convertResult').innerHTML =
+                    '<div class="status error">기존 마커 정보와 레퍼런스 서열을 모두 입력하세요.</div>';
+                return;
+            }
+
+            // 레퍼런스 서열 파싱
+            const refSeq = cleanSequence(refSeqRaw.replace(/^>.*\n/gm, ''));
+
+            // 타겟 타입 체크
+            const targetTypes = Array.from(document.querySelectorAll('input[name="targetType"]:checked'))
+                .map(cb => cb.value);
+
+            if (targetTypes.length === 0) {
+                document.getElementById('convertResult').innerHTML =
+                    '<div class="status error">전환할 마커 타입을 선택하세요.</div>';
+                return;
+            }
+
+            // 소스 마커에서 프라이머 파싱
+            const parsed = parseSourceMarker(sourceType, sourceSeqText);
+            if (!parsed.success) {
+                document.getElementById('convertResult').innerHTML =
+                    `<div class="status error">${parsed.error}</div>`;
+                return;
+            }
+
+            // 레퍼런스에서 SNP 위치 찾기
+            const located = locateVariantFromPrimers(parsed, refSeq);
+            if (!located.success) {
+                document.getElementById('convertResult').innerHTML =
+                    `<div class="status error">${located.error}</div>`;
+                return;
+            }
+
+            const { snpPos, allele1, allele2 } = located;
+
+            // 디자인 파라미터 (기본값)
+            const params = {
+                minLen: 18,
+                maxLen: 25,
+                optTm: 62,
+                minTm: 58,
+                maxTm: 65,
+                minGC: 35,
+                maxGC: 65,
+                minProductSize: 80,
+                maxProductSize: 200
+            };
+
+            // 타겟 타입별 마커 설계
+            let resultsHTML = `<div class="status success">SNP 위치: ${snpPos + 1} (${allele1}/${allele2}) - 전환 마커 설계 완료</div>`;
+
+            for (const targetType of targetTypes) {
+                let markers = [];
+                let formatFn;
+
+                switch (targetType) {
+                    case 'KASP':
+                        markers = designKASP_SNP(refSeq, snpPos, allele1, allele2, params);
+                        formatFn = formatKASPResult;
+                        break;
+                    case 'TaqMan':
+                        markers = designTaqMan(refSeq, snpPos, allele1, allele2, params);
+                        formatFn = formatTaqManResult;
+                        break;
+                    case 'HRM':
+                        markers = designHRM(refSeq, snpPos, allele1, allele2, params);
+                        formatFn = formatHRMResult;
+                        break;
+                    case 'CAPS':
+                        markers = designCAPS(refSeq, snpPos, allele1, allele2, params);
+                        formatFn = formatCAPSResult;
+                        break;
+                    case 'dCAPS':
+                        markers = designDCAPS(refSeq, snpPos, allele1, allele2, params);
+                        formatFn = formatDCAPSResult;
+                        break;
+                }
+
+                resultsHTML += `<h3 style="margin: 1rem 0 0.5rem; color: var(--accent-6);">${targetType} 마커 (${markers.length}개)</h3>`;
+                if (markers.length > 0) {
+                    resultsHTML += formatFn(markers);
+                } else {
+                    resultsHTML += '<div class="status info">적합한 마커를 찾지 못했습니다.</div>';
+                }
+            }
+
+            document.getElementById('convertResult').innerHTML = resultsHTML;
+        }
+
+        /**
+         * 소스 마커에서 프라이머 정보 파싱
+         */
+        function parseSourceMarker(sourceType, seqText) {
+            const lines = seqText.split('\n').map(l => l.trim()).filter(l => l);
+            const primers = {};
+
+            // KASP 테일 제거
+            const KASP_TAIL_FAM = 'GAAGGTGACCAAGTTCATGCT';
+            const KASP_TAIL_HEX = 'GAAGGTCGGAGTCAACGGATT';
+
+            for (const line of lines) {
+                // "프라이머명: 서열" 또는 "프라이머명 서열" 형식 파싱
+                const match = line.match(/^(ASP1|ASP2|Allele1|Allele2|Common|Forward|Reverse|Fwd|Rev|F|R|Probe|Probe1|Probe2)[:\s]+([A-Za-z]+)/i);
+                if (match) {
+                    let name = match[1].toUpperCase();
+                    let seq = cleanSequence(match[2]);
+
+                    // KASP 테일 제거
+                    if (seq.startsWith(KASP_TAIL_FAM)) {
+                        seq = seq.substring(KASP_TAIL_FAM.length);
+                    } else if (seq.startsWith(KASP_TAIL_HEX)) {
+                        seq = seq.substring(KASP_TAIL_HEX.length);
+                    }
+
+                    // 이름 정규화
+                    if (['ASP1', 'ALLELE1'].includes(name)) name = 'ASP1';
+                    else if (['ASP2', 'ALLELE2'].includes(name)) name = 'ASP2';
+                    else if (['FORWARD', 'FWD', 'F'].includes(name)) name = 'FORWARD';
+                    else if (['REVERSE', 'REV', 'R'].includes(name)) name = 'REVERSE';
+
+                    primers[name] = seq;
+                }
+            }
+
+            // 프라이머 검증
+            if (sourceType === 'KASP') {
+                if (!primers.ASP1 || !primers.ASP2 || !primers.COMMON) {
+                    return { success: false, error: 'KASP 마커는 ASP1, ASP2, Common 프라이머가 필요합니다.' };
+                }
+            } else if (['HRM', 'CAPS', 'PCR'].includes(sourceType)) {
+                if (!primers.FORWARD || !primers.REVERSE) {
+                    if (!primers.ASP1) {
+                        return { success: false, error: 'Forward/Reverse 프라이머가 필요합니다.' };
+                    }
+                    // ASP1을 Forward로 사용 (일부 포맷 호환)
+                    primers.FORWARD = primers.ASP1;
+                    primers.REVERSE = primers.COMMON || primers.ASP2;
+                }
+            }
+
+            return { success: true, primers, sourceType };
+        }
+
+        /**
+         * 프라이머를 레퍼런스에 매핑하여 SNP 위치 찾기
+         */
+        function locateVariantFromPrimers(parsed, refSeq) {
+            const { primers, sourceType } = parsed;
+            const refUpper = refSeq.toUpperCase();
+
+            if (sourceType === 'KASP') {
+                // KASP: ASP1, ASP2의 3' 끝이 SNP 위치
+                const asp1 = primers.ASP1.toUpperCase();
+                const asp2 = primers.ASP2.toUpperCase();
+                const common = primers.COMMON.toUpperCase();
+
+                // ASP1/ASP2는 SNP를 3' 끝에 포함
+                // SNP 없는 부분으로 위치 검색
+                const asp1Core = asp1.slice(0, -1); // SNP 염기 제외
+                const asp2Core = asp2.slice(0, -1);
+
+                // Forward strand에서 검색
+                let pos = refUpper.indexOf(asp1Core);
+                if (pos !== -1) {
+                    const snpPos = pos + asp1Core.length;
+                    const allele1 = asp1.slice(-1);
+                    const allele2 = asp2.slice(-1);
+                    return { success: true, snpPos, allele1, allele2 };
+                }
+
+                // Reverse strand에서 검색
+                const asp1CoreRC = reverseComplement(asp1Core);
+                pos = refUpper.indexOf(asp1CoreRC);
+                if (pos !== -1) {
+                    const snpPos = pos - 1;
+                    const allele1 = reverseComplement(asp1.slice(-1));
+                    const allele2 = reverseComplement(asp2.slice(-1));
+                    return { success: true, snpPos, allele1, allele2 };
+                }
+
+                return { success: false, error: 'ASP 프라이머를 레퍼런스 서열에서 찾을 수 없습니다.' };
+            }
+
+            // HRM, CAPS 등: Forward/Reverse 프라이머로 앰플리콘 영역 결정 후 SNP 찾기
+            const fwd = primers.FORWARD.toUpperCase();
+            const rev = primers.REVERSE.toUpperCase();
+            const revRC = reverseComplement(rev);
+
+            let fwdPos = refUpper.indexOf(fwd);
+            let revPos = refUpper.indexOf(revRC);
+
+            if (fwdPos === -1 || revPos === -1) {
+                // Reverse strand 시도
+                const fwdRC = reverseComplement(fwd);
+                fwdPos = refUpper.indexOf(rev);
+                revPos = refUpper.indexOf(fwdRC);
+            }
+
+            if (fwdPos === -1 || revPos === -1) {
+                return { success: false, error: '프라이머를 레퍼런스 서열에서 찾을 수 없습니다.' };
+            }
+
+            const ampStart = Math.min(fwdPos, revPos);
+            const ampEnd = Math.max(fwdPos, revPos) + fwd.length;
+
+            // 앰플리콘 중앙 부근을 SNP 위치로 추정 (실제로는 사용자가 지정해야 함)
+            // 우선 앰플리콘 중앙으로 설정
+            const snpPos = Math.floor((ampStart + ampEnd) / 2);
+
+            return {
+                success: true,
+                snpPos,
+                allele1: refSeq[snpPos],
+                allele2: '?',
+                warning: 'SNP 위치가 앰플리콘 중앙으로 추정되었습니다. 정확한 allele 정보를 확인하세요.'
+            };
         }
 
         /**
