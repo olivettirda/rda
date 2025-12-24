@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>데이터 양식 변환기 | 원본 데이터를 원하는 양식으로</title>
+    <link rel="icon" href="ssallogo.ico" type="image/x-icon">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            /* DMRT 스타일 기반 색상 */
+            --primary-dark: #0c3026;
+            --primary-main: #017f97;
+            --primary-light: #e8f4f8;
+
+            /* 배경 색상 */
+            --bg-page: #ffffff;
+            --bg-card: #f8f9fa;
+            --bg-input: #ffffff;
+
+            /* 텍스트 색상 */
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-placeholder: #adb5bd;
+            --text-disabled: #ced4da;
+
+            /* 상태 색상 */
+            --success: #28a745;
+            --warning: #ffc107;
+            --error: #dc3545;
+            --info: #17a2b8;
+
+            /* 테두리 */
+            --border-default: #dee2e6;
+            --border-focus: #017f97;
+
+            /* 간격 */
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'KoPub Dotum', 'Malgun Gothic', sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-4);
+        }
+
+        /* 헤더 */
+        header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
+            color: white;
+            padding: var(--space-6) var(--space-4);
+            margin-bottom: var(--space-6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--space-4);
+        }
+
+        .header-left h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .header-left p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: var(--space-1);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        /* 버튼 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            min-height: 44px;
+            padding: var(--space-3) var(--space-5);
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-dark);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0a2820;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(12, 48, 38, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #016980;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid currentColor;
+            color: white;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--primary-main);
+        }
+
+        .btn-ghost:hover {
+            background: var(--primary-light);
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            min-height: 36px;
+            padding: var(--space-2) var(--space-3);
+            font-size: 0.85rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 메인 레이아웃 */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-6);
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 카드 */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: var(--space-5);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-main);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        /* 파일 업로드 영역 */
+        .upload-zone {
+            border: 2px dashed var(--border-default);
+            border-radius: 8px;
+            padding: var(--space-8);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-input);
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .upload-zone.uploaded {
+            border-color: var(--success);
+            border-style: solid;
+            background: rgba(40, 167, 69, 0.05);
+        }
+
+        .upload-zone input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: var(--space-3);
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .upload-hint {
+            font-size: 0.8rem;
+            color: var(--text-placeholder);
+            margin-top: var(--space-2);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .file-info .icon {
+            font-size: 2rem;
+        }
+
+        .file-info .details {
+            text-align: left;
+        }
+
+        .file-info .name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .file-info .meta {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* 시트 선택 */
+        .sheet-selector {
+            margin-top: var(--space-4);
+            display: none;
+        }
+
+        .sheet-selector.show {
+            display: block;
+        }
+
+        .sheet-selector label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: var(--space-2);
+            color: var(--text-secondary);
+        }
+
+        .sheet-selector select {
+            width: 100%;
+            padding: var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: var(--bg-input);
+        }
+
+        .sheet-selector select:focus {
+            outline: none;
+            border-color: var(--border-focus);
+        }
+
+        /* 데이터 테이블 미리보기 */
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            min-width: 100%;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: var(--space-3);
+            text-align: left;
+            border-bottom: 1px solid var(--border-default);
+            white-space: nowrap;
+        }
+
+        .data-table th {
+            background: var(--primary-light);
+            font-weight: 500;
+            color: var(--primary-dark);
+            position: sticky;
+            top: 0;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(1, 127, 151, 0.05);
+        }
+
+        /* 필드 구성 영역 */
+        .field-list {
+            min-height: 200px;
+        }
+
+        .field-item {
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: var(--space-4);
+            margin-bottom: var(--space-3);
+            transition: all 0.2s ease;
+            cursor: move;
+        }
+
+        .field-item:hover {
+            border-color: var(--primary-main);
+            box-shadow: 0 2px 8px rgba(1, 127, 151, 0.1);
+        }
+
+        .field-item.dragging {
+            opacity: 0.5;
+            border-style: dashed;
+        }
+
+        .field-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-2);
+        }
+
+        .field-icon {
+            font-size: 1rem;
+        }
+
+        .field-name {
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .field-type-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            background: var(--primary-light);
+            color: var(--primary-main);
+            border-radius: 10px;
+        }
+
+        .field-delete {
+            background: none;
+            border: none;
+            color: var(--text-placeholder);
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: var(--space-1);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .field-delete:hover {
+            background: rgba(220, 53, 69, 0.1);
+            color: var(--error);
+        }
+
+        .field-value {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            padding-left: 1.5rem;
+            font-family: 'D2Coding', monospace;
+        }
+
+        .field-value.template {
+            color: var(--primary-main);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: var(--space-8);
+            color: var(--text-placeholder);
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: var(--space-3);
+        }
+
+        /* 필드 추가 모달 */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.open .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-5);
+            border-bottom: 1px solid var(--border-default);
+            background: var(--bg-card);
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: var(--space-1);
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: var(--space-5);
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--space-3);
+            padding: var(--space-4) var(--space-5);
+            border-top: 1px solid var(--border-default);
+            background: var(--bg-card);
+        }
+
+        /* 폼 요소 */
+        .form-group {
+            margin-bottom: var(--space-4);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: var(--space-2);
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(1, 127, 151, 0.15);
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            padding: var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .radio-item:hover {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .radio-item.selected {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .radio-item input[type="radio"] {
+            margin-top: 3px;
+            accent-color: var(--primary-main);
+        }
+
+        .radio-item .radio-content {
+            flex: 1;
+        }
+
+        .radio-item .radio-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .radio-item .radio-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .source-options {
+            margin-top: var(--space-3);
+            padding: var(--space-3);
+            background: var(--bg-card);
+            border-radius: 6px;
+            display: none;
+        }
+
+        .source-options.show {
+            display: block;
+        }
+
+        /* 조건부 값 설정 */
+        .condition-builder {
+            display: none;
+        }
+
+        .condition-builder.show {
+            display: block;
+        }
+
+        .condition-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            align-items: center;
+            padding: var(--space-3);
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-bottom: var(--space-2);
+        }
+
+        .condition-row select,
+        .condition-row input {
+            padding: var(--space-2);
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: inherit;
+        }
+
+        .condition-row .col-select {
+            width: 120px;
+        }
+
+        .condition-row .op-select {
+            width: 100px;
+        }
+
+        .condition-row .value-input {
+            width: 100px;
+            flex: 1;
+        }
+
+        .condition-row .result-input {
+            width: 100px;
+            flex: 1;
+        }
+
+        .condition-row .arrow {
+            color: var(--text-secondary);
+        }
+
+        .condition-delete {
+            background: none;
+            border: none;
+            color: var(--error);
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        /* 결과 영역 */
+        .result-section {
+            margin-top: var(--space-6);
+        }
+
+        .result-actions {
+            display: flex;
+            gap: var(--space-3);
+            flex-wrap: wrap;
+        }
+
+        /* 알림 토스트 */
+        .toast-container {
+            position: fixed;
+            top: var(--space-4);
+            right: var(--space-4);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 300px;
+            max-width: 400px;
+            padding: var(--space-4);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast-error {
+            border-left: 4px solid var(--error);
+        }
+
+        .toast-info {
+            border-left: 4px solid var(--info);
+        }
+
+        /* 템플릿 입력 */
+        .template-input-wrapper {
+            position: relative;
+        }
+
+        .template-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-1);
+        }
+
+        .template-hint code {
+            background: var(--bg-card);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: 'D2Coding', monospace;
+        }
+
+        /* 양식 저장/불러오기 */
+        .template-manager {
+            display: flex;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        .saved-templates {
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--border-default);
+        }
+
+        .saved-templates h4 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .template-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-3);
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            margin-bottom: var(--space-2);
+        }
+
+        .template-item .name {
+            font-weight: 500;
+        }
+
+        .template-item .actions {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        /* 필드 순서 이동 버튼 */
+        .field-move-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .field-move-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-placeholder);
+            font-size: 0.8rem;
+            padding: 2px;
+            line-height: 1;
+        }
+
+        .field-move-btn:hover {
+            color: var(--primary-main);
+        }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .condition-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .condition-row select,
+            .condition-row input {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>📋 데이터 양식 변환기</h1>
+                <p>원본 데이터를 원하는 양식으로 변환하세요</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline" onclick="openLoadTemplateModal()">📂 양식 불러오기</button>
+                <button class="btn btn-outline" onclick="saveTemplate()">💾 양식 저장</button>
+            </div>
+        </header>
+
+        <div class="main-layout">
+            <!-- 왼쪽: 파일 업로드 & 원본 미리보기 -->
+            <div class="left-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">📤 1. 파일 업로드</div>
+                    </div>
+
+                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" onchange="handleFileUpload(event)">
+                        <div id="uploadPlaceholder">
+                            <div class="upload-icon">📁</div>
+                            <div class="upload-text">클릭하거나 파일을 드래그하세요</div>
+                            <div class="upload-hint">.xlsx, .xls, .csv 지원</div>
+                        </div>
+                        <div id="fileInfo" class="file-info" style="display: none;">
+                            <span class="icon">✅</span>
+                            <div class="details">
+                                <div class="name" id="fileName"></div>
+                                <div class="meta" id="fileMeta"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sheet-selector" id="sheetSelector">
+                        <label>시트 선택</label>
+                        <select id="sheetSelect" onchange="selectSheet(this.value)"></select>
+                    </div>
+                </div>
+
+                <div class="card" id="previewCard" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-title">👀 원본 데이터 미리보기</div>
+                        <span id="dataInfo" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table" id="previewTable">
+                            <thead id="previewHead"></thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 양식 구성 -->
+            <div class="right-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔧 2. 양식 구성</div>
+                        <button class="btn btn-secondary btn-sm" onclick="openAddFieldModal()">+ 필드 추가</button>
+                    </div>
+
+                    <div class="field-list" id="fieldList">
+                        <div class="empty-state" id="emptyState">
+                            <div class="icon">📝</div>
+                            <div>아직 추가된 필드가 없습니다</div>
+                            <div style="font-size: 0.85rem; margin-top: 0.5rem;">위의 [+ 필드 추가] 버튼을 클릭하세요</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 결과 영역 -->
+        <div class="result-section card" id="resultSection" style="display: none;">
+            <div class="card-header">
+                <div class="card-title">📊 3. 변환 결과</div>
+                <div class="result-actions">
+                    <button class="btn btn-primary" onclick="downloadExcel()">📥 엑셀 다운로드</button>
+                    <button class="btn btn-ghost" onclick="copyToClipboard()">📋 클립보드 복사</button>
+                </div>
+            </div>
+            <div class="table-wrapper" style="max-height: 400px;">
+                <table class="data-table" id="resultTable">
+                    <thead id="resultHead"></thead>
+                    <tbody id="resultBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 필드 추가 모달 -->
+    <div class="modal-overlay" id="addFieldModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">필드 추가</div>
+                <button class="modal-close" onclick="closeAddFieldModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">필드명 <span style="color: var(--error);">*</span></label>
+                    <input type="text" class="form-input" id="fieldName" placeholder="예: 소속">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">데이터 소스</label>
+                    <div class="radio-group" id="sourceTypeGroup">
+                        <label class="radio-item" data-type="mapping">
+                            <input type="radio" name="sourceType" value="mapping" checked>
+                            <div class="radio-content">
+                                <div class="radio-title">원본 컬럼에서 가져오기</div>
+                                <div class="radio-desc">원본 데이터의 특정 컬럼 값을 그대로 사용</div>
+                            </div>
+                        </label>
+                        <label class="radio-item" data-type="fixed">
+                            <input type="radio" name="sourceType" value="fixed">
+                            <div class="radio-content">
+                                <div class="radio-title">고정값 입력</div>
+                                <div class="radio-desc">모든 행에 동일한 값 적용</div>
+                            </div>
+                        </label>
+                        <label class="radio-item" data-type="template">
+                            <input type="radio" name="sourceType" value="template">
+                            <div class="radio-content">
+                                <div class="radio-title">조합 (여러 컬럼 합치기)</div>
+                                <div class="radio-desc">{컬럼명} 형식으로 여러 값을 조합</div>
+                            </div>
+                        </label>
+                        <label class="radio-item" data-type="conditional">
+                            <input type="radio" name="sourceType" value="conditional">
+                            <div class="radio-content">
+                                <div class="radio-title">조건부 값</div>
+                                <div class="radio-desc">조건에 따라 다른 값 적용</div>
+                            </div>
+                        </label>
+                        <label class="radio-item" data-type="autoNumber">
+                            <input type="radio" name="sourceType" value="autoNumber">
+                            <div class="radio-content">
+                                <div class="radio-title">자동 번호</div>
+                                <div class="radio-desc">1부터 순차적으로 증가하는 번호</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 원본 컬럼 매핑 옵션 -->
+                <div class="source-options show" id="mappingOptions">
+                    <label class="form-label">원본 컬럼 선택</label>
+                    <select class="form-select" id="mappingColumn">
+                        <option value="">컬럼을 선택하세요</option>
+                    </select>
+                </div>
+
+                <!-- 고정값 옵션 -->
+                <div class="source-options" id="fixedOptions">
+                    <label class="form-label">고정값 입력</label>
+                    <input type="text" class="form-input" id="fixedValue" placeholder="예: 국립식량과학원">
+                </div>
+
+                <!-- 템플릿 조합 옵션 -->
+                <div class="source-options" id="templateOptions">
+                    <label class="form-label">템플릿 입력</label>
+                    <div class="template-input-wrapper">
+                        <input type="text" class="form-input" id="templateValue" placeholder="예: {성명}({생년월일})">
+                        <div class="template-hint">
+                            <code>{컬럼명}</code> 형식으로 원본 컬럼 값을 참조하세요
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 조건부 값 옵션 -->
+                <div class="source-options" id="conditionalOptions">
+                    <label class="form-label">조건 설정</label>
+                    <div id="conditionList"></div>
+                    <button class="btn btn-ghost btn-sm" onclick="addCondition()" style="margin-top: var(--space-2);">+ 조건 추가</button>
+                    <div class="form-group" style="margin-top: var(--space-3);">
+                        <label class="form-label">기본값 (조건 미충족 시)</label>
+                        <input type="text" class="form-input" id="conditionalDefault" placeholder="예: 농업연구사">
+                    </div>
+                </div>
+
+                <!-- 자동번호 옵션 -->
+                <div class="source-options" id="autoNumberOptions">
+                    <label class="form-label">시작 번호</label>
+                    <input type="number" class="form-input" id="autoNumberStart" value="1" min="1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeAddFieldModal()">취소</button>
+                <button class="btn btn-primary" onclick="addField()">추가</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 양식 불러오기 모달 -->
+    <div class="modal-overlay" id="loadTemplateModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">저장된 양식 불러오기</div>
+                <button class="modal-close" onclick="closeLoadTemplateModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="savedTemplateList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeLoadTemplateModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 컨테이너 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // 전역 상태
+        let workbook = null;
+        let currentSheetData = [];
+        let columns = [];
+        let fields = [];
+        let editingFieldIndex = -1;
+
+        // 파일 업로드 처리
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    workbook = XLSX.read(e.target.result, { type: 'array' });
+
+                    // 파일 정보 표시
+                    document.getElementById('uploadPlaceholder').style.display = 'none';
+                    document.getElementById('fileInfo').style.display = 'flex';
+                    document.getElementById('fileName').textContent = file.name;
+                    document.getElementById('fileMeta').textContent = `${workbook.SheetNames.length}개 시트`;
+                    document.getElementById('uploadZone').classList.add('uploaded');
+
+                    // 시트 선택기
+                    if (workbook.SheetNames.length > 1) {
+                        const sheetSelect = document.getElementById('sheetSelect');
+                        sheetSelect.innerHTML = workbook.SheetNames.map(name =>
+                            `<option value="${name}">${name}</option>`
+                        ).join('');
+                        document.getElementById('sheetSelector').classList.add('show');
+                    }
+
+                    // 첫 번째 시트 로드
+                    selectSheet(workbook.SheetNames[0]);
+
+                    showToast('파일이 성공적으로 업로드되었습니다.', 'success');
+                } catch (err) {
+                    showToast('파일을 읽는 중 오류가 발생했습니다.', 'error');
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 시트 선택
+        function selectSheet(sheetName) {
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            if (jsonData.length < 1) {
+                showToast('시트에 데이터가 없습니다.', 'error');
+                return;
+            }
+
+            columns = jsonData[0].map(col => String(col || '').trim());
+            currentSheetData = jsonData.slice(1).map(row => {
+                const obj = {};
+                columns.forEach((col, i) => {
+                    obj[col] = row[i] !== undefined ? row[i] : '';
+                });
+                return obj;
+            });
+
+            // 미리보기 테이블 업데이트
+            updatePreviewTable();
+
+            // 매핑 컬럼 옵션 업데이트
+            updateMappingColumnOptions();
+        }
+
+        // 미리보기 테이블 업데이트
+        function updatePreviewTable() {
+            const previewCard = document.getElementById('previewCard');
+            const previewHead = document.getElementById('previewHead');
+            const previewBody = document.getElementById('previewBody');
+            const dataInfo = document.getElementById('dataInfo');
+
+            previewCard.style.display = 'block';
+            dataInfo.textContent = `총 ${currentSheetData.length}행, ${columns.length}열`;
+
+            // 헤더
+            previewHead.innerHTML = `<tr>${columns.map(col => `<th>${col}</th>`).join('')}</tr>`;
+
+            // 바디 (상위 10행만 표시)
+            const previewRows = currentSheetData.slice(0, 10);
+            previewBody.innerHTML = previewRows.map(row =>
+                `<tr>${columns.map(col => `<td>${row[col] !== undefined ? row[col] : ''}</td>`).join('')}</tr>`
+            ).join('');
+
+            if (currentSheetData.length > 10) {
+                previewBody.innerHTML += `<tr><td colspan="${columns.length}" style="text-align: center; color: var(--text-secondary);">... 외 ${currentSheetData.length - 10}행</td></tr>`;
+            }
+        }
+
+        // 매핑 컬럼 옵션 업데이트
+        function updateMappingColumnOptions() {
+            const mappingColumn = document.getElementById('mappingColumn');
+            mappingColumn.innerHTML = '<option value="">컬럼을 선택하세요</option>' +
+                columns.map(col => `<option value="${col}">${col}</option>`).join('');
+        }
+
+        // 드래그 앤 드롭
+        const uploadZone = document.getElementById('uploadZone');
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                document.getElementById('fileInput').files = e.dataTransfer.files;
+                handleFileUpload({ target: { files: [file] } });
+            }
+        });
+
+        // 필드 추가 모달
+        function openAddFieldModal() {
+            if (columns.length === 0) {
+                showToast('먼저 파일을 업로드하세요.', 'error');
+                return;
+            }
+            document.getElementById('addFieldModal').classList.add('open');
+            document.getElementById('fieldName').focus();
+            resetFieldModal();
+        }
+
+        function closeAddFieldModal() {
+            document.getElementById('addFieldModal').classList.remove('open');
+            editingFieldIndex = -1;
+        }
+
+        function resetFieldModal() {
+            document.getElementById('fieldName').value = '';
+            document.getElementById('mappingColumn').value = '';
+            document.getElementById('fixedValue').value = '';
+            document.getElementById('templateValue').value = '';
+            document.getElementById('conditionalDefault').value = '';
+            document.getElementById('autoNumberStart').value = '1';
+            document.getElementById('conditionList').innerHTML = '';
+
+            // 라디오 버튼 초기화
+            document.querySelector('input[name="sourceType"][value="mapping"]').checked = true;
+            updateSourceOptions('mapping');
+        }
+
+        // 라디오 버튼 이벤트
+        document.querySelectorAll('input[name="sourceType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                updateSourceOptions(e.target.value);
+            });
+        });
+
+        function updateSourceOptions(type) {
+            // 모든 옵션 숨기기
+            document.querySelectorAll('.source-options').forEach(el => el.classList.remove('show'));
+            document.querySelectorAll('.radio-item').forEach(el => el.classList.remove('selected'));
+
+            // 선택된 옵션 표시
+            document.getElementById(type + 'Options').classList.add('show');
+            document.querySelector(`.radio-item[data-type="${type}"]`).classList.add('selected');
+        }
+
+        // 조건 추가
+        function addCondition() {
+            const conditionList = document.getElementById('conditionList');
+            const conditionId = Date.now();
+
+            const conditionHtml = `
+                <div class="condition-row" id="condition_${conditionId}">
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">IF</span>
+                    <select class="col-select" onchange="updateConditionColumn(this)">
+                        <option value="">컬럼</option>
+                        ${columns.map(col => `<option value="${col}">${col}</option>`).join('')}
+                    </select>
+                    <select class="op-select">
+                        <option value="equals">같음 (=)</option>
+                        <option value="contains">포함</option>
+                        <option value="startsWith">시작</option>
+                        <option value="endsWith">끝남</option>
+                        <option value="in">목록에 포함</option>
+                        <option value="notEquals">같지 않음</option>
+                    </select>
+                    <input type="text" class="value-input" placeholder="비교값">
+                    <span class="arrow">→</span>
+                    <input type="text" class="result-input" placeholder="결과값">
+                    <button class="condition-delete" onclick="removeCondition(${conditionId})">&times;</button>
+                </div>
+            `;
+            conditionList.insertAdjacentHTML('beforeend', conditionHtml);
+        }
+
+        function removeCondition(id) {
+            document.getElementById('condition_' + id).remove();
+        }
+
+        // 필드 추가
+        function addField() {
+            const name = document.getElementById('fieldName').value.trim();
+            if (!name) {
+                showToast('필드명을 입력하세요.', 'error');
+                return;
+            }
+
+            const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+            const field = { id: 'field_' + Date.now(), name, type: sourceType };
+
+            switch (sourceType) {
+                case 'mapping':
+                    const mappingCol = document.getElementById('mappingColumn').value;
+                    if (!mappingCol) {
+                        showToast('원본 컬럼을 선택하세요.', 'error');
+                        return;
+                    }
+                    field.sourceColumn = mappingCol;
+                    break;
+
+                case 'fixed':
+                    const fixedVal = document.getElementById('fixedValue').value;
+                    if (!fixedVal) {
+                        showToast('고정값을 입력하세요.', 'error');
+                        return;
+                    }
+                    field.value = fixedVal;
+                    break;
+
+                case 'template':
+                    const templateVal = document.getElementById('templateValue').value;
+                    if (!templateVal) {
+                        showToast('템플릿을 입력하세요.', 'error');
+                        return;
+                    }
+                    field.template = templateVal;
+                    break;
+
+                case 'conditional':
+                    const conditions = [];
+                    document.querySelectorAll('#conditionList .condition-row').forEach(row => {
+                        const col = row.querySelector('.col-select').value;
+                        const op = row.querySelector('.op-select').value;
+                        const val = row.querySelector('.value-input').value;
+                        const result = row.querySelector('.result-input').value;
+
+                        if (col && val && result) {
+                            conditions.push({
+                                column: col,
+                                operator: op,
+                                value: op === 'in' ? val.split(',').map(v => v.trim()) : val,
+                                result: result
+                            });
+                        }
+                    });
+
+                    if (conditions.length === 0) {
+                        showToast('최소 하나의 조건을 설정하세요.', 'error');
+                        return;
+                    }
+                    field.conditions = conditions;
+                    field.default = document.getElementById('conditionalDefault').value || '';
+                    break;
+
+                case 'autoNumber':
+                    field.startFrom = parseInt(document.getElementById('autoNumberStart').value) || 1;
+                    break;
+            }
+
+            if (editingFieldIndex >= 0) {
+                fields[editingFieldIndex] = field;
+            } else {
+                fields.push(field);
+            }
+
+            renderFields();
+            closeAddFieldModal();
+            updateResult();
+            showToast('필드가 추가되었습니다.', 'success');
+        }
+
+        // 필드 렌더링
+        function renderFields() {
+            const fieldList = document.getElementById('fieldList');
+            const emptyState = document.getElementById('emptyState');
+
+            if (fields.length === 0) {
+                emptyState.style.display = 'block';
+                fieldList.innerHTML = '';
+                fieldList.appendChild(emptyState);
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            fieldList.innerHTML = fields.map((field, index) => {
+                let typeLabel = '';
+                let valueDisplay = '';
+
+                switch (field.type) {
+                    case 'mapping':
+                        typeLabel = '매핑';
+                        valueDisplay = `← ${field.sourceColumn}`;
+                        break;
+                    case 'fixed':
+                        typeLabel = '고정값';
+                        valueDisplay = `"${field.value}"`;
+                        break;
+                    case 'template':
+                        typeLabel = '조합';
+                        valueDisplay = `<span class="template">${field.template}</span>`;
+                        break;
+                    case 'conditional':
+                        typeLabel = '조건부';
+                        valueDisplay = `${field.conditions.length}개 조건`;
+                        break;
+                    case 'autoNumber':
+                        typeLabel = '자동번호';
+                        valueDisplay = `${field.startFrom}부터 시작`;
+                        break;
+                }
+
+                return `
+                    <div class="field-item" draggable="true" data-index="${index}">
+                        <div class="field-header">
+                            <div class="field-move-btns">
+                                <button class="field-move-btn" onclick="moveField(${index}, -1)" ${index === 0 ? 'disabled' : ''}>▲</button>
+                                <button class="field-move-btn" onclick="moveField(${index}, 1)" ${index === fields.length - 1 ? 'disabled' : ''}>▼</button>
+                            </div>
+                            <span class="field-icon">📌</span>
+                            <span class="field-name">${field.name}</span>
+                            <span class="field-type-badge">${typeLabel}</span>
+                            <button class="field-delete" onclick="deleteField(${index})">✕</button>
+                        </div>
+                        <div class="field-value">${valueDisplay}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // 드래그 앤 드롭 이벤트
+            setupFieldDragDrop();
+        }
+
+        // 필드 드래그 앤 드롭
+        function setupFieldDragDrop() {
+            const fieldItems = document.querySelectorAll('.field-item');
+            let draggedItem = null;
+
+            fieldItems.forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    draggedItem = item;
+                    item.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging');
+                    draggedItem = null;
+                });
+
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    if (draggedItem && draggedItem !== item) {
+                        const rect = item.getBoundingClientRect();
+                        const midY = rect.top + rect.height / 2;
+
+                        if (e.clientY < midY) {
+                            item.parentNode.insertBefore(draggedItem, item);
+                        } else {
+                            item.parentNode.insertBefore(draggedItem, item.nextSibling);
+                        }
+                    }
+                });
+
+                item.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    // 필드 순서 업데이트
+                    const newOrder = [];
+                    document.querySelectorAll('.field-item').forEach(el => {
+                        const idx = parseInt(el.dataset.index);
+                        newOrder.push(fields[idx]);
+                    });
+                    fields = newOrder;
+                    renderFields();
+                    updateResult();
+                });
+            });
+        }
+
+        // 필드 이동
+        function moveField(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= fields.length) return;
+
+            [fields[index], fields[newIndex]] = [fields[newIndex], fields[index]];
+            renderFields();
+            updateResult();
+        }
+
+        // 필드 삭제
+        function deleteField(index) {
+            fields.splice(index, 1);
+            renderFields();
+            updateResult();
+            showToast('필드가 삭제되었습니다.', 'info');
+        }
+
+        // 결과 업데이트
+        function updateResult() {
+            if (fields.length === 0 || currentSheetData.length === 0) {
+                document.getElementById('resultSection').style.display = 'none';
+                return;
+            }
+
+            const resultSection = document.getElementById('resultSection');
+            const resultHead = document.getElementById('resultHead');
+            const resultBody = document.getElementById('resultBody');
+
+            resultSection.style.display = 'block';
+
+            // 헤더
+            resultHead.innerHTML = `<tr>${fields.map(f => `<th>${f.name}</th>`).join('')}</tr>`;
+
+            // 바디
+            const transformedData = transformData();
+            resultBody.innerHTML = transformedData.slice(0, 20).map(row =>
+                `<tr>${fields.map(f => `<td>${row[f.name] !== undefined ? row[f.name] : ''}</td>`).join('')}</tr>`
+            ).join('');
+
+            if (transformedData.length > 20) {
+                resultBody.innerHTML += `<tr><td colspan="${fields.length}" style="text-align: center; color: var(--text-secondary);">... 외 ${transformedData.length - 20}행</td></tr>`;
+            }
+        }
+
+        // 데이터 변환
+        function transformData() {
+            const result = [];
+            let autoNumberCounter = {};
+
+            // 자동번호 초기화
+            fields.forEach(f => {
+                if (f.type === 'autoNumber') {
+                    autoNumberCounter[f.id] = f.startFrom || 1;
+                }
+            });
+
+            currentSheetData.forEach((row, rowIndex) => {
+                const newRow = {};
+
+                fields.forEach(field => {
+                    let value = '';
+
+                    switch (field.type) {
+                        case 'mapping':
+                            value = row[field.sourceColumn] !== undefined ? row[field.sourceColumn] : '';
+                            break;
+
+                        case 'fixed':
+                            value = field.value;
+                            break;
+
+                        case 'template':
+                            value = field.template.replace(/\{([^}]+)\}/g, (match, colName) => {
+                                return row[colName] !== undefined ? row[colName] : '';
+                            });
+                            break;
+
+                        case 'conditional':
+                            value = field.default || '';
+                            for (const cond of field.conditions) {
+                                const cellValue = String(row[cond.column] || '');
+                                let matched = false;
+
+                                switch (cond.operator) {
+                                    case 'equals':
+                                        matched = cellValue === cond.value;
+                                        break;
+                                    case 'notEquals':
+                                        matched = cellValue !== cond.value;
+                                        break;
+                                    case 'contains':
+                                        matched = cellValue.includes(cond.value);
+                                        break;
+                                    case 'startsWith':
+                                        matched = cellValue.startsWith(cond.value);
+                                        break;
+                                    case 'endsWith':
+                                        matched = cellValue.endsWith(cond.value);
+                                        break;
+                                    case 'in':
+                                        matched = Array.isArray(cond.value) && cond.value.includes(cellValue);
+                                        break;
+                                }
+
+                                if (matched) {
+                                    value = cond.result;
+                                    break;
+                                }
+                            }
+                            break;
+
+                        case 'autoNumber':
+                            value = autoNumberCounter[field.id]++;
+                            break;
+                    }
+
+                    newRow[field.name] = value;
+                });
+
+                result.push(newRow);
+            });
+
+            return result;
+        }
+
+        // 엑셀 다운로드
+        function downloadExcel() {
+            const data = transformData();
+            if (data.length === 0) {
+                showToast('변환할 데이터가 없습니다.', 'error');
+                return;
+            }
+
+            const headers = fields.map(f => f.name);
+            const wsData = [headers];
+
+            data.forEach(row => {
+                wsData.push(headers.map(h => row[h]));
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '변환결과');
+
+            const fileName = `변환결과_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+
+            showToast('엑셀 파일이 다운로드되었습니다.', 'success');
+        }
+
+        // 클립보드 복사
+        function copyToClipboard() {
+            const data = transformData();
+            if (data.length === 0) {
+                showToast('복사할 데이터가 없습니다.', 'error');
+                return;
+            }
+
+            const headers = fields.map(f => f.name);
+            let text = headers.join('\t') + '\n';
+
+            data.forEach(row => {
+                text += headers.map(h => row[h]).join('\t') + '\n';
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('클립보드에 복사되었습니다.', 'success');
+            }).catch(() => {
+                showToast('복사에 실패했습니다.', 'error');
+            });
+        }
+
+        // 양식 저장
+        function saveTemplate() {
+            if (fields.length === 0) {
+                showToast('저장할 필드가 없습니다.', 'error');
+                return;
+            }
+
+            const name = prompt('양식 이름을 입력하세요:', '새 양식');
+            if (!name) return;
+
+            const templates = JSON.parse(localStorage.getItem('dataFormatTemplates') || '[]');
+
+            const template = {
+                id: 'template_' + Date.now(),
+                name: name,
+                fields: fields,
+                createdAt: new Date().toISOString()
+            };
+
+            templates.push(template);
+            localStorage.setItem('dataFormatTemplates', JSON.stringify(templates));
+
+            showToast('양식이 저장되었습니다.', 'success');
+        }
+
+        // 양식 불러오기 모달
+        function openLoadTemplateModal() {
+            const templates = JSON.parse(localStorage.getItem('dataFormatTemplates') || '[]');
+            const listEl = document.getElementById('savedTemplateList');
+
+            if (templates.length === 0) {
+                listEl.innerHTML = '<div class="empty-state"><div class="icon">📭</div><div>저장된 양식이 없습니다</div></div>';
+            } else {
+                listEl.innerHTML = templates.map(t => `
+                    <div class="template-item">
+                        <div>
+                            <div class="name">${t.name}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">${t.fields.length}개 필드 | ${new Date(t.createdAt).toLocaleDateString()}</div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-sm btn-secondary" onclick="loadTemplate('${t.id}')">불러오기</button>
+                            <button class="btn btn-sm btn-ghost" onclick="deleteTemplate('${t.id}')" style="color: var(--error);">삭제</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('loadTemplateModal').classList.add('open');
+        }
+
+        function closeLoadTemplateModal() {
+            document.getElementById('loadTemplateModal').classList.remove('open');
+        }
+
+        // 양식 불러오기
+        function loadTemplate(id) {
+            const templates = JSON.parse(localStorage.getItem('dataFormatTemplates') || '[]');
+            const template = templates.find(t => t.id === id);
+
+            if (template) {
+                fields = JSON.parse(JSON.stringify(template.fields));
+                renderFields();
+                updateResult();
+                closeLoadTemplateModal();
+                showToast('양식을 불러왔습니다.', 'success');
+            }
+        }
+
+        // 양식 삭제
+        function deleteTemplate(id) {
+            if (!confirm('이 양식을 삭제하시겠습니까?')) return;
+
+            let templates = JSON.parse(localStorage.getItem('dataFormatTemplates') || '[]');
+            templates = templates.filter(t => t.id !== id);
+            localStorage.setItem('dataFormatTemplates', JSON.stringify(templates));
+
+            openLoadTemplateModal(); // 목록 새로고침
+            showToast('양식이 삭제되었습니다.', 'info');
+        }
+
+        // 토스트 알림
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            renderFields();
+        });
+    </script>
+</body>
+</html>
