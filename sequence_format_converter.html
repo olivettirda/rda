@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시퀀스 포맷 변환기 | Sequence Format Converter</title>
+    <link rel="icon" href="ssallogo.ico" type="image/x-icon">
+    <style>
+        :root {
+            /* DMRT 스타일 기반 색상 */
+            --primary-dark: #0c3026;
+            --primary-main: #017f97;
+            --primary-light: #e8f4f8;
+
+            /* 배경 색상 */
+            --bg-page: #ffffff;
+            --bg-card: #f8f9fa;
+            --bg-input: #ffffff;
+
+            /* 텍스트 색상 */
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-placeholder: #adb5bd;
+
+            /* 상태 색상 */
+            --success: #28a745;
+            --warning: #ffc107;
+            --error: #dc3545;
+            --info: #17a2b8;
+
+            /* 테두리 */
+            --border-default: #dee2e6;
+            --border-focus: #017f97;
+
+            /* 간격 */
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', 'KoPub Dotum', 'Malgun Gothic', sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-4);
+        }
+
+        /* 헤더 */
+        header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
+            color: white;
+            padding: var(--space-6) var(--space-4);
+            margin-bottom: var(--space-6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: var(--space-4);
+        }
+
+        .header-left h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .header-left p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: var(--space-1);
+        }
+
+        .header-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: var(--space-2);
+        }
+
+        /* 버튼 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            min-height: 44px;
+            padding: var(--space-3) var(--space-5);
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-dark);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0a2820;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(12, 48, 38, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #016980;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid currentColor;
+            color: white;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--primary-main);
+        }
+
+        .btn-ghost:hover {
+            background: var(--primary-light);
+        }
+
+        .btn-sm {
+            min-height: 36px;
+            padding: var(--space-2) var(--space-3);
+            font-size: 0.85rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 메인 레이아웃 */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 80px 1fr;
+            gap: var(--space-4);
+            align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+            .convert-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* 카드 */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: var(--space-5);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-default);
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-main);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        /* 포맷 선택 */
+        .format-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        .format-btn {
+            padding: var(--space-2) var(--space-4);
+            border: 2px solid var(--border-default);
+            border-radius: 8px;
+            background: var(--bg-input);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .format-btn:hover {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .format-btn.active {
+            border-color: var(--primary-main);
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .format-btn .format-name {
+            display: block;
+            font-weight: 600;
+        }
+
+        .format-btn .format-ext {
+            display: block;
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+
+        /* 텍스트 영역 */
+        .sequence-input {
+            width: 100%;
+            min-height: 400px;
+            padding: var(--space-4);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            font-family: 'D2Coding', 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            resize: vertical;
+            background: var(--bg-input);
+        }
+
+        .sequence-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(1, 127, 151, 0.15);
+        }
+
+        .sequence-input::placeholder {
+            color: var(--text-placeholder);
+        }
+
+        /* 변환 화살표 */
+        .convert-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-6) 0;
+        }
+
+        .convert-arrow {
+            font-size: 2rem;
+            color: var(--primary-main);
+            margin-bottom: var(--space-4);
+        }
+
+        .convert-btn {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            padding: var(--space-4) var(--space-2);
+        }
+
+        @media (max-width: 1024px) {
+            .convert-btn {
+                writing-mode: horizontal-tb;
+                padding: var(--space-3) var(--space-5);
+            }
+        }
+
+        /* 파일 업로드 */
+        .file-actions {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* 옵션 패널 */
+        .options-panel {
+            background: var(--primary-light);
+            border-radius: 8px;
+            padding: var(--space-4);
+            margin-top: var(--space-4);
+        }
+
+        .options-title {
+            font-weight: 600;
+            margin-bottom: var(--space-3);
+            color: var(--primary-dark);
+        }
+
+        .option-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-2);
+        }
+
+        .option-row label {
+            min-width: 120px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .option-row input[type="number"],
+        .option-row input[type="text"],
+        .option-row select {
+            padding: var(--space-2) var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            background: var(--bg-input);
+        }
+
+        .option-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-main);
+        }
+
+        /* 통계 정보 */
+        .stats-bar {
+            display: flex;
+            gap: var(--space-4);
+            flex-wrap: wrap;
+            padding: var(--space-3);
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-top: var(--space-3);
+            font-size: 0.85rem;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--primary-main);
+        }
+
+        /* 포맷 감지 배지 */
+        .detected-format {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-1) var(--space-3);
+            background: var(--success);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* 토스트 */
+        .toast-container {
+            position: fixed;
+            top: var(--space-4);
+            right: var(--space-4);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 300px;
+            max-width: 400px;
+            padding: var(--space-4);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-success { border-left: 4px solid var(--success); }
+        .toast-error { border-left: 4px solid var(--error); }
+        .toast-info { border-left: 4px solid var(--info); }
+
+        /* 예제 버튼 */
+        .example-buttons {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+            margin-top: var(--space-3);
+        }
+
+        .example-btn {
+            padding: var(--space-1) var(--space-3);
+            font-size: 0.75rem;
+            border: 1px solid var(--border-default);
+            background: var(--bg-input);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .example-btn:hover {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        /* 도움말 */
+        .help-section {
+            margin-top: var(--space-6);
+        }
+
+        .help-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .help-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: var(--space-4);
+        }
+
+        .help-card h4 {
+            color: var(--primary-main);
+            margin-bottom: var(--space-2);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .help-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+        }
+
+        .help-card code {
+            display: block;
+            background: var(--primary-dark);
+            color: #a5d6a7;
+            padding: var(--space-3);
+            border-radius: 4px;
+            font-family: 'D2Coding', monospace;
+            font-size: 0.8rem;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .format-selector {
+                justify-content: center;
+            }
+
+            .sequence-input {
+                min-height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>
+                    <span>🧬</span>
+                    시퀀스 포맷 변환기
+                    <span class="header-badge">v1.0</span>
+                </h1>
+                <p>FASTA, PHYLIP, NEXUS, CLUSTAL 등 다양한 시퀀스 포맷 간 변환</p>
+            </div>
+            <div class="file-actions">
+                <button class="btn btn-outline" onclick="showHelp()">📖 도움말</button>
+            </div>
+        </header>
+
+        <div class="main-layout">
+            <!-- 입력 패널 -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📥 입력</div>
+                    <div class="file-actions">
+                        <input type="file" id="fileInput" class="file-input" accept=".fasta,.fa,.fna,.fas,.phylip,.phy,.nex,.nexus,.aln,.clustal,.msf,.txt" onchange="handleFileUpload(event)">
+                        <button class="btn btn-sm btn-ghost" onclick="document.getElementById('fileInput').click()">📁 파일 열기</button>
+                        <button class="btn btn-sm btn-ghost" onclick="clearInput()">🗑️ 지우기</button>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: var(--space-3);">
+                    <span class="stat-label">감지된 포맷: </span>
+                    <span id="detectedFormat" class="detected-format" style="display: none;"></span>
+                    <span id="noFormat" style="color: var(--text-placeholder); font-size: 0.85rem;">입력 대기 중...</span>
+                </div>
+
+                <textarea
+                    class="sequence-input"
+                    id="inputSequence"
+                    placeholder="시퀀스를 붙여넣거나 파일을 업로드하세요...
+
+예시 (FASTA):
+>Sequence1
+ATGCGATCGATCGATCG
+>Sequence2
+ATGCGATCGATCGATCG"
+                    oninput="detectFormat()"
+                ></textarea>
+
+                <div class="stats-bar" id="inputStats">
+                    <div class="stat-item">
+                        <span class="stat-label">시퀀스:</span>
+                        <span class="stat-value" id="seqCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">총 길이:</span>
+                        <span class="stat-value" id="totalLength">0 bp</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">정렬:</span>
+                        <span class="stat-value" id="alignmentStatus">-</span>
+                    </div>
+                </div>
+
+                <div class="example-buttons">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">예제:</span>
+                    <button class="example-btn" onclick="loadExample('fasta')">FASTA</button>
+                    <button class="example-btn" onclick="loadExample('phylip')">PHYLIP</button>
+                    <button class="example-btn" onclick="loadExample('nexus')">NEXUS</button>
+                    <button class="example-btn" onclick="loadExample('clustal')">CLUSTAL</button>
+                </div>
+            </div>
+
+            <!-- 변환 버튼 -->
+            <div class="convert-section">
+                <div class="convert-arrow">➡️</div>
+                <button class="btn btn-primary convert-btn" onclick="convert()">변환</button>
+            </div>
+
+            <!-- 출력 패널 -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📤 출력</div>
+                    <div class="file-actions">
+                        <button class="btn btn-sm btn-secondary" onclick="downloadOutput()">💾 다운로드</button>
+                        <button class="btn btn-sm btn-ghost" onclick="copyOutput()">📋 복사</button>
+                    </div>
+                </div>
+
+                <div class="format-selector" id="outputFormatSelector">
+                    <button class="format-btn active" data-format="fasta" onclick="selectOutputFormat('fasta')">
+                        <span class="format-name">FASTA</span>
+                        <span class="format-ext">.fasta</span>
+                    </button>
+                    <button class="format-btn" data-format="phylip" onclick="selectOutputFormat('phylip')">
+                        <span class="format-name">PHYLIP</span>
+                        <span class="format-ext">.phy</span>
+                    </button>
+                    <button class="format-btn" data-format="phylip-relaxed" onclick="selectOutputFormat('phylip-relaxed')">
+                        <span class="format-name">PHYLIP-R</span>
+                        <span class="format-ext">relaxed</span>
+                    </button>
+                    <button class="format-btn" data-format="nexus" onclick="selectOutputFormat('nexus')">
+                        <span class="format-name">NEXUS</span>
+                        <span class="format-ext">.nex</span>
+                    </button>
+                    <button class="format-btn" data-format="clustal" onclick="selectOutputFormat('clustal')">
+                        <span class="format-name">CLUSTAL</span>
+                        <span class="format-ext">.aln</span>
+                    </button>
+                    <button class="format-btn" data-format="msf" onclick="selectOutputFormat('msf')">
+                        <span class="format-name">MSF</span>
+                        <span class="format-ext">.msf</span>
+                    </button>
+                    <button class="format-btn" data-format="table" onclick="selectOutputFormat('table')">
+                        <span class="format-name">Table</span>
+                        <span class="format-ext">.tsv</span>
+                    </button>
+                    <button class="format-btn" data-format="raw" onclick="selectOutputFormat('raw')">
+                        <span class="format-name">Raw</span>
+                        <span class="format-ext">.txt</span>
+                    </button>
+                </div>
+
+                <textarea
+                    class="sequence-input"
+                    id="outputSequence"
+                    placeholder="변환 결과가 여기에 표시됩니다..."
+                    readonly
+                ></textarea>
+
+                <div class="options-panel" id="optionsPanel">
+                    <div class="options-title">변환 옵션</div>
+                    <div class="option-row">
+                        <label>이름 길이 제한:</label>
+                        <input type="number" id="nameLengthLimit" value="0" min="0" max="100" style="width: 80px;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">(0 = 무제한)</span>
+                    </div>
+                    <div class="option-row">
+                        <label>갭 문자:</label>
+                        <select id="gapChar">
+                            <option value="-">- (대시)</option>
+                            <option value=".">. (점)</option>
+                            <option value="~">~ (틸드)</option>
+                        </select>
+                    </div>
+                    <div class="option-row">
+                        <label>줄 너비:</label>
+                        <input type="number" id="lineWidth" value="60" min="0" max="200" style="width: 80px;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">(0 = 줄바꿈 없음)</span>
+                    </div>
+                    <div class="option-row">
+                        <label>
+                            <input type="checkbox" id="uppercase" checked>
+                        </label>
+                        <span>대문자로 변환</span>
+                    </div>
+                    <div class="option-row">
+                        <label>
+                            <input type="checkbox" id="removeGaps">
+                        </label>
+                        <span>갭 제거 (비정렬)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 도움말 섹션 -->
+        <div class="help-section card" id="helpSection" style="display: none;">
+            <div class="card-header">
+                <div class="card-title">📖 지원 포맷 안내</div>
+                <button class="btn btn-sm btn-ghost" onclick="hideHelp()">✕ 닫기</button>
+            </div>
+            <div class="help-grid">
+                <div class="help-card">
+                    <h4>🧬 FASTA</h4>
+                    <p>가장 널리 사용되는 시퀀스 포맷. 헤더는 > 로 시작.</p>
+                    <code>>Seq1 description
+ATGCGATCGATCG
+>Seq2
+ATGCGATCGATCG</code>
+                </div>
+                <div class="help-card">
+                    <h4>🌳 PHYLIP</h4>
+                    <p>계통수 분석용. 첫 줄에 시퀀스 수와 길이 표시. 이름 10자 제한.</p>
+                    <code> 2 13
+Seq1      ATGCGATCGATCG
+Seq2      ATGCGATCGATCG</code>
+                </div>
+                <div class="help-card">
+                    <h4>📊 NEXUS</h4>
+                    <p>MrBayes, PAUP* 등에서 사용. 블록 구조로 메타데이터 포함 가능.</p>
+                    <code>#NEXUS
+BEGIN DATA;
+DIMENSIONS NTAX=2 NCHAR=13;
+FORMAT DATATYPE=DNA GAP=-;
+MATRIX
+Seq1 ATGCGATCGATCG
+Seq2 ATGCGATCGATCG
+;
+END;</code>
+                </div>
+                <div class="help-card">
+                    <h4>📐 CLUSTAL</h4>
+                    <p>ClustalW/X 정렬 출력 형식. 보존도 표시 포함.</p>
+                    <code>CLUSTAL W (1.83) multiple sequence alignment
+
+Seq1      ATGCGATCGATCG
+Seq2      ATGCGATCGATCG
+          *************</code>
+                </div>
+                <div class="help-card">
+                    <h4>📁 MSF</h4>
+                    <p>GCG 패키지 형식. 체크섬 포함.</p>
+                    <code>PileUp
+
+ MSF: 13  Type: N
+
+  Name: Seq1  Len: 13
+  Name: Seq2  Len: 13
+
+//
+
+Seq1  ATGCGATCGATCG
+Seq2  ATGCGATCGATCG</code>
+                </div>
+                <div class="help-card">
+                    <h4>📋 Table</h4>
+                    <p>탭으로 구분된 이름과 시퀀스. 엑셀에서 바로 사용 가능.</p>
+                    <code>Seq1	ATGCGATCGATCG
+Seq2	ATGCGATCGATCG</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 컨테이너 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ============================================================
+        // 전역 상태
+        // ============================================================
+        let currentSequences = [];
+        let detectedInputFormat = null;
+        let selectedOutputFormat = 'fasta';
+
+        // ============================================================
+        // 예제 데이터
+        // ============================================================
+        const EXAMPLES = {
+            fasta: `>Os01g0100100 RiceGene1 | Oryza sativa
+ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG
+ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+>Os01g0100200 RiceGene2 | Oryza sativa
+ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG
+ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+>Os01g0100300 RiceGene3 | Oryza sativa
+ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG
+ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA`,
+
+            phylip: ` 3 104
+Os01g01001ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+Os01g01002ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+Os01g01003ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA`,
+
+            nexus: `#NEXUS
+
+BEGIN DATA;
+DIMENSIONS NTAX=3 NCHAR=104;
+FORMAT DATATYPE=DNA MISSING=? GAP=-;
+MATRIX
+Os01g0100100 ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+Os01g0100200 ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+Os01g0100300 ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA
+;
+END;`,
+
+            clustal: `CLUSTAL W (1.83) multiple sequence alignment
+
+
+Os01g0100100      ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG 52
+Os01g0100200      ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG 52
+Os01g0100300      ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG 52
+                  ****************************************************
+
+Os01g0100100      ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA 104
+Os01g0100200      ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA 104
+Os01g0100300      ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGA 104
+                  ****************************************************`
+        };
+
+        // ============================================================
+        // 포맷 파서들
+        // ============================================================
+
+        /**
+         * FASTA 파서
+         */
+        function parseFasta(text) {
+            const sequences = [];
+            const lines = text.trim().split('\n');
+            let currentSeq = null;
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('>')) {
+                    if (currentSeq) {
+                        sequences.push(currentSeq);
+                    }
+                    const header = trimmed.substring(1).trim();
+                    const parts = header.split(/\s+/);
+                    currentSeq = {
+                        name: parts[0] || 'Unnamed',
+                        description: parts.slice(1).join(' '),
+                        sequence: ''
+                    };
+                } else if (currentSeq && trimmed) {
+                    currentSeq.sequence += trimmed.replace(/\s/g, '');
+                }
+            }
+            if (currentSeq) {
+                sequences.push(currentSeq);
+            }
+            return sequences;
+        }
+
+        /**
+         * PHYLIP 파서 (sequential & interleaved)
+         */
+        function parsePhylip(text) {
+            const sequences = [];
+            const lines = text.trim().split('\n').filter(l => l.trim());
+
+            if (lines.length < 2) return [];
+
+            // 첫 줄: 시퀀스 수와 길이
+            const header = lines[0].trim().split(/\s+/);
+            const numSeq = parseInt(header[0]);
+            const seqLen = parseInt(header[1]);
+
+            if (isNaN(numSeq) || numSeq <= 0) return [];
+
+            // Sequential 형식 시도
+            let idx = 1;
+            for (let i = 0; i < numSeq && idx < lines.length; i++) {
+                const line = lines[idx].trim();
+                // 이름과 시퀀스 분리 (처음 10자 또는 공백 기준)
+                let name, seq;
+
+                if (line.length > 10 && !/\s/.test(line.substring(0, 10))) {
+                    // Standard PHYLIP: 처음 10자가 이름
+                    name = line.substring(0, 10).trim();
+                    seq = line.substring(10).replace(/\s/g, '');
+                } else {
+                    // Relaxed PHYLIP: 공백으로 구분
+                    const match = line.match(/^(\S+)\s+(.+)$/);
+                    if (match) {
+                        name = match[1];
+                        seq = match[2].replace(/\s/g, '');
+                    } else {
+                        name = `Seq${i + 1}`;
+                        seq = line.replace(/\s/g, '');
+                    }
+                }
+
+                sequences.push({
+                    name: name,
+                    description: '',
+                    sequence: seq
+                });
+                idx++;
+            }
+
+            // Interleaved 형식 처리 (남은 줄이 있으면)
+            if (idx < lines.length && sequences.length > 0) {
+                let seqIdx = 0;
+                while (idx < lines.length) {
+                    const line = lines[idx].trim();
+                    if (line) {
+                        const seq = line.replace(/\s/g, '').replace(/^\S+\s*/, '');
+                        if (seqIdx < sequences.length) {
+                            sequences[seqIdx].sequence += seq;
+                        }
+                        seqIdx = (seqIdx + 1) % numSeq;
+                    }
+                    idx++;
+                }
+            }
+
+            return sequences;
+        }
+
+        /**
+         * NEXUS 파서
+         */
+        function parseNexus(text) {
+            const sequences = [];
+
+            // MATRIX 블록 찾기
+            const matrixMatch = text.match(/MATRIX\s*\n([\s\S]*?);/i);
+            if (!matrixMatch) return [];
+
+            const matrixBlock = matrixMatch[1];
+            const lines = matrixBlock.trim().split('\n');
+
+            const seqMap = new Map();
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('[')) continue;
+
+                // 이름과 시퀀스 분리
+                const match = trimmed.match(/^(\S+)\s+(.+)$/);
+                if (match) {
+                    const name = match[1];
+                    const seq = match[2].replace(/\s/g, '');
+
+                    if (seqMap.has(name)) {
+                        seqMap.get(name).sequence += seq;
+                    } else {
+                        seqMap.set(name, {
+                            name: name,
+                            description: '',
+                            sequence: seq
+                        });
+                    }
+                }
+            }
+
+            return Array.from(seqMap.values());
+        }
+
+        /**
+         * CLUSTAL 파서
+         */
+        function parseClustal(text) {
+            const sequences = [];
+            const lines = text.split('\n');
+            const seqMap = new Map();
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+
+                // 헤더, 빈 줄, 보존도 표시 건너뛰기
+                if (!trimmed ||
+                    trimmed.startsWith('CLUSTAL') ||
+                    /^[*.:]+$/.test(trimmed) ||
+                    /^\s*$/.test(trimmed)) {
+                    continue;
+                }
+
+                // 이름과 시퀀스
+                const match = trimmed.match(/^(\S+)\s+([A-Za-z\-\.]+)/);
+                if (match) {
+                    const name = match[1];
+                    const seq = match[2];
+
+                    if (seqMap.has(name)) {
+                        seqMap.get(name).sequence += seq;
+                    } else {
+                        seqMap.set(name, {
+                            name: name,
+                            description: '',
+                            sequence: seq
+                        });
+                    }
+                }
+            }
+
+            return Array.from(seqMap.values());
+        }
+
+        /**
+         * MSF 파서
+         */
+        function parseMsf(text) {
+            const sequences = [];
+            const seqMap = new Map();
+
+            // // 이후의 데이터 블록
+            const dataStart = text.indexOf('//');
+            if (dataStart === -1) return [];
+
+            const dataBlock = text.substring(dataStart + 2);
+            const lines = dataBlock.split('\n');
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                const match = trimmed.match(/^(\S+)\s+(.+)$/);
+                if (match) {
+                    const name = match[1];
+                    const seq = match[2].replace(/\s/g, '').replace(/\./g, '-');
+
+                    if (seqMap.has(name)) {
+                        seqMap.get(name).sequence += seq;
+                    } else {
+                        seqMap.set(name, {
+                            name: name,
+                            description: '',
+                            sequence: seq
+                        });
+                    }
+                }
+            }
+
+            return Array.from(seqMap.values());
+        }
+
+        /**
+         * Table 파서 (TSV/CSV)
+         */
+        function parseTable(text) {
+            const sequences = [];
+            const lines = text.trim().split('\n');
+            const delimiter = text.includes('\t') ? '\t' : ',';
+
+            for (const line of lines) {
+                const parts = line.split(delimiter);
+                if (parts.length >= 2) {
+                    sequences.push({
+                        name: parts[0].trim(),
+                        description: '',
+                        sequence: parts[1].trim().replace(/\s/g, '')
+                    });
+                }
+            }
+            return sequences;
+        }
+
+        /**
+         * Raw 파서 (시퀀스만)
+         */
+        function parseRaw(text) {
+            const seq = text.replace(/\s/g, '');
+            if (seq) {
+                return [{
+                    name: 'Sequence1',
+                    description: '',
+                    sequence: seq
+                }];
+            }
+            return [];
+        }
+
+        // ============================================================
+        // 포맷 생성기들
+        // ============================================================
+
+        /**
+         * FASTA 생성
+         */
+        function generateFasta(sequences, options = {}) {
+            const lineWidth = options.lineWidth || 60;
+            const uppercase = options.uppercase !== false;
+            const removeGaps = options.removeGaps || false;
+
+            return sequences.map(seq => {
+                let header = `>${seq.name}`;
+                if (seq.description) {
+                    header += ` ${seq.description}`;
+                }
+
+                let seqStr = seq.sequence;
+                if (uppercase) seqStr = seqStr.toUpperCase();
+                if (removeGaps) seqStr = seqStr.replace(/[-\.~]/g, '');
+
+                if (lineWidth > 0) {
+                    seqStr = wrapSequence(seqStr, lineWidth);
+                }
+
+                return `${header}\n${seqStr}`;
+            }).join('\n');
+        }
+
+        /**
+         * PHYLIP 생성 (standard)
+         */
+        function generatePhylip(sequences, options = {}) {
+            if (sequences.length === 0) return '';
+
+            const nameLimit = options.nameLimit || 10;
+            const uppercase = options.uppercase !== false;
+            const gapChar = options.gapChar || '-';
+
+            // 정렬된 시퀀스 길이 확인
+            const seqLen = sequences[0].sequence.length;
+            const numSeq = sequences.length;
+
+            let output = ` ${numSeq} ${seqLen}\n`;
+
+            sequences.forEach(seq => {
+                let name = seq.name.substring(0, nameLimit);
+                name = name.padEnd(nameLimit, ' ');
+
+                let seqStr = seq.sequence;
+                if (uppercase) seqStr = seqStr.toUpperCase();
+                seqStr = seqStr.replace(/[-\.~]/g, gapChar);
+
+                output += `${name}${seqStr}\n`;
+            });
+
+            return output;
+        }
+
+        /**
+         * PHYLIP Relaxed 생성
+         */
+        function generatePhylipRelaxed(sequences, options = {}) {
+            if (sequences.length === 0) return '';
+
+            const uppercase = options.uppercase !== false;
+            const gapChar = options.gapChar || '-';
+
+            const seqLen = sequences[0].sequence.length;
+            const numSeq = sequences.length;
+
+            let output = ` ${numSeq} ${seqLen}\n`;
+
+            sequences.forEach(seq => {
+                let seqStr = seq.sequence;
+                if (uppercase) seqStr = seqStr.toUpperCase();
+                seqStr = seqStr.replace(/[-\.~]/g, gapChar);
+
+                output += `${seq.name} ${seqStr}\n`;
+            });
+
+            return output;
+        }
+
+        /**
+         * NEXUS 생성
+         */
+        function generateNexus(sequences, options = {}) {
+            if (sequences.length === 0) return '';
+
+            const uppercase = options.uppercase !== false;
+            const gapChar = options.gapChar || '-';
+
+            const seqLen = sequences[0].sequence.length;
+            const numSeq = sequences.length;
+
+            // 데이터 타입 추측
+            const firstSeq = sequences[0].sequence.toUpperCase();
+            const isProtein = /[EFILPQZ]/.test(firstSeq);
+            const dataType = isProtein ? 'PROTEIN' : 'DNA';
+
+            let output = `#NEXUS\n\n`;
+            output += `BEGIN DATA;\n`;
+            output += `DIMENSIONS NTAX=${numSeq} NCHAR=${seqLen};\n`;
+            output += `FORMAT DATATYPE=${dataType} MISSING=? GAP=${gapChar};\n`;
+            output += `MATRIX\n`;
+
+            // 가장 긴 이름 찾기
+            const maxNameLen = Math.max(...sequences.map(s => s.name.length));
+
+            sequences.forEach(seq => {
+                let seqStr = seq.sequence;
+                if (uppercase) seqStr = seqStr.toUpperCase();
+                seqStr = seqStr.replace(/[-\.~]/g, gapChar);
+
+                const paddedName = seq.name.padEnd(maxNameLen + 2, ' ');
+                output += `${paddedName}${seqStr}\n`;
+            });
+
+            output += `;\nEND;\n`;
+            return output;
+        }
+
+        /**
+         * CLUSTAL 생성
+         */
+        function generateClustal(sequences, options = {}) {
+            if (sequences.length === 0) return '';
+
+            const uppercase = options.uppercase !== false;
+            const gapChar = options.gapChar || '-';
+            const blockSize = 60;
+
+            let output = `CLUSTAL W (1.83) multiple sequence alignment\n\n\n`;
+
+            const seqLen = sequences[0].sequence.length;
+            const maxNameLen = Math.max(...sequences.map(s => s.name.length));
+
+            for (let start = 0; start < seqLen; start += blockSize) {
+                const end = Math.min(start + blockSize, seqLen);
+
+                sequences.forEach(seq => {
+                    let seqStr = seq.sequence.substring(start, end);
+                    if (uppercase) seqStr = seqStr.toUpperCase();
+                    seqStr = seqStr.replace(/[-\.~]/g, gapChar);
+
+                    const paddedName = seq.name.padEnd(maxNameLen + 6, ' ');
+                    output += `${paddedName}${seqStr} ${end}\n`;
+                });
+
+                // 보존도 표시
+                let conservation = '';
+                for (let i = start; i < end; i++) {
+                    const chars = sequences.map(s => s.sequence[i]?.toUpperCase());
+                    const uniqueChars = new Set(chars.filter(c => c && c !== '-'));
+                    if (uniqueChars.size === 1) {
+                        conservation += '*';
+                    } else {
+                        conservation += ' ';
+                    }
+                }
+                output += `${''.padEnd(maxNameLen + 6, ' ')}${conservation}\n\n`;
+            }
+
+            return output;
+        }
+
+        /**
+         * MSF 생성
+         */
+        function generateMsf(sequences, options = {}) {
+            if (sequences.length === 0) return '';
+
+            const uppercase = options.uppercase !== false;
+
+            const seqLen = sequences[0].sequence.length;
+            const isProtein = /[EFILPQZ]/.test(sequences[0].sequence.toUpperCase());
+
+            let output = `PileUp\n\n`;
+            output += ` MSF: ${seqLen}  Type: ${isProtein ? 'P' : 'N'}  Check: 0  ..\n\n`;
+
+            // 이름 목록
+            sequences.forEach(seq => {
+                output += `  Name: ${seq.name}  Len: ${seqLen}  Check: 0  Weight: 1.00\n`;
+            });
+
+            output += `\n//\n\n`;
+
+            // 시퀀스 데이터 (50자 블록)
+            const blockSize = 50;
+            const maxNameLen = Math.max(...sequences.map(s => s.name.length));
+
+            for (let start = 0; start < seqLen; start += blockSize) {
+                sequences.forEach(seq => {
+                    let seqStr = seq.sequence.substring(start, start + blockSize);
+                    if (uppercase) seqStr = seqStr.toUpperCase();
+                    // MSF는 내부 갭에 ., 끝 갭에 ~ 사용
+                    seqStr = seqStr.replace(/-/g, '.');
+
+                    const paddedName = seq.name.padEnd(maxNameLen + 2, ' ');
+                    // 10자마다 공백 추가
+                    const formatted = seqStr.match(/.{1,10}/g)?.join(' ') || seqStr;
+                    output += `${paddedName}${formatted}\n`;
+                });
+                output += `\n`;
+            }
+
+            return output;
+        }
+
+        /**
+         * Table (TSV) 생성
+         */
+        function generateTable(sequences, options = {}) {
+            const uppercase = options.uppercase !== false;
+            const removeGaps = options.removeGaps || false;
+
+            return sequences.map(seq => {
+                let seqStr = seq.sequence;
+                if (uppercase) seqStr = seqStr.toUpperCase();
+                if (removeGaps) seqStr = seqStr.replace(/[-\.~]/g, '');
+                return `${seq.name}\t${seqStr}`;
+            }).join('\n');
+        }
+
+        /**
+         * Raw 생성
+         */
+        function generateRaw(sequences, options = {}) {
+            const uppercase = options.uppercase !== false;
+            const removeGaps = options.removeGaps || false;
+            const lineWidth = options.lineWidth || 60;
+
+            return sequences.map(seq => {
+                let seqStr = seq.sequence;
+                if (uppercase) seqStr = seqStr.toUpperCase();
+                if (removeGaps) seqStr = seqStr.replace(/[-\.~]/g, '');
+                if (lineWidth > 0) seqStr = wrapSequence(seqStr, lineWidth);
+                return seqStr;
+            }).join('\n\n');
+        }
+
+        // ============================================================
+        // 유틸리티 함수들
+        // ============================================================
+
+        function wrapSequence(seq, width) {
+            const lines = [];
+            for (let i = 0; i < seq.length; i += width) {
+                lines.push(seq.substring(i, i + width));
+            }
+            return lines.join('\n');
+        }
+
+        // ============================================================
+        // 포맷 자동 감지
+        // ============================================================
+
+        function detectFormat() {
+            const input = document.getElementById('inputSequence').value.trim();
+            const detectedEl = document.getElementById('detectedFormat');
+            const noFormatEl = document.getElementById('noFormat');
+
+            if (!input) {
+                detectedEl.style.display = 'none';
+                noFormatEl.style.display = 'inline';
+                noFormatEl.textContent = '입력 대기 중...';
+                updateStats([]);
+                return;
+            }
+
+            let format = null;
+            let sequences = [];
+
+            // 포맷 감지
+            if (input.startsWith('>')) {
+                format = 'FASTA';
+                sequences = parseFasta(input);
+            } else if (input.toUpperCase().startsWith('#NEXUS')) {
+                format = 'NEXUS';
+                sequences = parseNexus(input);
+            } else if (input.toUpperCase().startsWith('CLUSTAL')) {
+                format = 'CLUSTAL';
+                sequences = parseClustal(input);
+            } else if (input.includes('MSF:') || input.includes('PileUp')) {
+                format = 'MSF';
+                sequences = parseMsf(input);
+            } else if (/^\s*\d+\s+\d+/.test(input)) {
+                format = 'PHYLIP';
+                sequences = parsePhylip(input);
+            } else if (input.includes('\t') || input.includes(',')) {
+                format = 'Table';
+                sequences = parseTable(input);
+            } else if (/^[A-Za-z\-\.\s]+$/.test(input)) {
+                format = 'Raw';
+                sequences = parseRaw(input);
+            }
+
+            if (format && sequences.length > 0) {
+                detectedInputFormat = format;
+                currentSequences = sequences;
+                detectedEl.textContent = format;
+                detectedEl.style.display = 'inline-flex';
+                noFormatEl.style.display = 'none';
+                updateStats(sequences);
+            } else {
+                detectedInputFormat = null;
+                currentSequences = [];
+                detectedEl.style.display = 'none';
+                noFormatEl.style.display = 'inline';
+                noFormatEl.textContent = '포맷 감지 실패';
+                updateStats([]);
+            }
+        }
+
+        function updateStats(sequences) {
+            document.getElementById('seqCount').textContent = sequences.length;
+
+            const totalLen = sequences.reduce((sum, s) => sum + s.sequence.length, 0);
+            document.getElementById('totalLength').textContent = `${totalLen} bp`;
+
+            // 정렬 상태 확인
+            if (sequences.length > 1) {
+                const lengths = sequences.map(s => s.sequence.length);
+                const allSame = lengths.every(l => l === lengths[0]);
+                document.getElementById('alignmentStatus').textContent = allSame ? '정렬됨' : '비정렬';
+            } else {
+                document.getElementById('alignmentStatus').textContent = '-';
+            }
+        }
+
+        // ============================================================
+        // 변환 실행
+        // ============================================================
+
+        function convert() {
+            if (currentSequences.length === 0) {
+                showToast('먼저 시퀀스를 입력하세요.', 'error');
+                return;
+            }
+
+            const options = {
+                nameLimit: parseInt(document.getElementById('nameLengthLimit').value) || 0,
+                gapChar: document.getElementById('gapChar').value,
+                lineWidth: parseInt(document.getElementById('lineWidth').value) || 60,
+                uppercase: document.getElementById('uppercase').checked,
+                removeGaps: document.getElementById('removeGaps').checked
+            };
+
+            let output = '';
+
+            switch (selectedOutputFormat) {
+                case 'fasta':
+                    output = generateFasta(currentSequences, options);
+                    break;
+                case 'phylip':
+                    output = generatePhylip(currentSequences, options);
+                    break;
+                case 'phylip-relaxed':
+                    output = generatePhylipRelaxed(currentSequences, options);
+                    break;
+                case 'nexus':
+                    output = generateNexus(currentSequences, options);
+                    break;
+                case 'clustal':
+                    output = generateClustal(currentSequences, options);
+                    break;
+                case 'msf':
+                    output = generateMsf(currentSequences, options);
+                    break;
+                case 'table':
+                    output = generateTable(currentSequences, options);
+                    break;
+                case 'raw':
+                    output = generateRaw(currentSequences, options);
+                    break;
+            }
+
+            document.getElementById('outputSequence').value = output;
+            showToast(`${currentSequences.length}개 시퀀스를 ${selectedOutputFormat.toUpperCase()} 포맷으로 변환했습니다.`, 'success');
+        }
+
+        // ============================================================
+        // UI 이벤트 핸들러
+        // ============================================================
+
+        function selectOutputFormat(format) {
+            selectedOutputFormat = format;
+            document.querySelectorAll('.format-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.format === format);
+            });
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('inputSequence').value = e.target.result;
+                detectFormat();
+                showToast(`파일 "${file.name}"을 불러왔습니다.`, 'success');
+            };
+            reader.readAsText(file);
+        }
+
+        function clearInput() {
+            document.getElementById('inputSequence').value = '';
+            document.getElementById('outputSequence').value = '';
+            currentSequences = [];
+            detectedInputFormat = null;
+            detectFormat();
+        }
+
+        function loadExample(format) {
+            document.getElementById('inputSequence').value = EXAMPLES[format];
+            detectFormat();
+            showToast(`${format.toUpperCase()} 예제를 불러왔습니다.`, 'info');
+        }
+
+        function downloadOutput() {
+            const output = document.getElementById('outputSequence').value;
+            if (!output) {
+                showToast('다운로드할 내용이 없습니다.', 'error');
+                return;
+            }
+
+            const extensions = {
+                'fasta': '.fasta',
+                'phylip': '.phy',
+                'phylip-relaxed': '.phy',
+                'nexus': '.nex',
+                'clustal': '.aln',
+                'msf': '.msf',
+                'table': '.tsv',
+                'raw': '.txt'
+            };
+
+            const ext = extensions[selectedOutputFormat] || '.txt';
+            const filename = `sequences${ext}`;
+
+            const blob = new Blob([output], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast(`"${filename}" 파일을 다운로드했습니다.`, 'success');
+        }
+
+        function copyOutput() {
+            const output = document.getElementById('outputSequence').value;
+            if (!output) {
+                showToast('복사할 내용이 없습니다.', 'error');
+                return;
+            }
+
+            navigator.clipboard.writeText(output).then(() => {
+                showToast('클립보드에 복사되었습니다.', 'success');
+            }).catch(() => {
+                showToast('복사에 실패했습니다.', 'error');
+            });
+        }
+
+        function showHelp() {
+            document.getElementById('helpSection').style.display = 'block';
+            document.getElementById('helpSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideHelp() {
+            document.getElementById('helpSection').style.display = 'none';
+        }
+
+        // ============================================================
+        // 토스트 알림
+        // ============================================================
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: '✅',
+                error: '❌',
+                info: 'ℹ️'
+            };
+
+            toast.innerHTML = `
+                <span>${icons[type] || 'ℹ️'}</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ============================================================
+        // 초기화
+        // ============================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            detectFormat();
+        });
+    </script>
+</body>
+</html>
