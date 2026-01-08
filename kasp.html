@@ -6,6 +6,7 @@
     <title>KASP Multi-Gene Analyzer v3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="snpseek_markers_data.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
         
@@ -608,6 +609,148 @@
             font-size: 0.85rem;
             border-left: 4px solid var(--warning);
         }
+
+        /* 3K-RG SNP Reference Panel Styles */
+        .snp-category-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .snp-category-tab {
+            padding: 8px 16px;
+            background: var(--accent-lighter);
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .snp-category-tab:hover {
+            border-color: var(--primary);
+            background: #e0f0f5;
+        }
+
+        .snp-category-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .snp-marker-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .snp-marker-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            transition: box-shadow 0.2s;
+        }
+
+        .snp-marker-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .snp-marker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .snp-marker-name {
+            font-weight: 600;
+            color: var(--primary-dark);
+            font-size: 1.05rem;
+        }
+
+        .snp-marker-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 12px;
+        }
+
+        .snp-marker-fullname {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 8px;
+        }
+
+        .snp-marker-desc {
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .snp-marker-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 12px;
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+        }
+
+        .snp-marker-info-label {
+            color: var(--text-light);
+        }
+
+        .snp-marker-info-value {
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: var(--primary-dark);
+        }
+
+        .snp-variety-table {
+            width: 100%;
+            font-size: 0.8rem;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+
+        .snp-variety-table th {
+            background: var(--accent-lighter);
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .snp-variety-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .snp-variety-table .geno-0 { color: var(--ck2); font-weight: 600; }
+        .snp-variety-table .geno-1 { color: var(--ck1); font-weight: 600; }
+        .snp-variety-table .geno-H { color: var(--het); font-weight: 600; }
+
+        .snp-marker-links {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .snp-marker-link {
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border: 1px solid #81c784;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            color: #2e7d32;
+            transition: background 0.2s;
+        }
+
+        .snp-marker-link:hover {
+            background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+        }
     </style>
 </head>
 <body>
@@ -777,6 +920,29 @@
             </div>
         </div>
         
+        <!-- 3K-RG SNP Reference Panel -->
+        <div class="card" id="snpReferenceSection">
+            <div class="card-header">
+                <span>🌾</span>
+                <h2>3K Rice Genomes 참조 마커 정보</h2>
+                <span class="badge" style="background: #4caf50;">3K-RG</span>
+            </div>
+            <div class="card-body">
+                <div class="snp-category-tabs" id="snpCategoryTabs">
+                    <!-- 카테고리 탭이 동적으로 생성됨 -->
+                </div>
+                <div class="snp-marker-list" id="snpMarkerList">
+                    <!-- 마커 목록이 동적으로 생성됨 -->
+                </div>
+                <div class="snp-reference-note" style="margin-top: 16px; padding: 12px; background: #f0f7f0; border-radius: 8px; font-size: 0.85em; color: #666;">
+                    <strong>📊 데이터 출처:</strong>
+                    <a href="http://snp-seek.irri.org" target="_blank" style="color: #017f97;">SNP-Seek Database</a> /
+                    <a href="https://www.nature.com/articles/s41586-018-0063-9" target="_blank" style="color: #017f97;">Wang et al. (2018) Nature</a>
+                    <br>이 데이터는 3,010개 아시아 재배벼 품종의 유전체 분석 결과를 기반으로 합니다.
+                </div>
+            </div>
+        </div>
+
         <!-- Info -->
         <div class="card hidden" id="infoSection">
             <div class="card-header">
@@ -1937,6 +2103,140 @@
                 window.parent.postMessage({ type: 'kaspDataReady', count, geneCount }, '*');
             }
         }
+
+        // ============ 3K-RG SNP Reference Panel Functions ============
+
+        let currentSNPCategory = 'all';
+
+        function initSNPReferencePanel() {
+            // Check if SNP_SEEK_MARKERS is loaded
+            if (typeof SNP_SEEK_MARKERS === 'undefined' || typeof SNP_MARKER_CATEGORIES === 'undefined') {
+                console.warn('SNP-Seek markers data not loaded');
+                document.getElementById('snpReferenceSection').style.display = 'none';
+                return;
+            }
+
+            renderSNPCategoryTabs();
+            renderSNPMarkerList('all');
+        }
+
+        function renderSNPCategoryTabs() {
+            const tabsContainer = document.getElementById('snpCategoryTabs');
+            let html = '<div class="snp-category-tab active" onclick="filterSNPMarkers(\'all\')">전체</div>';
+
+            for (const [key, category] of Object.entries(SNP_MARKER_CATEGORIES)) {
+                html += `<div class="snp-category-tab" data-category="${key}" onclick="filterSNPMarkers('${key}')">${category.name}</div>`;
+            }
+
+            tabsContainer.innerHTML = html;
+        }
+
+        function filterSNPMarkers(category) {
+            currentSNPCategory = category;
+
+            // Update tab styles
+            document.querySelectorAll('.snp-category-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if ((category === 'all' && !tab.dataset.category) ||
+                    tab.dataset.category === category) {
+                    tab.classList.add('active');
+                }
+            });
+
+            renderSNPMarkerList(category);
+        }
+
+        function renderSNPMarkerList(category) {
+            const listContainer = document.getElementById('snpMarkerList');
+            let markers = [];
+
+            if (category === 'all') {
+                markers = Object.entries(SNP_SEEK_MARKERS);
+            } else if (SNP_MARKER_CATEGORIES[category]) {
+                markers = SNP_MARKER_CATEGORIES[category].markers
+                    .map(name => [name, SNP_SEEK_MARKERS[name]])
+                    .filter(([_, m]) => m);
+            }
+
+            if (markers.length === 0) {
+                listContainer.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">해당 카테고리에 마커가 없습니다.</p>';
+                return;
+            }
+
+            let html = '';
+            for (const [name, marker] of markers) {
+                html += createSNPMarkerCard(name, marker);
+            }
+
+            listContainer.innerHTML = html;
+        }
+
+        function createSNPMarkerCard(name, marker) {
+            const categoryName = SNP_MARKER_CATEGORIES[marker.category]?.name || marker.category;
+
+            // Varieties table rows
+            let varietyRows = '';
+            const varieties = Object.entries(marker.varieties || {}).slice(0, 5);
+            for (const [varName, varData] of varieties) {
+                const codeClass = varData.code === '1' ? 'geno-1' : (varData.code === '0' ? 'geno-0' : 'geno-H');
+                varietyRows += `
+                    <tr>
+                        <td>${varName}</td>
+                        <td class="${codeClass}">${varData.genotype}</td>
+                        <td>${varData.phenotype}</td>
+                    </tr>
+                `;
+            }
+
+            const moreVarieties = Object.keys(marker.varieties || {}).length - 5;
+            if (moreVarieties > 0) {
+                varietyRows += `<tr><td colspan="3" style="text-align: center; color: #888;">+${moreVarieties}개 품종 더 보기...</td></tr>`;
+            }
+
+            return `
+                <div class="snp-marker-card">
+                    <div class="snp-marker-header">
+                        <div class="snp-marker-name">${name}</div>
+                        <div class="snp-marker-badge">${categoryName}</div>
+                    </div>
+                    <div class="snp-marker-fullname">${marker.fullName}</div>
+                    <div class="snp-marker-desc">${marker.description}</div>
+
+                    <div class="snp-marker-info">
+                        <span class="snp-marker-info-label">위치:</span>
+                        <span class="snp-marker-info-value">Chr${marker.chromosome}:${marker.position?.toLocaleString() || 'N/A'}</span>
+
+                        <span class="snp-marker-info-label">RAP-DB:</span>
+                        <span class="snp-marker-info-value">${marker.rapId || 'N/A'}</span>
+
+                        <span class="snp-marker-info-label">변이:</span>
+                        <span class="snp-marker-info-value">${marker.ref} → ${marker.alt}</span>
+                    </div>
+
+                    ${varietyRows ? `
+                    <details>
+                        <summary style="cursor: pointer; font-size: 0.85rem; color: #666; margin-bottom: 8px;">📊 참조 품종 유전자형 보기</summary>
+                        <table class="snp-variety-table">
+                            <thead>
+                                <tr><th>품종</th><th>Genotype</th><th>표현형</th></tr>
+                            </thead>
+                            <tbody>${varietyRows}</tbody>
+                        </table>
+                    </details>
+                    ` : ''}
+
+                    <div class="snp-marker-links">
+                        <a href="${marker.snpSeekUrl}" target="_blank" class="snp-marker-link">🌾 SNP-Seek</a>
+                        <a href="https://rapdb.dna.affrc.go.jp/locus/?name=${marker.rapId}" target="_blank" class="snp-marker-link">📖 RAP-DB</a>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initSNPReferencePanel();
+        });
     </script>
 </body>
 </html>

@@ -270,6 +270,15 @@
             background: #e0f0f5;
         }
 
+        .gene-link.snp-seek-link {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border: 1px solid #81c784;
+        }
+
+        .gene-link.snp-seek-link:hover {
+            background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -913,6 +922,19 @@
             window.open(`https://ensembl.gramene.org/Oryza_sativa/Gene/Summary?g=${geneId}`, '_blank');
         }
 
+        // SNP-Seek 검색 - 3K Rice Genomes SNP 데이터베이스
+        function openSNPSeekWithId(geneId, chr, pos) {
+            // 염색체 번호와 위치가 있으면 좌표 기반 검색
+            if (chr && pos) {
+                const start = Math.max(1, pos - 10000);  // ±10kb 범위
+                const end = pos + 10000;
+                window.open(`http://snp-seek.irri.org/_snp.zul?chrom=${chr}&sstart=${start}&send=${end}`, '_blank');
+            } else {
+                // 위치 정보가 없으면 유전자 ID로 검색
+                window.open(`http://snp-seek.irri.org/_genotype.zul?id=${encodeURIComponent(geneId)}`, '_blank');
+            }
+        }
+
         // RGAP 검색 - LOC_Os ID가 있을 때만 사용
         function openRgapWithId(locId) {
             // LOC_Os ID로 직접 RGAP ORF 정보 페이지 이동
@@ -1412,6 +1434,7 @@
                     <div class="gene-links">
                         <a href="javascript:void(0)" onclick="openRapdbWithId('${gene.id}')" class="gene-link" title="RAP-DB에서 ${gene.id} 검색">📖 RAP-DB</a>
                         <a href="javascript:void(0)" onclick="openGrameneWithId('${gene.id}')" class="gene-link" title="Gramene에서 ${gene.id} 검색">🌱 Gramene</a>
+                        <a href="javascript:void(0)" onclick="openSNPSeekWithId('${gene.id}', ${gene.chromosome || 'null'}, ${gene.position || 'null'})" class="gene-link snp-seek-link" title="3K Rice Genomes SNP 데이터베이스에서 검색">🌾 SNP-Seek</a>
                         ${gene.locId ? `<a href="javascript:void(0)" onclick="openRgapWithId('${gene.locId}')" class="gene-link" title="RGAP에서 ${gene.locId} 검색">🔬 RGAP</a>` : ''}
                         <a href="https://www.ncbi.nlm.nih.gov/search/all/?term=${encodeURIComponent((gene.geneName || gene.id) + ' Oryza sativa')}" target="_blank" class="gene-link">🧬 NCBI</a>
                         ${gene.ncbiId ? `<a href="https://www.ncbi.nlm.nih.gov/gene/${gene.ncbiId}" target="_blank" class="gene-link">🔗 NCBI Gene</a>` : ''}
