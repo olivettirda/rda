@@ -1348,10 +1348,9 @@
                             <label class="form-label">소속 <span class="required">*</span></label>
                             <select class="form-select" id="signupDepartment" required>
                                 <option value="">선택하세요</option>
-                                <option value="육종연구실">육종연구실</option>
-                                <option value="분자생물학실">분자생물학실</option>
-                                <option value="유전체분석실">유전체분석실</option>
-                                <option value="생명공학실">생명공학실</option>
+                                <option value="경지실">경지실</option>
+                                <option value="이모작실">이모작실</option>
+                                <option value="가공실">가공실</option>
                                 <option value="기타">기타</option>
                             </select>
                         </div>
@@ -1751,6 +1750,10 @@
                     <label class="form-label">상세 내용</label>
                     <textarea class="form-input" id="modalDetail" rows="3" placeholder="실험 내용, 샘플 수 등"></textarea>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">메모</label>
+                    <input type="text" class="form-input" id="modalMemo" placeholder="간단한 메모 (선택사항)">
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('reservationModal')">취소</button>
@@ -1823,6 +1826,23 @@
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('equipmentModal')">취소</button>
                 <button class="btn btn-primary" onclick="saveEquipment()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Change Modal -->
+    <div class="modal-overlay" id="roleChangeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>권한 변경</h3>
+                <button class="modal-close" onclick="closeModal('roleChangeModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="roleChangeModalBody">
+                <!-- 동적 내용 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('roleChangeModal')">취소</button>
+                <button class="btn btn-primary" id="roleChangeConfirmBtn" onclick="confirmRoleChange()">확인</button>
             </div>
         </div>
     </div>
@@ -2476,6 +2496,7 @@
         async function submitReservation() {
             const purpose = document.getElementById('modalPurpose').value;
             const detail = document.getElementById('modalDetail').value;
+            const memo = document.getElementById('modalMemo').value;
 
             if (!purpose) {
                 showToast('사용 목적을 선택해주세요.', 'warning');
@@ -2504,6 +2525,7 @@
                         end_time: endTime,
                         purpose: purpose,
                         detail: detail,
+                        memo: memo,
                         status: status
                     }])
                     .select()
@@ -2935,20 +2957,66 @@
                     <td><strong>${u.name}</strong></td>
                     <td>${u.email}</td>
                     <td>${u.department}</td>
-                    <td>${u.role === 'admin' ? '관리자' : '사용자'}</td>
+                    <td>${u.role === 'admin' ? '🔑 관리자' : '👤 사용자'}</td>
                     <td>${u.status === 'active' ? '🟢 활성' : '⚫ 비활성'}</td>
                     <td>
-                        ${u.role !== 'admin' ? `
-                            <button class="btn btn-sm btn-outline" onclick="toggleUserRole('${u.id}', '${u.role}')">
-                                ${u.role === 'admin' ? '사용자로' : '관리자로'}
-                            </button>
-                        ` : '-'}
+                        <button class="btn btn-sm ${u.role === 'admin' ? 'btn-danger' : 'btn-outline'}" onclick="openRoleChangeModal('${u.id}', '${u.role}', '${u.name}')">
+                            ${u.role === 'admin' ? '권한 해제' : '관리자로'}
+                        </button>
                     </td>
                 </tr>
             `).join('');
         }
 
-        async function toggleUserRole(id, currentRole) {
+        let pendingRoleChange = null;
+
+        function openRoleChangeModal(id, currentRole, name) {
+            pendingRoleChange = { id, currentRole, name };
+            const isPromoting = currentRole !== 'admin';
+
+            const modalBody = document.getElementById('roleChangeModalBody');
+            const confirmBtn = document.getElementById('roleChangeConfirmBtn');
+            const checkbox = document.getElementById('roleChangeCheckbox');
+
+            if (isPromoting) {
+                modalBody.innerHTML = `
+                    <p><strong>${name}</strong> 님을 관리자로 승격하시겠습니까?</p>
+                    <p class="form-hint" style="margin-top: 8px; color: #666;">관리자는 모든 예약을 관리하고 장비를 추가/수정할 수 있습니다.</p>
+                    <div style="margin-top: 16px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="roleChangeCheckbox" onchange="updateRoleChangeBtn()">
+                            <span>관리자 권한을 부여하는 것에 동의합니다</span>
+                        </label>
+                    </div>
+                `;
+                confirmBtn.textContent = '관리자로 승격';
+                confirmBtn.disabled = true;
+                confirmBtn.className = 'btn btn-primary';
+            } else {
+                modalBody.innerHTML = `
+                    <p><strong>${name}</strong> 님의 관리자 권한을 해제하시겠습니까?</p>
+                    <p class="form-hint" style="margin-top: 8px; color: #666;">일반 사용자로 변경됩니다.</p>
+                `;
+                confirmBtn.textContent = '권한 해제';
+                confirmBtn.disabled = false;
+                confirmBtn.className = 'btn btn-danger';
+            }
+
+            openModal('roleChangeModal');
+        }
+
+        function updateRoleChangeBtn() {
+            const checkbox = document.getElementById('roleChangeCheckbox');
+            const confirmBtn = document.getElementById('roleChangeConfirmBtn');
+            if (checkbox) {
+                confirmBtn.disabled = !checkbox.checked;
+            }
+        }
+
+        async function confirmRoleChange() {
+            if (!pendingRoleChange) return;
+
+            const { id, currentRole } = pendingRoleChange;
             const newRole = currentRole === 'admin' ? 'user' : 'admin';
 
             try {
@@ -2960,10 +3028,13 @@
                 if (error) throw error;
 
                 showToast('권한이 변경되었습니다.', 'success');
+                closeModal('roleChangeModal');
                 loadUsersTable();
             } catch (err) {
                 showToast('변경에 실패했습니다.', 'error');
             }
+
+            pendingRoleChange = null;
         }
 
         // Equipment CRUD
