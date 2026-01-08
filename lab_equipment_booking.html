@@ -1646,15 +1646,26 @@
                             <form id="equipmentRequestTabForm" onsubmit="submitEquipmentRequestFromTab(event)">
                                 <div class="form-group">
                                     <label class="form-label">장비명 <span class="required">*</span></label>
-                                    <input type="text" class="form-input" id="requestEquipmentNameTab" placeholder="예: 원심분리기" required>
+                                    <input type="text" class="form-input" id="requestEquipmentNameTab" required>
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">위치</label>
-                                    <input type="text" class="form-input" id="requestEquipmentLocationTab" placeholder="예: 실험실 A동 301호">
+                                    <label class="form-label">위치 <span class="required">*</span></label>
+                                    <input type="text" class="form-input" id="requestEquipmentLocationTab" required>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">설명</label>
-                                    <textarea class="form-input" id="requestEquipmentDescriptionTab" rows="3" placeholder="장비에 대한 간단한 설명"></textarea>
+                                    <textarea class="form-input" id="requestEquipmentDescriptionTab" rows="3"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">승인 방식</label>
+                                    <select class="form-select" id="requestEquipmentApprovalModeTab">
+                                        <option value="manual">수동 승인</option>
+                                        <option value="auto">자동 승인</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">최대 사용 시간 (시간)</label>
+                                    <input type="number" class="form-input" id="requestEquipmentMaxDurationTab" value="4" min="1" max="8">
                                 </div>
                                 <button type="submit" class="btn btn-primary">장비 등록 신청</button>
                             </form>
@@ -3718,20 +3729,27 @@
             const name = document.getElementById('requestEquipmentNameTab').value.trim();
             const location = document.getElementById('requestEquipmentLocationTab').value.trim();
             const description = document.getElementById('requestEquipmentDescriptionTab').value.trim();
+            const approvalMode = document.getElementById('requestEquipmentApprovalModeTab').value;
+            const maxDuration = parseInt(document.getElementById('requestEquipmentMaxDurationTab').value) || 4;
 
             if (!name) {
                 showToast('장비명을 입력해주세요.', 'warning');
                 return;
             }
 
+            if (!location) {
+                showToast('위치를 입력해주세요.', 'warning');
+                return;
+            }
+
             try {
                 const { error } = await supabaseClient.from('equipment').insert([{
                     name: name,
-                    location: location || '',
+                    location: location,
                     description: description ? `[${currentUser.name} 신청] ${description}` : `[${currentUser.name} 신청]`,
                     status: 'pending',
-                    approval_mode: 'manual',
-                    max_duration_hours: 4
+                    approval_mode: approvalMode,
+                    max_duration_hours: maxDuration
                 }]);
 
                 if (error) throw error;
@@ -3742,6 +3760,8 @@
                 document.getElementById('requestEquipmentNameTab').value = '';
                 document.getElementById('requestEquipmentLocationTab').value = '';
                 document.getElementById('requestEquipmentDescriptionTab').value = '';
+                document.getElementById('requestEquipmentApprovalModeTab').value = 'manual';
+                document.getElementById('requestEquipmentMaxDurationTab').value = '4';
             } catch (err) {
                 showToast('신청에 실패했습니다: ' + err.message, 'error');
             }
