@@ -1802,9 +1802,9 @@
                 <form id="equipmentForm">
                     <input type="hidden" id="equipmentId">
                     <div class="form-group">
-                        <label class="form-label">자산취득번호 <span class="required">*</span></label>
-                        <input type="text" class="form-input" id="equipmentAssetNo" placeholder="예: 029150400050993846" required>
-                        <p class="form-hint">중복된 번호는 등록할 수 없습니다</p>
+                        <label class="form-label">자산취득번호 (선택)</label>
+                        <input type="text" class="form-input" id="equipmentAssetNo" placeholder="예: 029150400050993846">
+                        <p class="form-hint">자산취득번호가 있는 장비는 반드시 입력하세요. 중복 등록을 방지합니다.</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">장비명 <span class="required">*</span></label>
@@ -1873,9 +1873,9 @@
             <div class="modal-body">
                 <form id="equipmentRequestForm">
                     <div class="form-group">
-                        <label class="form-label">자산취득번호 <span class="required">*</span></label>
-                        <input type="text" class="form-input" id="requestEquipmentAssetNo" placeholder="예: 029150400050993846" required>
-                        <p class="form-hint">장비에 부착된 자산취득번호를 입력하세요</p>
+                        <label class="form-label">자산취득번호 (선택)</label>
+                        <input type="text" class="form-input" id="requestEquipmentAssetNo" placeholder="예: 029150400050993846">
+                        <p class="form-hint">자산취득번호가 있는 장비는 반드시 입력하세요. 중복 등록을 방지합니다.</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">장비명 <span class="required">*</span></label>
@@ -3236,27 +3236,24 @@
             const id = document.getElementById('equipmentId').value;
             const assetNo = document.getElementById('equipmentAssetNo').value.trim();
 
-            if (!assetNo) {
-                showToast('자산취득번호를 입력해주세요.', 'warning');
-                return;
-            }
+            // 자산취득번호가 입력된 경우에만 중복 체크
+            if (assetNo) {
+                const { data: existing } = await supabaseClient
+                    .from('equipment')
+                    .select('id')
+                    .eq('asset_no', assetNo);
 
-            // 중복 체크
-            const { data: existing } = await supabaseClient
-                .from('equipment')
-                .select('id')
-                .eq('asset_no', assetNo);
-
-            if (existing && existing.length > 0) {
-                // 수정 시에는 자기 자신 제외
-                if (!id || existing.some(e => e.id !== id)) {
-                    showToast('이미 등록된 자산취득번호입니다.', 'error');
-                    return;
+                if (existing && existing.length > 0) {
+                    // 수정 시에는 자기 자신 제외
+                    if (!id || existing.some(e => e.id !== id)) {
+                        showToast('이미 등록된 자산취득번호입니다.', 'error');
+                        return;
+                    }
                 }
             }
 
             const data = {
-                asset_no: assetNo,
+                asset_no: assetNo || null,
                 name: document.getElementById('equipmentName').value,
                 location: document.getElementById('equipmentLocation').value,
                 description: document.getElementById('equipmentDescription').value,
@@ -3313,30 +3310,27 @@
             const location = document.getElementById('requestEquipmentLocation').value.trim();
             const description = document.getElementById('requestEquipmentDescription').value.trim();
 
-            if (!assetNo) {
-                showToast('자산취득번호를 입력해주세요.', 'warning');
-                return;
-            }
-
             if (!name) {
                 showToast('장비명을 입력해주세요.', 'warning');
                 return;
             }
 
-            // 중복 체크
-            const { data: existing } = await supabaseClient
-                .from('equipment')
-                .select('id')
-                .eq('asset_no', assetNo);
+            // 자산취득번호가 입력된 경우에만 중복 체크
+            if (assetNo) {
+                const { data: existing } = await supabaseClient
+                    .from('equipment')
+                    .select('id')
+                    .eq('asset_no', assetNo);
 
-            if (existing && existing.length > 0) {
-                showToast('이미 등록된 자산취득번호입니다.', 'error');
-                return;
+                if (existing && existing.length > 0) {
+                    showToast('이미 등록된 자산취득번호입니다.', 'error');
+                    return;
+                }
             }
 
             try {
                 const { error } = await supabaseClient.from('equipment').insert([{
-                    asset_no: assetNo,
+                    asset_no: assetNo || null,
                     name: name,
                     location: location || '',
                     description: description ? `[${currentUser.name} 신청] ${description}` : `[${currentUser.name} 신청]`,
@@ -3582,7 +3576,7 @@
                     '장비명': '예시: PCR 기기',
                     '표시명(선택)': '예시: 1층 PCR',
                     '위치': '예시: 1동 101호',
-                    '자산번호(선택)': 'ASSET-001',
+                    '자산취득번호(선택)': '029150400050993846',
                     '부서(선택)': '생명과학부',
                     '연구실(선택)': '분자생물학 연구실',
                     '취득연도(선택)': '2023',
@@ -3632,7 +3626,7 @@
                         name: row['장비명'],
                         display_name: row['표시명(선택)'] || row['장비명'],
                         location: row['위치'] || '',
-                        asset_number: row['자산번호(선택)'] || null,
+                        asset_no: row['자산취득번호(선택)'] || null,
                         lab_department: row['부서(선택)'] || null,
                         lab_room: row['연구실(선택)'] || null,
                         acquisition_year: row['취득연도(선택)'] ? parseInt(row['취득연도(선택)']) : null,
@@ -3682,7 +3676,7 @@
                     '장비명': eq.name,
                     '표시명': eq.display_name || eq.name,
                     '위치': eq.location,
-                    '자산번호': eq.asset_number || '',
+                    '자산취득번호': eq.asset_no || '',
                     '부서': eq.lab_department || '',
                     '연구실': eq.lab_room || '',
                     '취득연도': eq.acquisition_year || '',
