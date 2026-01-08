@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>실험실 장비 예약 시스템</title>
-    <link rel="icon" type="image/png" href="ssallogo.png">
+    <link rel="icon" type="image/png" href="files/ssallogo.png">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -217,14 +217,21 @@
             background: none;
             border: none;
             cursor: pointer;
-            font-size: 1rem;
             padding: 4px;
             opacity: 0.6;
             transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .btn-toggle-password:hover {
             opacity: 1;
+        }
+
+        .btn-toggle-password img {
+            width: 20px;
+            height: 20px;
         }
 
         .auth-links {
@@ -1299,7 +1306,7 @@
                             <label class="form-label">비밀번호 <span class="required">*</span></label>
                             <div class="password-input-wrapper">
                                 <input type="password" class="form-input" id="loginPassword" placeholder="비밀번호 입력" required>
-                                <button type="button" class="btn-toggle-password" onclick="togglePassword('loginPassword', this)">👁️</button>
+                                <button type="button" class="btn-toggle-password" onclick="togglePassword('loginPassword', this)"><img src="files/close.png" alt="숨김"></button>
                             </div>
                         </div>
                         <div class="login-options">
@@ -1329,14 +1336,14 @@
                             <label class="form-label">비밀번호 <span class="required">*</span></label>
                             <div class="password-input-wrapper">
                                 <input type="password" class="form-input" id="signupPassword" placeholder="6자 이상" minlength="6" required>
-                                <button type="button" class="btn-toggle-password" onclick="togglePassword('signupPassword', this)">👁️</button>
+                                <button type="button" class="btn-toggle-password" onclick="togglePassword('signupPassword', this)"><img src="files/close.png" alt="숨김"></button>
                             </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">비밀번호 확인 <span class="required">*</span></label>
                             <div class="password-input-wrapper">
                                 <input type="password" class="form-input" id="signupPasswordConfirm" placeholder="비밀번호 재입력" minlength="6" required>
-                                <button type="button" class="btn-toggle-password" onclick="togglePassword('signupPasswordConfirm', this)">👁️</button>
+                                <button type="button" class="btn-toggle-password" onclick="togglePassword('signupPasswordConfirm', this)"><img src="files/close.png" alt="숨김"></button>
                             </div>
                             <p class="form-hint password-match-hint" id="passwordMatchHint"></p>
                         </div>
@@ -1348,10 +1355,9 @@
                             <label class="form-label">소속 <span class="required">*</span></label>
                             <select class="form-select" id="signupDepartment" required>
                                 <option value="">선택하세요</option>
-                                <option value="육종연구실">육종연구실</option>
-                                <option value="분자생물학실">분자생물학실</option>
-                                <option value="유전체분석실">유전체분석실</option>
-                                <option value="생명공학실">생명공학실</option>
+                                <option value="경지실">경지실</option>
+                                <option value="이모작실">이모작실</option>
+                                <option value="가공실">가공실</option>
                                 <option value="기타">기타</option>
                             </select>
                         </div>
@@ -1388,7 +1394,10 @@
             <div id="tabContents">
                 <!-- Booking Tab -->
                 <div class="tab-content active" id="bookingTab">
-                    <h2 class="mb-6">장비 예약하기</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 class="mb-0">장비 예약하기</h2>
+                        <button class="btn btn-outline" onclick="openEquipmentRequestModal()">+ 장비 등록 신청</button>
+                    </div>
 
                     <!-- Favorites Section -->
                     <div class="favorites-section" id="favoritesSection" style="display: none;">
@@ -1691,14 +1700,14 @@
                         <label class="form-label">새 비밀번호 <span class="required">*</span></label>
                         <div class="password-input-wrapper">
                             <input type="password" class="form-input" id="newPassword" placeholder="6자 이상" minlength="6">
-                            <button type="button" class="btn-toggle-password" onclick="togglePassword('newPassword', this)">👁️</button>
+                            <button type="button" class="btn-toggle-password" onclick="togglePassword('newPassword', this)"><img src="files/close.png" alt="숨김"></button>
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">새 비밀번호 확인 <span class="required">*</span></label>
                         <div class="password-input-wrapper">
                             <input type="password" class="form-input" id="newPasswordConfirm" placeholder="비밀번호 재입력" minlength="6">
-                            <button type="button" class="btn-toggle-password" onclick="togglePassword('newPasswordConfirm', this)">👁️</button>
+                            <button type="button" class="btn-toggle-password" onclick="togglePassword('newPasswordConfirm', this)"><img src="files/close.png" alt="숨김"></button>
                         </div>
                     </div>
                     <button class="btn btn-primary btn-block" onclick="resetPassword()">비밀번호 변경</button>
@@ -1750,6 +1759,10 @@
                 <div class="form-group">
                     <label class="form-label">상세 내용</label>
                     <textarea class="form-input" id="modalDetail" rows="3" placeholder="실험 내용, 샘플 수 등"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">메모</label>
+                    <input type="text" class="form-input" id="modalMemo" placeholder="간단한 메모 (선택사항)">
                 </div>
             </div>
             <div class="modal-footer">
@@ -1827,6 +1840,53 @@
         </div>
     </div>
 
+    <!-- Role Change Modal -->
+    <div class="modal-overlay" id="roleChangeModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>권한 변경</h3>
+                <button class="modal-close" onclick="closeModal('roleChangeModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="roleChangeModalBody">
+                <!-- 동적 내용 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('roleChangeModal')">취소</button>
+                <button class="btn btn-primary" id="roleChangeConfirmBtn" onclick="confirmRoleChange()">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equipment Request Modal (for users) -->
+    <div class="modal-overlay" id="equipmentRequestModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>장비 등록 신청</h3>
+                <button class="modal-close" onclick="closeModal('equipmentRequestModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="equipmentRequestForm">
+                    <div class="form-group">
+                        <label class="form-label">장비명 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="requestEquipmentName" placeholder="예: 원심분리기" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">위치</label>
+                        <input type="text" class="form-input" id="requestEquipmentLocation" placeholder="예: 실험실 A동 301호">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">설명</label>
+                        <textarea class="form-input" id="requestEquipmentDescription" rows="3" placeholder="장비에 대한 간단한 설명"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('equipmentRequestModal')">취소</button>
+                <button class="btn btn-primary" onclick="submitEquipmentRequest()">신청</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // =============================================
         // Configuration
@@ -1880,6 +1940,10 @@
 
                 const user = data[0];
 
+                if (user.status === 'pending') {
+                    throw new Error('가입 승인 대기 중입니다. 관리자 승인 후 이용 가능합니다.');
+                }
+
                 if (user.status !== 'active') {
                     throw new Error('비활성화된 계정입니다.');
                 }
@@ -1929,14 +1993,14 @@
                         department: userData.department,
                         phone: userData.phone || '',
                         role: 'user',
-                        status: 'active'
+                        status: 'pending'
                     }])
                     .select()
                     .single();
 
                 if (error) throw error;
 
-                showToast('가입이 완료되었습니다. 로그인해주세요.', 'success');
+                showToast('가입신청이 완료되었습니다. 관리자 승인 후 이용 가능합니다.', 'info');
                 switchAuthTab('login');
             } catch (err) {
                 showToast(err.message, 'error');
@@ -2476,6 +2540,7 @@
         async function submitReservation() {
             const purpose = document.getElementById('modalPurpose').value;
             const detail = document.getElementById('modalDetail').value;
+            const memo = document.getElementById('modalMemo').value;
 
             if (!purpose) {
                 showToast('사용 목적을 선택해주세요.', 'warning');
@@ -2504,6 +2569,7 @@
                         end_time: endTime,
                         purpose: purpose,
                         detail: detail,
+                        memo: memo,
                         status: status
                     }])
                     .select()
@@ -2909,18 +2975,72 @@
 
         async function loadEquipmentTable() {
             const tbody = document.getElementById('equipmentTableBody');
-            tbody.innerHTML = equipmentList.map(eq => `
-                <tr>
-                    <td><strong>${eq.name}</strong></td>
-                    <td>${eq.location}</td>
-                    <td><span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span></td>
-                    <td>${eq.approval_mode === 'auto' ? '자동' : '수동'}</td>
-                    <td>
+            tbody.innerHTML = equipmentList.map(eq => {
+                let actionBtns = '';
+                if (eq.status === 'pending') {
+                    actionBtns = `
+                        <button class="btn btn-sm btn-success" onclick="approveEquipment('${eq.id}', '${eq.name}')">승인</button>
+                        <button class="btn btn-sm btn-danger" onclick="rejectEquipment('${eq.id}', '${eq.name}')">거부</button>
+                    `;
+                } else {
+                    actionBtns = `
                         <button class="btn btn-sm btn-outline" onclick="editEquipment('${eq.id}')">수정</button>
                         <button class="btn btn-sm btn-danger" onclick="deleteEquipment('${eq.id}')">삭제</button>
-                    </td>
-                </tr>
-            `).join('');
+                    `;
+                }
+                return `
+                    <tr>
+                        <td><strong>${eq.name}</strong></td>
+                        <td>${eq.location}</td>
+                        <td><span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span></td>
+                        <td>${eq.approval_mode === 'auto' ? '자동' : '수동'}</td>
+                        <td>${actionBtns}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function approveEquipment(id, name) {
+            if (!confirm(`"${name}" 장비 등록을 승인하시겠습니까?`)) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('equipment')
+                    .update({ status: 'available' })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast(`"${name}" 장비가 승인되었습니다.`, 'success');
+                await loadEquipment();
+                loadEquipmentTable();
+            } catch (err) {
+                showToast('승인에 실패했습니다.', 'error');
+            }
+        }
+
+        async function rejectEquipment(id, name) {
+            if (!confirm(`"${name}" 장비 등록을 거부하시겠습니까? 해당 신청이 삭제됩니다.`)) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('equipment')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast(`"${name}" 장비 등록이 거부되었습니다.`, 'info');
+                await loadEquipment();
+                loadEquipmentTable();
+            } catch (err) {
+                showToast('거부에 실패했습니다.', 'error');
+            }
+        }
+
+        // 최고 관리자 확인 (관리자 이메일과 일치하는 사람만 권한 관리 가능)
+        function isSuperAdmin() {
+            return currentUser && currentUser.email === getAdminEmail();
         }
 
         async function loadUsersTable() {
@@ -2929,26 +3049,138 @@
                 .select('*')
                 .order('created_at', { ascending: false });
 
+            const canManageRoles = isSuperAdmin();
             const tbody = document.getElementById('usersTableBody');
-            tbody.innerHTML = data.map(u => `
-                <tr>
-                    <td><strong>${u.name}</strong></td>
-                    <td>${u.email}</td>
-                    <td>${u.department}</td>
-                    <td>${u.role === 'admin' ? '관리자' : '사용자'}</td>
-                    <td>${u.status === 'active' ? '🟢 활성' : '⚫ 비활성'}</td>
-                    <td>
-                        ${u.role !== 'admin' ? `
-                            <button class="btn btn-sm btn-outline" onclick="toggleUserRole('${u.id}', '${u.role}')">
-                                ${u.role === 'admin' ? '사용자로' : '관리자로'}
-                            </button>
-                        ` : '-'}
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = data.map(u => {
+                // 최고 관리자 표시
+                const isSuperAdminUser = u.email === getAdminEmail();
+                const roleDisplay = isSuperAdminUser ? '👑 최고관리자' : (u.role === 'admin' ? '🔑 관리자' : '👤 사용자');
+
+                // 상태 표시
+                let statusDisplay = '⚫ 비활성';
+                if (u.status === 'active') statusDisplay = '🟢 활성';
+                else if (u.status === 'pending') statusDisplay = '🟡 승인대기';
+
+                // 액션 버튼
+                let actionBtn = '-';
+                if (u.status === 'pending') {
+                    // 승인 대기 중인 사용자: 승인/거부 버튼
+                    actionBtn = `
+                        <button class="btn btn-sm btn-success" onclick="approveUser('${u.id}', '${u.name}')">승인</button>
+                        <button class="btn btn-sm btn-danger" onclick="rejectUser('${u.id}', '${u.name}')">거부</button>
+                    `;
+                } else if (canManageRoles && !isSuperAdminUser) {
+                    // 권한 변경 버튼 (최고 관리자만 볼 수 있고, 자기 자신은 변경 불가)
+                    actionBtn = `<button class="btn btn-sm ${u.role === 'admin' ? 'btn-danger' : 'btn-outline'}" onclick="openRoleChangeModal('${u.id}', '${u.role}', '${u.name}')">
+                        ${u.role === 'admin' ? '권한 해제' : '관리자로'}
+                    </button>`;
+                }
+
+                return `
+                    <tr>
+                        <td><strong>${u.name}</strong></td>
+                        <td>${u.email}</td>
+                        <td>${u.department}</td>
+                        <td>${roleDisplay}</td>
+                        <td>${statusDisplay}</td>
+                        <td>${actionBtn}</td>
+                    </tr>
+                `;
+            }).join('');
         }
 
-        async function toggleUserRole(id, currentRole) {
+        async function approveUser(id, name) {
+            if (!confirm(`${name} 님의 가입을 승인하시겠습니까?`)) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('users')
+                    .update({ status: 'active' })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast(`${name} 님의 가입이 승인되었습니다.`, 'success');
+                loadUsersTable();
+            } catch (err) {
+                showToast('승인에 실패했습니다.', 'error');
+            }
+        }
+
+        async function rejectUser(id, name) {
+            if (!confirm(`${name} 님의 가입을 거부하시겠습니까? 해당 계정이 삭제됩니다.`)) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('users')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast(`${name} 님의 가입이 거부되었습니다.`, 'info');
+                loadUsersTable();
+            } catch (err) {
+                showToast('거부에 실패했습니다.', 'error');
+            }
+        }
+
+        let pendingRoleChange = null;
+
+        function openRoleChangeModal(id, currentRole, name) {
+            pendingRoleChange = { id, currentRole, name };
+            const isPromoting = currentRole !== 'admin';
+
+            const modalBody = document.getElementById('roleChangeModalBody');
+            const confirmBtn = document.getElementById('roleChangeConfirmBtn');
+            const checkbox = document.getElementById('roleChangeCheckbox');
+
+            if (isPromoting) {
+                modalBody.innerHTML = `
+                    <p><strong>${name}</strong> 님을 관리자로 승격하시겠습니까?</p>
+                    <p class="form-hint" style="margin-top: 8px; color: #666;">관리자는 모든 예약을 관리하고 장비를 추가/수정할 수 있습니다.</p>
+                    <div style="margin-top: 16px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="roleChangeCheckbox" onchange="updateRoleChangeBtn()">
+                            <span>관리자 권한을 부여하는 것에 동의합니다</span>
+                        </label>
+                    </div>
+                `;
+                confirmBtn.textContent = '관리자로 승격';
+                confirmBtn.disabled = true;
+                confirmBtn.className = 'btn btn-primary';
+            } else {
+                modalBody.innerHTML = `
+                    <p><strong>${name}</strong> 님의 관리자 권한을 해제하시겠습니까?</p>
+                    <p class="form-hint" style="margin-top: 8px; color: #666;">일반 사용자로 변경됩니다.</p>
+                `;
+                confirmBtn.textContent = '권한 해제';
+                confirmBtn.disabled = false;
+                confirmBtn.className = 'btn btn-danger';
+            }
+
+            openModal('roleChangeModal');
+        }
+
+        function updateRoleChangeBtn() {
+            const checkbox = document.getElementById('roleChangeCheckbox');
+            const confirmBtn = document.getElementById('roleChangeConfirmBtn');
+            if (checkbox) {
+                confirmBtn.disabled = !checkbox.checked;
+            }
+        }
+
+        async function confirmRoleChange() {
+            if (!pendingRoleChange) return;
+
+            // 최고 관리자만 권한 변경 가능
+            if (!isSuperAdmin()) {
+                showToast('최고 관리자만 권한을 변경할 수 있습니다.', 'error');
+                closeModal('roleChangeModal');
+                return;
+            }
+
+            const { id, currentRole } = pendingRoleChange;
             const newRole = currentRole === 'admin' ? 'user' : 'admin';
 
             try {
@@ -2960,10 +3192,13 @@
                 if (error) throw error;
 
                 showToast('권한이 변경되었습니다.', 'success');
+                closeModal('roleChangeModal');
                 loadUsersTable();
             } catch (err) {
                 showToast('변경에 실패했습니다.', 'error');
             }
+
+            pendingRoleChange = null;
         }
 
         // Equipment CRUD
@@ -3025,6 +3260,43 @@
                 loadEquipmentTable();
             } catch (err) {
                 showToast('삭제에 실패했습니다.', 'error');
+            }
+        }
+
+        // 일반 사용자 장비 등록 신청
+        function openEquipmentRequestModal() {
+            document.getElementById('requestEquipmentName').value = '';
+            document.getElementById('requestEquipmentLocation').value = '';
+            document.getElementById('requestEquipmentDescription').value = '';
+            openModal('equipmentRequestModal');
+        }
+
+        async function submitEquipmentRequest() {
+            const name = document.getElementById('requestEquipmentName').value.trim();
+            const location = document.getElementById('requestEquipmentLocation').value.trim();
+            const description = document.getElementById('requestEquipmentDescription').value.trim();
+
+            if (!name) {
+                showToast('장비명을 입력해주세요.', 'warning');
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient.from('equipment').insert([{
+                    name: name,
+                    location: location || '',
+                    description: description ? `[${currentUser.name} 신청] ${description}` : `[${currentUser.name} 신청]`,
+                    status: 'pending',
+                    approval_mode: 'manual',
+                    max_duration_hours: 4
+                }]);
+
+                if (error) throw error;
+
+                showToast('장비 등록 신청이 완료되었습니다. 관리자 승인 후 사용 가능합니다.', 'success');
+                closeModal('equipmentRequestModal');
+            } catch (err) {
+                showToast('신청에 실패했습니다: ' + err.message, 'error');
             }
         }
 
@@ -3110,7 +3382,8 @@
             const map = {
                 'available': '사용가능',
                 'maintenance': '점검중',
-                'broken': '고장'
+                'broken': '고장',
+                'pending': '승인대기'
             };
             return map[status] || status;
         }
@@ -3485,12 +3758,15 @@
         // =============================================
         function togglePassword(inputId, btn) {
             const input = document.getElementById(inputId);
+            const img = btn.querySelector('img');
             if (input.type === 'password') {
                 input.type = 'text';
-                btn.textContent = '🙈';
+                img.src = 'files/disclose.png';
+                img.alt = '드러냄';
             } else {
                 input.type = 'password';
-                btn.textContent = '👁️';
+                img.src = 'files/close.png';
+                img.alt = '숨김';
             }
         }
 
