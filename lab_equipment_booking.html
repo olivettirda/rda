@@ -1178,10 +1178,159 @@
             to { transform: translateX(0); opacity: 1; }
         }
 
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .toast.hiding {
+            animation: slideOut 0.3s ease forwards;
+        }
+
         .toast.success { border-left: 4px solid var(--success); }
         .toast.error { border-left: 4px solid var(--error); }
         .toast.warning { border-left: 4px solid var(--warning); }
         .toast.info { border-left: 4px solid var(--info); }
+
+        /* 장바구니 스타일 */
+        .cart-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            border-radius: 16px 16px 0 0;
+            z-index: 500;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            max-height: 60vh;
+            overflow: hidden;
+        }
+
+        .cart-panel.active {
+            transform: translateY(0);
+        }
+
+        .cart-header {
+            padding: var(--space-4) var(--space-6);
+            background: var(--primary-dark);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .cart-header h3 {
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .cart-badge {
+            background: var(--warning);
+            color: var(--primary-dark);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .cart-body {
+            padding: var(--space-4) var(--space-6);
+            max-height: 40vh;
+            overflow-y: auto;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            margin-bottom: var(--space-2);
+        }
+
+        .cart-item-info {
+            flex: 1;
+        }
+
+        .cart-item-equipment {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .cart-item-time {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .cart-footer {
+            padding: var(--space-4) var(--space-6);
+            border-top: 1px solid var(--border-default);
+            display: flex;
+            gap: var(--space-3);
+        }
+
+        .cart-toggle-btn {
+            position: fixed;
+            bottom: var(--space-4);
+            right: var(--space-4);
+            background: var(--primary-dark);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: var(--space-3) var(--space-5);
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 499;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            transition: all 0.2s;
+        }
+
+        .cart-toggle-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .cart-toggle-btn .cart-count {
+            background: var(--warning);
+            color: var(--primary-dark);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* 범위 선택 힌트 */
+        .range-select-hint {
+            background: var(--info);
+            color: white;
+            padding: var(--space-2) var(--space-3);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            margin-bottom: var(--space-3);
+            text-align: center;
+        }
+
+        /* 재신청 모달 스타일 */
+        .rejection-reason-box {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .rejection-reason-box strong {
+            color: var(--error);
+            display: block;
+            margin-bottom: var(--space-2);
+        }
 
         /* Loading */
         .loading {
@@ -1887,6 +2036,113 @@
         </div>
     </div>
 
+    <!-- Resubmit Reservation Modal (재신청) -->
+    <div class="modal-overlay" id="resubmitModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>예약 수정 후 재신청</h3>
+                <button class="modal-close" onclick="closeModal('resubmitModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="rejection-reason-box" id="resubmitRejectionReason">
+                    <strong>반려 사유</strong>
+                    <span id="resubmitRejectionText"></span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">장비</label>
+                    <input type="text" class="form-input" id="resubmitEquipment" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">날짜</label>
+                    <input type="date" class="form-input" id="resubmitDate">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">시작 시간</label>
+                    <select class="form-select" id="resubmitStartTime"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">종료 시간</label>
+                    <select class="form-select" id="resubmitEndTime"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">사용 목적 <span class="required">*</span></label>
+                    <select class="form-select" id="resubmitPurpose" required>
+                        <option value="">선택하세요</option>
+                        <option value="연구 실험">연구 실험</option>
+                        <option value="분석">분석</option>
+                        <option value="교육/실습">교육/실습</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">상세 내용</label>
+                    <textarea class="form-input" id="resubmitDetail" rows="3" placeholder="실험 내용, 샘플 수 등"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('resubmitModal')">취소</button>
+                <button class="btn btn-primary" onclick="submitResubmit()">재신청</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Panel -->
+    <div class="cart-panel" id="cartPanel">
+        <div class="cart-header">
+            <h3>장바구니 <span class="cart-badge" id="cartBadge">0</span></h3>
+            <button class="btn-icon" onclick="toggleCart()" style="color: white; font-size: 1.5rem;">&times;</button>
+        </div>
+        <div class="cart-body" id="cartBody">
+            <div class="empty-state">
+                <p>장바구니가 비어 있습니다.</p>
+            </div>
+        </div>
+        <div class="cart-footer">
+            <button class="btn btn-outline" onclick="clearCart()" style="flex: 1;">비우기</button>
+            <button class="btn btn-primary" onclick="openCartReservationModal()" style="flex: 2;">일괄 예약 신청</button>
+        </div>
+    </div>
+
+    <!-- Cart Toggle Button -->
+    <button class="cart-toggle-btn hidden" id="cartToggleBtn" onclick="toggleCart()">
+        장바구니 <span class="cart-count" id="cartCount">0</span>
+    </button>
+
+    <!-- Cart Reservation Modal -->
+    <div class="modal-overlay" id="cartReservationModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>일괄 예약 신청</h3>
+                <button class="modal-close" onclick="closeModal('cartReservationModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="cartReservationSummary"></div>
+                <div class="form-group">
+                    <label class="form-label">사용 목적 <span class="required">*</span></label>
+                    <select class="form-select" id="cartPurpose" required>
+                        <option value="">선택하세요</option>
+                        <option value="연구 실험">연구 실험</option>
+                        <option value="분석">분석</option>
+                        <option value="교육/실습">교육/실습</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">상세 내용</label>
+                    <textarea class="form-input" id="cartDetail" rows="3" placeholder="실험 내용, 샘플 수 등"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">메모</label>
+                    <input type="text" class="form-input" id="cartMemo" placeholder="간단한 메모 (선택사항)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('cartReservationModal')">취소</button>
+                <button class="btn btn-primary" onclick="submitCartReservations()">예약 신청</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // =============================================
         // Configuration
@@ -1918,6 +2174,13 @@
         let currentMonth = new Date();
         let equipmentList = [];
         let currentApprovalReservation = null;
+
+        // 장바구니 관련 변수
+        let cart = [];
+        let firstSelectedSlot = null; // 범위 선택용 첫 번째 슬롯
+
+        // 재신청 관련 변수
+        let currentResubmitReservation = null;
 
         // =============================================
         // Auth Functions
@@ -2398,6 +2661,15 @@
             `;
             body.innerHTML = headerHtml + html;
 
+            // 범위 선택 힌트
+            if (firstSelectedSlot && selectedTimeSlots.length === 0) {
+                body.innerHTML = `
+                    <div class="range-select-hint">
+                        시작 시간 ${firstSelectedSlot} 선택됨 - 종료 시간을 클릭하세요
+                    </div>
+                ` + body.innerHTML;
+            }
+
             // 선택된 시간 요약 및 예약 버튼
             if (selectedTimeSlots.length > 0) {
                 const sortedSlots = [...selectedTimeSlots].sort();
@@ -2414,38 +2686,94 @@
                     <div class="selected-time-summary">
                         <strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})
                     </div>
-                    <button class="btn btn-primary btn-block mt-4" onclick="openReservationModal()">
-                        예약 신청하기
-                    </button>
+                    <div style="display: flex; gap: 8px; margin-top: var(--space-4);">
+                        <button class="btn btn-outline" style="flex: 1;" onclick="addToCart()">
+                            장바구니 담기
+                        </button>
+                        <button class="btn btn-primary" style="flex: 1;" onclick="openReservationModal()">
+                            바로 예약
+                        </button>
+                    </div>
                 `;
             }
         }
 
         function toggleTimeSlot(time) {
             const index = selectedTimeSlots.indexOf(time);
+
+            // 이미 선택된 슬롯을 다시 클릭하면 선택 해제
             if (index > -1) {
                 selectedTimeSlots.splice(index, 1);
-            } else {
-                // 최대 시간 체크 (10분 단위이므로 max_duration_hours * 6)
+                firstSelectedSlot = null;
+                selectedTimeSlots.sort();
+                loadTimeSlots();
+                return;
+            }
+
+            // 범위 선택 로직
+            if (firstSelectedSlot === null && selectedTimeSlots.length === 0) {
+                // 첫 번째 클릭: 시작점 설정
+                firstSelectedSlot = time;
+                loadTimeSlots();
+                return;
+            }
+
+            if (firstSelectedSlot !== null && selectedTimeSlots.length === 0) {
+                // 두 번째 클릭: 범위 선택
+                const slots = generateSlotRange(firstSelectedSlot, time);
+
+                // 최대 시간 체크
                 const maxSlots = selectedEquipment.max_duration_hours * 6;
-                if (selectedTimeSlots.length >= maxSlots) {
+                if (slots.length > maxSlots) {
                     showToast(`최대 ${selectedEquipment.max_duration_hours}시간까지 예약 가능합니다.`, 'warning');
+                    firstSelectedSlot = null;
+                    loadTimeSlots();
                     return;
                 }
 
-                // 연속된 시간만 선택 가능하도록 체크
-                if (selectedTimeSlots.length > 0) {
-                    const sortedSlots = [...selectedTimeSlots, time].sort();
-                    if (!isConsecutiveSlots(sortedSlots)) {
-                        showToast('연속된 시간대만 선택할 수 있습니다.', 'warning');
-                        return;
-                    }
-                }
-
-                selectedTimeSlots.push(time);
+                selectedTimeSlots = slots;
+                firstSelectedSlot = null;
+                selectedTimeSlots.sort();
+                loadTimeSlots();
+                return;
             }
+
+            // 이미 선택된 슬롯이 있는 경우: 연속된 시간만 추가 가능
+            const maxSlots = selectedEquipment.max_duration_hours * 6;
+            if (selectedTimeSlots.length >= maxSlots) {
+                showToast(`최대 ${selectedEquipment.max_duration_hours}시간까지 예약 가능합니다.`, 'warning');
+                return;
+            }
+
+            const sortedSlots = [...selectedTimeSlots, time].sort();
+            if (!isConsecutiveSlots(sortedSlots)) {
+                // 연속되지 않으면 새로운 범위 시작
+                showToast('연속된 시간대만 선택 가능합니다. 새로운 범위를 선택하려면 먼저 선택을 초기화하세요.', 'warning');
+                return;
+            }
+
+            selectedTimeSlots.push(time);
             selectedTimeSlots.sort();
             loadTimeSlots();
+        }
+
+        // 시간 범위에 해당하는 모든 슬롯 생성
+        function generateSlotRange(start, end) {
+            const [startH, startM] = start.split(':').map(Number);
+            const [endH, endM] = end.split(':').map(Number);
+            const startTotal = startH * 60 + startM;
+            const endTotal = endH * 60 + endM;
+
+            const minTime = Math.min(startTotal, endTotal);
+            const maxTime = Math.max(startTotal, endTotal);
+
+            const slots = [];
+            for (let t = minTime; t <= maxTime; t += 10) {
+                const h = Math.floor(t / 60);
+                const m = t % 60;
+                slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+            }
+            return slots;
         }
 
         function isConsecutiveSlots(slots) {
@@ -2678,11 +3006,14 @@
                             <strong>반려 사유:</strong> ${r.rejection_reason}
                         </div>
                     ` : ''}
-                    ${r.status === 'pending' || r.status === 'approved' ? `
-                        <div class="reservation-actions">
+                    <div class="reservation-actions">
+                        ${r.status === 'pending' || r.status === 'approved' ? `
                             <button class="btn btn-sm btn-outline" onclick="cancelReservation('${r.id}')">예약 취소</button>
-                        </div>
-                    ` : ''}
+                        ` : ''}
+                        ${r.status === 'rejected' ? `
+                            <button class="btn btn-sm btn-primary" onclick="openResubmitModal('${r.id}')">수정 후 재신청</button>
+                        ` : ''}
+                    </div>
                 </div>
             `).join('');
         }
@@ -3413,10 +3744,16 @@
             toast.className = `toast ${type}`;
             toast.innerHTML = `
                 <span>${message}</span>
-                <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;margin-left:auto;">✕</button>
+                <button onclick="hideToast(this.parentElement)" style="background:none;border:none;cursor:pointer;margin-left:auto;">✕</button>
             `;
             container.appendChild(toast);
-            setTimeout(() => toast.remove(), 1000);
+            setTimeout(() => hideToast(toast), 2500);
+        }
+
+        function hideToast(toast) {
+            if (!toast || toast.classList.contains('hiding')) return;
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
         }
 
         function switchAuthTab(tab) {
@@ -3936,6 +4273,334 @@
             localStorage.setItem('labBookingAdminEmail', newEmail);
             document.getElementById('currentAdminEmail').textContent = newEmail;
             showToast('관리자 이메일이 변경되었습니다.', 'success');
+        }
+
+        // =============================================
+        // Cart Functions (장바구니)
+        // =============================================
+        function addToCart() {
+            if (!selectedEquipment || !selectedDate || selectedTimeSlots.length === 0) {
+                showToast('장비, 날짜, 시간을 모두 선택해주세요.', 'warning');
+                return;
+            }
+
+            const sortedSlots = [...selectedTimeSlots].sort();
+            const startTime = sortedSlots[0];
+            const lastSlot = sortedSlots[sortedSlots.length - 1];
+            const [lastH, lastM] = lastSlot.split(':').map(Number);
+            const endMin = lastM + 10;
+            const endHour = endMin >= 60 ? lastH + 1 : lastH;
+            const endMinNorm = endMin >= 60 ? 0 : endMin;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+
+            const cartItem = {
+                id: Date.now(),
+                equipment: selectedEquipment,
+                date: selectedDate.toISOString().split('T')[0],
+                startTime: startTime,
+                endTime: endTime,
+                slots: [...selectedTimeSlots]
+            };
+
+            // 중복 체크
+            const isDuplicate = cart.some(item =>
+                item.equipment.id === cartItem.equipment.id &&
+                item.date === cartItem.date &&
+                item.startTime === cartItem.startTime &&
+                item.endTime === cartItem.endTime
+            );
+
+            if (isDuplicate) {
+                showToast('이미 장바구니에 담긴 예약입니다.', 'warning');
+                return;
+            }
+
+            cart.push(cartItem);
+            selectedTimeSlots = [];
+            firstSelectedSlot = null;
+            loadTimeSlots();
+            updateCartUI();
+            showToast('장바구니에 추가되었습니다.', 'success');
+        }
+
+        function updateCartUI() {
+            const cartBody = document.getElementById('cartBody');
+            const cartBadge = document.getElementById('cartBadge');
+            const cartCount = document.getElementById('cartCount');
+            const cartToggleBtn = document.getElementById('cartToggleBtn');
+
+            cartBadge.textContent = cart.length;
+            cartCount.textContent = cart.length;
+
+            if (cart.length > 0) {
+                cartToggleBtn.classList.remove('hidden');
+            } else {
+                cartToggleBtn.classList.add('hidden');
+                document.getElementById('cartPanel').classList.remove('active');
+            }
+
+            if (cart.length === 0) {
+                cartBody.innerHTML = `
+                    <div class="empty-state">
+                        <p>장바구니가 비어 있습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            cartBody.innerHTML = cart.map(item => `
+                <div class="cart-item">
+                    <div class="cart-item-info">
+                        <div class="cart-item-equipment">${item.equipment.display_name || item.equipment.name}</div>
+                        <div class="cart-item-time">${item.date} ${item.startTime} ~ ${item.endTime}</div>
+                    </div>
+                    <button class="btn-icon" onclick="removeFromCart(${item.id})" title="삭제" style="font-size: 1.2rem;">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function removeFromCart(id) {
+            cart = cart.filter(item => item.id !== id);
+            updateCartUI();
+            showToast('장바구니에서 제거되었습니다.', 'info');
+        }
+
+        function clearCart() {
+            if (cart.length === 0) return;
+            if (!confirm('장바구니를 비우시겠습니까?')) return;
+            cart = [];
+            updateCartUI();
+            showToast('장바구니가 비워졌습니다.', 'info');
+        }
+
+        function toggleCart() {
+            const panel = document.getElementById('cartPanel');
+            panel.classList.toggle('active');
+        }
+
+        function openCartReservationModal() {
+            if (cart.length === 0) {
+                showToast('장바구니가 비어 있습니다.', 'warning');
+                return;
+            }
+
+            // 예약 요약 생성
+            const summaryHtml = cart.map(item => `
+                <div style="padding: var(--space-2); border: 1px solid var(--border-default); border-radius: 6px; margin-bottom: var(--space-2);">
+                    <strong>${item.equipment.display_name || item.equipment.name}</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${item.date} ${item.startTime} ~ ${item.endTime}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('cartReservationSummary').innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">예약 내역 (${cart.length}건)</label>
+                    ${summaryHtml}
+                </div>
+            `;
+
+            document.getElementById('cartPurpose').value = '';
+            document.getElementById('cartDetail').value = '';
+            document.getElementById('cartMemo').value = '';
+
+            toggleCart(); // 장바구니 패널 닫기
+            openModal('cartReservationModal');
+        }
+
+        async function submitCartReservations() {
+            const purpose = document.getElementById('cartPurpose').value;
+            const detail = document.getElementById('cartDetail').value;
+            const memo = document.getElementById('cartMemo').value;
+
+            if (!purpose) {
+                showToast('사용 목적을 선택해주세요.', 'warning');
+                return;
+            }
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const item of cart) {
+                const status = item.equipment.approval_mode === 'auto' ? 'approved' : 'pending';
+
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('reservations')
+                        .insert([{
+                            user_id: currentUser.id,
+                            equipment_id: item.equipment.id,
+                            reservation_date: item.date,
+                            start_time: item.startTime + ':00',
+                            end_time: item.endTime + ':00',
+                            purpose: purpose,
+                            detail: detail,
+                            memo: memo,
+                            status: status
+                        }])
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+
+                    successCount++;
+
+                    // 이메일 발송
+                    if (status === 'approved') {
+                        sendApprovalEmail(data);
+                    } else {
+                        sendNewRequestEmail(data);
+                    }
+                } catch (err) {
+                    console.error('예약 실패:', err);
+                    errorCount++;
+                }
+            }
+
+            closeModal('cartReservationModal');
+            cart = [];
+            updateCartUI();
+            loadMyReservations();
+            loadTimeSlots();
+
+            if (errorCount === 0) {
+                showToast(`${successCount}건의 예약이 신청되었습니다.`, 'success');
+            } else {
+                showToast(`${successCount}건 성공, ${errorCount}건 실패`, 'warning');
+            }
+        }
+
+        // =============================================
+        // Resubmit Functions (재신청)
+        // =============================================
+        async function openResubmitModal(reservationId) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('reservations')
+                    .select(`
+                        *,
+                        equipment:equipment_id (id, name, display_name, location, max_duration_hours, approval_mode)
+                    `)
+                    .eq('id', reservationId)
+                    .single();
+
+                if (error) throw error;
+
+                currentResubmitReservation = data;
+
+                // 반려 사유 표시
+                document.getElementById('resubmitRejectionText').textContent = data.rejection_reason || '사유 없음';
+
+                // 장비 정보
+                document.getElementById('resubmitEquipment').value = data.equipment?.display_name || data.equipment?.name || '장비';
+
+                // 날짜 (최소 오늘 이후로 설정)
+                const today = new Date().toISOString().split('T')[0];
+                const resubmitDate = document.getElementById('resubmitDate');
+                resubmitDate.min = today;
+                resubmitDate.value = data.reservation_date >= today ? data.reservation_date : today;
+
+                // 시간 옵션 생성
+                populateTimeOptions();
+
+                // 기존 값 설정
+                document.getElementById('resubmitStartTime').value = data.start_time.slice(0, 5);
+                document.getElementById('resubmitEndTime').value = data.end_time.slice(0, 5);
+                document.getElementById('resubmitPurpose').value = data.purpose || '';
+                document.getElementById('resubmitDetail').value = data.detail || '';
+
+                openModal('resubmitModal');
+            } catch (err) {
+                showToast('예약 정보를 불러오는데 실패했습니다.', 'error');
+            }
+        }
+
+        function populateTimeOptions() {
+            const startSelect = document.getElementById('resubmitStartTime');
+            const endSelect = document.getElementById('resubmitEndTime');
+
+            let options = '';
+            for (let hour = 9; hour < 18; hour++) {
+                for (let min = 0; min < 60; min += 10) {
+                    const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+                    options += `<option value="${time}">${time}</option>`;
+                }
+            }
+            options += `<option value="18:00">18:00</option>`;
+
+            startSelect.innerHTML = options;
+            endSelect.innerHTML = options;
+        }
+
+        async function submitResubmit() {
+            if (!currentResubmitReservation) {
+                showToast('재신청할 예약 정보가 없습니다.', 'error');
+                return;
+            }
+
+            const date = document.getElementById('resubmitDate').value;
+            const startTime = document.getElementById('resubmitStartTime').value;
+            const endTime = document.getElementById('resubmitEndTime').value;
+            const purpose = document.getElementById('resubmitPurpose').value;
+            const detail = document.getElementById('resubmitDetail').value;
+
+            if (!date || !startTime || !endTime || !purpose) {
+                showToast('모든 필수 항목을 입력해주세요.', 'warning');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                showToast('종료 시간은 시작 시간보다 늦어야 합니다.', 'warning');
+                return;
+            }
+
+            // 최대 시간 체크
+            const maxHours = currentResubmitReservation.equipment?.max_duration_hours || 4;
+            const [startH, startM] = startTime.split(':').map(Number);
+            const [endH, endM] = endTime.split(':').map(Number);
+            const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+
+            if (durationMinutes > maxHours * 60) {
+                showToast(`최대 ${maxHours}시간까지 예약 가능합니다.`, 'warning');
+                return;
+            }
+
+            const status = currentResubmitReservation.equipment?.approval_mode === 'auto' ? 'approved' : 'pending';
+
+            try {
+                // 새 예약 생성
+                const { data, error } = await supabaseClient
+                    .from('reservations')
+                    .insert([{
+                        user_id: currentUser.id,
+                        equipment_id: currentResubmitReservation.equipment_id,
+                        reservation_date: date,
+                        start_time: startTime + ':00',
+                        end_time: endTime + ':00',
+                        purpose: purpose,
+                        detail: detail,
+                        memo: currentResubmitReservation.memo || '',
+                        status: status
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                closeModal('resubmitModal');
+                loadMyReservations();
+
+                if (status === 'approved') {
+                    showToast('재신청이 자동 승인되었습니다!', 'success');
+                    sendApprovalEmail(data);
+                } else {
+                    showToast('재신청이 완료되었습니다. 관리자 승인을 기다려주세요.', 'success');
+                    sendNewRequestEmail(data);
+                }
+
+                currentResubmitReservation = null;
+            } catch (err) {
+                showToast('재신청에 실패했습니다: ' + err.message, 'error');
+            }
         }
     </script>
 </body>
