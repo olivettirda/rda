@@ -453,6 +453,35 @@
             padding: var(--space-6);
         }
 
+        /* Booking Layout (캘린더 좌측, 사이드바 우측) */
+        .booking-layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: var(--space-6);
+            align-items: start;
+        }
+
+        .booking-calendar-section {
+            position: sticky;
+            top: 80px;
+        }
+
+        .booking-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+        }
+
+        @media (max-width: 1024px) {
+            .booking-layout {
+                grid-template-columns: 1fr;
+            }
+            .booking-calendar-section {
+                position: relative;
+                top: 0;
+            }
+        }
+
         /* Calendar */
         .calendar-container {
             display: grid;
@@ -1335,38 +1364,42 @@
         .toast.warning { border-left: 4px solid var(--warning); }
         .toast.info { border-left: 4px solid var(--info); }
 
-        /* 장바구니 스타일 */
+        /* 장바구니 플로팅 메뉴 스타일 */
         .cart-panel {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 80px;
+            right: var(--space-4);
+            width: 320px;
             background: white;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-            border-radius: 16px 16px 0 0;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+            border-radius: 12px;
             z-index: 500;
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s ease;
             max-height: 60vh;
             overflow: hidden;
         }
 
         .cart-panel.active {
-            transform: translateY(0);
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
         }
 
         .cart-header {
-            padding: var(--space-4) var(--space-6);
+            padding: var(--space-3) var(--space-4);
             background: var(--primary-dark);
             color: white;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-radius: 16px 16px 0 0;
+            border-radius: 12px 12px 0 0;
         }
 
         .cart-header h3 {
-            font-size: 1rem;
+            font-size: 0.95rem;
             display: flex;
             align-items: center;
             gap: var(--space-2);
@@ -1382,8 +1415,8 @@
         }
 
         .cart-body {
-            padding: var(--space-4) var(--space-6);
-            max-height: 40vh;
+            padding: var(--space-3) var(--space-4);
+            max-height: 300px;
             overflow-y: auto;
         }
 
@@ -1391,62 +1424,91 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: var(--space-3);
+            padding: var(--space-2) var(--space-3);
             border: 1px solid var(--border-default);
             border-radius: 8px;
             margin-bottom: var(--space-2);
+            background: var(--bg-page);
         }
 
         .cart-item-info {
             flex: 1;
+            min-width: 0;
         }
 
         .cart-item-equipment {
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .cart-item-time {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: var(--text-secondary);
         }
 
         .cart-footer {
-            padding: var(--space-4) var(--space-6);
+            padding: var(--space-3) var(--space-4);
             border-top: 1px solid var(--border-default);
             display: flex;
-            gap: var(--space-3);
+            gap: var(--space-2);
         }
 
+        .cart-footer .btn {
+            flex: 1;
+            padding: var(--space-2) var(--space-3);
+            font-size: 0.85rem;
+        }
+
+        /* 장바구니 플로팅 버튼 */
         .cart-toggle-btn {
             position: fixed;
             bottom: var(--space-4);
             right: var(--space-4);
-            background: var(--primary-dark);
+            background: var(--primary-main);
             color: white;
             border: none;
             border-radius: 50px;
             padding: var(--space-3) var(--space-5);
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 16px rgba(1, 127, 151, 0.4);
             z-index: 499;
             display: flex;
             align-items: center;
             gap: var(--space-2);
             transition: all 0.2s;
+            font-size: 0.9rem;
+            font-weight: 500;
         }
 
         .cart-toggle-btn:hover {
             transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(1, 127, 151, 0.5);
         }
 
         .cart-toggle-btn .cart-count {
-            background: var(--warning);
-            color: var(--primary-dark);
-            padding: 2px 8px;
+            background: white;
+            color: var(--primary-main);
+            padding: 2px 10px;
             border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        /* 반응형: 모바일에서는 전체 너비 */
+        @media (max-width: 480px) {
+            .cart-panel {
+                right: var(--space-2);
+                left: var(--space-2);
+                width: auto;
+                bottom: 70px;
+            }
+            .cart-toggle-btn {
+                right: var(--space-2);
+                bottom: var(--space-2);
+            }
         }
 
         /* 범위 선택 힌트 */
@@ -1846,116 +1908,98 @@
 
                 <!-- Booking Tab (실험 예약) -->
                 <div class="tab-content active" id="bookingTab">
-                    <h2 class="mb-6">실험 예약</h2>
-
-                    <!-- Step 1: 실험 정보 입력 -->
-                    <div class="card mb-6">
-                        <div class="card-header">
-                            <h3>1️⃣ 실험 정보</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-group mb-4">
-                                <label class="form-label">실험 선택</label>
-                                <select class="form-select" id="experimentSelect" onchange="handleExperimentSelect()">
-                                    <option value="">-- 기본 실험 목록에서 선택 --</option>
-                                    <option value="custom">✏️ 직접 작성</option>
-                                    <optgroup label="기본 실험 목록">
-                                        <option value="DNA 추출">DNA 추출</option>
-                                        <option value="PCR 분석">PCR 분석</option>
-                                        <option value="전기영동">전기영동</option>
-                                        <option value="세포 배양">세포 배양</option>
-                                        <option value="단백질 정량">단백질 정량</option>
-                                        <option value="Western Blot">Western Blot</option>
-                                        <option value="ELISA">ELISA</option>
-                                        <option value="현미경 관찰">현미경 관찰</option>
-                                        <option value="원심분리">원심분리</option>
-                                        <option value="분광분석">분광분석</option>
-                                    </optgroup>
-                                </select>
-                            </div>
-                            <div class="form-group mb-4" id="customExperimentGroup" style="display: none;">
-                                <label class="form-label">실험 제목 <span style="color: var(--error);">*</span></label>
-                                <input type="text" class="form-input" id="customExperimentTitle" placeholder="실험 제목을 입력하세요">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">실험 내용 (선택)</label>
-                                <textarea class="form-input" id="experimentDescription" rows="2" placeholder="실험 내용이나 목적을 간단히 기술 (선택사항)"></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: 장비 선택 -->
-                    <div class="card mb-6">
-                        <div class="card-header">
-                            <h3>2️⃣ 장비 선택</h3>
-                        </div>
-                        <div class="card-body">
-                            <!-- Favorites Section -->
-                            <div class="favorites-section" id="favoritesSection" style="display: none; margin-bottom: 16px;">
-                                <h4 style="margin-bottom: 8px;">⭐ 즐겨찾기</h4>
-                                <div id="favoritesContainer">
-                                    <!-- 동적 로드 -->
-                                </div>
-                            </div>
-                            <div class="equipment-grid" id="equipmentGrid">
-                                <!-- 동적 로드 -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: 날짜/시간 선택 -->
-                    <div class="card mb-6">
-                        <div class="card-header">
-                            <h3>3️⃣ 날짜 및 시간</h3>
-                            <div class="time-mode-toggle">
-                                <button class="btn btn-sm" id="timeModeAll" onclick="setTimeMode('allday')">하루 종일</button>
-                                <button class="btn btn-sm btn-primary" id="timeModeDetail" onclick="setTimeMode('detail')">시간 지정</button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="calendar-container">
-                                <div class="calendar">
-                                    <div class="calendar-header">
-                                        <div class="calendar-nav">
-                                            <button onclick="changeMonth(-1)">◀</button>
-                                        </div>
-                                        <h3 id="calendarTitle">2026년 1월</h3>
-                                        <div class="calendar-nav">
-                                            <button onclick="changeMonth(1)">▶</button>
-                                        </div>
+                    <div class="booking-layout">
+                        <!-- 좌측: 캘린더 -->
+                        <div class="booking-calendar-section">
+                            <div class="calendar">
+                                <div class="calendar-header">
+                                    <div class="calendar-nav">
+                                        <button onclick="changeMonth(-1)">◀</button>
                                     </div>
-                                    <!-- 캘린더 범례 -->
-                                    <div class="calendar-legend" style="padding: 8px 12px; background: #f8f9fa; border-bottom: 1px solid var(--border-default);">
-                                        <div class="legend-item">
-                                            <span class="legend-color my-pending"></span>
-                                            <span>내 예약 (대기)</span>
-                                        </div>
-                                        <div class="legend-item">
-                                            <span class="legend-color my-approved"></span>
-                                            <span>내 예약 (승인)</span>
-                                        </div>
-                                        <div class="legend-item">
-                                            <span class="legend-color pending"></span>
-                                            <span>타인 예약 (대기)</span>
-                                        </div>
-                                        <div class="legend-item">
-                                            <span class="legend-color approved"></span>
-                                            <span>타인 예약 (승인)</span>
-                                        </div>
-                                    </div>
-                                    <div class="calendar-grid" id="calendarGrid">
-                                        <!-- 동적 생성 -->
+                                    <h3 id="calendarTitle">2026년 1월</h3>
+                                    <div class="calendar-nav">
+                                        <button onclick="changeMonth(1)">▶</button>
                                     </div>
                                 </div>
-
-                                <div class="time-slots-panel" id="timeSlotsPanel">
-                                    <div class="time-slots-header" id="timeSlotsHeader">
-                                        날짜를 선택하세요
+                                <!-- 캘린더 범례 -->
+                                <div class="calendar-legend" style="padding: 8px 12px; background: #f8f9fa; border-bottom: 1px solid var(--border-default);">
+                                    <div class="legend-item">
+                                        <span class="legend-color my-pending"></span>
+                                        <span>내 예약 (대기)</span>
                                     </div>
-                                    <div class="time-slots-body" id="timeSlotsBody">
-                                        <div class="empty-state">
-                                            <div class="empty-state-icon">📅</div>
-                                            <p>장비와 날짜를 선택하면<br>예약 가능한 시간이 표시됩니다</p>
+                                    <div class="legend-item">
+                                        <span class="legend-color my-approved"></span>
+                                        <span>내 예약 (승인)</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-color pending"></span>
+                                        <span>타인 (대기)</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-color approved"></span>
+                                        <span>타인 (승인)</span>
+                                    </div>
+                                </div>
+                                <div class="calendar-grid" id="calendarGrid">
+                                    <!-- 동적 생성 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 우측: 실험 정보 & 시간 선택 -->
+                        <div class="booking-sidebar">
+                            <!-- 실험 정보 -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h3>🧪 실험 정보</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">실험 선택</label>
+                                        <select class="form-select" id="experimentSelect" onchange="handleExperimentSelect()">
+                                            <option value="">-- 선택하세요 --</option>
+                                            <option value="custom">✏️ 직접 작성</option>
+                                            <optgroup label="기본 실험 목록">
+                                                <option value="DNA 추출">DNA 추출</option>
+                                                <option value="PCR 분석">PCR 분석</option>
+                                                <option value="전기영동">전기영동</option>
+                                                <option value="세포 배양">세포 배양</option>
+                                                <option value="단백질 정량">단백질 정량</option>
+                                                <option value="Western Blot">Western Blot</option>
+                                                <option value="ELISA">ELISA</option>
+                                                <option value="현미경 관찰">현미경 관찰</option>
+                                                <option value="원심분리">원심분리</option>
+                                                <option value="분광분석">분광분석</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                    <div class="form-group mb-3" id="customExperimentGroup" style="display: none;">
+                                        <label class="form-label">실험 제목 <span style="color: var(--error);">*</span></label>
+                                        <input type="text" class="form-input" id="customExperimentTitle" placeholder="실험 제목 입력">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">실험 내용</label>
+                                        <textarea class="form-input" id="experimentDescription" rows="2" placeholder="실험 내용 (선택사항)"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 시간 선택 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>⏰ 시간 선택</h3>
+                                    <div class="time-mode-toggle">
+                                        <button class="btn btn-sm" id="timeModeAll" onclick="setTimeMode('allday')">하루 종일</button>
+                                        <button class="btn btn-sm btn-primary" id="timeModeDetail" onclick="setTimeMode('detail')">시간 지정</button>
+                                    </div>
+                                </div>
+                                <div class="card-body" id="timeSlotsPanel">
+                                    <div class="time-slots-header" id="timeSlotsHeader" style="margin-bottom: 12px; font-weight: 600; color: var(--primary-main);">
+                                        📅 날짜를 선택하세요
+                                    </div>
+                                    <div class="time-slots-body" id="timeSlotsBody" style="max-height: 300px; overflow-y: auto;">
+                                        <div class="empty-state" style="padding: 20px;">
+                                            <p style="color: var(--text-secondary); text-align: center;">캘린더에서 날짜를 선택하면<br>시간대가 표시됩니다</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2320,10 +2364,6 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">선택한 장비</label>
-                    <input type="text" class="form-input" id="modalEquipment" disabled>
-                </div>
-                <div class="form-group">
                     <label class="form-label">선택한 날짜</label>
                     <input type="text" class="form-input" id="modalDate" disabled>
                 </div>
@@ -2331,25 +2371,13 @@
                     <label class="form-label">선택한 시간</label>
                     <input type="text" class="form-input" id="modalTime" disabled>
                 </div>
-                <div class="previous-reservation-select">
-                    <label>이전 예약 불러오기</label>
-                    <select class="form-select" id="previousReservation" onchange="applyPreviousReservation(this)">
-                        <option value="">직접 입력</option>
-                    </select>
+                <div class="form-group">
+                    <label class="form-label">실험 제목 <span class="required">*</span></label>
+                    <input type="text" class="form-input" id="modalPurpose" disabled>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">사용 목적 <span class="required">*</span></label>
-                    <select class="form-select" id="modalPurpose" required>
-                        <option value="">선택하세요</option>
-                        <option value="연구 실험">연구 실험</option>
-                        <option value="분석">분석</option>
-                        <option value="교육/실습">교육/실습</option>
-                        <option value="기타">기타</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">상세 내용</label>
-                    <textarea class="form-input" id="modalDetail" rows="3" placeholder="실험 내용, 샘플 수 등"></textarea>
+                    <label class="form-label">실험 내용</label>
+                    <textarea class="form-input" id="modalDetail" rows="3" placeholder="실험 내용, 샘플 수 등" disabled></textarea>
                 </div>
                 <div class="form-group">
                     <label class="form-label">메모</label>
@@ -2946,7 +2974,7 @@
                     timeSlotsPanel.style.display = 'none';
                 }
                 // 하루 종일 모드: 자동으로 09:00~18:00 선택
-                if (selectedDate && selectedEquipment) {
+                if (selectedDate) {
                     selectedTimeSlots = [];
                     for (let h = 9; h < 18; h++) {
                         for (let m = 0; m < 60; m += 10) {
@@ -2966,7 +2994,7 @@
                 // 시간 지정 모드로 전환 시 선택 초기화
                 selectedTimeSlots = [];
                 firstSelectedSlot = null;
-                if (selectedDate && selectedEquipment) {
+                if (selectedDate) {
                     loadTimeSlots();
                 }
             }
@@ -3062,8 +3090,6 @@
         }
 
         async function loadCalendarEvents() {
-            if (!selectedEquipment) return;
-
             const year = currentMonth.getFullYear();
             const month = currentMonth.getMonth();
             const startDate = new Date(year, month, 1).toISOString().split('T')[0];
@@ -3072,7 +3098,6 @@
             const { data } = await supabaseClient
                 .from('reservations')
                 .select('*, users:user_id(name)')
-                .eq('equipment_id', selectedEquipment.id)
                 .gte('reservation_date', startDate)
                 .lte('reservation_date', endDate)
                 .in('status', ['pending', 'approved'])
@@ -3138,29 +3163,14 @@
         }
 
         async function loadTimeSlots() {
-            if (!selectedEquipment || !selectedDate) return;
+            if (!selectedDate) return;
 
             const header = document.getElementById('timeSlotsHeader');
             const body = document.getElementById('timeSlotsBody');
 
             const dateStr = selectedDate.toISOString().split('T')[0];
-            header.textContent = `${dateStr} - ${selectedEquipment.name}`;
-
-            // 예약 현황 조회
-            const { data: reservations } = await supabaseClient
-                .from('reservations')
-                .select('*')
-                .eq('equipment_id', selectedEquipment.id)
-                .eq('reservation_date', dateStr)
-                .in('status', ['pending', 'approved']);
-
-            const bookedSlots = {};
-            if (reservations) {
-                reservations.forEach(r => {
-                    const key = `${r.start_time}-${r.end_time}`;
-                    bookedSlots[key] = r;
-                });
-            }
+            const dateDisplay = new Date(dateStr).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+            header.innerHTML = `📅 ${dateDisplay}`;
 
             // 시간 슬롯 생성 (09:00 ~ 18:00, 10분 단위)
             let html = '<div class="time-slots-grid">';
@@ -3172,43 +3182,18 @@
                     const endMinNorm = endMin >= 60 ? 0 : endMin;
                     const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
-                    // 예약 상태 체크 (해당 시간대에 겹치는 예약이 있는지)
-                    const slotStart = `${startTime}:00`;
-                    const slotEnd = `${endTime}:00`;
-                    let reservation = null;
-                    let isBooked = false;
-
-                    if (reservations) {
-                        reservation = reservations.find(r => {
-                            return slotStart < r.end_time && slotEnd > r.start_time;
-                        });
-                        isBooked = !!reservation;
-                    }
-
-                    const isMine = reservation?.user_id === currentUser.id;
                     const isSelected = selectedTimeSlots.includes(startTime);
 
                     let slotClass = 'time-slot-mini';
-                    let statusText = '';
-
-                    if (isBooked) {
-                        if (isMine) {
-                            slotClass += ' my-booking';
-                            statusText = '내';
-                        } else {
-                            slotClass += ' booked disabled';
-                            statusText = 'X';
-                        }
-                    } else if (isSelected) {
+                    if (isSelected) {
                         slotClass += ' selected';
                     }
 
                     html += `
                         <div class="${slotClass}"
-                             onclick="${!isBooked ? `toggleTimeSlot('${startTime}')` : ''}"
+                             onclick="toggleTimeSlot('${startTime}')"
                              title="${startTime} - ${endTime}">
                             <span class="slot-time">${startTime.split(':')[1]}</span>
-                            ${statusText ? `<span class="slot-status">${statusText}</span>` : ''}
                         </div>
                     `;
 
@@ -3225,9 +3210,8 @@
                 <div class="time-header">
                     <div class="hour-label">9:00</div>
                     <div class="time-legend">
-                        <span class="legend-item available">예약가능</span>
+                        <span class="legend-item available">가능</span>
                         <span class="legend-item selected">선택됨</span>
-                        <span class="legend-item booked">예약됨</span>
                     </div>
                 </div>
             `;
@@ -3301,10 +3285,11 @@
             // 두 번째 클릭: 범위 선택
             const slots = generateSlotRange(firstSelectedSlot, time);
 
-            // 최대 시간 체크
-            const maxSlots = selectedEquipment.max_duration_hours * 6;
+            // 최대 시간 체크 (기본 9시간 = 하루)
+            const maxHours = 9;
+            const maxSlots = maxHours * 6;
             if (slots.length > maxSlots) {
-                showToast(`최대 ${selectedEquipment.max_duration_hours}시간까지 예약 가능합니다.`, 'warning');
+                showToast(`최대 ${maxHours}시간까지 예약 가능합니다.`, 'warning');
                 firstSelectedSlot = time; // 새 시작점으로 설정
                 loadTimeSlots();
                 return;
@@ -3352,8 +3337,8 @@
         // Reservation Functions
         // =============================================
         function openReservationModal() {
-            if (!selectedEquipment || !selectedDate || selectedTimeSlots.length === 0) {
-                showToast('장비, 날짜, 시간을 모두 선택해주세요.', 'warning');
+            if (!selectedDate || selectedTimeSlots.length === 0) {
+                showToast('날짜와 시간을 선택해주세요.', 'warning');
                 return;
             }
 
@@ -3375,63 +3360,17 @@
             const endMinNorm = endMin >= 60 ? 0 : endMin;
             const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
-            document.getElementById('modalEquipment').value = selectedEquipment.display_name || selectedEquipment.name;
-            document.getElementById('modalDate').value = selectedDate.toISOString().split('T')[0];
+            const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
+            document.getElementById('modalDate').value = dateDisplay;
             document.getElementById('modalTime').value = `${startTime} ~ ${endTime}`;
             document.getElementById('modalPurpose').value = experimentTitle;
             document.getElementById('modalDetail').value = experimentDesc;
 
-            // 이전 예약 불러오기 옵션 로드
-            loadPreviousReservations();
-
             openModal('reservationModal');
         }
 
-        async function loadPreviousReservations() {
-            const selectEl = document.getElementById('previousReservation');
-            if (!selectEl) return;
-
-            selectEl.innerHTML = '<option value="">직접 입력</option>';
-
-            try {
-                const { data, error } = await supabaseClient
-                    .from('reservations')
-                    .select('purpose, detail, start_time, end_time')
-                    .eq('user_id', currentUser.id)
-                    .eq('equipment_id', selectedEquipment.id)
-                    .order('created_at', { ascending: false })
-                    .limit(10);
-
-                if (data && data.length > 0) {
-                    data.forEach((r, idx) => {
-                        const duration = calculateDurationMinutes(r.start_time, r.end_time);
-                        const durationStr = duration >= 60
-                            ? `${Math.floor(duration/60)}시간${duration%60 ? ' ' + duration%60 + '분' : ''}`
-                            : `${duration}분`;
-                        selectEl.innerHTML += `<option value="${idx}" data-purpose="${r.purpose}" data-detail="${r.detail || ''}" data-duration="${duration}">
-                            ${r.purpose} (${durationStr})
-                        </option>`;
-                    });
-                }
-            } catch (err) {
-                console.error('이전 예약 로드 실패:', err);
-            }
-        }
-
-        function calculateDurationMinutes(startTime, endTime) {
-            const [sH, sM] = startTime.split(':').map(Number);
-            const [eH, eM] = endTime.split(':').map(Number);
-            return (eH * 60 + eM) - (sH * 60 + sM);
-        }
-
-        function applyPreviousReservation(selectEl) {
-            const idx = selectEl.value;
-            if (idx === '') return;
-
-            const option = selectEl.options[selectEl.selectedIndex];
-            document.getElementById('modalPurpose').value = option.dataset.purpose;
-            document.getElementById('modalDetail').value = option.dataset.detail;
-        }
+        // 이전 예약 관련 기능 제거됨 (실험 기반 예약 시스템으로 변경)
 
         async function submitReservation() {
             const purpose = document.getElementById('modalPurpose').value;
@@ -3439,7 +3378,7 @@
             const memo = document.getElementById('modalMemo').value;
 
             if (!purpose) {
-                showToast('사용 목적을 선택해주세요.', 'warning');
+                showToast('실험을 선택해주세요.', 'warning');
                 return;
             }
 
@@ -3452,14 +3391,14 @@
             const endMinNorm = endMin >= 60 ? 0 : endMin;
             const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}:00`;
 
-            const status = selectedEquipment.approval_mode === 'auto' ? 'approved' : 'pending';
+            // 항상 관리자 승인 필요
+            const status = 'pending';
 
             try {
                 const { data, error } = await supabaseClient
                     .from('reservations')
                     .insert([{
                         user_id: currentUser.id,
-                        equipment_id: selectedEquipment.id,
                         reservation_date: selectedDate.toISOString().split('T')[0],
                         start_time: startTime,
                         end_time: endTime,
@@ -3476,17 +3415,12 @@
                 closeModal('reservationModal');
                 selectedTimeSlots = [];
                 loadTimeSlots();
+                loadCalendarEvents();
                 loadMyReservations();
 
-                if (status === 'approved') {
-                    showToast('예약이 자동 승인되었습니다!', 'success');
-                    // 자동 승인 이메일 발송
-                    sendApprovalEmail(data);
-                } else {
-                    showToast('예약 신청이 완료되었습니다. 관리자 승인을 기다려주세요.', 'success');
-                    // 관리자에게 알림 이메일 발송
-                    sendNewRequestEmail(data);
-                }
+                showToast('예약 신청이 완료되었습니다. 관리자 승인을 기다려주세요.', 'success');
+                // 관리자에게 알림 이메일 발송
+                sendNewRequestEmail(data);
             } catch (err) {
                 showToast('예약 신청에 실패했습니다: ' + err.message, 'error');
             }
@@ -5008,8 +4942,8 @@
         // Cart Functions (장바구니)
         // =============================================
         function addToCart() {
-            if (!selectedEquipment || !selectedDate || selectedTimeSlots.length === 0) {
-                showToast('장비, 날짜, 시간을 모두 선택해주세요.', 'warning');
+            if (!selectedDate || selectedTimeSlots.length === 0) {
+                showToast('날짜와 시간을 선택해주세요.', 'warning');
                 return;
             }
 
@@ -5033,7 +4967,6 @@
 
             const cartItem = {
                 id: Date.now(),
-                equipment: selectedEquipment,
                 date: selectedDate.toISOString().split('T')[0],
                 startTime: startTime,
                 endTime: endTime,
@@ -5044,10 +4977,10 @@
 
             // 중복 체크
             const isDuplicate = cart.some(item =>
-                item.equipment.id === cartItem.equipment.id &&
                 item.date === cartItem.date &&
                 item.startTime === cartItem.startTime &&
-                item.endTime === cartItem.endTime
+                item.endTime === cartItem.endTime &&
+                item.experimentTitle === cartItem.experimentTitle
             );
 
             if (isDuplicate) {
@@ -5091,11 +5024,10 @@
             cartBody.innerHTML = cart.map(item => `
                 <div class="cart-item">
                     <div class="cart-item-info">
-                        <div class="cart-item-equipment">${item.equipment.display_name || item.equipment.name}</div>
-                        <div class="cart-item-time">${item.date} ${item.startTime} ~ ${item.endTime}</div>
-                        <div class="cart-item-experiment" style="font-size: 0.85rem; color: var(--primary-main);">🧪 ${item.experimentTitle}</div>
+                        <div class="cart-item-equipment">🧪 ${item.experimentTitle}</div>
+                        <div class="cart-item-time">📅 ${item.date} ${item.startTime}~${item.endTime}</div>
                     </div>
-                    <button class="btn-icon" onclick="removeFromCart(${item.id})" title="삭제" style="font-size: 1.2rem;">✕</button>
+                    <button class="btn-icon" onclick="removeFromCart(${item.id})" title="삭제" style="font-size: 1rem; color: var(--error);">✕</button>
                 </div>
             `).join('');
         }
@@ -5128,9 +5060,8 @@
             // 예약 요약 생성 (실험 정보 포함)
             const summaryHtml = cart.map(item => `
                 <div style="padding: var(--space-3); border: 1px solid var(--border-default); border-radius: 6px; margin-bottom: var(--space-2);">
-                    <strong>${item.equipment.display_name || item.equipment.name}</strong><br>
-                    <span style="color: var(--text-secondary); font-size: 0.85rem;">📅 ${item.date} ${item.startTime} ~ ${item.endTime}</span><br>
-                    <span style="color: var(--primary-main); font-size: 0.85rem;">🧪 ${item.experimentTitle}</span>
+                    <strong>🧪 ${item.experimentTitle}</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">📅 ${item.date} ${item.startTime} ~ ${item.endTime}</span>
                     ${item.experimentDesc ? `<br><span style="color: var(--text-secondary); font-size: 0.8rem;">${item.experimentDesc}</span>` : ''}
                 </div>
             `).join('');
@@ -5149,21 +5080,18 @@
             let errorCount = 0;
 
             for (const item of cart) {
-                const status = item.equipment.approval_mode === 'auto' ? 'approved' : 'pending';
-
                 try {
                     const { data, error } = await supabaseClient
                         .from('reservations')
                         .insert([{
                             user_id: currentUser.id,
-                            equipment_id: item.equipment.id,
                             reservation_date: item.date,
                             start_time: item.startTime + ':00',
                             end_time: item.endTime + ':00',
                             purpose: item.experimentTitle,
                             detail: item.experimentDesc,
                             memo: memo,
-                            status: status
+                            status: 'pending'
                         }])
                         .select()
                         .single();
