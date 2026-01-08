@@ -550,6 +550,95 @@
 
         .calendar-day-events {
             font-size: 0.7rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden;
+        }
+
+        /* Google Calendar style events */
+        .calendar-event {
+            display: flex;
+            align-items: center;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+
+        .calendar-event.pending {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 3px solid #ffc107;
+        }
+
+        .calendar-event.approved {
+            background: #d4edda;
+            color: #155724;
+            border-left: 3px solid #28a745;
+        }
+
+        .calendar-event.my-pending {
+            background: #cce5ff;
+            color: #004085;
+            border-left: 3px solid #007bff;
+        }
+
+        .calendar-event.my-approved {
+            background: #e0cffc;
+            color: #4a1d91;
+            border-left: 3px solid #6f42c1;
+        }
+
+        .calendar-event-more {
+            font-size: 0.6rem;
+            color: var(--text-secondary);
+            padding: 2px 4px;
+            text-align: center;
+        }
+
+        /* Calendar Legend */
+        .calendar-legend {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .legend-color.pending {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+        }
+
+        .legend-color.approved {
+            background: #d4edda;
+            border-left: 3px solid #28a745;
+        }
+
+        .legend-color.my-pending {
+            background: #cce5ff;
+            border-left: 3px solid #007bff;
+        }
+
+        .legend-color.my-approved {
+            background: #e0cffc;
+            border-left: 3px solid #6f42c1;
         }
 
         .event-dot {
@@ -1835,6 +1924,25 @@
                                             <button onclick="changeMonth(1)">▶</button>
                                         </div>
                                     </div>
+                                    <!-- 캘린더 범례 -->
+                                    <div class="calendar-legend" style="padding: 8px 12px; background: #f8f9fa; border-bottom: 1px solid var(--border-default);">
+                                        <div class="legend-item">
+                                            <span class="legend-color my-pending"></span>
+                                            <span>내 예약 (대기)</span>
+                                        </div>
+                                        <div class="legend-item">
+                                            <span class="legend-color my-approved"></span>
+                                            <span>내 예약 (승인)</span>
+                                        </div>
+                                        <div class="legend-item">
+                                            <span class="legend-color pending"></span>
+                                            <span>타인 예약 (대기)</span>
+                                        </div>
+                                        <div class="legend-item">
+                                            <span class="legend-color approved"></span>
+                                            <span>타인 예약 (승인)</span>
+                                        </div>
+                                    </div>
                                     <div class="calendar-grid" id="calendarGrid">
                                         <!-- 동적 생성 -->
                                     </div>
@@ -2963,11 +3071,12 @@
 
             const { data } = await supabaseClient
                 .from('reservations')
-                .select('*')
+                .select('*, users:user_id(name)')
                 .eq('equipment_id', selectedEquipment.id)
                 .gte('reservation_date', startDate)
                 .lte('reservation_date', endDate)
-                .in('status', ['pending', 'approved']);
+                .in('status', ['pending', 'approved'])
+                .order('start_time', { ascending: true });
 
             if (data) {
                 const eventsByDate = {};
@@ -2982,9 +3091,27 @@
                     const el = document.getElementById(`events-${date}`);
                     if (el) {
                         const events = eventsByDate[date];
-                        el.innerHTML = events.slice(0, 3).map(e =>
-                            `<span class="event-dot ${e.user_id === currentUser.id ? 'my' : e.status}"></span>`
-                        ).join('') + (events.length > 3 ? `+${events.length - 3}` : '');
+                        const maxShow = 2; // 최대 표시 개수
+
+                        let html = events.slice(0, maxShow).map(e => {
+                            const isMine = e.user_id === currentUser.id;
+                            const statusClass = isMine
+                                ? (e.status === 'approved' ? 'my-approved' : 'my-pending')
+                                : e.status;
+                            const timeStr = e.start_time.slice(0, 5);
+                            const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
+                            const purposeStr = e.purpose ? ` - ${e.purpose}` : '';
+
+                            return `<div class="calendar-event ${statusClass}" title="${displayName}${purposeStr} (${e.start_time.slice(0,5)}~${e.end_time.slice(0,5)})">
+                                ${timeStr} ${displayName}
+                            </div>`;
+                        }).join('');
+
+                        if (events.length > maxShow) {
+                            html += `<div class="calendar-event-more">+${events.length - maxShow}개 더보기</div>`;
+                        }
+
+                        el.innerHTML = html;
                     }
                 });
             }
