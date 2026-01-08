@@ -231,7 +231,7 @@
 
         .btn-toggle-password img {
             width: 20px;
-            height: 20px;
+            height: auto;
         }
 
         .auth-links {
@@ -1637,7 +1637,10 @@
                 <!-- Profile Tab -->
                 <div class="tab-content" id="profileTab">
                     <h2 class="mb-6">내 정보</h2>
-                    <div class="card">
+                    <div class="card mb-6">
+                        <div class="card-header">
+                            <h3>기본 정보</h3>
+                        </div>
                         <div class="card-body">
                             <form id="profileForm">
                                 <div class="form-group">
@@ -1651,10 +1654,9 @@
                                 <div class="form-group">
                                     <label class="form-label">소속</label>
                                     <select class="form-select" id="profileDepartment">
-                                        <option value="육종연구실">육종연구실</option>
-                                        <option value="분자생물학실">분자생물학실</option>
-                                        <option value="유전체분석실">유전체분석실</option>
-                                        <option value="생명공학실">생명공학실</option>
+                                        <option value="경지실">경지실</option>
+                                        <option value="이모작실">이모작실</option>
+                                        <option value="가공실">가공실</option>
                                         <option value="기타">기타</option>
                                     </select>
                                 </div>
@@ -1663,6 +1665,40 @@
                                     <input type="tel" class="form-input" id="profilePhone">
                                 </div>
                                 <button type="submit" class="btn btn-primary">정보 수정</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 비밀번호 변경 섹션 (슈퍼관리자 제외) -->
+                    <div class="card" id="passwordChangeSection">
+                        <div class="card-header">
+                            <h3>비밀번호 변경</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="passwordChangeForm" onsubmit="changePassword(event)">
+                                <div class="form-group">
+                                    <label class="form-label">현재 비밀번호 <span class="required">*</span></label>
+                                    <div class="password-input-wrapper">
+                                        <input type="password" class="form-input" id="currentPassword" placeholder="현재 비밀번호 입력" required>
+                                        <button type="button" class="btn-toggle-password" onclick="togglePassword('currentPassword', this)"><img src="files/disclose.png" alt="보기"></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">새 비밀번호 <span class="required">*</span></label>
+                                    <div class="password-input-wrapper">
+                                        <input type="password" class="form-input" id="newProfilePassword" placeholder="6자 이상" minlength="6" required>
+                                        <button type="button" class="btn-toggle-password" onclick="togglePassword('newProfilePassword', this)"><img src="files/disclose.png" alt="보기"></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">새 비밀번호 확인 <span class="required">*</span></label>
+                                    <div class="password-input-wrapper">
+                                        <input type="password" class="form-input" id="newProfilePasswordConfirm" placeholder="새 비밀번호 재입력" minlength="6" required>
+                                        <button type="button" class="btn-toggle-password" onclick="togglePassword('newProfilePasswordConfirm', this)"><img src="files/disclose.png" alt="보기"></button>
+                                    </div>
+                                    <p class="form-hint password-match-hint" id="profilePasswordMatchHint"></p>
+                                </div>
+                                <button type="submit" class="btn btn-primary">비밀번호 변경</button>
                             </form>
                         </div>
                     </div>
@@ -3081,6 +3117,22 @@
             document.getElementById('profileName').value = currentUser.name;
             document.getElementById('profileDepartment').value = currentUser.department;
             document.getElementById('profilePhone').value = currentUser.phone || '';
+
+            // 슈퍼관리자는 비밀번호 변경 섹션 숨김
+            const pwSection = document.getElementById('passwordChangeSection');
+            if (pwSection) {
+                if (isSuperAdmin()) {
+                    pwSection.style.display = 'none';
+                } else {
+                    pwSection.style.display = 'block';
+                }
+            }
+
+            // 비밀번호 확인 입력 초기화
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newProfilePassword').value = '';
+            document.getElementById('newProfilePasswordConfirm').value = '';
+            document.getElementById('profilePasswordMatchHint').textContent = '';
         }
 
         async function updateProfile(e) {
@@ -3747,7 +3799,7 @@
                 <button onclick="hideToast(this.parentElement)" style="background:none;border:none;cursor:pointer;margin-left:auto;">✕</button>
             `;
             container.appendChild(toast);
-            setTimeout(() => hideToast(toast), 2500);
+            setTimeout(() => hideToast(toast), 2000);
         }
 
         function hideToast(toast) {
@@ -3814,6 +3866,10 @@
 
             // Profile form
             document.getElementById('profileForm').addEventListener('submit', updateProfile);
+
+            // Profile password change - 비밀번호 확인 실시간 체크
+            document.getElementById('newProfilePasswordConfirm')?.addEventListener('input', checkProfilePasswordMatch);
+            document.getElementById('newProfilePassword')?.addEventListener('input', checkProfilePasswordMatch);
 
             // User tabs
             document.querySelectorAll('#userTabs .tab').forEach(tab => {
@@ -4126,6 +4182,102 @@
                 hint.textContent = '✗ 비밀번호가 일치하지 않습니다';
                 hint.className = 'form-hint password-match-hint mismatch';
                 return false;
+            }
+        }
+
+        function checkProfilePasswordMatch() {
+            const pw = document.getElementById('newProfilePassword').value;
+            const pwConfirm = document.getElementById('newProfilePasswordConfirm').value;
+            const hint = document.getElementById('profilePasswordMatchHint');
+
+            if (!pwConfirm) {
+                hint.textContent = '';
+                hint.className = 'form-hint password-match-hint';
+                return false;
+            }
+
+            if (pw === pwConfirm) {
+                hint.textContent = '✓ 비밀번호가 일치합니다';
+                hint.className = 'form-hint password-match-hint match';
+                return true;
+            } else {
+                hint.textContent = '✗ 비밀번호가 일치하지 않습니다';
+                hint.className = 'form-hint password-match-hint mismatch';
+                return false;
+            }
+        }
+
+        async function changePassword(e) {
+            e.preventDefault();
+
+            // 슈퍼관리자는 비밀번호 변경 불가
+            if (isSuperAdmin()) {
+                showToast('슈퍼관리자는 비밀번호를 변경할 수 없습니다.', 'warning');
+                return;
+            }
+
+            const currentPw = document.getElementById('currentPassword').value;
+            const newPw = document.getElementById('newProfilePassword').value;
+            const newPwConfirm = document.getElementById('newProfilePasswordConfirm').value;
+
+            if (!currentPw || !newPw || !newPwConfirm) {
+                showToast('모든 항목을 입력해주세요.', 'warning');
+                return;
+            }
+
+            if (newPw.length < 6) {
+                showToast('새 비밀번호는 6자 이상이어야 합니다.', 'warning');
+                return;
+            }
+
+            if (newPw !== newPwConfirm) {
+                showToast('새 비밀번호가 일치하지 않습니다.', 'warning');
+                return;
+            }
+
+            try {
+                // 현재 비밀번호 확인
+                const { data: userData, error: checkError } = await supabaseClient
+                    .from('users')
+                    .select('id')
+                    .eq('id', currentUser.id)
+                    .eq('password_hash', currentPw)
+                    .single();
+
+                if (checkError || !userData) {
+                    showToast('현재 비밀번호가 올바르지 않습니다.', 'error');
+                    return;
+                }
+
+                // 비밀번호 변경
+                const { error: updateError } = await supabaseClient
+                    .from('users')
+                    .update({ password_hash: newPw })
+                    .eq('id', currentUser.id);
+
+                if (updateError) throw updateError;
+
+                showToast('비밀번호가 변경되었습니다.', 'success');
+
+                // 입력 필드 초기화
+                document.getElementById('currentPassword').value = '';
+                document.getElementById('newProfilePassword').value = '';
+                document.getElementById('newProfilePasswordConfirm').value = '';
+                document.getElementById('profilePasswordMatchHint').textContent = '';
+
+                // 자동 로그인 정보 업데이트 (있는 경우)
+                const autoLoginData = localStorage.getItem('labBookingAutoLogin');
+                if (autoLoginData) {
+                    const parsed = JSON.parse(autoLoginData);
+                    if (parsed.email === currentUser.email) {
+                        localStorage.setItem('labBookingAutoLogin', JSON.stringify({
+                            email: currentUser.email,
+                            password: newPw
+                        }));
+                    }
+                }
+            } catch (err) {
+                showToast('비밀번호 변경에 실패했습니다: ' + err.message, 'error');
             }
         }
 
