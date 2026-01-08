@@ -1381,6 +1381,7 @@
                 <button class="tab" data-tab="adminSchedule">📊 전체현황</button>
                 <button class="tab" data-tab="adminEquipment">🔬 장비관리</button>
                 <button class="tab" data-tab="adminUsers">👥 사용자</button>
+                <button class="tab" data-tab="adminSettings">⚙️ 설정</button>
             </div>
 
             <!-- Tab Contents -->
@@ -1610,6 +1611,32 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Admin: Settings Tab -->
+                <div class="tab-content" id="adminSettingsTab">
+                    <h2 class="mb-6">시스템 설정</h2>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>관리자 설정</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="form-label">관리자 이메일</label>
+                                <p class="form-hint">예약 승인/거절 알림을 받을 관리자 이메일입니다.</p>
+                                <input type="email" class="form-input" id="settingsAdminEmail" placeholder="admin@korea.kr">
+                            </div>
+                            <button class="btn btn-primary" onclick="saveAdminSettings()">저장</button>
+                        </div>
+                    </div>
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h3>현재 설정</h3>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>관리자 이메일:</strong> <span id="currentAdminEmail">-</span></p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -1812,7 +1839,11 @@
         const EMAILJS_TEMPLATE_APPROVED = 'template_mo5t6fq';
         const EMAILJS_TEMPLATE_NEW_REQUEST = 'template_r5dny1k';
 
-        const ADMIN_EMAIL = 'olivetti90@korea.kr';
+        const DEFAULT_ADMIN_EMAIL = 'olivetti90@korea.kr';
+
+        function getAdminEmail() {
+            return localStorage.getItem('labBookingAdminEmail') || DEFAULT_ADMIN_EMAIL;
+        }
 
         // =============================================
         // Initialize
@@ -3034,7 +3065,7 @@
                 }
 
                 await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_NEW_REQUEST, {
-                    admin_email: ADMIN_EMAIL,
+                    admin_email: getAdminEmail(),
                     user_name: currentUser.name,
                     user_department: currentUser.department,
                     user_email: currentUser.email,
@@ -3185,6 +3216,7 @@
                     if (tab.dataset.tab === 'adminSchedule') loadAllReservations();
                     if (tab.dataset.tab === 'adminEquipment') loadEquipmentTable();
                     if (tab.dataset.tab === 'adminUsers') loadUsersTable();
+                    if (tab.dataset.tab === 'adminSettings') loadAdminSettings();
                 });
             });
 
@@ -3580,6 +3612,33 @@
             } catch (err) {
                 showToast('비밀번호 변경에 실패했습니다.', 'error');
             }
+        }
+
+        // =============================================
+        // Admin Settings Functions
+        // =============================================
+        function loadAdminSettings() {
+            const adminEmail = getAdminEmail();
+            document.getElementById('settingsAdminEmail').value = adminEmail;
+            document.getElementById('currentAdminEmail').textContent = adminEmail;
+        }
+
+        function saveAdminSettings() {
+            const newEmail = document.getElementById('settingsAdminEmail').value.trim();
+
+            if (!newEmail) {
+                showToast('관리자 이메일을 입력해주세요.', 'warning');
+                return;
+            }
+
+            if (!newEmail.includes('@')) {
+                showToast('올바른 이메일 형식이 아닙니다.', 'warning');
+                return;
+            }
+
+            localStorage.setItem('labBookingAdminEmail', newEmail);
+            document.getElementById('currentAdminEmail').textContent = newEmail;
+            showToast('관리자 이메일이 변경되었습니다.', 'success');
         }
     </script>
 </body>
