@@ -9,6 +9,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- EmailJS -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <!-- SheetJS for Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
         :root {
@@ -542,6 +544,207 @@
             font-size: 0.85rem;
         }
 
+        /* 10분 단위 타임 슬롯 그리드 */
+        .time-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-3);
+            padding-bottom: var(--space-2);
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .time-legend {
+            display: flex;
+            gap: var(--space-3);
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .legend-item.available {
+            background: #e8f4f8;
+            color: var(--primary-main);
+        }
+
+        .legend-item.selected {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .legend-item.booked {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .hour-label {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            padding: var(--space-2) 0;
+            border-top: 1px solid var(--border-default);
+            margin-top: var(--space-2);
+        }
+
+        .time-slots-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+
+        .time-slot-mini {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 0.7rem;
+            min-height: 36px;
+        }
+
+        .time-slot-mini:hover:not(.disabled) {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .time-slot-mini.selected {
+            border-color: var(--primary-main);
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .time-slot-mini.disabled {
+            cursor: not-allowed;
+        }
+
+        .time-slot-mini.booked {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+
+        .time-slot-mini.my-booking {
+            background: var(--primary-light);
+            border-color: var(--primary-main);
+        }
+
+        .slot-time {
+            font-weight: 500;
+        }
+
+        .slot-status {
+            font-size: 0.65rem;
+            margin-top: 1px;
+        }
+
+        .selected-time-summary {
+            background: var(--primary-light);
+            padding: var(--space-3);
+            border-radius: 6px;
+            margin-top: var(--space-4);
+            text-align: center;
+        }
+
+        /* 이전 예약 불러오기 */
+        .previous-reservation-select {
+            margin-bottom: var(--space-4);
+            padding: var(--space-3);
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .previous-reservation-select label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+        }
+
+        /* 즐겨찾기 */
+        .favorites-section {
+            background: var(--primary-light);
+            border-radius: 8px;
+            padding: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .favorites-section h3 {
+            font-size: 1rem;
+            margin-bottom: var(--space-3);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .favorites-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: var(--space-3);
+        }
+
+        .favorite-card {
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: var(--space-3);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .favorite-card:hover {
+            border-color: var(--primary-main);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .favorite-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            margin-bottom: var(--space-2);
+        }
+
+        .favorite-name {
+            flex: 1;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .favorite-location {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .btn-icon:hover {
+            opacity: 1;
+        }
+
+        .favorite-star {
+            color: #ffc107;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .favorite-star.empty {
+            color: #ccc;
+        }
+
         /* Equipment Select */
         .equipment-grid {
             display: grid;
@@ -1054,6 +1257,14 @@
                 <div class="tab-content active" id="bookingTab">
                     <h2 class="mb-6">장비 예약하기</h2>
 
+                    <!-- Favorites Section -->
+                    <div class="favorites-section" id="favoritesSection" style="display: none;">
+                        <h3>⭐ 즐겨찾기</h3>
+                        <div id="favoritesContainer">
+                            <!-- 동적 로드 -->
+                        </div>
+                    </div>
+
                     <!-- Step 1: Equipment Selection -->
                     <div class="card mb-6">
                         <div class="card-header">
@@ -1213,8 +1424,12 @@
                 <!-- Admin: Equipment Tab -->
                 <div class="tab-content" id="adminEquipmentTab">
                     <h2 class="mb-6">장비 관리</h2>
-                    <div class="mb-4">
+                    <div class="mb-4" style="display: flex; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-primary" onclick="openEquipmentModal()">+ 장비 추가</button>
+                        <button class="btn btn-outline" onclick="downloadExcelTemplate()">양식 다운로드</button>
+                        <button class="btn btn-outline" onclick="document.getElementById('excelUpload').click()">엑셀 업로드</button>
+                        <button class="btn btn-outline" onclick="exportEquipmentToExcel()">장비목록 내보내기</button>
+                        <input type="file" id="excelUpload" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelUpload(event)">
                     </div>
                     <div class="card">
                         <div class="card-body">
@@ -1286,6 +1501,12 @@
                 <div class="form-group">
                     <label class="form-label">선택한 시간</label>
                     <input type="text" class="form-input" id="modalTime" disabled>
+                </div>
+                <div class="previous-reservation-select">
+                    <label>이전 예약 불러오기</label>
+                    <select class="form-select" id="previousReservation" onchange="applyPreviousReservation(this)">
+                        <option value="">직접 입력</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">사용 목적 <span class="required">*</span></label>
@@ -1538,17 +1759,49 @@
             renderEquipmentFilter();
         }
 
-        function renderEquipmentGrid() {
+        async function renderEquipmentGrid() {
             const grid = document.getElementById('equipmentGrid');
-            grid.innerHTML = equipmentList.map(eq => `
+
+            // 즐겨찾기 목록 가져오기
+            let favoriteIds = [];
+            if (currentUser) {
+                const { data: favs } = await supabase
+                    .from('user_favorites')
+                    .select('equipment_id')
+                    .eq('user_id', currentUser.id);
+                favoriteIds = (favs || []).map(f => f.equipment_id);
+            }
+
+            grid.innerHTML = equipmentList.map(eq => {
+                const isFavorite = favoriteIds.includes(eq.id);
+                return `
                 <div class="equipment-card ${eq.status !== 'available' ? 'unavailable' : ''} ${selectedEquipment?.id === eq.id ? 'selected' : ''}"
                      onclick="${eq.status === 'available' ? `selectEquipment('${eq.id}')` : ''}">
-                    <div class="equipment-name">${eq.name}</div>
+                    <div class="equipment-name">
+                        ${eq.display_name || eq.name}
+                        <span class="favorite-star ${isFavorite ? '' : 'empty'}"
+                              onclick="event.stopPropagation(); toggleFavorite('${eq.id}')"
+                              title="${isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}">
+                            ${isFavorite ? '⭐' : '☆'}
+                        </span>
+                    </div>
                     <div class="equipment-location">📍 ${eq.location}</div>
                     <span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span>
                     <div class="approval-badge">${eq.approval_mode === 'auto' ? '⚡ 자동승인' : '🔒 승인필요'}</div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
+
+            // 즐겨찾기 섹션 표시/숨김
+            const favSection = document.getElementById('favoritesSection');
+            if (favSection) {
+                if (favoriteIds.length > 0) {
+                    favSection.style.display = 'block';
+                    loadFavorites();
+                } else {
+                    favSection.style.display = 'none';
+                }
+            }
         }
 
         function renderEquipmentFilter() {
@@ -1714,50 +1967,95 @@
                 });
             }
 
-            // 시간 슬롯 생성 (09:00 ~ 18:00)
-            let html = '';
+            // 시간 슬롯 생성 (09:00 ~ 18:00, 10분 단위)
+            let html = '<div class="time-slots-grid">';
             for (let hour = 9; hour < 18; hour++) {
-                const startTime = `${hour.toString().padStart(2, '0')}:00`;
-                const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
-                const key = `${startTime}:00-${endTime}:00`;
+                for (let min = 0; min < 60; min += 10) {
+                    const startTime = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+                    const endMin = min + 10;
+                    const endHour = endMin >= 60 ? hour + 1 : hour;
+                    const endMinNorm = endMin >= 60 ? 0 : endMin;
+                    const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
-                const reservation = bookedSlots[key];
-                const isBooked = !!reservation;
-                const isMine = reservation?.user_id === currentUser.id;
-                const isSelected = selectedTimeSlots.includes(startTime);
+                    // 예약 상태 체크 (해당 시간대에 겹치는 예약이 있는지)
+                    const slotStart = `${startTime}:00`;
+                    const slotEnd = `${endTime}:00`;
+                    let reservation = null;
+                    let isBooked = false;
 
-                let slotClass = 'time-slot';
-                let statusText = '예약 가능';
-
-                if (isBooked) {
-                    if (isMine) {
-                        slotClass += ' my-booking';
-                        statusText = `내 예약 (${reservation.status === 'pending' ? '대기중' : '승인됨'})`;
-                    } else {
-                        slotClass += ' booked disabled';
-                        statusText = `예약됨 (${reservation.status === 'pending' ? '대기중' : '승인됨'})`;
+                    if (reservations) {
+                        reservation = reservations.find(r => {
+                            return slotStart < r.end_time && slotEnd > r.start_time;
+                        });
+                        isBooked = !!reservation;
                     }
-                } else if (isSelected) {
-                    slotClass += ' selected';
-                    statusText = '선택됨';
+
+                    const isMine = reservation?.user_id === currentUser.id;
+                    const isSelected = selectedTimeSlots.includes(startTime);
+
+                    let slotClass = 'time-slot-mini';
+                    let statusText = '';
+
+                    if (isBooked) {
+                        if (isMine) {
+                            slotClass += ' my-booking';
+                            statusText = '내';
+                        } else {
+                            slotClass += ' booked disabled';
+                            statusText = 'X';
+                        }
+                    } else if (isSelected) {
+                        slotClass += ' selected';
+                    }
+
+                    html += `
+                        <div class="${slotClass}"
+                             onclick="${!isBooked ? `toggleTimeSlot('${startTime}')` : ''}"
+                             title="${startTime} - ${endTime}">
+                            <span class="slot-time">${startTime.split(':')[1]}</span>
+                            ${statusText ? `<span class="slot-status">${statusText}</span>` : ''}
+                        </div>
+                    `;
+
+                    // 매 시간 구분선
+                    if (min === 50) {
+                        html += `</div><div class="hour-label">${endHour}:00</div><div class="time-slots-grid">`;
+                    }
                 }
-
-                html += `
-                    <div class="${slotClass}"
-                         onclick="${!isBooked ? `toggleTimeSlot('${startTime}')` : ''}">
-                        <span class="time-slot-time">${startTime} - ${endTime}</span>
-                        <span class="time-slot-status">${statusText}</span>
-                    </div>
-                `;
             }
+            html += '</div>';
 
-            body.innerHTML = html;
+            // 시간 헤더 추가
+            const headerHtml = `
+                <div class="time-header">
+                    <div class="hour-label">9:00</div>
+                    <div class="time-legend">
+                        <span class="legend-item available">예약가능</span>
+                        <span class="legend-item selected">선택됨</span>
+                        <span class="legend-item booked">예약됨</span>
+                    </div>
+                </div>
+            `;
+            body.innerHTML = headerHtml + html;
 
-            // 예약 버튼
+            // 선택된 시간 요약 및 예약 버튼
             if (selectedTimeSlots.length > 0) {
+                const sortedSlots = [...selectedTimeSlots].sort();
+                const startSlot = sortedSlots[0];
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const [lastH, lastM] = lastSlot.split(':').map(Number);
+                const endMin = lastM + 10;
+                const endHour = endMin >= 60 ? lastH + 1 : lastH;
+                const endMinNorm = endMin >= 60 ? 0 : endMin;
+                const endSlot = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+                const duration = selectedTimeSlots.length * 10;
+
                 body.innerHTML += `
+                    <div class="selected-time-summary">
+                        <strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})
+                    </div>
                     <button class="btn btn-primary btn-block mt-4" onclick="openReservationModal()">
-                        예약 신청하기 (${selectedTimeSlots.length}시간)
+                        예약 신청하기
                     </button>
                 `;
             }
@@ -1768,15 +2066,39 @@
             if (index > -1) {
                 selectedTimeSlots.splice(index, 1);
             } else {
-                // 최대 시간 체크
-                if (selectedTimeSlots.length >= selectedEquipment.max_duration_hours) {
+                // 최대 시간 체크 (10분 단위이므로 max_duration_hours * 6)
+                const maxSlots = selectedEquipment.max_duration_hours * 6;
+                if (selectedTimeSlots.length >= maxSlots) {
                     showToast(`최대 ${selectedEquipment.max_duration_hours}시간까지 예약 가능합니다.`, 'warning');
                     return;
                 }
+
+                // 연속된 시간만 선택 가능하도록 체크
+                if (selectedTimeSlots.length > 0) {
+                    const sortedSlots = [...selectedTimeSlots, time].sort();
+                    if (!isConsecutiveSlots(sortedSlots)) {
+                        showToast('연속된 시간대만 선택할 수 있습니다.', 'warning');
+                        return;
+                    }
+                }
+
                 selectedTimeSlots.push(time);
             }
             selectedTimeSlots.sort();
             loadTimeSlots();
+        }
+
+        function isConsecutiveSlots(slots) {
+            for (let i = 1; i < slots.length; i++) {
+                const [prevH, prevM] = slots[i-1].split(':').map(Number);
+                const [currH, currM] = slots[i].split(':').map(Number);
+                const prevTotal = prevH * 60 + prevM;
+                const currTotal = currH * 60 + currM;
+                if (currTotal - prevTotal !== 10) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         // =============================================
@@ -1788,17 +2110,71 @@
                 return;
             }
 
-            const startTime = selectedTimeSlots[0];
-            const endHour = parseInt(selectedTimeSlots[selectedTimeSlots.length - 1].split(':')[0]) + 1;
-            const endTime = `${endHour.toString().padStart(2, '0')}:00`;
+            const sortedSlots = [...selectedTimeSlots].sort();
+            const startTime = sortedSlots[0];
+            const lastSlot = sortedSlots[sortedSlots.length - 1];
+            const [lastH, lastM] = lastSlot.split(':').map(Number);
+            const endMin = lastM + 10;
+            const endHour = endMin >= 60 ? lastH + 1 : lastH;
+            const endMinNorm = endMin >= 60 ? 0 : endMin;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
-            document.getElementById('modalEquipment').value = selectedEquipment.name;
+            document.getElementById('modalEquipment').value = selectedEquipment.display_name || selectedEquipment.name;
             document.getElementById('modalDate').value = selectedDate.toISOString().split('T')[0];
             document.getElementById('modalTime').value = `${startTime} ~ ${endTime}`;
             document.getElementById('modalPurpose').value = '';
             document.getElementById('modalDetail').value = '';
 
+            // 이전 예약 불러오기 옵션 로드
+            loadPreviousReservations();
+
             openModal('reservationModal');
+        }
+
+        async function loadPreviousReservations() {
+            const selectEl = document.getElementById('previousReservation');
+            if (!selectEl) return;
+
+            selectEl.innerHTML = '<option value="">직접 입력</option>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('reservations')
+                    .select('purpose, detail, start_time, end_time')
+                    .eq('user_id', currentUser.id)
+                    .eq('equipment_id', selectedEquipment.id)
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                if (data && data.length > 0) {
+                    data.forEach((r, idx) => {
+                        const duration = calculateDurationMinutes(r.start_time, r.end_time);
+                        const durationStr = duration >= 60
+                            ? `${Math.floor(duration/60)}시간${duration%60 ? ' ' + duration%60 + '분' : ''}`
+                            : `${duration}분`;
+                        selectEl.innerHTML += `<option value="${idx}" data-purpose="${r.purpose}" data-detail="${r.detail || ''}" data-duration="${duration}">
+                            ${r.purpose} (${durationStr})
+                        </option>`;
+                    });
+                }
+            } catch (err) {
+                console.error('이전 예약 로드 실패:', err);
+            }
+        }
+
+        function calculateDurationMinutes(startTime, endTime) {
+            const [sH, sM] = startTime.split(':').map(Number);
+            const [eH, eM] = endTime.split(':').map(Number);
+            return (eH * 60 + eM) - (sH * 60 + sM);
+        }
+
+        function applyPreviousReservation(selectEl) {
+            const idx = selectEl.value;
+            if (idx === '') return;
+
+            const option = selectEl.options[selectEl.selectedIndex];
+            document.getElementById('modalPurpose').value = option.dataset.purpose;
+            document.getElementById('modalDetail').value = option.dataset.detail;
         }
 
         async function submitReservation() {
@@ -1810,9 +2186,14 @@
                 return;
             }
 
-            const startTime = selectedTimeSlots[0] + ':00';
-            const endHour = parseInt(selectedTimeSlots[selectedTimeSlots.length - 1].split(':')[0]) + 1;
-            const endTime = `${endHour.toString().padStart(2, '0')}:00:00`;
+            const sortedSlots = [...selectedTimeSlots].sort();
+            const startTime = sortedSlots[0] + ':00';
+            const lastSlot = sortedSlots[sortedSlots.length - 1];
+            const [lastH, lastM] = lastSlot.split(':').map(Number);
+            const endMin = lastM + 10;
+            const endHour = endMin >= 60 ? lastH + 1 : lastH;
+            const endMinNorm = endMin >= 60 ? 0 : endMin;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}:00`;
 
             const status = selectedEquipment.approval_mode === 'auto' ? 'approved' : 'pending';
 
@@ -2551,6 +2932,240 @@
             document.getElementById('myReservationFilter')?.addEventListener('change', loadMyReservations);
             document.getElementById('scheduleEquipmentFilter')?.addEventListener('change', loadSchedule);
         });
+
+        // =============================================
+        // Excel Functions
+        // =============================================
+        function downloadExcelTemplate() {
+            const templateData = [
+                {
+                    '장비명': '예시: PCR 기기',
+                    '표시명(선택)': '예시: 1층 PCR',
+                    '위치': '예시: 1동 101호',
+                    '자산번호(선택)': 'ASSET-001',
+                    '부서(선택)': '생명과학부',
+                    '연구실(선택)': '분자생물학 연구실',
+                    '취득연도(선택)': '2023',
+                    '최대예약시간': '4',
+                    '승인방식(auto/manual)': 'manual',
+                    '상태(available/maintenance)': 'available',
+                    '설명(선택)': '장비 설명을 입력하세요'
+                }
+            ];
+
+            const ws = XLSX.utils.json_to_sheet(templateData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '장비등록양식');
+
+            // 열 너비 설정
+            ws['!cols'] = [
+                { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
+                { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 12 },
+                { wch: 20 }, { wch: 25 }, { wch: 30 }
+            ];
+
+            XLSX.writeFile(wb, '장비등록_양식.xlsx');
+            showToast('양식이 다운로드되었습니다.', 'success');
+        }
+
+        async function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data);
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                if (jsonData.length === 0) {
+                    showToast('엑셀 파일에 데이터가 없습니다.', 'warning');
+                    return;
+                }
+
+                let successCount = 0;
+                let errorCount = 0;
+
+                for (const row of jsonData) {
+                    const equipmentData = {
+                        name: row['장비명'],
+                        display_name: row['표시명(선택)'] || row['장비명'],
+                        location: row['위치'] || '',
+                        asset_number: row['자산번호(선택)'] || null,
+                        lab_department: row['부서(선택)'] || null,
+                        lab_room: row['연구실(선택)'] || null,
+                        acquisition_year: row['취득연도(선택)'] ? parseInt(row['취득연도(선택)']) : null,
+                        max_duration_hours: parseInt(row['최대예약시간']) || 4,
+                        approval_mode: row['승인방식(auto/manual)'] === 'auto' ? 'auto' : 'manual',
+                        status: row['상태(available/maintenance)'] === 'maintenance' ? 'maintenance' : 'available',
+                        description: row['설명(선택)'] || ''
+                    };
+
+                    if (!equipmentData.name) {
+                        errorCount++;
+                        continue;
+                    }
+
+                    const { error } = await supabase
+                        .from('equipment')
+                        .insert([equipmentData]);
+
+                    if (error) {
+                        console.error('장비 추가 오류:', error);
+                        errorCount++;
+                    } else {
+                        successCount++;
+                    }
+                }
+
+                event.target.value = '';
+                loadEquipmentTable();
+                await loadEquipment();
+                showToast(`업로드 완료: ${successCount}개 성공, ${errorCount}개 실패`, successCount > 0 ? 'success' : 'warning');
+            } catch (err) {
+                showToast('엑셀 파일 처리 중 오류가 발생했습니다: ' + err.message, 'error');
+                event.target.value = '';
+            }
+        }
+
+        async function exportEquipmentToExcel() {
+            try {
+                const { data, error } = await supabase
+                    .from('equipment')
+                    .select('*')
+                    .order('name');
+
+                if (error) throw error;
+
+                const exportData = data.map(eq => ({
+                    '장비명': eq.name,
+                    '표시명': eq.display_name || eq.name,
+                    '위치': eq.location,
+                    '자산번호': eq.asset_number || '',
+                    '부서': eq.lab_department || '',
+                    '연구실': eq.lab_room || '',
+                    '취득연도': eq.acquisition_year || '',
+                    '최대예약시간': eq.max_duration_hours,
+                    '승인방식': eq.approval_mode,
+                    '상태': eq.status,
+                    '설명': eq.description || ''
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, '장비목록');
+
+                const today = new Date().toISOString().split('T')[0];
+                XLSX.writeFile(wb, `장비목록_${today}.xlsx`);
+                showToast('장비 목록이 다운로드되었습니다.', 'success');
+            } catch (err) {
+                showToast('내보내기 실패: ' + err.message, 'error');
+            }
+        }
+
+        // =============================================
+        // Favorites Functions
+        // =============================================
+        async function loadFavorites() {
+            if (!currentUser) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('user_favorites')
+                    .select('*, equipment(*)')
+                    .eq('user_id', currentUser.id)
+                    .order('sort_order');
+
+                if (error) throw error;
+
+                const container = document.getElementById('favoritesContainer');
+                if (!container) return;
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="text-secondary">즐겨찾기한 장비가 없습니다. 장비 목록에서 별표를 클릭하세요.</p>';
+                    return;
+                }
+
+                let html = '<div class="favorites-grid">';
+                data.forEach(fav => {
+                    const eq = fav.equipment;
+                    if (!eq) return;
+
+                    html += `
+                        <div class="favorite-card" onclick="selectEquipment('${eq.id}')">
+                            <div class="favorite-header">
+                                <span class="favorite-name">${fav.custom_name || eq.display_name || eq.name}</span>
+                                <button class="btn-icon" onclick="event.stopPropagation(); editFavoriteAlias('${fav.id}', '${fav.custom_name || ''}')" title="별칭 수정">✏️</button>
+                                <button class="btn-icon" onclick="event.stopPropagation(); removeFavorite('${fav.id}')" title="즐겨찾기 해제">⭐</button>
+                            </div>
+                            <div class="favorite-location">${eq.location}</div>
+                            <span class="equipment-status ${eq.status}">${eq.status === 'available' ? '사용가능' : '점검중'}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('즐겨찾기 로드 실패:', err);
+            }
+        }
+
+        async function toggleFavorite(equipmentId) {
+            if (!currentUser) return;
+
+            try {
+                const { data: existing } = await supabase
+                    .from('user_favorites')
+                    .select('id')
+                    .eq('user_id', currentUser.id)
+                    .eq('equipment_id', equipmentId)
+                    .single();
+
+                if (existing) {
+                    await supabase.from('user_favorites').delete().eq('id', existing.id);
+                    showToast('즐겨찾기가 해제되었습니다.', 'info');
+                } else {
+                    await supabase.from('user_favorites').insert([{
+                        user_id: currentUser.id,
+                        equipment_id: equipmentId
+                    }]);
+                    showToast('즐겨찾기에 추가되었습니다.', 'success');
+                }
+
+                renderEquipmentGrid();
+                loadFavorites();
+            } catch (err) {
+                showToast('즐겨찾기 처리 실패: ' + err.message, 'error');
+            }
+        }
+
+        async function removeFavorite(favoriteId) {
+            try {
+                await supabase.from('user_favorites').delete().eq('id', favoriteId);
+                showToast('즐겨찾기가 해제되었습니다.', 'info');
+                loadFavorites();
+            } catch (err) {
+                showToast('삭제 실패: ' + err.message, 'error');
+            }
+        }
+
+        async function editFavoriteAlias(favoriteId, currentAlias) {
+            const newAlias = prompt('장비 별칭을 입력하세요:', currentAlias);
+            if (newAlias === null) return;
+
+            try {
+                await supabase
+                    .from('user_favorites')
+                    .update({ custom_name: newAlias || null })
+                    .eq('id', favoriteId);
+
+                showToast('별칭이 저장되었습니다.', 'success');
+                loadFavorites();
+            } catch (err) {
+                showToast('별칭 저장 실패: ' + err.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>
