@@ -1,0 +1,2556 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실험실 장비 예약 시스템</title>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- EmailJS -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
+    <style>
+        :root {
+            --primary-dark: #0c3026;
+            --primary-main: #017f97;
+            --primary-light: #e8f4f8;
+            --bg-page: #f5f7fa;
+            --bg-card: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-placeholder: #adb5bd;
+            --border-default: #dee2e6;
+            --border-focus: #017f97;
+            --success: #28a745;
+            --warning: #ffc107;
+            --error: #dc3545;
+            --info: #17a2b8;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--primary-dark);
+            color: white;
+            padding: var(--space-4) var(--space-6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 0.875rem;
+        }
+
+        .user-badge {
+            background: var(--primary-main);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        .btn-logout {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: var(--space-2) var(--space-4);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-6);
+        }
+
+        /* Auth Container */
+        .auth-container {
+            min-height: calc(100vh - 80px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-6);
+        }
+
+        .auth-box {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 420px;
+            overflow: hidden;
+        }
+
+        .auth-header {
+            background: var(--primary-dark);
+            color: white;
+            padding: var(--space-6);
+            text-align: center;
+        }
+
+        .auth-header h2 {
+            font-size: 1.5rem;
+            margin-bottom: var(--space-2);
+        }
+
+        .auth-header p {
+            opacity: 0.8;
+            font-size: 0.875rem;
+        }
+
+        .auth-body {
+            padding: var(--space-6);
+        }
+
+        .auth-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-default);
+            margin-bottom: var(--space-6);
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: var(--space-3);
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .auth-tab.active {
+            color: var(--primary-main);
+            border-bottom-color: var(--primary-main);
+            font-weight: 600;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: var(--space-4);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: var(--space-2);
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-label .required {
+            color: var(--error);
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            font-size: 1rem;
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(1, 127, 151, 0.15);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-placeholder);
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-1);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            padding: var(--space-3) var(--space-6);
+            font-size: 1rem;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-dark);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0a2820;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #016a7f;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 1px solid var(--primary-main);
+            color: var(--primary-main);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary-light);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: var(--space-2) var(--space-4);
+            font-size: 0.875rem;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: white;
+            border-radius: 8px;
+            padding: var(--space-1);
+            gap: var(--space-1);
+            margin-bottom: var(--space-6);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+
+        .tab {
+            flex: 1;
+            min-width: max-content;
+            padding: var(--space-3) var(--space-4);
+            border: none;
+            background: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            background: var(--bg-page);
+        }
+
+        .tab.active {
+            background: var(--primary-main);
+            color: white;
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: var(--space-4) var(--space-6);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: var(--space-6);
+        }
+
+        /* Calendar */
+        .calendar-container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: var(--space-6);
+        }
+
+        @media (max-width: 900px) {
+            .calendar-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .calendar {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-6);
+            background: var(--primary-dark);
+            color: white;
+        }
+
+        .calendar-nav {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        .calendar-nav button {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+
+        .calendar-nav button:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .calendar-weekday {
+            padding: var(--space-3);
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--bg-page);
+        }
+
+        .calendar-day {
+            padding: var(--space-3);
+            min-height: 80px;
+            border: 1px solid var(--border-default);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .calendar-day:hover {
+            background: var(--primary-light);
+        }
+
+        .calendar-day.other-month {
+            color: var(--text-placeholder);
+            background: #fafafa;
+        }
+
+        .calendar-day.today {
+            background: var(--primary-light);
+        }
+
+        .calendar-day.selected {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .calendar-day-number {
+            font-weight: 600;
+            margin-bottom: var(--space-1);
+        }
+
+        .calendar-day-events {
+            font-size: 0.7rem;
+        }
+
+        .event-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 2px;
+        }
+
+        .event-dot.pending { background: var(--warning); }
+        .event-dot.approved { background: var(--success); }
+        .event-dot.my { background: var(--primary-main); }
+
+        /* Time Slots */
+        .time-slots-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .time-slots-header {
+            padding: var(--space-4);
+            border-bottom: 1px solid var(--border-default);
+            font-weight: 600;
+        }
+
+        .time-slots-body {
+            padding: var(--space-4);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .time-slot {
+            display: flex;
+            align-items: center;
+            padding: var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            margin-bottom: var(--space-2);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .time-slot:hover:not(.disabled) {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .time-slot.selected {
+            border-color: var(--primary-main);
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .time-slot.disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .time-slot.booked {
+            background: #fff3cd;
+            border-color: var(--warning);
+        }
+
+        .time-slot.my-booking {
+            background: var(--primary-light);
+            border-color: var(--primary-main);
+        }
+
+        .time-slot-time {
+            font-weight: 600;
+            width: 100px;
+        }
+
+        .time-slot-status {
+            flex: 1;
+            font-size: 0.85rem;
+        }
+
+        /* Equipment Select */
+        .equipment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .equipment-card {
+            background: white;
+            border: 2px solid var(--border-default);
+            border-radius: 8px;
+            padding: var(--space-4);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .equipment-card:hover {
+            border-color: var(--primary-main);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .equipment-card.selected {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .equipment-card.unavailable {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .equipment-name {
+            font-weight: 600;
+            margin-bottom: var(--space-2);
+        }
+
+        .equipment-location {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .equipment-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin-top: var(--space-2);
+        }
+
+        .equipment-status.available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .equipment-status.maintenance {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .equipment-status.broken {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .approval-badge {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-1);
+        }
+
+        /* Reservation List */
+        .reservation-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+        }
+
+        .reservation-item {
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid var(--border-default);
+            padding: var(--space-4);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .reservation-item.pending {
+            border-left-color: var(--warning);
+        }
+
+        .reservation-item.approved {
+            border-left-color: var(--success);
+        }
+
+        .reservation-item.rejected {
+            border-left-color: var(--error);
+        }
+
+        .reservation-item.cancelled {
+            border-left-color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .reservation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-3);
+        }
+
+        .reservation-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-cancelled {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+
+        .reservation-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-2);
+            font-size: 0.9rem;
+        }
+
+        .reservation-info-item {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        .reservation-info-label {
+            color: var(--text-secondary);
+        }
+
+        .reservation-actions {
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--border-default);
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        /* Admin specific */
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: var(--space-4);
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .stat-card.warning .stat-number {
+            color: var(--warning);
+        }
+
+        .stat-card.success .stat-number {
+            color: var(--success);
+        }
+
+        /* Table */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th, .table td {
+            padding: var(--space-3) var(--space-4);
+            text-align: left;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .table th {
+            background: var(--bg-page);
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .table tbody tr:hover {
+            background: var(--bg-page);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: var(--space-4) var(--space-6);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .modal-body {
+            padding: var(--space-6);
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: var(--space-4) var(--space-6);
+            border-top: 1px solid var(--border-default);
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--space-3);
+            background: var(--bg-page);
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: var(--space-4);
+            right: var(--space-4);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .toast {
+            background: white;
+            border-radius: 8px;
+            padding: var(--space-4);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            min-width: 300px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--error); }
+        .toast.warning { border-left: 4px solid var(--warning); }
+        .toast.info { border-left: 4px solid var(--info); }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: var(--space-8);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-default);
+            border-top-color: var(--primary-main);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: var(--space-8);
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: var(--space-4);
+        }
+
+        /* Utility */
+        .hidden { display: none !important; }
+        .text-center { text-align: center; }
+        .text-success { color: var(--success); }
+        .text-error { color: var(--error); }
+        .text-warning { color: var(--warning); }
+        .mt-4 { margin-top: var(--space-4); }
+        .mb-4 { margin-bottom: var(--space-4); }
+        .mb-6 { margin-bottom: var(--space-6); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: var(--space-3) var(--space-4);
+            }
+
+            .header h1 {
+                font-size: 1rem;
+            }
+
+            .container {
+                padding: var(--space-4);
+            }
+
+            .tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+            }
+
+            .tab {
+                padding: var(--space-2) var(--space-3);
+                font-size: 0.8rem;
+            }
+
+            .equipment-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .calendar-day {
+                min-height: 50px;
+                padding: var(--space-2);
+            }
+
+            .calendar-day-number {
+                font-size: 0.85rem;
+            }
+
+            .calendar-day-events {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <h1>🔬 실험실 장비 예약</h1>
+        <div class="header-right" id="headerRight">
+            <!-- 로그인 후 표시 -->
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="mainContent">
+        <!-- Auth Section -->
+        <div class="auth-container" id="authSection">
+            <div class="auth-box">
+                <div class="auth-header">
+                    <h2>🔬 실험실 장비 예약</h2>
+                    <p>장비 예약 시스템에 로그인하세요</p>
+                </div>
+                <div class="auth-body">
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" data-tab="login">로그인</button>
+                        <button class="auth-tab" data-tab="signup">회원가입</button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label class="form-label">이메일 <span class="required">*</span></label>
+                            <input type="email" class="form-input" id="loginEmail" placeholder="example@korea.kr" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">비밀번호 <span class="required">*</span></label>
+                            <input type="password" class="form-input" id="loginPassword" placeholder="비밀번호 입력" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">로그인</button>
+                    </form>
+
+                    <!-- Signup Form -->
+                    <form id="signupForm" class="hidden">
+                        <div class="form-group">
+                            <label class="form-label">이메일 <span class="required">*</span></label>
+                            <input type="email" class="form-input" id="signupEmail" placeholder="example@korea.kr" required>
+                            <p class="form-hint">로그인에 사용됩니다</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">비밀번호 <span class="required">*</span></label>
+                            <input type="password" class="form-input" id="signupPassword" placeholder="6자 이상" minlength="6" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">이름 <span class="required">*</span></label>
+                            <input type="text" class="form-input" id="signupName" placeholder="홍길동" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">소속 <span class="required">*</span></label>
+                            <select class="form-select" id="signupDepartment" required>
+                                <option value="">선택하세요</option>
+                                <option value="육종연구실">육종연구실</option>
+                                <option value="분자생물학실">분자생물학실</option>
+                                <option value="유전체분석실">유전체분석실</option>
+                                <option value="생명공학실">생명공학실</option>
+                                <option value="기타">기타</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">연락처</label>
+                            <input type="tel" class="form-input" id="signupPhone" placeholder="010-0000-0000">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">가입 신청</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- App Section (로그인 후) -->
+        <div class="container hidden" id="appSection">
+            <!-- User Tabs -->
+            <div class="tabs" id="userTabs">
+                <button class="tab active" data-tab="booking">📅 예약하기</button>
+                <button class="tab" data-tab="schedule">📊 예약현황</button>
+                <button class="tab" data-tab="myReservations">📋 내 예약</button>
+                <button class="tab" data-tab="profile">👤 내 정보</button>
+            </div>
+
+            <!-- Admin Tabs (관리자만) -->
+            <div class="tabs hidden" id="adminTabs">
+                <button class="tab active" data-tab="adminApproval">📥 승인대기</button>
+                <button class="tab" data-tab="adminSchedule">📊 전체현황</button>
+                <button class="tab" data-tab="adminEquipment">🔬 장비관리</button>
+                <button class="tab" data-tab="adminUsers">👥 사용자</button>
+            </div>
+
+            <!-- Tab Contents -->
+            <div id="tabContents">
+                <!-- Booking Tab -->
+                <div class="tab-content active" id="bookingTab">
+                    <h2 class="mb-6">장비 예약하기</h2>
+
+                    <!-- Step 1: Equipment Selection -->
+                    <div class="card mb-6">
+                        <div class="card-header">
+                            <h3>1️⃣ 장비 선택</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="equipment-grid" id="equipmentGrid">
+                                <!-- 동적 로드 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Calendar & Time -->
+                    <div class="calendar-container">
+                        <div class="calendar">
+                            <div class="calendar-header">
+                                <div class="calendar-nav">
+                                    <button onclick="changeMonth(-1)">◀</button>
+                                </div>
+                                <h3 id="calendarTitle">2026년 1월</h3>
+                                <div class="calendar-nav">
+                                    <button onclick="changeMonth(1)">▶</button>
+                                </div>
+                            </div>
+                            <div class="calendar-grid" id="calendarGrid">
+                                <!-- 동적 생성 -->
+                            </div>
+                        </div>
+
+                        <div class="time-slots-panel">
+                            <div class="time-slots-header" id="timeSlotsHeader">
+                                날짜를 선택하세요
+                            </div>
+                            <div class="time-slots-body" id="timeSlotsBody">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">📅</div>
+                                    <p>장비와 날짜를 선택하면<br>예약 가능한 시간이 표시됩니다</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule Tab -->
+                <div class="tab-content" id="scheduleTab">
+                    <h2 class="mb-6">예약 현황</h2>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>오늘의 예약</h3>
+                            <select class="form-select" style="width: auto;" id="scheduleEquipmentFilter">
+                                <option value="">전체 장비</option>
+                            </select>
+                        </div>
+                        <div class="card-body">
+                            <div id="scheduleList">
+                                <!-- 동적 로드 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- My Reservations Tab -->
+                <div class="tab-content" id="myReservationsTab">
+                    <h2 class="mb-6">내 예약 내역</h2>
+                    <div class="mb-4">
+                        <select class="form-select" style="width: auto; display: inline-block;" id="myReservationFilter">
+                            <option value="">전체</option>
+                            <option value="pending">승인대기</option>
+                            <option value="approved">승인완료</option>
+                            <option value="rejected">반려됨</option>
+                            <option value="cancelled">취소됨</option>
+                        </select>
+                    </div>
+                    <div class="reservation-list" id="myReservationList">
+                        <!-- 동적 로드 -->
+                    </div>
+                </div>
+
+                <!-- Profile Tab -->
+                <div class="tab-content" id="profileTab">
+                    <h2 class="mb-6">내 정보</h2>
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="profileForm">
+                                <div class="form-group">
+                                    <label class="form-label">이메일</label>
+                                    <input type="email" class="form-input" id="profileEmail" disabled>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">이름</label>
+                                    <input type="text" class="form-input" id="profileName">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">소속</label>
+                                    <select class="form-select" id="profileDepartment">
+                                        <option value="육종연구실">육종연구실</option>
+                                        <option value="분자생물학실">분자생물학실</option>
+                                        <option value="유전체분석실">유전체분석실</option>
+                                        <option value="생명공학실">생명공학실</option>
+                                        <option value="기타">기타</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">연락처</label>
+                                    <input type="tel" class="form-input" id="profilePhone">
+                                </div>
+                                <button type="submit" class="btn btn-primary">정보 수정</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: Approval Tab -->
+                <div class="tab-content" id="adminApprovalTab">
+                    <h2 class="mb-6">예약 승인 관리</h2>
+                    <div class="admin-stats" id="adminStats">
+                        <!-- 동적 로드 -->
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>승인 대기 목록</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="reservation-list" id="pendingReservationList">
+                                <!-- 동적 로드 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: Schedule Tab -->
+                <div class="tab-content" id="adminScheduleTab">
+                    <h2 class="mb-6">전체 예약 현황</h2>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-wrapper">
+                                <table class="table" id="allReservationsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>날짜</th>
+                                            <th>시간</th>
+                                            <th>장비</th>
+                                            <th>신청자</th>
+                                            <th>상태</th>
+                                            <th>액션</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="allReservationsBody">
+                                        <!-- 동적 로드 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: Equipment Tab -->
+                <div class="tab-content" id="adminEquipmentTab">
+                    <h2 class="mb-6">장비 관리</h2>
+                    <div class="mb-4">
+                        <button class="btn btn-primary" onclick="openEquipmentModal()">+ 장비 추가</button>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-wrapper">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>장비명</th>
+                                            <th>위치</th>
+                                            <th>상태</th>
+                                            <th>승인방식</th>
+                                            <th>액션</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="equipmentTableBody">
+                                        <!-- 동적 로드 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: Users Tab -->
+                <div class="tab-content" id="adminUsersTab">
+                    <h2 class="mb-6">사용자 관리</h2>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-wrapper">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>이름</th>
+                                            <th>이메일</th>
+                                            <th>소속</th>
+                                            <th>역할</th>
+                                            <th>상태</th>
+                                            <th>액션</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="usersTableBody">
+                                        <!-- 동적 로드 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Reservation Modal -->
+    <div class="modal-overlay" id="reservationModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>예약 신청</h3>
+                <button class="modal-close" onclick="closeModal('reservationModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">선택한 장비</label>
+                    <input type="text" class="form-input" id="modalEquipment" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">선택한 날짜</label>
+                    <input type="text" class="form-input" id="modalDate" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">선택한 시간</label>
+                    <input type="text" class="form-input" id="modalTime" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">사용 목적 <span class="required">*</span></label>
+                    <select class="form-select" id="modalPurpose" required>
+                        <option value="">선택하세요</option>
+                        <option value="연구 실험">연구 실험</option>
+                        <option value="분석">분석</option>
+                        <option value="교육/실습">교육/실습</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">상세 내용</label>
+                    <textarea class="form-input" id="modalDetail" rows="3" placeholder="실험 내용, 샘플 수 등"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('reservationModal')">취소</button>
+                <button class="btn btn-primary" onclick="submitReservation()">예약 신청</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Modal -->
+    <div class="modal-overlay" id="approvalModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>예약 처리</h3>
+                <button class="modal-close" onclick="closeModal('approvalModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="approvalModalBody">
+                <!-- 동적 내용 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('approvalModal')">닫기</button>
+                <button class="btn btn-danger" onclick="rejectReservation()">반려</button>
+                <button class="btn btn-success" onclick="approveReservation()">승인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equipment Modal -->
+    <div class="modal-overlay" id="equipmentModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="equipmentModalTitle">장비 추가</h3>
+                <button class="modal-close" onclick="closeModal('equipmentModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="equipmentForm">
+                    <input type="hidden" id="equipmentId">
+                    <div class="form-group">
+                        <label class="form-label">장비명 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="equipmentName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">위치 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="equipmentLocation" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">설명</label>
+                        <textarea class="form-input" id="equipmentDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">상태</label>
+                        <select class="form-select" id="equipmentStatus">
+                            <option value="available">사용 가능</option>
+                            <option value="maintenance">점검 중</option>
+                            <option value="broken">고장</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">승인 방식</label>
+                        <select class="form-select" id="equipmentApprovalMode">
+                            <option value="manual">수동 승인</option>
+                            <option value="auto">자동 승인</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">최대 사용 시간 (시간)</label>
+                        <input type="number" class="form-input" id="equipmentMaxDuration" value="4" min="1" max="8">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('equipmentModal')">취소</button>
+                <button class="btn btn-primary" onclick="saveEquipment()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // Configuration
+        // =============================================
+        const SUPABASE_URL = 'https://jfabgawkxahqcsrwjdgf.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYWJnYXdreGFocWNzcndqZGdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4MzkwNDUsImV4cCI6MjA4MzQxNTA0NX0.KfT1iAjap3J1sEtovH2N1hD2a0cBbHcYqMLrT2rtfDg';
+
+        const EMAILJS_SERVICE_ID = 'service_ey13vmb';
+        const EMAILJS_PUBLIC_KEY = 'e_o_NZ8YNyjpH6Gkd';
+        const EMAILJS_TEMPLATE_APPROVED = 'template_mo5t6fq';
+        const EMAILJS_TEMPLATE_NEW_REQUEST = 'template_r5dny1k';
+
+        const ADMIN_EMAIL = 'olivetti90@korea.kr';
+
+        // =============================================
+        // Initialize
+        // =============================================
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        emailjs.init(EMAILJS_PUBLIC_KEY);
+
+        let currentUser = null;
+        let selectedEquipment = null;
+        let selectedDate = null;
+        let selectedTimeSlots = [];
+        let currentMonth = new Date();
+        let equipmentList = [];
+        let currentApprovalReservation = null;
+
+        // =============================================
+        // Auth Functions
+        // =============================================
+        async function login(email, password) {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', email)
+                    .eq('password_hash', password)
+                    .single();
+
+                if (error || !data) {
+                    throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.');
+                }
+
+                if (data.status !== 'active') {
+                    throw new Error('비활성화된 계정입니다.');
+                }
+
+                currentUser = data;
+                localStorage.setItem('labBookingUser', JSON.stringify(data));
+                showApp();
+                showToast('로그인되었습니다.', 'success');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function signup(userData) {
+            try {
+                // 이메일 중복 체크
+                const { data: existing } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('email', userData.email)
+                    .single();
+
+                if (existing) {
+                    throw new Error('이미 등록된 이메일입니다.');
+                }
+
+                const { data, error } = await supabase
+                    .from('users')
+                    .insert([{
+                        email: userData.email,
+                        password_hash: userData.password,
+                        name: userData.name,
+                        department: userData.department,
+                        phone: userData.phone || '',
+                        role: 'user',
+                        status: 'active'
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                showToast('가입이 완료되었습니다. 로그인해주세요.', 'success');
+                switchAuthTab('login');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('labBookingUser');
+            showAuth();
+            showToast('로그아웃되었습니다.', 'info');
+        }
+
+        function checkAuth() {
+            const saved = localStorage.getItem('labBookingUser');
+            if (saved) {
+                currentUser = JSON.parse(saved);
+                showApp();
+            } else {
+                showAuth();
+            }
+        }
+
+        function showAuth() {
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('appSection').classList.add('hidden');
+            document.getElementById('headerRight').innerHTML = '';
+        }
+
+        function showApp() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('appSection').classList.remove('hidden');
+
+            // Header 업데이트
+            const roleBadge = currentUser.role === 'admin' ? '<span class="user-badge">관리자</span>' : '';
+            document.getElementById('headerRight').innerHTML = `
+                <div class="user-info">
+                    <span>${currentUser.name}</span>
+                    ${roleBadge}
+                </div>
+                <button class="btn-logout" onclick="logout()">로그아웃</button>
+            `;
+
+            // 탭 표시
+            if (currentUser.role === 'admin') {
+                document.getElementById('userTabs').classList.add('hidden');
+                document.getElementById('adminTabs').classList.remove('hidden');
+                loadAdminData();
+            } else {
+                document.getElementById('userTabs').classList.remove('hidden');
+                document.getElementById('adminTabs').classList.add('hidden');
+                loadUserData();
+            }
+        }
+
+        // =============================================
+        // Data Loading
+        // =============================================
+        async function loadEquipment() {
+            const { data, error } = await supabase
+                .from('equipment')
+                .select('*')
+                .order('name');
+
+            if (error) {
+                showToast('장비 목록을 불러오는데 실패했습니다.', 'error');
+                return;
+            }
+
+            equipmentList = data;
+            renderEquipmentGrid();
+            renderEquipmentFilter();
+        }
+
+        function renderEquipmentGrid() {
+            const grid = document.getElementById('equipmentGrid');
+            grid.innerHTML = equipmentList.map(eq => `
+                <div class="equipment-card ${eq.status !== 'available' ? 'unavailable' : ''} ${selectedEquipment?.id === eq.id ? 'selected' : ''}"
+                     onclick="${eq.status === 'available' ? `selectEquipment('${eq.id}')` : ''}">
+                    <div class="equipment-name">${eq.name}</div>
+                    <div class="equipment-location">📍 ${eq.location}</div>
+                    <span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span>
+                    <div class="approval-badge">${eq.approval_mode === 'auto' ? '⚡ 자동승인' : '🔒 승인필요'}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderEquipmentFilter() {
+            const select = document.getElementById('scheduleEquipmentFilter');
+            select.innerHTML = '<option value="">전체 장비</option>' +
+                equipmentList.map(eq => `<option value="${eq.id}">${eq.name}</option>`).join('');
+        }
+
+        async function loadUserData() {
+            await loadEquipment();
+            renderCalendar();
+            loadMyReservations();
+            loadSchedule();
+            loadProfile();
+        }
+
+        async function loadAdminData() {
+            await loadEquipment();
+            loadAdminStats();
+            loadPendingReservations();
+            loadAllReservations();
+            loadEquipmentTable();
+            loadUsersTable();
+        }
+
+        // =============================================
+        // Calendar Functions
+        // =============================================
+        function renderCalendar() {
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+
+            document.getElementById('calendarTitle').textContent =
+                `${year}년 ${month + 1}월`;
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+            const grid = document.getElementById('calendarGrid');
+            let html = '';
+
+            // Weekdays
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            weekdays.forEach(day => {
+                html += `<div class="calendar-weekday">${day}</div>`;
+            });
+
+            // Days
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            for (let i = 0; i < 42; i++) {
+                const date = new Date(startDate);
+                date.setDate(date.getDate() + i);
+
+                const isOtherMonth = date.getMonth() !== month;
+                const isToday = date.getTime() === today.getTime();
+                const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                const isPast = date < today;
+
+                let classes = 'calendar-day';
+                if (isOtherMonth) classes += ' other-month';
+                if (isToday) classes += ' today';
+                if (isSelected) classes += ' selected';
+
+                const dateStr = date.toISOString().split('T')[0];
+
+                html += `
+                    <div class="${classes}"
+                         onclick="${!isPast && !isOtherMonth ? `selectDate('${dateStr}')` : ''}"
+                         style="${isPast ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
+                        <div class="calendar-day-number">${date.getDate()}</div>
+                        <div class="calendar-day-events" id="events-${dateStr}"></div>
+                    </div>
+                `;
+            }
+
+            grid.innerHTML = html;
+            loadCalendarEvents();
+        }
+
+        async function loadCalendarEvents() {
+            if (!selectedEquipment) return;
+
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+            const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+            const { data } = await supabase
+                .from('reservations')
+                .select('*')
+                .eq('equipment_id', selectedEquipment.id)
+                .gte('reservation_date', startDate)
+                .lte('reservation_date', endDate)
+                .in('status', ['pending', 'approved']);
+
+            if (data) {
+                const eventsByDate = {};
+                data.forEach(r => {
+                    if (!eventsByDate[r.reservation_date]) {
+                        eventsByDate[r.reservation_date] = [];
+                    }
+                    eventsByDate[r.reservation_date].push(r);
+                });
+
+                Object.keys(eventsByDate).forEach(date => {
+                    const el = document.getElementById(`events-${date}`);
+                    if (el) {
+                        const events = eventsByDate[date];
+                        el.innerHTML = events.slice(0, 3).map(e =>
+                            `<span class="event-dot ${e.user_id === currentUser.id ? 'my' : e.status}"></span>`
+                        ).join('') + (events.length > 3 ? `+${events.length - 3}` : '');
+                    }
+                });
+            }
+        }
+
+        function changeMonth(delta) {
+            currentMonth.setMonth(currentMonth.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function selectEquipment(id) {
+            selectedEquipment = equipmentList.find(e => e.id === id);
+            renderEquipmentGrid();
+            if (selectedDate) {
+                loadTimeSlots();
+            }
+            loadCalendarEvents();
+        }
+
+        function selectDate(dateStr) {
+            selectedDate = new Date(dateStr);
+            renderCalendar();
+            loadTimeSlots();
+        }
+
+        async function loadTimeSlots() {
+            if (!selectedEquipment || !selectedDate) return;
+
+            const header = document.getElementById('timeSlotsHeader');
+            const body = document.getElementById('timeSlotsBody');
+
+            const dateStr = selectedDate.toISOString().split('T')[0];
+            header.textContent = `${dateStr} - ${selectedEquipment.name}`;
+
+            // 예약 현황 조회
+            const { data: reservations } = await supabase
+                .from('reservations')
+                .select('*')
+                .eq('equipment_id', selectedEquipment.id)
+                .eq('reservation_date', dateStr)
+                .in('status', ['pending', 'approved']);
+
+            const bookedSlots = {};
+            if (reservations) {
+                reservations.forEach(r => {
+                    const key = `${r.start_time}-${r.end_time}`;
+                    bookedSlots[key] = r;
+                });
+            }
+
+            // 시간 슬롯 생성 (09:00 ~ 18:00)
+            let html = '';
+            for (let hour = 9; hour < 18; hour++) {
+                const startTime = `${hour.toString().padStart(2, '0')}:00`;
+                const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
+                const key = `${startTime}:00-${endTime}:00`;
+
+                const reservation = bookedSlots[key];
+                const isBooked = !!reservation;
+                const isMine = reservation?.user_id === currentUser.id;
+                const isSelected = selectedTimeSlots.includes(startTime);
+
+                let slotClass = 'time-slot';
+                let statusText = '예약 가능';
+
+                if (isBooked) {
+                    if (isMine) {
+                        slotClass += ' my-booking';
+                        statusText = `내 예약 (${reservation.status === 'pending' ? '대기중' : '승인됨'})`;
+                    } else {
+                        slotClass += ' booked disabled';
+                        statusText = `예약됨 (${reservation.status === 'pending' ? '대기중' : '승인됨'})`;
+                    }
+                } else if (isSelected) {
+                    slotClass += ' selected';
+                    statusText = '선택됨';
+                }
+
+                html += `
+                    <div class="${slotClass}"
+                         onclick="${!isBooked ? `toggleTimeSlot('${startTime}')` : ''}">
+                        <span class="time-slot-time">${startTime} - ${endTime}</span>
+                        <span class="time-slot-status">${statusText}</span>
+                    </div>
+                `;
+            }
+
+            body.innerHTML = html;
+
+            // 예약 버튼
+            if (selectedTimeSlots.length > 0) {
+                body.innerHTML += `
+                    <button class="btn btn-primary btn-block mt-4" onclick="openReservationModal()">
+                        예약 신청하기 (${selectedTimeSlots.length}시간)
+                    </button>
+                `;
+            }
+        }
+
+        function toggleTimeSlot(time) {
+            const index = selectedTimeSlots.indexOf(time);
+            if (index > -1) {
+                selectedTimeSlots.splice(index, 1);
+            } else {
+                // 최대 시간 체크
+                if (selectedTimeSlots.length >= selectedEquipment.max_duration_hours) {
+                    showToast(`최대 ${selectedEquipment.max_duration_hours}시간까지 예약 가능합니다.`, 'warning');
+                    return;
+                }
+                selectedTimeSlots.push(time);
+            }
+            selectedTimeSlots.sort();
+            loadTimeSlots();
+        }
+
+        // =============================================
+        // Reservation Functions
+        // =============================================
+        function openReservationModal() {
+            if (!selectedEquipment || !selectedDate || selectedTimeSlots.length === 0) {
+                showToast('장비, 날짜, 시간을 모두 선택해주세요.', 'warning');
+                return;
+            }
+
+            const startTime = selectedTimeSlots[0];
+            const endHour = parseInt(selectedTimeSlots[selectedTimeSlots.length - 1].split(':')[0]) + 1;
+            const endTime = `${endHour.toString().padStart(2, '0')}:00`;
+
+            document.getElementById('modalEquipment').value = selectedEquipment.name;
+            document.getElementById('modalDate').value = selectedDate.toISOString().split('T')[0];
+            document.getElementById('modalTime').value = `${startTime} ~ ${endTime}`;
+            document.getElementById('modalPurpose').value = '';
+            document.getElementById('modalDetail').value = '';
+
+            openModal('reservationModal');
+        }
+
+        async function submitReservation() {
+            const purpose = document.getElementById('modalPurpose').value;
+            const detail = document.getElementById('modalDetail').value;
+
+            if (!purpose) {
+                showToast('사용 목적을 선택해주세요.', 'warning');
+                return;
+            }
+
+            const startTime = selectedTimeSlots[0] + ':00';
+            const endHour = parseInt(selectedTimeSlots[selectedTimeSlots.length - 1].split(':')[0]) + 1;
+            const endTime = `${endHour.toString().padStart(2, '0')}:00:00`;
+
+            const status = selectedEquipment.approval_mode === 'auto' ? 'approved' : 'pending';
+
+            try {
+                const { data, error } = await supabase
+                    .from('reservations')
+                    .insert([{
+                        user_id: currentUser.id,
+                        equipment_id: selectedEquipment.id,
+                        reservation_date: selectedDate.toISOString().split('T')[0],
+                        start_time: startTime,
+                        end_time: endTime,
+                        purpose: purpose,
+                        detail: detail,
+                        status: status
+                    }])
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                closeModal('reservationModal');
+                selectedTimeSlots = [];
+                loadTimeSlots();
+                loadMyReservations();
+
+                if (status === 'approved') {
+                    showToast('예약이 자동 승인되었습니다!', 'success');
+                    // 자동 승인 이메일 발송
+                    sendApprovalEmail(data);
+                } else {
+                    showToast('예약 신청이 완료되었습니다. 관리자 승인을 기다려주세요.', 'success');
+                    // 관리자에게 알림 이메일 발송
+                    sendNewRequestEmail(data);
+                }
+            } catch (err) {
+                showToast('예약 신청에 실패했습니다: ' + err.message, 'error');
+            }
+        }
+
+        async function cancelReservation(id) {
+            if (!confirm('예약을 취소하시겠습니까?')) return;
+
+            try {
+                const { error } = await supabase
+                    .from('reservations')
+                    .update({ status: 'cancelled' })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast('예약이 취소되었습니다.', 'success');
+                loadMyReservations();
+                loadTimeSlots();
+            } catch (err) {
+                showToast('취소에 실패했습니다.', 'error');
+            }
+        }
+
+        async function loadMyReservations() {
+            const filter = document.getElementById('myReservationFilter')?.value || '';
+
+            let query = supabase
+                .from('reservations')
+                .select(`
+                    *,
+                    equipment:equipment_id (name, location)
+                `)
+                .eq('user_id', currentUser.id)
+                .order('reservation_date', { ascending: false });
+
+            if (filter) {
+                query = query.eq('status', filter);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                showToast('예약 내역을 불러오는데 실패했습니다.', 'error');
+                return;
+            }
+
+            const list = document.getElementById('myReservationList');
+
+            if (!data || data.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <p>예약 내역이 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = data.map(r => `
+                <div class="reservation-item ${r.status}">
+                    <div class="reservation-header">
+                        <div>
+                            <strong>${r.equipment?.name || '장비'}</strong>
+                            <span style="color: var(--text-secondary); font-size: 0.85rem;"> - ${r.equipment?.location || ''}</span>
+                        </div>
+                        <span class="reservation-status status-${r.status}">${getReservationStatusText(r.status)}</span>
+                    </div>
+                    <div class="reservation-info">
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📅 날짜:</span>
+                            <span>${r.reservation_date}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">🕐 시간:</span>
+                            <span>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📝 목적:</span>
+                            <span>${r.purpose}</span>
+                        </div>
+                    </div>
+                    ${r.rejection_reason ? `
+                        <div style="margin-top: var(--space-3); padding: var(--space-3); background: #f8d7da; border-radius: 6px; font-size: 0.85rem;">
+                            <strong>반려 사유:</strong> ${r.rejection_reason}
+                        </div>
+                    ` : ''}
+                    ${r.status === 'pending' || r.status === 'approved' ? `
+                        <div class="reservation-actions">
+                            <button class="btn btn-sm btn-outline" onclick="cancelReservation('${r.id}')">예약 취소</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function loadSchedule() {
+            const equipmentFilter = document.getElementById('scheduleEquipmentFilter')?.value || '';
+            const today = new Date().toISOString().split('T')[0];
+
+            let query = supabase
+                .from('reservations')
+                .select(`
+                    *,
+                    equipment:equipment_id (name, location),
+                    user:user_id (name, department)
+                `)
+                .gte('reservation_date', today)
+                .in('status', ['pending', 'approved'])
+                .order('reservation_date')
+                .order('start_time');
+
+            if (equipmentFilter) {
+                query = query.eq('equipment_id', equipmentFilter);
+            }
+
+            const { data } = await query.limit(20);
+
+            const list = document.getElementById('scheduleList');
+
+            if (!data || data.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <p>예정된 예약이 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = data.map(r => `
+                <div class="reservation-item ${r.user_id === currentUser.id ? 'my-booking' : ''}" style="border-left-color: ${r.status === 'approved' ? 'var(--success)' : 'var(--warning)'}">
+                    <div class="reservation-info">
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📅</span>
+                            <span><strong>${r.reservation_date}</strong></span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">🕐</span>
+                            <span>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">🔬</span>
+                            <span>${r.equipment?.name}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">👤</span>
+                            <span>${r.user?.name} (${r.user?.department})</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadProfile() {
+            document.getElementById('profileEmail').value = currentUser.email;
+            document.getElementById('profileName').value = currentUser.name;
+            document.getElementById('profileDepartment').value = currentUser.department;
+            document.getElementById('profilePhone').value = currentUser.phone || '';
+        }
+
+        async function updateProfile(e) {
+            e.preventDefault();
+
+            try {
+                const { error } = await supabase
+                    .from('users')
+                    .update({
+                        name: document.getElementById('profileName').value,
+                        department: document.getElementById('profileDepartment').value,
+                        phone: document.getElementById('profilePhone').value
+                    })
+                    .eq('id', currentUser.id);
+
+                if (error) throw error;
+
+                currentUser.name = document.getElementById('profileName').value;
+                currentUser.department = document.getElementById('profileDepartment').value;
+                currentUser.phone = document.getElementById('profilePhone').value;
+                localStorage.setItem('labBookingUser', JSON.stringify(currentUser));
+
+                showToast('정보가 수정되었습니다.', 'success');
+            } catch (err) {
+                showToast('수정에 실패했습니다.', 'error');
+            }
+        }
+
+        // =============================================
+        // Admin Functions
+        // =============================================
+        async function loadAdminStats() {
+            const today = new Date().toISOString().split('T')[0];
+
+            const [pendingRes, todayRes, equipmentRes] = await Promise.all([
+                supabase.from('reservations').select('id', { count: 'exact' }).eq('status', 'pending'),
+                supabase.from('reservations').select('id', { count: 'exact' }).eq('reservation_date', today).eq('status', 'approved'),
+                supabase.from('equipment').select('id', { count: 'exact' }).eq('status', 'available')
+            ]);
+
+            document.getElementById('adminStats').innerHTML = `
+                <div class="stat-card warning">
+                    <div class="stat-number">${pendingRes.count || 0}</div>
+                    <div class="stat-label">승인 대기</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${todayRes.count || 0}</div>
+                    <div class="stat-label">오늘 예약</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-number">${equipmentRes.count || 0}</div>
+                    <div class="stat-label">가용 장비</div>
+                </div>
+            `;
+        }
+
+        async function loadPendingReservations() {
+            const { data } = await supabase
+                .from('reservations')
+                .select(`
+                    *,
+                    equipment:equipment_id (name, location),
+                    user:user_id (name, email, department)
+                `)
+                .eq('status', 'pending')
+                .order('created_at');
+
+            const list = document.getElementById('pendingReservationList');
+
+            if (!data || data.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✅</div>
+                        <p>승인 대기 중인 예약이 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = data.map(r => `
+                <div class="reservation-item pending">
+                    <div class="reservation-header">
+                        <div>
+                            <strong>${r.user?.name}</strong>
+                            <span style="color: var(--text-secondary); font-size: 0.85rem;"> - ${r.user?.department}</span>
+                        </div>
+                        <span class="reservation-status status-pending">승인대기</span>
+                    </div>
+                    <div class="reservation-info">
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">🔬 장비:</span>
+                            <span>${r.equipment?.name}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📅 날짜:</span>
+                            <span>${r.reservation_date}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">🕐 시간:</span>
+                            <span>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📝 목적:</span>
+                            <span>${r.purpose}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📧 이메일:</span>
+                            <span>${r.user?.email}</span>
+                        </div>
+                    </div>
+                    <div class="reservation-actions">
+                        <button class="btn btn-sm btn-success" onclick="quickApprove('${r.id}')">✅ 승인</button>
+                        <button class="btn btn-sm btn-danger" onclick="openApprovalModal('${r.id}')">❌ 반려</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function quickApprove(id) {
+            try {
+                const { data: reservation } = await supabase
+                    .from('reservations')
+                    .select(`
+                        *,
+                        equipment:equipment_id (name, location),
+                        user:user_id (name, email)
+                    `)
+                    .eq('id', id)
+                    .single();
+
+                const { error } = await supabase
+                    .from('reservations')
+                    .update({
+                        status: 'approved',
+                        approved_at: new Date().toISOString(),
+                        approved_by: currentUser.id
+                    })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast('예약이 승인되었습니다.', 'success');
+                loadPendingReservations();
+                loadAdminStats();
+
+                // 승인 이메일 발송
+                sendApprovalEmail(reservation);
+            } catch (err) {
+                showToast('승인에 실패했습니다.', 'error');
+            }
+        }
+
+        function openApprovalModal(id) {
+            currentApprovalReservation = id;
+            document.getElementById('approvalModalBody').innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">반려 사유 <span class="required">*</span></label>
+                    <textarea class="form-input" id="rejectionReason" rows="4" placeholder="반려 사유를 입력해주세요"></textarea>
+                </div>
+            `;
+            openModal('approvalModal');
+        }
+
+        async function approveReservation() {
+            await quickApprove(currentApprovalReservation);
+            closeModal('approvalModal');
+        }
+
+        async function rejectReservation() {
+            const reason = document.getElementById('rejectionReason').value;
+            if (!reason) {
+                showToast('반려 사유를 입력해주세요.', 'warning');
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('reservations')
+                    .update({
+                        status: 'rejected',
+                        rejection_reason: reason
+                    })
+                    .eq('id', currentApprovalReservation);
+
+                if (error) throw error;
+
+                showToast('예약이 반려되었습니다.', 'success');
+                closeModal('approvalModal');
+                loadPendingReservations();
+                loadAdminStats();
+            } catch (err) {
+                showToast('반려에 실패했습니다.', 'error');
+            }
+        }
+
+        async function loadAllReservations() {
+            const { data } = await supabase
+                .from('reservations')
+                .select(`
+                    *,
+                    equipment:equipment_id (name),
+                    user:user_id (name)
+                `)
+                .order('reservation_date', { ascending: false })
+                .limit(50);
+
+            const tbody = document.getElementById('allReservationsBody');
+            tbody.innerHTML = data.map(r => `
+                <tr>
+                    <td>${r.reservation_date}</td>
+                    <td>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</td>
+                    <td>${r.equipment?.name || '-'}</td>
+                    <td>${r.user?.name || '-'}</td>
+                    <td><span class="reservation-status status-${r.status}">${getReservationStatusText(r.status)}</span></td>
+                    <td>
+                        ${r.status === 'pending' ? `
+                            <button class="btn btn-sm btn-success" onclick="quickApprove('${r.id}')">승인</button>
+                        ` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadEquipmentTable() {
+            const tbody = document.getElementById('equipmentTableBody');
+            tbody.innerHTML = equipmentList.map(eq => `
+                <tr>
+                    <td><strong>${eq.name}</strong></td>
+                    <td>${eq.location}</td>
+                    <td><span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span></td>
+                    <td>${eq.approval_mode === 'auto' ? '자동' : '수동'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline" onclick="editEquipment('${eq.id}')">수정</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteEquipment('${eq.id}')">삭제</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadUsersTable() {
+            const { data } = await supabase
+                .from('users')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = data.map(u => `
+                <tr>
+                    <td><strong>${u.name}</strong></td>
+                    <td>${u.email}</td>
+                    <td>${u.department}</td>
+                    <td>${u.role === 'admin' ? '관리자' : '사용자'}</td>
+                    <td>${u.status === 'active' ? '🟢 활성' : '⚫ 비활성'}</td>
+                    <td>
+                        ${u.role !== 'admin' ? `
+                            <button class="btn btn-sm btn-outline" onclick="toggleUserRole('${u.id}', '${u.role}')">
+                                ${u.role === 'admin' ? '사용자로' : '관리자로'}
+                            </button>
+                        ` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function toggleUserRole(id, currentRole) {
+            const newRole = currentRole === 'admin' ? 'user' : 'admin';
+
+            try {
+                const { error } = await supabase
+                    .from('users')
+                    .update({ role: newRole })
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast('권한이 변경되었습니다.', 'success');
+                loadUsersTable();
+            } catch (err) {
+                showToast('변경에 실패했습니다.', 'error');
+            }
+        }
+
+        // Equipment CRUD
+        function openEquipmentModal(eq = null) {
+            document.getElementById('equipmentModalTitle').textContent = eq ? '장비 수정' : '장비 추가';
+            document.getElementById('equipmentId').value = eq?.id || '';
+            document.getElementById('equipmentName').value = eq?.name || '';
+            document.getElementById('equipmentLocation').value = eq?.location || '';
+            document.getElementById('equipmentDescription').value = eq?.description || '';
+            document.getElementById('equipmentStatus').value = eq?.status || 'available';
+            document.getElementById('equipmentApprovalMode').value = eq?.approval_mode || 'manual';
+            document.getElementById('equipmentMaxDuration').value = eq?.max_duration_hours || 4;
+            openModal('equipmentModal');
+        }
+
+        function editEquipment(id) {
+            const eq = equipmentList.find(e => e.id === id);
+            openEquipmentModal(eq);
+        }
+
+        async function saveEquipment() {
+            const id = document.getElementById('equipmentId').value;
+            const data = {
+                name: document.getElementById('equipmentName').value,
+                location: document.getElementById('equipmentLocation').value,
+                description: document.getElementById('equipmentDescription').value,
+                status: document.getElementById('equipmentStatus').value,
+                approval_mode: document.getElementById('equipmentApprovalMode').value,
+                max_duration_hours: parseInt(document.getElementById('equipmentMaxDuration').value)
+            };
+
+            try {
+                if (id) {
+                    const { error } = await supabase.from('equipment').update(data).eq('id', id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from('equipment').insert([data]);
+                    if (error) throw error;
+                }
+
+                showToast('저장되었습니다.', 'success');
+                closeModal('equipmentModal');
+                await loadEquipment();
+                loadEquipmentTable();
+            } catch (err) {
+                showToast('저장에 실패했습니다: ' + err.message, 'error');
+            }
+        }
+
+        async function deleteEquipment(id) {
+            if (!confirm('정말 삭제하시겠습니까?')) return;
+
+            try {
+                const { error } = await supabase.from('equipment').delete().eq('id', id);
+                if (error) throw error;
+
+                showToast('삭제되었습니다.', 'success');
+                await loadEquipment();
+                loadEquipmentTable();
+            } catch (err) {
+                showToast('삭제에 실패했습니다.', 'error');
+            }
+        }
+
+        // =============================================
+        // Email Functions
+        // =============================================
+        async function sendApprovalEmail(reservation) {
+            try {
+                // 사용자 정보 조회
+                let user = reservation.user;
+                if (!user) {
+                    const { data } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('id', reservation.user_id)
+                        .single();
+                    user = data;
+                }
+
+                // 장비 정보 조회
+                let equipment = reservation.equipment;
+                if (!equipment) {
+                    const { data } = await supabase
+                        .from('equipment')
+                        .select('*')
+                        .eq('id', reservation.equipment_id)
+                        .single();
+                    equipment = data;
+                }
+
+                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_APPROVED, {
+                    to_email: user.email,
+                    user_name: user.name,
+                    equipment_name: equipment.name,
+                    equipment_location: equipment.location,
+                    date: reservation.reservation_date,
+                    start_time: reservation.start_time.slice(0, 5),
+                    end_time: reservation.end_time.slice(0, 5),
+                    purpose: reservation.purpose
+                });
+
+                console.log('승인 이메일 발송 완료');
+            } catch (err) {
+                console.error('이메일 발송 실패:', err);
+            }
+        }
+
+        async function sendNewRequestEmail(reservation) {
+            try {
+                // 장비 정보 조회
+                let equipment = reservation.equipment;
+                if (!equipment) {
+                    const { data } = await supabase
+                        .from('equipment')
+                        .select('*')
+                        .eq('id', reservation.equipment_id)
+                        .single();
+                    equipment = data;
+                }
+
+                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_NEW_REQUEST, {
+                    admin_email: ADMIN_EMAIL,
+                    user_name: currentUser.name,
+                    user_department: currentUser.department,
+                    user_email: currentUser.email,
+                    equipment_name: equipment.name,
+                    date: reservation.reservation_date,
+                    start_time: reservation.start_time.slice(0, 5),
+                    end_time: reservation.end_time.slice(0, 5),
+                    purpose: reservation.purpose
+                });
+
+                console.log('신규 신청 알림 이메일 발송 완료');
+            } catch (err) {
+                console.error('이메일 발송 실패:', err);
+            }
+        }
+
+        // =============================================
+        // Utility Functions
+        // =============================================
+        function getStatusText(status) {
+            const map = {
+                'available': '사용가능',
+                'maintenance': '점검중',
+                'broken': '고장'
+            };
+            return map[status] || status;
+        }
+
+        function getReservationStatusText(status) {
+            const map = {
+                'pending': '승인대기',
+                'approved': '승인완료',
+                'rejected': '반려됨',
+                'cancelled': '취소됨',
+                'completed': '완료'
+            };
+            return map[status] || status;
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;margin-left:auto;">✕</button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        function switchAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+            document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+            document.getElementById('signupForm').classList.toggle('hidden', tab !== 'signup');
+        }
+
+        // =============================================
+        // Event Listeners
+        // =============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+
+            // Auth tabs
+            document.querySelectorAll('.auth-tab').forEach(tab => {
+                tab.addEventListener('click', () => switchAuthTab(tab.dataset.tab));
+            });
+
+            // Login form
+            document.getElementById('loginForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                login(
+                    document.getElementById('loginEmail').value,
+                    document.getElementById('loginPassword').value
+                );
+            });
+
+            // Signup form
+            document.getElementById('signupForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                signup({
+                    email: document.getElementById('signupEmail').value,
+                    password: document.getElementById('signupPassword').value,
+                    name: document.getElementById('signupName').value,
+                    department: document.getElementById('signupDepartment').value,
+                    phone: document.getElementById('signupPhone').value
+                });
+            });
+
+            // Profile form
+            document.getElementById('profileForm').addEventListener('submit', updateProfile);
+
+            // User tabs
+            document.querySelectorAll('#userTabs .tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('#userTabs .tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.getElementById(tab.dataset.tab + 'Tab').classList.add('active');
+
+                    // 탭별 데이터 로드
+                    if (tab.dataset.tab === 'myReservations') loadMyReservations();
+                    if (tab.dataset.tab === 'schedule') loadSchedule();
+                });
+            });
+
+            // Admin tabs
+            document.querySelectorAll('#adminTabs .tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('#adminTabs .tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.getElementById(tab.dataset.tab + 'Tab').classList.add('active');
+
+                    // 탭별 데이터 로드
+                    if (tab.dataset.tab === 'adminApproval') {
+                        loadAdminStats();
+                        loadPendingReservations();
+                    }
+                    if (tab.dataset.tab === 'adminSchedule') loadAllReservations();
+                    if (tab.dataset.tab === 'adminEquipment') loadEquipmentTable();
+                    if (tab.dataset.tab === 'adminUsers') loadUsersTable();
+                });
+            });
+
+            // Filters
+            document.getElementById('myReservationFilter')?.addEventListener('change', loadMyReservations);
+            document.getElementById('scheduleEquipmentFilter')?.addEventListener('change', loadSchedule);
+        });
+    </script>
+</body>
+</html>
