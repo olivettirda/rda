@@ -1268,7 +1268,7 @@
 
     <!-- Header -->
     <header class="header">
-        <h1>🔬 실험실 장비 예약</h1>
+        <h1 onclick="goToHome()" style="cursor: pointer;" title="홈으로 이동">🔬 실험실 장비 예약</h1>
         <div class="header-right" id="headerRight">
             <!-- 로그인 후 표시 -->
         </div>
@@ -1949,6 +1949,27 @@
             localStorage.removeItem('labBookingAutoLogin');
             showAuth();
             showToast('로그아웃되었습니다.', 'info');
+        }
+
+        function goToHome() {
+            if (!currentUser) return;
+
+            // 모든 탭 콘텐츠 비활성화
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            // 예약하기 탭 활성화
+            document.getElementById('bookingTab').classList.add('active');
+
+            // 사용자 탭 표시, 관리자 탭 숨김
+            document.getElementById('userTabs').classList.remove('hidden');
+            document.getElementById('adminTabs').classList.add('hidden');
+
+            // 탭 버튼 상태 업데이트
+            document.querySelectorAll('#userTabs .tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('#userTabs .tab[data-tab="booking"]').classList.add('active');
+
+            // 장비 목록 로드
+            loadEquipment();
         }
 
         async function checkAuth() {
@@ -3122,7 +3143,7 @@
                 <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;margin-left:auto;">✕</button>
             `;
             container.appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
+            setTimeout(() => toast.remove(), 1000);
         }
 
         function switchAuthTab(tab) {
