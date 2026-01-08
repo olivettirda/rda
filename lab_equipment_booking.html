@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>실험실 장비 예약 시스템</title>
+    <link rel="icon" type="image/png" href="ssallogo.png">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1836,18 +1837,23 @@
                     .from('users')
                     .select('*')
                     .eq('email', email)
-                    .eq('password_hash', password)
-                    .single();
+                    .eq('password_hash', password);
 
-                if (error || !data) {
+                if (error) {
+                    throw new Error('로그인 중 오류가 발생했습니다.');
+                }
+
+                if (!data || data.length === 0) {
                     throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.');
                 }
 
-                if (data.status !== 'active') {
+                const user = data[0];
+
+                if (user.status !== 'active') {
                     throw new Error('비활성화된 계정입니다.');
                 }
 
-                currentUser = data;
+                currentUser = user;
 
                 // 아이디 저장
                 if (saveEmail) {
@@ -1863,7 +1869,7 @@
                     localStorage.removeItem('labBookingAutoLogin');
                 }
 
-                localStorage.setItem('labBookingUser', JSON.stringify(data));
+                localStorage.setItem('labBookingUser', JSON.stringify(user));
                 showApp();
                 showToast('로그인되었습니다.', 'success');
             } catch (err) {
