@@ -2945,27 +2945,43 @@
             `).join('');
         }
 
+        // 최고 관리자 확인 (관리자 이메일과 일치하는 사람만 권한 관리 가능)
+        function isSuperAdmin() {
+            return currentUser && currentUser.email === getAdminEmail();
+        }
+
         async function loadUsersTable() {
             const { data } = await supabaseClient
                 .from('users')
                 .select('*')
                 .order('created_at', { ascending: false });
 
+            const canManageRoles = isSuperAdmin();
             const tbody = document.getElementById('usersTableBody');
-            tbody.innerHTML = data.map(u => `
-                <tr>
-                    <td><strong>${u.name}</strong></td>
-                    <td>${u.email}</td>
-                    <td>${u.department}</td>
-                    <td>${u.role === 'admin' ? '🔑 관리자' : '👤 사용자'}</td>
-                    <td>${u.status === 'active' ? '🟢 활성' : '⚫ 비활성'}</td>
-                    <td>
-                        <button class="btn btn-sm ${u.role === 'admin' ? 'btn-danger' : 'btn-outline'}" onclick="openRoleChangeModal('${u.id}', '${u.role}', '${u.name}')">
-                            ${u.role === 'admin' ? '권한 해제' : '관리자로'}
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+            tbody.innerHTML = data.map(u => {
+                // 최고 관리자 표시
+                const isSuperAdminUser = u.email === getAdminEmail();
+                const roleDisplay = isSuperAdminUser ? '👑 최고관리자' : (u.role === 'admin' ? '🔑 관리자' : '👤 사용자');
+
+                // 권한 변경 버튼 (최고 관리자만 볼 수 있고, 자기 자신은 변경 불가)
+                let actionBtn = '-';
+                if (canManageRoles && !isSuperAdminUser) {
+                    actionBtn = `<button class="btn btn-sm ${u.role === 'admin' ? 'btn-danger' : 'btn-outline'}" onclick="openRoleChangeModal('${u.id}', '${u.role}', '${u.name}')">
+                        ${u.role === 'admin' ? '권한 해제' : '관리자로'}
+                    </button>`;
+                }
+
+                return `
+                    <tr>
+                        <td><strong>${u.name}</strong></td>
+                        <td>${u.email}</td>
+                        <td>${u.department}</td>
+                        <td>${roleDisplay}</td>
+                        <td>${u.status === 'active' ? '🟢 활성' : '⚫ 비활성'}</td>
+                        <td>${actionBtn}</td>
+                    </tr>
+                `;
+            }).join('');
         }
 
         let pendingRoleChange = null;
@@ -3015,6 +3031,13 @@
 
         async function confirmRoleChange() {
             if (!pendingRoleChange) return;
+
+            // 최고 관리자만 권한 변경 가능
+            if (!isSuperAdmin()) {
+                showToast('최고 관리자만 권한을 변경할 수 있습니다.', 'error');
+                closeModal('roleChangeModal');
+                return;
+            }
 
             const { id, currentRole } = pendingRoleChange;
             const newRole = currentRole === 'admin' ? 'user' : 'admin';
