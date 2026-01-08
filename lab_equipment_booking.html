@@ -179,6 +179,27 @@
             font-weight: 600;
         }
 
+        .login-options {
+            display: flex;
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
         /* Forms */
         .form-group {
             margin-bottom: var(--space-4);
@@ -1194,6 +1215,14 @@
                             <label class="form-label">비밀번호 <span class="required">*</span></label>
                             <input type="password" class="form-input" id="loginPassword" placeholder="비밀번호 입력" required>
                         </div>
+                        <div class="login-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="saveEmail"> 아이디 저장
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="autoLogin"> 자동 로그인
+                            </label>
+                        </div>
                         <button type="submit" class="btn btn-primary btn-block">로그인</button>
                     </form>
 
@@ -1615,7 +1644,7 @@
         // =============================================
         // Initialize
         // =============================================
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         emailjs.init(EMAILJS_PUBLIC_KEY);
 
         let currentUser = null;
@@ -1629,9 +1658,9 @@
         // =============================================
         // Auth Functions
         // =============================================
-        async function login(email, password) {
+        async function login(email, password, saveEmail = false, autoLogin = false) {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('users')
                     .select('*')
                     .eq('email', email)
@@ -1647,6 +1676,21 @@
                 }
 
                 currentUser = data;
+
+                // 아이디 저장
+                if (saveEmail) {
+                    localStorage.setItem('labBookingSavedEmail', email);
+                } else {
+                    localStorage.removeItem('labBookingSavedEmail');
+                }
+
+                // 자동 로그인
+                if (autoLogin) {
+                    localStorage.setItem('labBookingAutoLogin', JSON.stringify({ email, password }));
+                } else {
+                    localStorage.removeItem('labBookingAutoLogin');
+                }
+
                 localStorage.setItem('labBookingUser', JSON.stringify(data));
                 showApp();
                 showToast('로그인되었습니다.', 'success');
@@ -1658,7 +1702,7 @@
         async function signup(userData) {
             try {
                 // 이메일 중복 체크
-                const { data: existingList } = await supabase
+                const { data: existingList } = await supabaseClient
                     .from('users')
                     .select('id')
                     .eq('email', userData.email);
@@ -1667,7 +1711,7 @@
                     throw new Error('이미 등록된 이메일입니다.');
                 }
 
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('users')
                     .insert([{
                         email: userData.email,
@@ -1693,24 +1737,47 @@
         function logout() {
             currentUser = null;
             localStorage.removeItem('labBookingUser');
+            localStorage.removeItem('labBookingAutoLogin');
             showAuth();
             showToast('로그아웃되었습니다.', 'info');
         }
 
-        function checkAuth() {
+        async function checkAuth() {
             const saved = localStorage.getItem('labBookingUser');
             if (saved) {
                 currentUser = JSON.parse(saved);
                 showApp();
-            } else {
-                showAuth();
+                return;
             }
+
+            // 자동 로그인 시도
+            const autoLoginData = localStorage.getItem('labBookingAutoLogin');
+            if (autoLoginData) {
+                const { email, password } = JSON.parse(autoLoginData);
+                await login(email, password, true, true);
+                return;
+            }
+
+            showAuth();
         }
 
         function showAuth() {
             document.getElementById('authSection').classList.remove('hidden');
             document.getElementById('appSection').classList.add('hidden');
             document.getElementById('headerRight').innerHTML = '';
+
+            // 저장된 이메일 불러오기
+            const savedEmail = localStorage.getItem('labBookingSavedEmail');
+            if (savedEmail) {
+                document.getElementById('loginEmail').value = savedEmail;
+                document.getElementById('saveEmail').checked = true;
+            }
+
+            // 자동 로그인 체크박스 상태
+            const autoLoginData = localStorage.getItem('labBookingAutoLogin');
+            if (autoLoginData) {
+                document.getElementById('autoLogin').checked = true;
+            }
         }
 
         function showApp() {
@@ -1743,7 +1810,7 @@
         // Data Loading
         // =============================================
         async function loadEquipment() {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('equipment')
                 .select('*')
                 .order('name');
@@ -1764,7 +1831,7 @@
             // 즐겨찾기 목록 가져오기
             let favoriteIds = [];
             if (currentUser) {
-                const { data: favs } = await supabase
+                const { data: favs } = await supabaseClient
                     .from('user_favorites')
                     .select('equipment_id')
                     .eq('user_id', currentUser.id);
@@ -1892,7 +1959,7 @@
             const startDate = new Date(year, month, 1).toISOString().split('T')[0];
             const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-            const { data } = await supabase
+            const { data } = await supabaseClient
                 .from('reservations')
                 .select('*')
                 .eq('equipment_id', selectedEquipment.id)
@@ -1951,7 +2018,7 @@
             header.textContent = `${dateStr} - ${selectedEquipment.name}`;
 
             // 예약 현황 조회
-            const { data: reservations } = await supabase
+            const { data: reservations } = await supabaseClient
                 .from('reservations')
                 .select('*')
                 .eq('equipment_id', selectedEquipment.id)
@@ -2137,7 +2204,7 @@
             selectEl.innerHTML = '<option value="">직접 입력</option>';
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('reservations')
                     .select('purpose, detail, start_time, end_time')
                     .eq('user_id', currentUser.id)
@@ -2197,7 +2264,7 @@
             const status = selectedEquipment.approval_mode === 'auto' ? 'approved' : 'pending';
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('reservations')
                     .insert([{
                         user_id: currentUser.id,
@@ -2237,7 +2304,7 @@
             if (!confirm('예약을 취소하시겠습니까?')) return;
 
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('reservations')
                     .update({ status: 'cancelled' })
                     .eq('id', id);
@@ -2393,7 +2460,7 @@
             e.preventDefault();
 
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('users')
                     .update({
                         name: document.getElementById('profileName').value,
@@ -2422,9 +2489,9 @@
             const today = new Date().toISOString().split('T')[0];
 
             const [pendingRes, todayRes, equipmentRes] = await Promise.all([
-                supabase.from('reservations').select('id', { count: 'exact' }).eq('status', 'pending'),
-                supabase.from('reservations').select('id', { count: 'exact' }).eq('reservation_date', today).eq('status', 'approved'),
-                supabase.from('equipment').select('id', { count: 'exact' }).eq('status', 'available')
+                supabaseClient.from('reservations').select('id', { count: 'exact' }).eq('status', 'pending'),
+                supabaseClient.from('reservations').select('id', { count: 'exact' }).eq('reservation_date', today).eq('status', 'approved'),
+                supabaseClient.from('equipment').select('id', { count: 'exact' }).eq('status', 'available')
             ]);
 
             document.getElementById('adminStats').innerHTML = `
@@ -2444,7 +2511,7 @@
         }
 
         async function loadPendingReservations() {
-            const { data } = await supabase
+            const { data } = await supabaseClient
                 .from('reservations')
                 .select(`
                     *,
@@ -2507,7 +2574,7 @@
 
         async function quickApprove(id) {
             try {
-                const { data: reservation } = await supabase
+                const { data: reservation } = await supabaseClient
                     .from('reservations')
                     .select(`
                         *,
@@ -2517,7 +2584,7 @@
                     .eq('id', id)
                     .single();
 
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('reservations')
                     .update({
                         status: 'approved',
@@ -2563,7 +2630,7 @@
             }
 
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('reservations')
                     .update({
                         status: 'rejected',
@@ -2583,7 +2650,7 @@
         }
 
         async function loadAllReservations() {
-            const { data } = await supabase
+            const { data } = await supabaseClient
                 .from('reservations')
                 .select(`
                     *,
@@ -2627,7 +2694,7 @@
         }
 
         async function loadUsersTable() {
-            const { data } = await supabase
+            const { data } = await supabaseClient
                 .from('users')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -2655,7 +2722,7 @@
             const newRole = currentRole === 'admin' ? 'user' : 'admin';
 
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('users')
                     .update({ role: newRole })
                     .eq('id', id);
@@ -2700,10 +2767,10 @@
 
             try {
                 if (id) {
-                    const { error } = await supabase.from('equipment').update(data).eq('id', id);
+                    const { error } = await supabaseClient.from('equipment').update(data).eq('id', id);
                     if (error) throw error;
                 } else {
-                    const { error } = await supabase.from('equipment').insert([data]);
+                    const { error } = await supabaseClient.from('equipment').insert([data]);
                     if (error) throw error;
                 }
 
@@ -2720,7 +2787,7 @@
             if (!confirm('정말 삭제하시겠습니까?')) return;
 
             try {
-                const { error } = await supabase.from('equipment').delete().eq('id', id);
+                const { error } = await supabaseClient.from('equipment').delete().eq('id', id);
                 if (error) throw error;
 
                 showToast('삭제되었습니다.', 'success');
@@ -2739,7 +2806,7 @@
                 // 사용자 정보 조회
                 let user = reservation.user;
                 if (!user) {
-                    const { data } = await supabase
+                    const { data } = await supabaseClient
                         .from('users')
                         .select('*')
                         .eq('id', reservation.user_id)
@@ -2750,7 +2817,7 @@
                 // 장비 정보 조회
                 let equipment = reservation.equipment;
                 if (!equipment) {
-                    const { data } = await supabase
+                    const { data } = await supabaseClient
                         .from('equipment')
                         .select('*')
                         .eq('id', reservation.equipment_id)
@@ -2780,7 +2847,7 @@
                 // 장비 정보 조회
                 let equipment = reservation.equipment;
                 if (!equipment) {
-                    const { data } = await supabase
+                    const { data } = await supabaseClient
                         .from('equipment')
                         .select('*')
                         .eq('id', reservation.equipment_id)
@@ -2873,7 +2940,9 @@
                 e.preventDefault();
                 login(
                     document.getElementById('loginEmail').value,
-                    document.getElementById('loginPassword').value
+                    document.getElementById('loginPassword').value,
+                    document.getElementById('saveEmail').checked,
+                    document.getElementById('autoLogin').checked
                 );
             });
 
@@ -3006,7 +3075,7 @@
                         continue;
                     }
 
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('equipment')
                         .insert([equipmentData]);
 
@@ -3030,7 +3099,7 @@
 
         async function exportEquipmentToExcel() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('equipment')
                     .select('*')
                     .order('name');
@@ -3070,7 +3139,7 @@
             if (!currentUser) return;
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('user_favorites')
                     .select('*, equipment(*)')
                     .eq('user_id', currentUser.id)
@@ -3114,7 +3183,7 @@
             if (!currentUser) return;
 
             try {
-                const { data: existing } = await supabase
+                const { data: existing } = await supabaseClient
                     .from('user_favorites')
                     .select('id')
                     .eq('user_id', currentUser.id)
@@ -3122,10 +3191,10 @@
                     .single();
 
                 if (existing) {
-                    await supabase.from('user_favorites').delete().eq('id', existing.id);
+                    await supabaseClient.from('user_favorites').delete().eq('id', existing.id);
                     showToast('즐겨찾기가 해제되었습니다.', 'info');
                 } else {
-                    await supabase.from('user_favorites').insert([{
+                    await supabaseClient.from('user_favorites').insert([{
                         user_id: currentUser.id,
                         equipment_id: equipmentId
                     }]);
@@ -3141,7 +3210,7 @@
 
         async function removeFavorite(favoriteId) {
             try {
-                await supabase.from('user_favorites').delete().eq('id', favoriteId);
+                await supabaseClient.from('user_favorites').delete().eq('id', favoriteId);
                 showToast('즐겨찾기가 해제되었습니다.', 'info');
                 loadFavorites();
             } catch (err) {
@@ -3154,7 +3223,7 @@
             if (newAlias === null) return;
 
             try {
-                await supabase
+                await supabaseClient
                     .from('user_favorites')
                     .update({ custom_name: newAlias || null })
                     .eq('id', favoriteId);
