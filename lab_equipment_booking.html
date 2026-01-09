@@ -3092,76 +3092,116 @@
         ];
 
         // =============================================
-        // 한국 공휴일 시스템 (한국천문연구원 API 기반)
+        // 한국 공휴일 시스템 (한국천문연구원 API + 폴백)
         // =============================================
 
         // 공공데이터포털 한국천문연구원 특일 정보 API
-        // API 키는 base64 인코딩으로 난독화 (완전한 보안은 아님, 내부용)
         const _hk = 'Zjk4YWNiNzE1MjM5N2MxYmVlODVlNTIxZGU1MmFlZWE2YjUxODQ5MTQzZWM3YmRkZWRlY2E0ZGYyY2Q1MzRmYg==';
         const HOLIDAY_API_KEY = atob(_hk);
-        const HOLIDAY_API_BASE = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getHoliDeInfo';
+        const HOLIDAY_API_BASE = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService';
 
-        // 공휴일 캐시 (연-월별)
+        // 공휴일 캐시
         let holidayCache = {};
-        let holidayYearCache = {}; // 연도별 캐시
+        let holidayYearLoaded = {};
+
+        // 폴백용 하드코딩 데이터 (API 실패 시 사용)
+        const FALLBACK_HOLIDAYS = {
+            // 2026년 주요 공휴일
+            '2026-01-01': { name: '신정', type: '공휴일', isHoliday: true },
+            '2026-02-16': { name: '설날연휴', type: '공휴일', isHoliday: true },
+            '2026-02-17': { name: '설날', type: '공휴일', isHoliday: true },
+            '2026-02-18': { name: '설날연휴', type: '공휴일', isHoliday: true },
+            '2026-03-01': { name: '삼일절', type: '국경일', isHoliday: true },
+            '2026-03-02': { name: '대체공휴일(삼일절)', type: '대체공휴일', isHoliday: true },
+            '2026-05-05': { name: '어린이날', type: '공휴일', isHoliday: true },
+            '2026-05-24': { name: '부처님오신날', type: '공휴일', isHoliday: true },
+            '2026-05-25': { name: '대체공휴일(부처님오신날)', type: '대체공휴일', isHoliday: true },
+            '2026-06-06': { name: '현충일', type: '공휴일', isHoliday: true },
+            '2026-08-15': { name: '광복절', type: '국경일', isHoliday: true },
+            '2026-08-17': { name: '대체공휴일(광복절)', type: '대체공휴일', isHoliday: true },
+            '2026-09-24': { name: '추석연휴', type: '공휴일', isHoliday: true },
+            '2026-09-25': { name: '추석', type: '공휴일', isHoliday: true },
+            '2026-09-26': { name: '추석연휴', type: '공휴일', isHoliday: true },
+            '2026-10-03': { name: '개천절', type: '국경일', isHoliday: true },
+            '2026-10-05': { name: '대체공휴일(개천절)', type: '대체공휴일', isHoliday: true },
+            '2026-10-09': { name: '한글날', type: '국경일', isHoliday: true },
+            '2026-12-25': { name: '기독탄신일', type: '공휴일', isHoliday: true }
+        };
 
         // API에서 특정 연-월의 공휴일 가져오기
         async function fetchHolidaysFromAPI(year, month) {
-            const cacheKey = `${year}-${String(month).padStart(2, '0')}`;
-            if (holidayCache[cacheKey]) {
-                console.log('공휴일 캐시 사용:', cacheKey);
-                return holidayCache[cacheKey];
-            }
+            const holidays = {};
+            const monthStr = String(month).padStart(2, '0');
 
             try {
-                const url = `${HOLIDAY_API_BASE}?serviceKey=${HOLIDAY_API_KEY}&solYear=${year}&solMonth=${String(month).padStart(2, '0')}&_type=json&numOfRows=50`;
-                console.log('공휴일 API 호출:', url);
+                // 공휴일 조회 (getHoliDeInfo)
+                const holiUrl = `${HOLIDAY_API_BASE}/getHoliDeInfo?serviceKey=${HOLIDAY_API_KEY}&solYear=${year}&solMonth=${monthStr}&_type=json&numOfRows=50`;
 
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`API 응답 오류: ${response.status}`);
-                }
+                const holiResponse = await fetch(holiUrl);
+                if (holiResponse.ok) {
+                    const holiData = await holiResponse.json();
+                    if (holiData.response?.body?.items?.item) {
+                        const items = Array.isArray(holiData.response.body.items.item)
+                            ? holiData.response.body.items.item
+                            : [holiData.response.body.items.item];
 
-                const data = await response.json();
-                console.log('공휴일 API 응답:', data);
-
-                const holidays = {};
-
-                // API 응답 파싱
-                if (data.response && data.response.body && data.response.body.items) {
-                    const items = data.response.body.items.item;
-                    // 단일 항목이면 배열로 변환
-                    const itemArray = Array.isArray(items) ? items : (items ? [items] : []);
-
-                    itemArray.forEach(item => {
-                        // isHoliday가 'Y'인 것만 공휴일로 처리
-                        if (item.isHoliday === 'Y') {
+                        items.forEach(item => {
                             const locdate = String(item.locdate);
                             const dateStr = `${locdate.substring(0, 4)}-${locdate.substring(4, 6)}-${locdate.substring(6, 8)}`;
-                            holidays[dateStr] = item.dateName;
-                        }
-                    });
+                            const name = item.dateName;
+                            const isSubstitute = name.includes('대체');
+
+                            holidays[dateStr] = {
+                                name: name,
+                                type: isSubstitute ? '대체공휴일' : '공휴일',
+                                isHoliday: item.isHoliday === 'Y'
+                            };
+                        });
+                    }
                 }
 
-                holidayCache[cacheKey] = holidays;
-                console.log('공휴일 파싱 결과:', cacheKey, holidays);
+                // 국경일 조회 (getRestDeInfo)
+                const restUrl = `${HOLIDAY_API_BASE}/getRestDeInfo?serviceKey=${HOLIDAY_API_KEY}&solYear=${year}&solMonth=${monthStr}&_type=json&numOfRows=50`;
+
+                const restResponse = await fetch(restUrl);
+                if (restResponse.ok) {
+                    const restData = await restResponse.json();
+                    if (restData.response?.body?.items?.item) {
+                        const items = Array.isArray(restData.response.body.items.item)
+                            ? restData.response.body.items.item
+                            : [restData.response.body.items.item];
+
+                        items.forEach(item => {
+                            const locdate = String(item.locdate);
+                            const dateStr = `${locdate.substring(0, 4)}-${locdate.substring(4, 6)}-${locdate.substring(6, 8)}`;
+
+                            if (holidays[dateStr]) {
+                                // 이미 있으면 국경일로 타입 변경
+                                holidays[dateStr].type = '국경일';
+                            } else {
+                                holidays[dateStr] = {
+                                    name: item.dateName,
+                                    type: '국경일',
+                                    isHoliday: item.isHoliday === 'Y'
+                                };
+                            }
+                        });
+                    }
+                }
+
                 return holidays;
 
             } catch (error) {
-                console.error('공휴일 API 에러:', error);
-                // API 실패 시 빈 객체 반환 (폴백 데이터 사용)
+                console.error('공휴일 API 에러:', year, month, error);
                 return {};
             }
         }
 
-        // 특정 연도 전체 공휴일 가져오기 (1월~12월)
+        // 특정 연도 전체 공휴일 가져오기
         async function fetchYearHolidays(year) {
-            if (holidayYearCache[year]) {
-                return holidayYearCache[year];
-            }
+            if (holidayYearLoaded[year]) return;
 
-            console.log('연도별 공휴일 로드 시작:', year);
-            const allHolidays = {};
+            console.log('공휴일 데이터 로드:', year);
 
             // 12개월 병렬 요청
             const promises = [];
@@ -3172,47 +3212,47 @@
             try {
                 const results = await Promise.all(promises);
                 results.forEach(monthHolidays => {
-                    Object.assign(allHolidays, monthHolidays);
+                    Object.entries(monthHolidays).forEach(([dateStr, info]) => {
+                        holidayCache[dateStr] = info;
+                    });
                 });
 
-                holidayYearCache[year] = allHolidays;
-                console.log('연도별 공휴일 로드 완료:', year, allHolidays);
-                return allHolidays;
-            } catch (error) {
-                console.error('연도별 공휴일 로드 에러:', error);
-                return {};
-            }
-        }
-
-        // 동기적으로 공휴일 정보 가져오기 (캐시된 데이터 사용)
-        function getHolidaysForYear(year) {
-            return holidayYearCache[year] || {};
-        }
-
-        // 특정 날짜가 공휴일인지 확인 (동기)
-        function getHolidayInfo(dateStr) {
-            const year = parseInt(dateStr.split('-')[0]);
-            const holidays = getHolidaysForYear(year);
-            return holidays[dateStr] || null;
-        }
-
-        // 앱 시작 시 현재 연도와 다음 연도 공휴일 미리 로드
-        async function preloadHolidays() {
-            const currentYear = new Date().getFullYear();
-            console.log('공휴일 데이터 사전 로드 시작...');
-
-            try {
-                // 현재 연도와 다음 연도 로드
-                await Promise.all([
-                    fetchYearHolidays(currentYear),
-                    fetchYearHolidays(currentYear + 1)
-                ]);
-                console.log('공휴일 데이터 사전 로드 완료');
+                holidayYearLoaded[year] = true;
+                console.log('공휴일 데이터 로드 완료:', year);
 
                 // 캘린더 다시 렌더링
                 if (typeof renderCalendar === 'function') {
                     renderCalendar();
                 }
+            } catch (error) {
+                console.error('공휴일 로드 에러:', error);
+            }
+        }
+
+        // 특정 날짜의 공휴일 정보 가져오기 (동기)
+        function getHolidayInfo(dateStr) {
+            // 캐시 확인
+            if (holidayCache[dateStr]) {
+                return holidayCache[dateStr];
+            }
+            // 폴백 데이터 확인
+            if (FALLBACK_HOLIDAYS[dateStr]) {
+                return FALLBACK_HOLIDAYS[dateStr];
+            }
+            return null;
+        }
+
+        // 공휴일 데이터 사전 로드
+        async function preloadHolidays() {
+            const currentYear = new Date().getFullYear();
+            console.log('공휴일 사전 로드 시작...');
+
+            try {
+                await Promise.all([
+                    fetchYearHolidays(currentYear),
+                    fetchYearHolidays(currentYear + 1)
+                ]);
+                console.log('공휴일 사전 로드 완료');
             } catch (error) {
                 console.error('공휴일 사전 로드 실패:', error);
             }
@@ -3220,14 +3260,20 @@
 
         // 특정 월의 공휴일 목록 가져오기
         function getHolidaysForMonth(year, month) {
-            const holidays = getHolidaysForYear(year);
             const monthStr = String(month + 1).padStart(2, '0');
             const prefix = `${year}-${monthStr}`;
 
             const result = {};
-            Object.entries(holidays).forEach(([dateStr, name]) => {
+            // 캐시된 데이터
+            Object.entries(holidayCache).forEach(([dateStr, info]) => {
                 if (dateStr.startsWith(prefix)) {
-                    result[dateStr] = name;
+                    result[dateStr] = info;
+                }
+            });
+            // 폴백 데이터 (캐시에 없는 것만)
+            Object.entries(FALLBACK_HOLIDAYS).forEach(([dateStr, info]) => {
+                if (dateStr.startsWith(prefix) && !result[dateStr]) {
+                    result[dateStr] = info;
                 }
             });
             return result;
@@ -3891,9 +3937,12 @@
                 const dateStr = formatLocalDate(date);
 
                 // 공휴일 확인
-                const holidayName = getHolidayInfo(dateStr);
-                const isHoliday = !!holidayName;
-                const isSubstitute = holidayName && holidayName.includes('대체공휴일');
+                const holidayInfo = getHolidayInfo(dateStr);
+                const holidayName = holidayInfo?.name || null;
+                const holidayType = holidayInfo?.type || null;
+                const isHoliday = holidayInfo?.isHoliday || false;
+                const isSubstitute = holidayType === '대체공휴일';
+                const isNationalDay = holidayType === '국경일';
 
                 let classes = 'calendar-day';
                 if (isOtherMonth) classes += ' other-month';
@@ -3903,6 +3952,7 @@
                 if (dayOfWeek === 6 && !isHoliday) classes += ' saturday';
                 if (isHoliday) classes += ' holiday';
                 if (isSubstitute) classes += ' substitute-holiday';
+                if (isNationalDay) classes += ' national-day';
                 if (isInMultiDayRange && !isSelected) classes += ' in-range';
                 if (isMultiDayStart) classes += ' range-start';
                 if (isMultiDayEnd) classes += ' range-end';
@@ -3910,18 +3960,23 @@
                 // 공휴일명 축약 (칸이 작으므로)
                 let shortHolidayName = '';
                 if (holidayName) {
-                    if (holidayName.includes('대체공휴일')) shortHolidayName = '대체';
+                    if (holidayName.includes('대체')) shortHolidayName = '대체';
                     else if (holidayName.includes('설날')) shortHolidayName = '설날';
                     else if (holidayName.includes('추석')) shortHolidayName = '추석';
-                    else if (holidayName === '부처님오신날') shortHolidayName = '석가탄신';
+                    else if (holidayName.includes('부처님')) shortHolidayName = '석가탄신일';
+                    else if (holidayName.includes('기독탄신') || holidayName.includes('성탄')) shortHolidayName = '크리스마스';
+                    else if (holidayName === '1월1일' || holidayName === '신정') shortHolidayName = '신정';
                     else shortHolidayName = holidayName;
                 }
+
+                // 툴팁 텍스트 (이름 + 타입)
+                const tooltipText = holidayName ? `${holidayName}${holidayType ? ` (${holidayType})` : ''}` : '';
 
                 html += `
                     <div class="${classes}"
                          onclick="${!isPast ? `selectDate('${dateStr}')` : ''}"
                          style="${isPast ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
-                         ${holidayName ? `title="${holidayName}"` : ''}>
+                         ${tooltipText ? `title="${tooltipText}"` : ''}>
                         <div class="calendar-day-number">${date.getDate()}</div>
                         ${shortHolidayName ? `<div class="calendar-holiday-name">${shortHolidayName}</div>` : ''}
                         <div class="calendar-day-events" id="events-${dateStr}"></div>
@@ -4325,8 +4380,7 @@
             const newYear = currentMonth.getFullYear();
 
             // 연도가 바뀌면 해당 연도 공휴일 로드
-            if (newYear !== prevYear && !holidayYearCache[newYear]) {
-                console.log('새 연도 공휴일 로드:', newYear);
+            if (newYear !== prevYear && !holidayYearLoaded[newYear]) {
                 await fetchYearHolidays(newYear);
             }
 
@@ -4501,13 +4555,16 @@
             if (selectedTimeSlots.length > 0) {
                 const sortedSlots = [...selectedTimeSlots].sort();
                 const startSlot = sortedSlots[0];
-                const lastSlot = sortedSlots[sortedSlots.length - 1];
-                const [lastH, lastM] = lastSlot.split(':').map(Number);
-                const endMin = lastM + 10;
-                const endHour = endMin >= 60 ? lastH + 1 : lastH;
-                const endMinNorm = endMin >= 60 ? 0 : endMin;
-                const endSlot = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
                 const duration = selectedTimeSlots.length * 10;
+
+                // 종료 시간 계산 헬퍼
+                function calcEndTime(timeStr) {
+                    const [h, m] = timeStr.split(':').map(Number);
+                    const newM = m + 10;
+                    const newH = newM >= 60 ? h + 1 : h;
+                    const normM = newM >= 60 ? 0 : newM;
+                    return `${newH.toString().padStart(2, '0')}:${normM.toString().padStart(2, '0')}`;
+                }
 
                 // 다일 선택 완료 상태인지 확인
                 const isMultiDay = multiDaySelection.startDate && multiDaySelection.endDate &&
@@ -4517,8 +4574,13 @@
                 if (isMultiDay) {
                     const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
                     const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
-                    summaryText = `<strong>${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endSlot}</strong>`;
+                    // 다일 선택: multiDaySelection.endTime에서 종료 시간 계산
+                    const actualEndSlot = calcEndTime(multiDaySelection.endTime);
+                    summaryText = `<strong>${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${actualEndSlot}</strong>`;
                 } else {
+                    // 당일 선택: 마지막 슬롯에서 종료 시간 계산
+                    const lastSlot = sortedSlots[sortedSlots.length - 1];
+                    const endSlot = calcEndTime(lastSlot);
                     summaryText = `<strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})`;
                 }
 
@@ -4731,23 +4793,29 @@
 
             const sortedSlots = [...selectedTimeSlots].sort();
             const startTime = sortedSlots[0];
-            const lastSlot = sortedSlots[sortedSlots.length - 1];
-            const [lastH, lastM] = lastSlot.split(':').map(Number);
-            const endMin = lastM + 10;
-            const endHour = endMin >= 60 ? lastH + 1 : lastH;
-            const endMinNorm = endMin >= 60 ? 0 : endMin;
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+
+            // 종료 시간 계산 헬퍼
+            function addTenMinutes(timeStr) {
+                const [h, m] = timeStr.split(':').map(Number);
+                const newM = m + 10;
+                const newH = newM >= 60 ? h + 1 : h;
+                const normM = newM >= 60 ? 0 : newM;
+                return `${newH.toString().padStart(2, '0')}:${normM.toString().padStart(2, '0')}`;
+            }
 
             // 일시 통합 표시
             let dateTimeDisplay = '';
             if (multiDaySelection.startDate && multiDaySelection.endDate &&
                 formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate)) {
-                // 다일 선택
+                // 다일 선택: multiDaySelection.endTime 사용 (중간날 슬롯과 섞이지 않도록)
                 const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
                 const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-                dateTimeDisplay = `${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endTime}`;
+                const actualEndTime = addTenMinutes(multiDaySelection.endTime);
+                dateTimeDisplay = `${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${actualEndTime}`;
             } else {
                 // 당일 선택
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const endTime = addTenMinutes(lastSlot);
                 const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
                 dateTimeDisplay = `${dateDisplay} ${startTime} ~ ${endTime}`;
             }
