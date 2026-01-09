@@ -2195,9 +2195,12 @@
                     <h2 class="mb-6">예약 현황</h2>
                     <div class="card">
                         <div class="card-header">
-                            <h3>오늘의 예약</h3>
-                            <select class="form-select" style="width: auto;" id="scheduleEquipmentFilter">
-                                <option value="">전체 장비</option>
+                            <h3>예정된 예약</h3>
+                            <select class="form-select" style="width: auto;" id="scheduleLocationFilter">
+                                <option value="">전체 위치</option>
+                                <option value="분자육종실험실">분자육종실험실</option>
+                                <option value="가공적성실험실">가공적성실험실</option>
+                                <option value="생공">생공</option>
                             </select>
                         </div>
                         <div class="card-body">
@@ -2611,7 +2614,12 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">위치 <span class="required">*</span></label>
-                        <input type="text" class="form-input" id="equipmentLocation" required>
+                        <select class="form-select" id="equipmentLocation" required>
+                            <option value="">-- 위치 선택 --</option>
+                            <option value="분자육종실험실">분자육종실험실</option>
+                            <option value="가공적성실험실">가공적성실험실</option>
+                            <option value="생공">생공</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">설명</label>
@@ -2818,11 +2826,18 @@
         let equipmentList = [];
         let currentApprovalReservation = null;
 
+        // 공유 위치 목록
+        const SHARED_LOCATIONS = [
+            '분자육종실험실',
+            '가공적성실험실',
+            '생공'
+        ];
+
         // 장바구니 관련 변수
         let cart = [];
         let firstSelectedSlot = null; // 범위 선택용 첫 번째 슬롯
 
-        // 시간 모드 변수 ('detail' = 시간 지정, 'allday' = 하루 종일)
+        // 시간 모드 변수 ('detail' = 시간 지정, 'allday' = 하루 종일, 'night' = 야간)
         let timeMode = 'detail';
 
         // 재신청 관련 변수
@@ -3025,7 +3040,6 @@
 
             equipmentList = data;
             renderEquipmentGrid();
-            renderEquipmentFilter();
         }
 
         async function renderEquipmentGrid() {
@@ -3071,12 +3085,6 @@
                     favSection.style.display = 'none';
                 }
             }
-        }
-
-        function renderEquipmentFilter() {
-            const select = document.getElementById('scheduleEquipmentFilter');
-            select.innerHTML = '<option value="">전체 장비</option>' +
-                equipmentList.map(eq => `<option value="${eq.id}">${eq.name}</option>`).join('');
         }
 
         // 장비 목록 탭 로드 (위치별 그룹화, 테이블 형식)
@@ -3844,12 +3852,9 @@
         async function loadMyReservations() {
             const filter = document.getElementById('myReservationFilter')?.value || '';
 
-            let query = supabase
+            let query = supabaseClient
                 .from('reservations')
-                .select(`
-                    *,
-                    equipment:equipment_id (name, location)
-                `)
+                .select('*')
                 .eq('user_id', currentUser.id)
                 .order('reservation_date', { ascending: false });
 
@@ -3880,8 +3885,8 @@
                 <div class="reservation-item ${r.status}">
                     <div class="reservation-header">
                         <div>
-                            <strong>${r.equipment?.name || '장비'}</strong>
-                            <span style="color: var(--text-secondary); font-size: 0.85rem;"> - ${r.equipment?.location || ''}</span>
+                            <strong>🧪 ${r.purpose || '실험'}</strong>
+                            <span style="color: var(--text-secondary); font-size: 0.85rem;"> - 📍 ${r.location || '-'}</span>
                         </div>
                         <span class="reservation-status status-${r.status}">${getReservationStatusText(r.status)}</span>
                     </div>
@@ -3894,10 +3899,12 @@
                             <span class="reservation-info-label">🕐 시간:</span>
                             <span>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</span>
                         </div>
+                        ${r.detail ? `
                         <div class="reservation-info-item">
-                            <span class="reservation-info-label">📝 목적:</span>
-                            <span>${r.purpose}</span>
+                            <span class="reservation-info-label">📝 내용:</span>
+                            <span>${r.detail}</span>
                         </div>
+                        ` : ''}
                     </div>
                     ${r.rejection_reason ? `
                         <div style="margin-top: var(--space-3); padding: var(--space-3); background: #f8d7da; border-radius: 6px; font-size: 0.85rem;">
@@ -3917,23 +3924,22 @@
         }
 
         async function loadSchedule() {
-            const equipmentFilter = document.getElementById('scheduleEquipmentFilter')?.value || '';
+            const locationFilter = document.getElementById('scheduleLocationFilter')?.value || '';
             const today = new Date().toISOString().split('T')[0];
 
-            let query = supabase
+            let query = supabaseClient
                 .from('reservations')
                 .select(`
                     *,
-                    equipment:equipment_id (name, location),
-                    user:user_id (name, department)
+                    users:user_id (name, department)
                 `)
                 .gte('reservation_date', today)
                 .in('status', ['pending', 'approved'])
                 .order('reservation_date')
                 .order('start_time');
 
-            if (equipmentFilter) {
-                query = query.eq('equipment_id', equipmentFilter);
+            if (locationFilter) {
+                query = query.eq('location', locationFilter);
             }
 
             const { data } = await query.limit(20);
@@ -3962,12 +3968,16 @@
                             <span>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</span>
                         </div>
                         <div class="reservation-info-item">
-                            <span class="reservation-info-label">🔬</span>
-                            <span>${r.equipment?.name}</span>
+                            <span class="reservation-info-label">🧪</span>
+                            <span>${r.purpose || '실험'}</span>
+                        </div>
+                        <div class="reservation-info-item">
+                            <span class="reservation-info-label">📍</span>
+                            <span>${r.location || '-'}</span>
                         </div>
                         <div class="reservation-info-item">
                             <span class="reservation-info-label">👤</span>
-                            <span>${r.user?.name} (${r.user?.department})</span>
+                            <span>${r.users?.name || '알 수 없음'} ${r.users?.department ? `(${r.users.department})` : ''}</span>
                         </div>
                     </div>
                 </div>
@@ -4816,7 +4826,7 @@
 
             // Filters
             document.getElementById('myReservationFilter')?.addEventListener('change', loadMyReservations);
-            document.getElementById('scheduleEquipmentFilter')?.addEventListener('change', loadSchedule);
+            document.getElementById('scheduleLocationFilter')?.addEventListener('change', loadSchedule);
         });
 
         // =============================================
