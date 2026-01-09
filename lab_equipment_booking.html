@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>실험실 장비 예약 시스템</title>
-    <link rel="icon" type="image/png" href="files/ssallogo.png">
+    <link rel="icon" type="image/png" href="files/ssallogo.png" sizes="50x58">
+    <link rel="apple-touch-icon" href="files/ssallogo.png">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -442,11 +443,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-2);
         }
 
         .card-header h3 {
             font-size: 1.1rem;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .card-body {
@@ -1310,6 +1314,11 @@
         .time-mode-toggle {
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .time-mode-toggle .btn {
+            white-space: nowrap;
         }
 
         .btn-sm {
@@ -2321,13 +2330,16 @@
                                     </div>
                                 </div>
                                 <div class="card-body" id="timeSlotsPanel">
-                                    <div class="time-slots-header" id="timeSlotsHeader" style="margin-bottom: 12px; font-weight: 600; color: var(--primary-main);">
+                                    <div class="time-slots-header" id="timeSlotsHeader" style="margin-bottom: 8px; font-weight: 600; color: var(--primary-main); white-space: nowrap;">
                                         📅 날짜를 선택하세요
                                     </div>
-                                    <div class="time-slots-body" id="timeSlotsBody" style="max-height: 400px; overflow-y: auto;">
+                                    <div class="time-slots-body" id="timeSlotsBody" style="max-height: 280px; overflow-y: auto;">
                                         <div class="empty-state" style="padding: 20px;">
                                             <p style="color: var(--text-secondary); text-align: center;">캘린더에서 날짜를 선택하면<br>시간대가 표시됩니다</p>
                                         </div>
+                                    </div>
+                                    <div class="time-slots-actions" id="timeSlotsActions" style="display: none; padding-top: 12px; border-top: 1px solid var(--border-default); margin-top: 12px;">
+                                        <!-- 동적으로 버튼 추가 -->
                                     </div>
                                 </div>
                             </div>
@@ -3853,7 +3865,8 @@
                 ` + body.innerHTML;
             }
 
-            // 선택된 시간 요약 및 예약 버튼
+            // 선택된 시간 요약 및 예약 버튼 (스크롤 영역 밖에 표시)
+            const actionsContainer = document.getElementById('timeSlotsActions');
             if (selectedTimeSlots.length > 0) {
                 const sortedSlots = [...selectedTimeSlots].sort();
                 const startSlot = sortedSlots[0];
@@ -3883,29 +3896,33 @@
                 if (isMultiDay) {
                     const checked = multiDaySelection.includeNight ? 'checked' : '';
                     nightOptionHtml = `
-                        <div class="night-option" style="margin-top: 8px; padding: 8px; background: #f3f0ff; border-radius: 6px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <div style="margin-bottom: 8px; padding: 6px 8px; background: #f3f0ff; border-radius: 6px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem;">
                                 <input type="checkbox" id="includeNightCheckbox" ${checked} onchange="toggleNightInclusion()">
-                                <span style="color: #6b5b95;">🌙 중간 날 야간(18:00~24:00) 포함</span>
+                                <span style="color: #6b5b95;">🌙 중간 날 야간 포함</span>
                             </label>
                         </div>
                     `;
                 }
 
-                body.innerHTML += `
-                    <div class="selected-time-summary">
+                actionsContainer.style.display = 'block';
+                actionsContainer.innerHTML = `
+                    <div class="selected-time-summary" style="margin-bottom: 8px; text-align: center; font-size: 0.9rem;">
                         ${summaryText}
                     </div>
                     ${nightOptionHtml}
-                    <div style="display: flex; gap: 8px; margin-top: var(--space-4);">
-                        <button class="btn btn-outline" style="flex: 1;" onclick="addToCart()">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline btn-sm" style="flex: 1; padding: 8px 12px;" onclick="addToCart()">
                             장바구니 담기
                         </button>
-                        <button class="btn btn-primary" style="flex: 1;" onclick="openReservationModal()">
+                        <button class="btn btn-primary btn-sm" style="flex: 1; padding: 8px 12px;" onclick="openReservationModal()">
                             바로 예약
                         </button>
                     </div>
                 `;
+            } else {
+                actionsContainer.style.display = 'none';
+                actionsContainer.innerHTML = '';
             }
         }
 
