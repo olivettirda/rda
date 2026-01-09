@@ -624,6 +624,9 @@
             flex-direction: column;
             gap: 2px;
             overflow: hidden;
+            position: relative;
+            flex: 1;
+            min-height: 40px;
         }
 
         /* Google Calendar style events */
@@ -638,6 +641,12 @@
             overflow: hidden;
             text-overflow: ellipsis;
             cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .calendar-event:hover {
+            transform: scale(1.02);
+            z-index: 10;
         }
 
         .calendar-event.pending {
@@ -664,11 +673,30 @@
             border-left: 3px solid #6f42c1;
         }
 
+        /* 다일 예약 스타일 */
+        .calendar-event.multi-day {
+            border-radius: 2px;
+        }
+
+        .calendar-event.multi-day.middle-day {
+            border-left: none;
+            border-radius: 0;
+            margin-left: -4px;
+            margin-right: -4px;
+            padding-left: 8px;
+        }
+
         .calendar-event-more {
             font-size: 0.6rem;
             color: var(--text-secondary);
             padding: 2px 4px;
             text-align: center;
+            cursor: pointer;
+        }
+
+        .calendar-event-more:hover {
+            color: var(--primary-main);
+            text-decoration: underline;
         }
 
         .calendar-event.my-pending:hover,
@@ -754,6 +782,61 @@
             font-size: 0.75rem;
             color: var(--primary-main);
             text-align: center;
+        }
+
+        /* Reservation Action Menu */
+        .reservation-action-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1001;
+            min-width: 200px;
+            font-size: 0.85rem;
+        }
+
+        .action-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .action-menu-status {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .action-menu-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .action-menu-status.approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .action-menu-info {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+        }
+
+        .action-menu-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-menu-buttons .btn {
+            flex: 1;
+            padding: 6px 10px;
+            font-size: 0.8rem;
         }
 
         /* Calendar Legend */
@@ -3653,17 +3736,49 @@
         // 캘린더 예약 데이터 저장용
         let calendarReservations = {};
 
+        // detail에서 종료일 추출
+        function getEndDateFromDetail(detail) {
+            if (!detail) return null;
+            const match = detail.match(/\[END_DATE:(\d{4}-\d{2}-\d{2})\]/);
+            return match ? match[1] : null;
+        }
+
+        // detail에서 종료일 마커 제거
+        function getCleanDetail(detail) {
+            if (!detail) return '';
+            return detail.replace(/\[END_DATE:\d{4}-\d{2}-\d{2}\]/, '').trim();
+        }
+
+        // 시간을 분으로 변환 (위치 계산용)
+        function timeToMinutes(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        // 시간 기반 상대 위치 계산 (07:00~24:00 기준)
+        function getTimePosition(timeStr) {
+            const minutes = timeToMinutes(timeStr);
+            const dayStart = 7 * 60; // 07:00
+            const dayEnd = 24 * 60;  // 24:00
+            const position = Math.max(0, Math.min(100, ((minutes - dayStart) / (dayEnd - dayStart)) * 100));
+            return position;
+        }
+
         async function loadCalendarEvents() {
             const year = currentMonth.getFullYear();
             const month = currentMonth.getMonth();
-            const startDate = formatLocalDate(new Date(year, month, 1));
-            const endDate = formatLocalDate(new Date(year, month + 1, 0));
+            const monthStart = formatLocalDate(new Date(year, month, 1));
+            const monthEnd = formatLocalDate(new Date(year, month + 1, 0));
+
+            // 다일 예약도 포함하기 위해 더 넓은 범위로 조회
+            const queryStart = formatLocalDate(new Date(year, month - 1, 1));
+            const queryEnd = formatLocalDate(new Date(year, month + 2, 0));
 
             const { data } = await supabaseClient
                 .from('reservations')
                 .select('*, users:user_id(name)')
-                .gte('reservation_date', startDate)
-                .lte('reservation_date', endDate)
+                .gte('reservation_date', queryStart)
+                .lte('reservation_date', queryEnd)
                 .in('status', ['pending', 'approved'])
                 .order('start_time', { ascending: true });
 
@@ -3671,52 +3786,110 @@
             calendarReservations = {};
             if (data) {
                 data.forEach(r => {
+                    // 종료일 정보 추가
+                    r.endDate = getEndDateFromDetail(r.detail) || r.reservation_date;
                     calendarReservations[r.id] = r;
                 });
             }
 
+            // 날짜별 이벤트 매핑 (다일 예약 포함)
+            const eventsByDate = {};
+
             if (data) {
-                const eventsByDate = {};
                 data.forEach(r => {
-                    if (!eventsByDate[r.reservation_date]) {
-                        eventsByDate[r.reservation_date] = [];
-                    }
-                    eventsByDate[r.reservation_date].push(r);
-                });
+                    const startDate = r.reservation_date;
+                    const endDate = r.endDate;
 
-                Object.keys(eventsByDate).forEach(date => {
-                    const el = document.getElementById(`events-${date}`);
-                    if (el) {
-                        const events = eventsByDate[date];
-                        const maxShow = 2; // 최대 표시 개수
+                    // 시작일부터 종료일까지 모든 날짜에 이벤트 추가
+                    let currentDate = new Date(startDate);
+                    const lastDate = new Date(endDate);
 
-                        let html = events.slice(0, maxShow).map(e => {
-                            const isMine = currentUser && String(e.user_id) === String(currentUser.id);
-                            const statusClass = isMine
-                                ? (e.status === 'approved' ? 'my-approved' : 'my-pending')
-                                : e.status;
-                            const timeStr = e.start_time.slice(0, 5);
-                            const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
+                    while (currentDate <= lastDate) {
+                        const dateStr = formatLocalDate(currentDate);
 
-                            return `<div class="calendar-event ${statusClass}"
-                                data-reservation-id="${e.id}"
-                                data-is-mine="${isMine}"
-                                onmouseenter="showEventTooltip(event, ${e.id})"
-                                onmouseleave="hideEventTooltip()"
-                                onclick="handleCalendarEventClick(event, ${e.id}, ${isMine})"
-                                style="${isMine ? 'cursor:pointer;' : ''}">
-                                ${timeStr} ${displayName}
-                            </div>`;
-                        }).join('');
+                        // 현재 달에 해당하는 날짜만 처리
+                        if (dateStr >= monthStart && dateStr <= monthEnd) {
+                            if (!eventsByDate[dateStr]) {
+                                eventsByDate[dateStr] = [];
+                            }
 
-                        if (events.length > maxShow) {
-                            html += `<div class="calendar-event-more">+${events.length - maxShow}개 더보기</div>`;
+                            // 해당 날짜에서의 표시 정보 계산
+                            const isStartDay = dateStr === startDate;
+                            const isEndDay = dateStr === endDate;
+                            const isMiddleDay = !isStartDay && !isEndDay;
+
+                            eventsByDate[dateStr].push({
+                                ...r,
+                                displayDate: dateStr,
+                                isStartDay,
+                                isEndDay,
+                                isMiddleDay,
+                                isMultiDay: startDate !== endDate
+                            });
                         }
 
-                        el.innerHTML = html;
+                        currentDate.setDate(currentDate.getDate() + 1);
                     }
                 });
             }
+
+            // 각 날짜의 이벤트 렌더링
+            Object.keys(eventsByDate).forEach(date => {
+                const el = document.getElementById(`events-${date}`);
+                if (el) {
+                    const events = eventsByDate[date];
+                    // 시간순 정렬
+                    events.sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+                    const maxShow = 2;
+
+                    let html = events.slice(0, maxShow).map(e => {
+                        const isMine = currentUser && String(e.user_id) === String(currentUser.id);
+                        const statusClass = isMine
+                            ? (e.status === 'approved' ? 'my-approved' : 'my-pending')
+                            : e.status;
+
+                        // 시간 표시: 시작일엔 시작시간, 종료일엔 종료시간, 중간엔 '종일'
+                        let timeStr = '';
+                        if (e.isMultiDay) {
+                            if (e.isStartDay) timeStr = e.start_time.slice(0, 5) + '~';
+                            else if (e.isEndDay) timeStr = '~' + e.end_time.slice(0, 5);
+                            else timeStr = '종일';
+                        } else {
+                            timeStr = e.start_time.slice(0, 5);
+                        }
+
+                        const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
+
+                        // 시간 기반 위치 계산 (시작일 기준)
+                        const topPosition = e.isStartDay || !e.isMultiDay
+                            ? getTimePosition(e.start_time)
+                            : 0;
+
+                        return `<div class="calendar-event ${statusClass} ${e.isMultiDay ? 'multi-day' : ''} ${e.isMiddleDay ? 'middle-day' : ''}"
+                            data-reservation-id="${e.id}"
+                            data-is-mine="${isMine}"
+                            onmouseenter="showEventTooltip(event, ${e.id})"
+                            onmouseleave="hideEventTooltip()"
+                            onclick="handleCalendarEventClick(event, ${e.id}, ${isMine})"
+                            style="cursor:pointer; --time-position: ${topPosition}%;">
+                            ${timeStr} ${displayName}
+                        </div>`;
+                    }).join('');
+
+                    if (events.length > maxShow) {
+                        html += `<div class="calendar-event-more" onclick="showAllEventsForDate('${date}')">+${events.length - maxShow}개</div>`;
+                    }
+
+                    el.innerHTML = html;
+                }
+            });
+        }
+
+        // 특정 날짜의 모든 이벤트 표시
+        function showAllEventsForDate(date) {
+            // TODO: 모달로 해당 날짜의 전체 예약 목록 표시
+            console.log('모든 이벤트 보기:', date);
         }
 
         // 캘린더 이벤트 툴팁 표시
@@ -3732,6 +3905,27 @@
             const statusClass = r.status;
             const userName = isMine ? '나' : (r.users?.name || '알 수 없음');
 
+            // 다일 예약 여부 확인
+            const endDate = r.endDate || r.reservation_date;
+            const isMultiDay = r.reservation_date !== endDate;
+
+            // 날짜/시간 표시
+            let dateTimeStr = '';
+            if (isMultiDay) {
+                const startDateObj = new Date(r.reservation_date);
+                const endDateObj = new Date(endDate);
+                const startDateDisplay = startDateObj.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                const endDateDisplay = endDateObj.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                dateTimeStr = `${startDateDisplay} ${r.start_time.slice(0,5)} ~ ${endDateDisplay} ${r.end_time.slice(0,5)}`;
+            } else {
+                dateTimeStr = `${r.start_time.slice(0,5)} ~ ${r.end_time.slice(0,5)}`;
+            }
+
+            // detail에서 위치와 내용 추출 (END_DATE 마커 제거)
+            const cleanedDetail = getCleanDetail(r.detail);
+            const { location: locFromDetail, cleanDetail: finalDetail } = extractLocationFromDetail(cleanedDetail);
+            const displayLocation = locFromDetail || getReservationLocation(r);
+
             const tooltip = document.createElement('div');
             tooltip.className = 'calendar-event-tooltip';
             tooltip.id = 'eventTooltip';
@@ -3745,24 +3939,18 @@
                     <span class="tooltip-value">${userName}</span>
                 </div>
                 <div class="tooltip-row">
-                    <span class="tooltip-label">시간:</span>
-                    <span class="tooltip-value">${r.start_time.slice(0,5)} ~ ${r.end_time.slice(0,5)}</span>
+                    <span class="tooltip-label">${isMultiDay ? '기간:' : '시간:'}</span>
+                    <span class="tooltip-value">${dateTimeStr}</span>
                 </div>
-                ${(() => {
-                    const loc = getReservationLocation(r);
-                    return loc && loc !== '-' ? `<div class="tooltip-row">
-                        <span class="tooltip-label">위치:</span>
-                        <span class="tooltip-value">${loc}</span>
-                    </div>` : '';
-                })()}
-                ${(() => {
-                    const { cleanDetail } = extractLocationFromDetail(r.detail);
-                    return cleanDetail ? `<div class="tooltip-row">
-                        <span class="tooltip-label">내용:</span>
-                        <span class="tooltip-value">${cleanDetail}</span>
-                    </div>` : '';
-                })()}
-                ${isMine ? '<div class="tooltip-action">클릭하여 예약 취소</div>' : ''}
+                ${displayLocation && displayLocation !== '-' ? `<div class="tooltip-row">
+                    <span class="tooltip-label">실험실:</span>
+                    <span class="tooltip-value">${displayLocation}</span>
+                </div>` : ''}
+                ${finalDetail ? `<div class="tooltip-row">
+                    <span class="tooltip-label">내용:</span>
+                    <span class="tooltip-value">${finalDetail}</span>
+                </div>` : ''}
+                ${isMine ? '<div class="tooltip-action">클릭하여 예약 관리</div>' : ''}
             `;
 
             document.body.appendChild(tooltip);
@@ -3798,14 +3986,99 @@
         function handleCalendarEventClick(e, reservationId, isMine) {
             e.stopPropagation();
             e.preventDefault();
+            hideEventTooltip();
 
             if (isMine) {
-                showReservationCancelConfirm(reservationId);
+                showReservationActionMenu(e, reservationId);
             }
             // 내 예약이 아니면 아무 동작 안함 (날짜 선택도 안됨)
         }
 
-        // 내 예약 취소 확인
+        // 예약 관리 액션 메뉴 표시
+        function showReservationActionMenu(e, reservationId) {
+            const r = calendarReservations[reservationId];
+            if (!r) return;
+
+            // 기존 메뉴 제거
+            const existingMenu = document.getElementById('reservationActionMenu');
+            if (existingMenu) existingMenu.remove();
+
+            // 다일 예약 여부
+            const endDate = r.endDate || r.reservation_date;
+            const isMultiDay = r.reservation_date !== endDate;
+
+            // 날짜/시간 표시
+            let dateTimeStr = '';
+            if (isMultiDay) {
+                const startDateObj = new Date(r.reservation_date);
+                const endDateObj = new Date(endDate);
+                dateTimeStr = `${startDateObj.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ~ ${endDateObj.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`;
+            } else {
+                dateTimeStr = `${r.reservation_date} ${r.start_time.slice(0,5)}~${r.end_time.slice(0,5)}`;
+            }
+
+            const menu = document.createElement('div');
+            menu.id = 'reservationActionMenu';
+            menu.className = 'reservation-action-menu';
+            menu.innerHTML = `
+                <div class="action-menu-header">
+                    <strong>${r.purpose || '예약'}</strong>
+                    <span class="action-menu-status ${r.status}">${r.status === 'approved' ? '승인됨' : '대기중'}</span>
+                </div>
+                <div class="action-menu-info">${dateTimeStr}</div>
+                <div class="action-menu-buttons">
+                    ${r.status === 'pending' ? `<button class="btn btn-sm btn-outline" onclick="cancelReservationFromMenu(${reservationId})">예약 취소</button>` : ''}
+                    ${r.status === 'approved' ? `<button class="btn btn-sm btn-outline" onclick="cancelReservationFromMenu(${reservationId})">예약 취소</button>` : ''}
+                    <button class="btn btn-sm btn-primary" onclick="goToMyReservations()">내 예약 보기</button>
+                </div>
+            `;
+
+            document.body.appendChild(menu);
+
+            // 위치 조정
+            const rect = e.target.getBoundingClientRect();
+            let left = rect.right + 10;
+            let top = rect.top;
+
+            const menuRect = menu.getBoundingClientRect();
+            if (left + menuRect.width > window.innerWidth - 20) {
+                left = rect.left - menuRect.width - 10;
+            }
+            if (top + menuRect.height > window.innerHeight - 20) {
+                top = window.innerHeight - menuRect.height - 20;
+            }
+
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+
+            // 바깥 클릭 시 닫기
+            setTimeout(() => {
+                document.addEventListener('click', closeReservationActionMenu);
+            }, 100);
+        }
+
+        function closeReservationActionMenu() {
+            const menu = document.getElementById('reservationActionMenu');
+            if (menu) menu.remove();
+            document.removeEventListener('click', closeReservationActionMenu);
+        }
+
+        function cancelReservationFromMenu(reservationId) {
+            closeReservationActionMenu();
+            const r = calendarReservations[reservationId];
+            if (!r) return;
+
+            if (confirm(`예약을 취소하시겠습니까?\n\n실험: ${r.purpose || '-'}`)) {
+                cancelReservationDirect(reservationId);
+            }
+        }
+
+        function goToMyReservations() {
+            closeReservationActionMenu();
+            switchTab('myReservation');
+        }
+
+        // 내 예약 취소 확인 (레거시 - 호환성 유지)
         function showReservationCancelConfirm(reservationId) {
             const r = calendarReservations[reservationId];
             if (!r) {
@@ -3816,7 +4089,6 @@
                 showToast('로그인이 필요합니다.', 'warning');
                 return;
             }
-            // 타입 일치를 위해 String으로 비교
             if (String(r.user_id) !== String(currentUser.id)) {
                 showToast('본인의 예약만 취소할 수 있습니다.', 'warning');
                 return;
@@ -4321,14 +4593,27 @@
                     return;
                 }
 
+                // 다일 예약인 경우 종료일 정보를 detail에 포함
+                let finalDetail = detail || '';
+                let reservationDate = formatLocalDate(selectedDate);
+
+                if (multiDaySelection.startDate && multiDaySelection.endDate &&
+                    formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate)) {
+                    // 다일 예약: 시작일을 reservation_date로, 종료일을 detail에 포함
+                    reservationDate = formatLocalDate(multiDaySelection.startDate);
+                    const endDateStr = formatLocalDate(multiDaySelection.endDate);
+                    finalDetail = `[END_DATE:${endDateStr}]${finalDetail}`;
+                    console.log('다일 예약:', { start: reservationDate, end: endDateStr });
+                }
+
                 const insertData = {
                     user_id: currentUser.id,
                     equipment_id: equipmentId,
-                    reservation_date: formatLocalDate(selectedDate),
+                    reservation_date: reservationDate,
                     start_time: startTime,
                     end_time: endTime,
                     purpose: purpose,
-                    detail: detail || null,
+                    detail: finalDetail || null,
                     status: status
                 };
                 console.log('예약 데이터:', JSON.stringify(insertData, null, 2));
