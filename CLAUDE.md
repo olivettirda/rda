@@ -20,6 +20,48 @@
 
 ---
 
+## 디버깅 코드 필수 규칙
+
+코드 작성 시 **반드시** 디버깅용 로그를 포함해야 합니다.
+
+### 필수 디버깅 패턴
+
+#### 1. API 호출 시
+```javascript
+// API 호출 전 - 전송 데이터 출력
+console.log('API 요청 데이터:', JSON.stringify(requestData, null, 2));
+
+// API 호출 후 - 에러 상세 출력
+if (error) {
+    console.error('API 에러:', JSON.stringify(error, null, 2));
+}
+```
+
+#### 2. 중요 함수 진입 시
+```javascript
+function importantFunction(param1, param2) {
+    console.log('함수 진입:', { param1, param2 });
+    // ... 로직
+}
+```
+
+#### 3. 조건 분기 시
+```javascript
+if (condition) {
+    console.log('분기: condition true');
+} else {
+    console.log('분기: condition false');
+}
+```
+
+### 적용 범위
+- 모든 API 호출 (Supabase, fetch, axios 등)
+- 데이터 변환/처리 함수
+- 이벤트 핸들러
+- 상태 변경 로직
+
+---
+
 ## PR 생성 규칙
 
 PR(Pull Request)을 생성한 후에는 **항상** PR 링크를 출력해야 합니다.

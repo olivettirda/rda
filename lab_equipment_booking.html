@@ -3651,14 +3651,20 @@
                     <span class="tooltip-label">시간:</span>
                     <span class="tooltip-value">${r.start_time.slice(0,5)} ~ ${r.end_time.slice(0,5)}</span>
                 </div>
-                ${r.location ? `<div class="tooltip-row">
-                    <span class="tooltip-label">위치:</span>
-                    <span class="tooltip-value">${r.location}</span>
-                </div>` : ''}
-                ${r.detail ? `<div class="tooltip-row">
-                    <span class="tooltip-label">내용:</span>
-                    <span class="tooltip-value">${r.detail}</span>
-                </div>` : ''}
+                ${(() => {
+                    const loc = getReservationLocation(r);
+                    return loc && loc !== '-' ? `<div class="tooltip-row">
+                        <span class="tooltip-label">위치:</span>
+                        <span class="tooltip-value">${loc}</span>
+                    </div>` : '';
+                })()}
+                ${(() => {
+                    const { cleanDetail } = extractLocationFromDetail(r.detail);
+                    return cleanDetail ? `<div class="tooltip-row">
+                        <span class="tooltip-label">내용:</span>
+                        <span class="tooltip-value">${cleanDetail}</span>
+                    </div>` : '';
+                })()}
                 ${isMine ? '<div class="tooltip-action">클릭하여 예약 취소</div>' : ''}
             `;
 
@@ -4158,7 +4164,11 @@
 
             const location = document.getElementById('modalLocation').value;
             const purpose = document.getElementById('modalPurpose').value;
-            const detail = document.getElementById('modalDetail').value;
+            const detailInput = document.getElementById('modalDetail').value;
+
+            // location을 detail에 합쳐서 저장 (DB에 location 컬럼이 없으므로)
+            const detail = location ? `[위치: ${location}] ${detailInput || ''}`.trim() : detailInput;
+            console.log('예약 정보:', { location, purpose, detail });
 
             if (!purpose) {
                 showToast('실험을 선택해주세요.', 'warning');
@@ -4183,7 +4193,6 @@
                     reservation_date: formatLocalDate(selectedDate),
                     start_time: startTime,
                     end_time: endTime,
-                    location: location,
                     purpose: purpose,
                     detail: detail || null,
                     status: status
@@ -4266,12 +4275,14 @@
                 return;
             }
 
-            list.innerHTML = data.map(r => `
+            list.innerHTML = data.map(r => {
+                const { cleanDetail } = extractLocationFromDetail(r.detail);
+                return `
                 <div class="reservation-item ${r.status}">
                     <div class="reservation-header">
                         <div>
                             <strong>🧪 ${r.purpose || '실험'}</strong>
-                            <span style="color: var(--text-secondary); font-size: 0.85rem;"> - 📍 ${r.location || '-'}</span>
+                            <span style="color: var(--text-secondary); font-size: 0.85rem;"> - 📍 ${getReservationLocation(r)}</span>
                         </div>
                         <span class="reservation-status status-${r.status}">${getReservationStatusText(r.status)}</span>
                     </div>
@@ -4284,10 +4295,10 @@
                             <span class="reservation-info-label">🕐 시간:</span>
                             <span>${r.start_time.slice(0, 5)} ~ ${r.end_time.slice(0, 5)}</span>
                         </div>
-                        ${r.detail ? `
+                        ${cleanDetail ? `
                         <div class="reservation-info-item">
                             <span class="reservation-info-label">📝 내용:</span>
-                            <span>${r.detail}</span>
+                            <span>${cleanDetail}</span>
                         </div>
                         ` : ''}
                     </div>
@@ -4305,7 +4316,7 @@
                         ` : ''}
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         async function loadSchedule() {
@@ -4358,7 +4369,7 @@
                         </div>
                         <div class="reservation-info-item">
                             <span class="reservation-info-label">📍</span>
-                            <span>${r.location || '-'}</span>
+                            <span>${getReservationLocation(r)}</span>
                         </div>
                         <div class="reservation-info-item">
                             <span class="reservation-info-label">👤</span>
@@ -5082,6 +5093,28 @@
                 'completed': '완료'
             };
             return map[status] || status;
+        }
+
+        // detail 필드에서 위치 정보 추출 (DB에 location 컬럼이 없으므로 detail에 [위치: xxx] 형태로 저장됨)
+        function extractLocationFromDetail(detail) {
+            if (!detail) return { location: '', cleanDetail: '' };
+            const match = detail.match(/^\[위치:\s*([^\]]+)\]\s*/);
+            if (match) {
+                return {
+                    location: match[1],
+                    cleanDetail: detail.replace(match[0], '').trim()
+                };
+            }
+            return { location: '', cleanDetail: detail };
+        }
+
+        // 예약 데이터에서 위치 가져오기 (location 필드 또는 detail에서 추출)
+        function getReservationLocation(r) {
+            // 먼저 location 필드 확인 (DB에 추가되면 사용)
+            if (r.location) return r.location;
+            // detail에서 추출
+            const { location } = extractLocationFromDetail(r.detail);
+            return location || '-';
         }
 
         function openModal(id) {
@@ -5889,22 +5922,32 @@
 
             for (const item of cart) {
                 try {
+                    // location을 detail에 합쳐서 저장 (DB에 location 컬럼이 없으므로)
+                    const detailWithLocation = item.experimentLocation
+                        ? `[위치: ${item.experimentLocation}] ${item.experimentDesc || ''}`.trim()
+                        : item.experimentDesc;
+
+                    const insertData = {
+                        user_id: currentUser.id,
+                        reservation_date: item.date,
+                        start_time: item.isNight ? '18:00:00' : item.startTime + ':00',
+                        end_time: item.isNight ? '23:59:00' : (item.endTime === '24:00' ? '23:59:00' : item.endTime + ':00'),
+                        purpose: item.experimentTitle,
+                        detail: detailWithLocation,
+                        status: 'pending'
+                    };
+                    console.log('카트 예약 데이터:', JSON.stringify(insertData, null, 2));
+
                     const { data, error } = await supabaseClient
                         .from('reservations')
-                        .insert([{
-                            user_id: currentUser.id,
-                            reservation_date: item.date,
-                            start_time: item.isNight ? '18:00:00' : item.startTime + ':00',
-                            end_time: item.isNight ? '23:59:00' : (item.endTime === '24:00' ? '23:59:00' : item.endTime + ':00'),
-                            location: item.experimentLocation,
-                            purpose: item.experimentTitle,
-                            detail: item.experimentDesc,
-                            status: 'pending'
-                        }])
+                        .insert([insertData])
                         .select()
                         .single();
 
-                    if (error) throw error;
+                    if (error) {
+                        console.error('카트 예약 에러:', JSON.stringify(error, null, 2));
+                        throw error;
+                    }
 
                     successCount++;
 
@@ -6031,23 +6074,28 @@
             const status = currentResubmitReservation.equipment?.approval_mode === 'auto' ? 'approved' : 'pending';
 
             try {
-                // 새 예약 생성
+                // 새 예약 생성 (location 필드는 detail에 포함되어 있음)
+                const insertData = {
+                    user_id: currentUser.id,
+                    reservation_date: date,
+                    start_time: startTime + ':00',
+                    end_time: endTime + ':00',
+                    purpose: purpose,
+                    detail: detail,
+                    status: status
+                };
+                console.log('재신청 예약 데이터:', JSON.stringify(insertData, null, 2));
+
                 const { data, error } = await supabaseClient
                     .from('reservations')
-                    .insert([{
-                        user_id: currentUser.id,
-                        reservation_date: date,
-                        start_time: startTime + ':00',
-                        end_time: endTime + ':00',
-                        location: currentResubmitReservation.location || '',
-                        purpose: purpose,
-                        detail: detail,
-                        status: status
-                    }])
+                    .insert([insertData])
                     .select()
                     .single();
 
-                if (error) throw error;
+                if (error) {
+                    console.error('재신청 에러:', JSON.stringify(error, null, 2));
+                    throw error;
+                }
 
                 closeModal('resubmitModal');
                 loadMyReservations();
