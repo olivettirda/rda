@@ -4170,22 +4170,28 @@
             const status = 'pending';
 
             try {
+                const insertData = {
+                    user_id: currentUser.id,
+                    reservation_date: formatLocalDate(selectedDate),
+                    start_time: startTime,
+                    end_time: endTime,
+                    location: location,
+                    purpose: purpose,
+                    detail: detail || null,
+                    status: status
+                };
+                console.log('예약 데이터:', insertData);
+
                 const { data, error } = await supabaseClient
                     .from('reservations')
-                    .insert([{
-                        user_id: currentUser.id,
-                        reservation_date: formatLocalDate(selectedDate),
-                        start_time: startTime,
-                        end_time: endTime,
-                        location: location,
-                        purpose: purpose,
-                        detail: detail,
-                        status: status
-                    }])
+                    .insert([insertData])
                     .select()
                     .single();
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase 에러:', error);
+                    throw error;
+                }
 
                 closeModal('reservationModal');
                 selectedTimeSlots = [];
