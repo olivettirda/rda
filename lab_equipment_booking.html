@@ -3963,8 +3963,9 @@
                     if (holidayName.includes('대체')) shortHolidayName = '대체';
                     else if (holidayName.includes('설날')) shortHolidayName = '설날';
                     else if (holidayName.includes('추석')) shortHolidayName = '추석';
-                    else if (holidayName.includes('부처님')) shortHolidayName = '석가탄신';
-                    else if (holidayName.includes('기독탄신')) shortHolidayName = '성탄절';
+                    else if (holidayName.includes('부처님')) shortHolidayName = '석가탄신일';
+                    else if (holidayName.includes('기독탄신') || holidayName.includes('성탄')) shortHolidayName = '크리스마스';
+                    else if (holidayName === '1월1일' || holidayName === '신정') shortHolidayName = '신정';
                     else shortHolidayName = holidayName;
                 }
 
@@ -4554,13 +4555,16 @@
             if (selectedTimeSlots.length > 0) {
                 const sortedSlots = [...selectedTimeSlots].sort();
                 const startSlot = sortedSlots[0];
-                const lastSlot = sortedSlots[sortedSlots.length - 1];
-                const [lastH, lastM] = lastSlot.split(':').map(Number);
-                const endMin = lastM + 10;
-                const endHour = endMin >= 60 ? lastH + 1 : lastH;
-                const endMinNorm = endMin >= 60 ? 0 : endMin;
-                const endSlot = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
                 const duration = selectedTimeSlots.length * 10;
+
+                // 종료 시간 계산 헬퍼
+                function calcEndTime(timeStr) {
+                    const [h, m] = timeStr.split(':').map(Number);
+                    const newM = m + 10;
+                    const newH = newM >= 60 ? h + 1 : h;
+                    const normM = newM >= 60 ? 0 : newM;
+                    return `${newH.toString().padStart(2, '0')}:${normM.toString().padStart(2, '0')}`;
+                }
 
                 // 다일 선택 완료 상태인지 확인
                 const isMultiDay = multiDaySelection.startDate && multiDaySelection.endDate &&
@@ -4570,8 +4574,13 @@
                 if (isMultiDay) {
                     const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
                     const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
-                    summaryText = `<strong>${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endSlot}</strong>`;
+                    // 다일 선택: multiDaySelection.endTime에서 종료 시간 계산
+                    const actualEndSlot = calcEndTime(multiDaySelection.endTime);
+                    summaryText = `<strong>${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${actualEndSlot}</strong>`;
                 } else {
+                    // 당일 선택: 마지막 슬롯에서 종료 시간 계산
+                    const lastSlot = sortedSlots[sortedSlots.length - 1];
+                    const endSlot = calcEndTime(lastSlot);
                     summaryText = `<strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})`;
                 }
 
@@ -4784,23 +4793,29 @@
 
             const sortedSlots = [...selectedTimeSlots].sort();
             const startTime = sortedSlots[0];
-            const lastSlot = sortedSlots[sortedSlots.length - 1];
-            const [lastH, lastM] = lastSlot.split(':').map(Number);
-            const endMin = lastM + 10;
-            const endHour = endMin >= 60 ? lastH + 1 : lastH;
-            const endMinNorm = endMin >= 60 ? 0 : endMin;
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+
+            // 종료 시간 계산 헬퍼
+            function addTenMinutes(timeStr) {
+                const [h, m] = timeStr.split(':').map(Number);
+                const newM = m + 10;
+                const newH = newM >= 60 ? h + 1 : h;
+                const normM = newM >= 60 ? 0 : newM;
+                return `${newH.toString().padStart(2, '0')}:${normM.toString().padStart(2, '0')}`;
+            }
 
             // 일시 통합 표시
             let dateTimeDisplay = '';
             if (multiDaySelection.startDate && multiDaySelection.endDate &&
                 formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate)) {
-                // 다일 선택
+                // 다일 선택: multiDaySelection.endTime 사용 (중간날 슬롯과 섞이지 않도록)
                 const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
                 const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-                dateTimeDisplay = `${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endTime}`;
+                const actualEndTime = addTenMinutes(multiDaySelection.endTime);
+                dateTimeDisplay = `${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${actualEndTime}`;
             } else {
                 // 당일 선택
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const endTime = addTenMinutes(lastSlot);
                 const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
                 dateTimeDisplay = `${dateDisplay} ${startTime} ~ ${endTime}`;
             }
