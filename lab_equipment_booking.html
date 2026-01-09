@@ -630,6 +630,77 @@
             text-align: center;
         }
 
+        .calendar-event.my-pending:hover,
+        .calendar-event.my-approved:hover {
+            opacity: 0.85;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        /* Calendar Event Tooltip */
+        .calendar-event-tooltip {
+            position: fixed;
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 200px;
+            max-width: 280px;
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        .calendar-event-tooltip .tooltip-header {
+            font-weight: 600;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .calendar-event-tooltip .tooltip-status {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .calendar-event-tooltip .tooltip-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .calendar-event-tooltip .tooltip-status.approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .calendar-event-tooltip .tooltip-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .calendar-event-tooltip .tooltip-label {
+            color: var(--text-secondary);
+            min-width: 50px;
+        }
+
+        .calendar-event-tooltip .tooltip-value {
+            color: var(--text-primary);
+        }
+
+        .calendar-event-tooltip .tooltip-action {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-default);
+            font-size: 0.75rem;
+            color: var(--primary-main);
+            text-align: center;
+        }
+
         /* Calendar Legend */
         .calendar-legend {
             display: flex;
@@ -1955,6 +2026,15 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="form-group mb-3">
+                                        <label class="form-label">실험 위치 <span style="color: var(--error);">*</span></label>
+                                        <select class="form-select" id="experimentLocation">
+                                            <option value="">-- 위치 선택 --</option>
+                                            <option value="분자육종실험실">분자육종실험실</option>
+                                            <option value="가공적성실험실">가공적성실험실</option>
+                                            <option value="생공">생공</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group mb-3">
                                         <label class="form-label">실험 선택</label>
                                         <select class="form-select" id="experimentSelect" onchange="handleExperimentSelect()">
                                             <option value="">-- 선택하세요 --</option>
@@ -2363,6 +2443,10 @@
                 <button class="modal-close" onclick="closeModal('reservationModal')">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">실험 위치</label>
+                    <input type="text" class="form-input" id="modalLocation" disabled>
+                </div>
                 <div class="form-group">
                     <label class="form-label">선택한 날짜</label>
                     <input type="text" class="form-input" id="modalDate" disabled>
@@ -3089,6 +3173,9 @@
             loadCalendarEvents();
         }
 
+        // 캘린더 예약 데이터 저장용
+        let calendarReservations = {};
+
         async function loadCalendarEvents() {
             const year = currentMonth.getFullYear();
             const month = currentMonth.getMonth();
@@ -3102,6 +3189,14 @@
                 .lte('reservation_date', endDate)
                 .in('status', ['pending', 'approved'])
                 .order('start_time', { ascending: true });
+
+            // 예약 데이터 저장
+            calendarReservations = {};
+            if (data) {
+                data.forEach(r => {
+                    calendarReservations[r.id] = r;
+                });
+            }
 
             if (data) {
                 const eventsByDate = {};
@@ -3125,9 +3220,13 @@
                                 : e.status;
                             const timeStr = e.start_time.slice(0, 5);
                             const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
-                            const purposeStr = e.purpose ? ` - ${e.purpose}` : '';
+                            const clickable = isMine ? 'onclick="showReservationCancelConfirm(' + e.id + ')" style="cursor:pointer;"' : '';
 
-                            return `<div class="calendar-event ${statusClass}" title="${displayName}${purposeStr} (${e.start_time.slice(0,5)}~${e.end_time.slice(0,5)})">
+                            return `<div class="calendar-event ${statusClass}"
+                                data-reservation-id="${e.id}"
+                                onmouseenter="showEventTooltip(event, ${e.id})"
+                                onmouseleave="hideEventTooltip()"
+                                ${clickable}>
                                 ${timeStr} ${displayName}
                             </div>`;
                         }).join('');
@@ -3139,6 +3238,109 @@
                         el.innerHTML = html;
                     }
                 });
+            }
+        }
+
+        // 캘린더 이벤트 툴팁 표시
+        function showEventTooltip(event, reservationId) {
+            const r = calendarReservations[reservationId];
+            if (!r) return;
+
+            // 기존 툴팁 제거
+            hideEventTooltip();
+
+            const isMine = r.user_id === currentUser.id;
+            const statusText = r.status === 'approved' ? '승인됨' : '대기중';
+            const statusClass = r.status;
+            const userName = isMine ? '나' : (r.users?.name || '알 수 없음');
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'calendar-event-tooltip';
+            tooltip.id = 'eventTooltip';
+            tooltip.innerHTML = `
+                <div class="tooltip-header">
+                    <span>${r.purpose || '예약'}</span>
+                    <span class="tooltip-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-label">예약자:</span>
+                    <span class="tooltip-value">${userName}</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-label">시간:</span>
+                    <span class="tooltip-value">${r.start_time.slice(0,5)} ~ ${r.end_time.slice(0,5)}</span>
+                </div>
+                ${r.location ? `<div class="tooltip-row">
+                    <span class="tooltip-label">위치:</span>
+                    <span class="tooltip-value">${r.location}</span>
+                </div>` : ''}
+                ${r.detail ? `<div class="tooltip-row">
+                    <span class="tooltip-label">내용:</span>
+                    <span class="tooltip-value">${r.detail}</span>
+                </div>` : ''}
+                ${isMine ? '<div class="tooltip-action">클릭하여 예약 취소</div>' : ''}
+            `;
+
+            document.body.appendChild(tooltip);
+
+            // 위치 조정
+            const rect = event.target.getBoundingClientRect();
+            const tooltipRect = tooltip.getBoundingClientRect();
+
+            let left = rect.right + 10;
+            let top = rect.top;
+
+            // 화면 오른쪽 넘어가면 왼쪽에 표시
+            if (left + tooltipRect.width > window.innerWidth - 20) {
+                left = rect.left - tooltipRect.width - 10;
+            }
+            // 화면 아래 넘어가면 위로 조정
+            if (top + tooltipRect.height > window.innerHeight - 20) {
+                top = window.innerHeight - tooltipRect.height - 20;
+            }
+
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+        }
+
+        function hideEventTooltip() {
+            const tooltip = document.getElementById('eventTooltip');
+            if (tooltip) {
+                tooltip.remove();
+            }
+        }
+
+        // 내 예약 취소 확인
+        function showReservationCancelConfirm(reservationId) {
+            const r = calendarReservations[reservationId];
+            if (!r) return;
+            if (r.user_id !== currentUser.id) {
+                showToast('본인의 예약만 취소할 수 있습니다.', 'warning');
+                return;
+            }
+
+            hideEventTooltip();
+
+            if (confirm(`예약을 취소하시겠습니까?\n\n실험: ${r.purpose || '-'}\n시간: ${r.start_time.slice(0,5)} ~ ${r.end_time.slice(0,5)}\n날짜: ${r.reservation_date}`)) {
+                cancelReservationDirect(reservationId);
+            }
+        }
+
+        // 바로 예약 취소 (관리자 승인 불필요)
+        async function cancelReservationDirect(reservationId) {
+            try {
+                const { error } = await supabaseClient
+                    .from('reservations')
+                    .update({ status: 'cancelled' })
+                    .eq('id', reservationId);
+
+                if (error) throw error;
+
+                showToast('예약이 취소되었습니다.', 'success');
+                loadCalendarEvents();
+                loadMyReservations();
+            } catch (err) {
+                showToast('예약 취소에 실패했습니다: ' + err.message, 'error');
             }
         }
 
@@ -3342,6 +3544,13 @@
                 return;
             }
 
+            // 실험 위치 확인
+            const experimentLocation = document.getElementById('experimentLocation')?.value || '';
+            if (!experimentLocation) {
+                showToast('실험 위치를 선택해주세요.', 'warning');
+                return;
+            }
+
             // 실험 정보 확인
             const experimentTitle = getExperimentTitle();
             const experimentDesc = document.getElementById('experimentDescription')?.value || '';
@@ -3362,6 +3571,7 @@
 
             const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
+            document.getElementById('modalLocation').value = experimentLocation;
             document.getElementById('modalDate').value = dateDisplay;
             document.getElementById('modalTime').value = `${startTime} ~ ${endTime}`;
             document.getElementById('modalPurpose').value = experimentTitle;
@@ -3373,6 +3583,7 @@
         // 이전 예약 관련 기능 제거됨 (실험 기반 예약 시스템으로 변경)
 
         async function submitReservation() {
+            const location = document.getElementById('modalLocation').value;
             const purpose = document.getElementById('modalPurpose').value;
             const detail = document.getElementById('modalDetail').value;
             const memo = document.getElementById('modalMemo').value;
@@ -3402,6 +3613,7 @@
                         reservation_date: selectedDate.toISOString().split('T')[0],
                         start_time: startTime,
                         end_time: endTime,
+                        location: location,
                         purpose: purpose,
                         detail: detail,
                         memo: memo,
@@ -4947,6 +5159,13 @@
                 return;
             }
 
+            // 실험 위치 확인
+            const experimentLocation = document.getElementById('experimentLocation')?.value || '';
+            if (!experimentLocation) {
+                showToast('실험 위치를 선택해주세요.', 'warning');
+                return;
+            }
+
             // 실험 정보 확인
             const experimentTitle = getExperimentTitle();
             const experimentDesc = document.getElementById('experimentDescription')?.value || '';
@@ -4971,6 +5190,7 @@
                 startTime: startTime,
                 endTime: endTime,
                 slots: [...selectedTimeSlots],
+                experimentLocation: experimentLocation,
                 experimentTitle: experimentTitle,
                 experimentDesc: experimentDesc
             };
@@ -5025,6 +5245,7 @@
                 <div class="cart-item">
                     <div class="cart-item-info">
                         <div class="cart-item-equipment">🧪 ${item.experimentTitle}</div>
+                        <div class="cart-item-time">📍 ${item.experimentLocation || '-'}</div>
                         <div class="cart-item-time">📅 ${item.date} ${item.startTime}~${item.endTime}</div>
                     </div>
                     <button class="btn-icon" onclick="removeFromCart(${item.id})" title="삭제" style="font-size: 1rem; color: var(--error);">✕</button>
@@ -5061,6 +5282,7 @@
             const summaryHtml = cart.map(item => `
                 <div style="padding: var(--space-3); border: 1px solid var(--border-default); border-radius: 6px; margin-bottom: var(--space-2);">
                     <strong>🧪 ${item.experimentTitle}</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">📍 ${item.experimentLocation || '-'}</span><br>
                     <span style="color: var(--text-secondary); font-size: 0.85rem;">📅 ${item.date} ${item.startTime} ~ ${item.endTime}</span>
                     ${item.experimentDesc ? `<br><span style="color: var(--text-secondary); font-size: 0.8rem;">${item.experimentDesc}</span>` : ''}
                 </div>
@@ -5088,6 +5310,7 @@
                             reservation_date: item.date,
                             start_time: item.startTime + ':00',
                             end_time: item.endTime + ':00',
+                            location: item.experimentLocation,
                             purpose: item.experimentTitle,
                             detail: item.experimentDesc,
                             memo: memo,
