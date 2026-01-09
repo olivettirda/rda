@@ -825,6 +825,8 @@
             padding: var(--space-4);
             max-height: 500px;
             overflow-y: auto;
+            overflow-anchor: none;
+            scroll-behavior: auto;
         }
 
         .time-slot {
@@ -3224,6 +3226,7 @@
 
         async function renderEquipmentGrid() {
             const grid = document.getElementById('equipmentGrid');
+            if (!grid) return;
 
             // 즐겨찾기 목록 가져오기
             let favoriteIds = [];
@@ -3797,6 +3800,9 @@
             const header = document.getElementById('timeSlotsHeader');
             const body = document.getElementById('timeSlotsBody');
 
+            // 스크롤 위치 저장
+            const savedScrollTop = body ? body.scrollTop : 0;
+
             const dateStr = formatLocalDate(selectedDate);
             const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
 
@@ -3837,7 +3843,7 @@
 
                     html += `
                         <div class="${slotClass}"
-                             onclick="toggleTimeSlot('${startTime}')"
+                             onclick="event.preventDefault(); toggleTimeSlot('${startTime}')"
                              title="${startTime} - ${endTime}">
                             <span class="slot-time">${startTime.split(':')[1]}</span>
                         </div>
@@ -3941,6 +3947,11 @@
             } else {
                 actionsContainer.style.display = 'none';
                 actionsContainer.innerHTML = '';
+            }
+
+            // 스크롤 위치 복원
+            if (body && savedScrollTop > 0) {
+                body.scrollTop = savedScrollTop;
             }
         }
 
@@ -4145,6 +4156,12 @@
         // 이전 예약 관련 기능 제거됨 (실험 기반 예약 시스템으로 변경)
 
         async function submitReservation() {
+            // 슈퍼관리자는 예약 불가
+            if (currentUser && currentUser.id === 0) {
+                showToast('슈퍼관리자 계정으로는 예약할 수 없습니다. 일반 계정으로 로그인해주세요.', 'warning');
+                return;
+            }
+
             const location = document.getElementById('modalLocation').value;
             const purpose = document.getElementById('modalPurpose').value;
             const detail = document.getElementById('modalDetail').value;
@@ -5861,6 +5878,12 @@
         }
 
         async function submitCartReservations() {
+            // 슈퍼관리자는 예약 불가
+            if (currentUser && currentUser.id === 0) {
+                showToast('슈퍼관리자 계정으로는 예약할 수 없습니다. 일반 계정으로 로그인해주세요.', 'warning');
+                return;
+            }
+
             let successCount = 0;
             let errorCount = 0;
 
