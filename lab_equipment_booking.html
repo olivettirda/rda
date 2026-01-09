@@ -945,6 +945,12 @@
             border-color: var(--primary-main);
         }
 
+        .time-slot-mini.first-selected {
+            background: #fff3cd;
+            border-color: #ffc107;
+            box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+        }
+
         .time-slot-mini.night-slot {
             background: #f3f0ff;
             border-color: #c9bff5;
@@ -2655,7 +2661,7 @@
     <div class="modal-overlay" id="reservationModal">
         <div class="modal">
             <div class="modal-header">
-                <h3>예약 신청</h3>
+                <h3>신청 내역 확인</h3>
                 <button class="modal-close" onclick="closeModal('reservationModal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -2664,12 +2670,8 @@
                     <input type="text" class="form-input" id="modalLocation" disabled>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">선택한 날짜</label>
-                    <input type="text" class="form-input" id="modalDate" disabled>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">선택한 시간</label>
-                    <input type="text" class="form-input" id="modalTime" disabled>
+                    <label class="form-label">선택한 일시</label>
+                    <input type="text" class="form-input" id="modalDateTime" disabled>
                 </div>
                 <div class="form-group">
                     <label class="form-label">실험 제목 <span class="required">*</span></label>
@@ -3750,11 +3752,14 @@
                     const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
                     const isSelected = selectedTimeSlots.includes(startTime);
+                    const isFirstSelected = (firstSelectedSlot === startTime) || (multiDaySelection.startTime === startTime && formatLocalDate(selectedDate) === formatLocalDate(multiDaySelection.startDate));
                     const isNightTime = hour >= 18;
 
                     let slotClass = 'time-slot-mini';
                     if (isSelected) {
                         slotClass += ' selected';
+                    } else if (isFirstSelected) {
+                        slotClass += ' first-selected';
                     }
                     if (isNightTime) {
                         slotClass += ' night-slot';
@@ -3821,9 +3826,11 @@
                 const duration = selectedTimeSlots.length * 10;
 
                 // 다일 선택 완료 상태인지 확인
+                const isMultiDay = multiDaySelection.startDate && multiDaySelection.endDate &&
+                    formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate);
+
                 let summaryText = '';
-                if (multiDaySelection.startDate && multiDaySelection.endDate &&
-                    formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate)) {
+                if (isMultiDay) {
                     const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
                     const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
                     summaryText = `<strong>${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endSlot}</strong>`;
@@ -3831,10 +3838,25 @@
                     summaryText = `<strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})`;
                 }
 
+                // 야간 포함 옵션 (다일 선택 시에만)
+                let nightOptionHtml = '';
+                if (isMultiDay) {
+                    const checked = multiDaySelection.includeNight ? 'checked' : '';
+                    nightOptionHtml = `
+                        <div class="night-option" style="margin-top: 8px; padding: 8px; background: #f3f0ff; border-radius: 6px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="includeNightCheckbox" ${checked} onchange="toggleNightInclusion()">
+                                <span style="color: #6b5b95;">🌙 중간 날 야간(18:00~24:00) 포함</span>
+                            </label>
+                        </div>
+                    `;
+                }
+
                 body.innerHTML += `
                     <div class="selected-time-summary">
                         ${summaryText}
                     </div>
+                    ${nightOptionHtml}
                     <div style="display: flex; gap: 8px; margin-top: var(--space-4);">
                         <button class="btn btn-outline" style="flex: 1;" onclick="addToCart()">
                             장바구니 담기
@@ -3845,6 +3867,14 @@
                     </div>
                 `;
             }
+        }
+
+        // 야간 포함 옵션 토글
+        function toggleNightInclusion() {
+            multiDaySelection.includeNight = document.getElementById('includeNightCheckbox').checked;
+            // 슬롯 재생성
+            selectedTimeSlots = generateMultiDaySlots();
+            loadTimeSlots();
         }
 
         function toggleTimeSlot(time) {
@@ -3908,6 +3938,7 @@
             const endDate = multiDaySelection.endDate;
             const startTime = multiDaySelection.startTime;
             const endTime = multiDaySelection.endTime;
+            const includeNight = multiDaySelection.includeNight;
 
             // 같은 날인 경우
             if (formatLocalDate(startDate) === formatLocalDate(endDate)) {
@@ -3915,20 +3946,21 @@
             }
 
             // 다른 날인 경우
-            // 첫째 날: 시작 시간부터 24:00까지
+            // 첫째 날: 시작 시간부터 (야간 포함 여부에 따라 18:00 또는 24:00까지)
             const [startH, startM] = startTime.split(':').map(Number);
-            for (let t = startH * 60 + startM; t < 24 * 60; t += 10) {
+            const firstDayEnd = includeNight ? 24 * 60 : 18 * 60;
+            for (let t = startH * 60 + startM; t < firstDayEnd; t += 10) {
                 const h = Math.floor(t / 60);
                 const m = t % 60;
                 slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
             }
 
-            // 중간 날들: 전체 시간 (07:00~24:00, 야간 포함 여부에 따라)
+            // 중간 날들: 야간 포함 여부에 따라 07:00~18:00 또는 07:00~24:00
             const currentDate = new Date(startDate);
             currentDate.setDate(currentDate.getDate() + 1);
+            const midDayEnd = includeNight ? 24 * 60 : 18 * 60;
             while (formatLocalDate(currentDate) < formatLocalDate(endDate)) {
-                // 중간 날은 7:00부터 24:00까지
-                for (let t = 7 * 60; t < 24 * 60; t += 10) {
+                for (let t = 7 * 60; t < midDayEnd; t += 10) {
                     const h = Math.floor(t / 60);
                     const m = t % 60;
                     slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
@@ -4013,11 +4045,22 @@
             const endMinNorm = endMin >= 60 ? 0 : endMin;
             const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
-            const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+            // 일시 통합 표시
+            let dateTimeDisplay = '';
+            if (multiDaySelection.startDate && multiDaySelection.endDate &&
+                formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate)) {
+                // 다일 선택
+                const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                dateTimeDisplay = `${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endTime}`;
+            } else {
+                // 당일 선택
+                const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+                dateTimeDisplay = `${dateDisplay} ${startTime} ~ ${endTime}`;
+            }
 
             document.getElementById('modalLocation').value = experimentLocation;
-            document.getElementById('modalDate').value = dateDisplay;
-            document.getElementById('modalTime').value = `${startTime} ~ ${endTime}`;
+            document.getElementById('modalDateTime').value = dateTimeDisplay;
             document.getElementById('modalPurpose').value = experimentTitle;
             document.getElementById('modalDetail').value = experimentDesc;
 
