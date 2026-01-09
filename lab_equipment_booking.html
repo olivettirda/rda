@@ -825,6 +825,8 @@
             padding: var(--space-4);
             max-height: 500px;
             overflow-y: auto;
+            overflow-anchor: none;
+            scroll-behavior: auto;
         }
 
         .time-slot {
@@ -3224,6 +3226,7 @@
 
         async function renderEquipmentGrid() {
             const grid = document.getElementById('equipmentGrid');
+            if (!grid) return;
 
             // 즐겨찾기 목록 가져오기
             let favoriteIds = [];
@@ -3797,6 +3800,9 @@
             const header = document.getElementById('timeSlotsHeader');
             const body = document.getElementById('timeSlotsBody');
 
+            // 스크롤 위치 저장
+            const savedScrollTop = body ? body.scrollTop : 0;
+
             const dateStr = formatLocalDate(selectedDate);
             const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
 
@@ -3837,7 +3843,7 @@
 
                     html += `
                         <div class="${slotClass}"
-                             onclick="toggleTimeSlot('${startTime}')"
+                             onclick="event.preventDefault(); toggleTimeSlot('${startTime}')"
                              title="${startTime} - ${endTime}">
                             <span class="slot-time">${startTime.split(':')[1]}</span>
                         </div>
@@ -3941,6 +3947,11 @@
             } else {
                 actionsContainer.style.display = 'none';
                 actionsContainer.innerHTML = '';
+            }
+
+            // 스크롤 위치 복원
+            if (body && savedScrollTop > 0) {
+                body.scrollTop = savedScrollTop;
             }
         }
 
