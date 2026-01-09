@@ -3810,9 +3810,14 @@
             const isMultiDayEndMode = multiDaySelection.startDate && multiDaySelection.startTime && multiDaySelection.endDate;
             const isSelectingEndTime = multiDaySelection.startDate && multiDaySelection.startTime && !multiDaySelection.endTime;
 
+            // 시작 시간만 선택된 상태 (당일)
+            const hasStartTimeOnly = firstSelectedSlot && selectedTimeSlots.length === 0 && !isSelectingEndTime;
+
             if (isMultiDayEndMode || isSelectingEndTime) {
                 const startDateDisplay = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-                header.innerHTML = `📅 ${startDateDisplay} ${multiDaySelection.startTime} → ${dateDisplay}`;
+                header.innerHTML = `📅 <span style="color: var(--primary-main);">시작</span> ${startDateDisplay} ${multiDaySelection.startTime} → <span style="color: var(--error);">종료</span> ${dateDisplay}`;
+            } else if (hasStartTimeOnly) {
+                header.innerHTML = `📅 ${dateDisplay} - <span style="color: var(--primary-main);">시작</span> ${firstSelectedSlot} (종료 시간 선택)`;
             } else {
                 header.innerHTML = `📅 ${dateDisplay}`;
             }
@@ -3869,25 +3874,6 @@
                 </div>
             `;
             body.innerHTML = headerHtml + html;
-
-            // 다일 선택 힌트
-            if (isSelectingEndTime) {
-                body.innerHTML = `
-                    <div class="range-select-hint" style="background: #e8f4ff; border-color: var(--primary-main);">
-                        🗓️ <strong>${multiDaySelection.startDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'})} ${multiDaySelection.startTime}</strong> 부터 시작<br>
-                        <span style="font-size: 0.85em; color: var(--text-secondary);">다른 날짜를 클릭하거나 종료 시간을 선택하세요</span>
-                    </div>
-                ` + body.innerHTML;
-            }
-
-            // 범위 선택 힌트 (당일)
-            if (firstSelectedSlot && selectedTimeSlots.length === 0 && !isSelectingEndTime) {
-                body.innerHTML = `
-                    <div class="range-select-hint">
-                        시작 시간 ${firstSelectedSlot} 선택됨 - 종료 시간을 클릭하세요
-                    </div>
-                ` + body.innerHTML;
-            }
 
             // 선택된 시간 요약 및 예약 버튼 (스크롤 영역 밖에 표시)
             const actionsContainer = document.getElementById('timeSlotsActions');
@@ -4184,22 +4170,28 @@
             const status = 'pending';
 
             try {
+                const insertData = {
+                    user_id: currentUser.id,
+                    reservation_date: formatLocalDate(selectedDate),
+                    start_time: startTime,
+                    end_time: endTime,
+                    location: location,
+                    purpose: purpose,
+                    detail: detail || null,
+                    status: status
+                };
+                console.log('예약 데이터:', insertData);
+
                 const { data, error } = await supabaseClient
                     .from('reservations')
-                    .insert([{
-                        user_id: currentUser.id,
-                        reservation_date: formatLocalDate(selectedDate),
-                        start_time: startTime,
-                        end_time: endTime,
-                        location: location,
-                        purpose: purpose,
-                        detail: detail,
-                        status: status
-                    }])
+                    .insert([insertData])
                     .select()
                     .single();
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase 에러:', error);
+                    throw error;
+                }
 
                 closeModal('reservationModal');
                 selectedTimeSlots = [];
