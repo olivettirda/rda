@@ -1086,46 +1086,132 @@
             color: #721c24;
         }
 
-        /* Equipment List Tab */
-        .equipment-list-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: var(--space-4);
+        /* Equipment List Tab - Windows Explorer Detail View Style */
+        .equipment-list-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-6);
         }
 
-        .equipment-list-item {
-            background: white;
+        .equipment-location-group {
             border: 1px solid var(--border-default);
             border-radius: 8px;
-            padding: var(--space-4);
-            transition: all 0.2s;
+            overflow: hidden;
         }
 
-        .equipment-list-item:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        .equipment-list-item .equipment-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: var(--space-3);
-        }
-
-        .equipment-list-item .equipment-name {
-            font-size: 1.1rem;
+        .equipment-location-header {
+            background: var(--primary-dark);
+            color: white;
+            padding: var(--space-3) var(--space-4);
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .equipment-location-header:hover {
+            background: #0a2820;
+        }
+
+        .equipment-location-header .location-count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: normal;
+        }
+
+        .equipment-location-header .toggle-icon {
+            margin-left: auto;
+            transition: transform 0.2s;
+        }
+
+        .equipment-location-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .equipment-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .equipment-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .equipment-table th {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border-default);
+            white-space: nowrap;
+        }
+
+        .equipment-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+
+        .equipment-table tr:hover {
+            background: #f8fbfc;
+        }
+
+        .equipment-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .equipment-table .eq-name {
+            font-weight: 500;
             color: var(--text-primary);
         }
 
-        .equipment-list-item .equipment-info {
-            font-size: 0.9rem;
+        .equipment-table .eq-desc {
             color: var(--text-secondary);
-            line-height: 1.6;
+            font-size: 0.85rem;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .equipment-list-item .equipment-info p {
-            margin-bottom: 4px;
+        .equipment-table .eq-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .equipment-table .eq-status.available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .equipment-table .eq-status.maintenance {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .equipment-table .eq-status.broken {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .equipment-table .eq-approval {
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .equipment-table th:nth-child(3),
+            .equipment-table td:nth-child(3) {
+                display: none;
+            }
         }
 
         /* Time Mode Toggle */
@@ -1962,18 +2048,13 @@
                 <!-- Equipment List Tab -->
                 <div class="tab-content" id="equipmentListTab">
                     <h2 class="mb-6">🔬 장비 목록</h2>
-                    <p style="margin-bottom: 16px; color: var(--text-secondary);">연구실에서 사용 가능한 장비 목록입니다. 예약은 '실험예약' 탭에서 진행해주세요.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <p style="color: var(--text-secondary); margin: 0;">연구실에서 사용 가능한 장비 목록입니다. 예약은 '실험예약' 탭에서 진행해주세요.</p>
+                        <input type="text" class="form-input" id="equipmentSearchInput" placeholder="🔍 장비명 검색..." style="width: 220px;" oninput="filterEquipmentList()">
+                    </div>
 
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>전체 장비</h3>
-                            <input type="text" class="form-input" id="equipmentSearchInput" placeholder="장비명 검색..." style="width: 200px;" oninput="filterEquipmentList()">
-                        </div>
-                        <div class="card-body">
-                            <div class="equipment-list-grid" id="equipmentListGrid">
-                                <!-- 동적 로드 -->
-                            </div>
-                        </div>
+                    <div class="equipment-list-container" id="equipmentListGrid">
+                        <!-- 동적 로드: 위치별 그룹 -->
                     </div>
                 </div>
 
@@ -2977,33 +3058,95 @@
                 equipmentList.map(eq => `<option value="${eq.id}">${eq.name}</option>`).join('');
         }
 
-        // 장비 목록 탭 로드
+        // 장비 목록 탭 로드 (위치별 그룹화, 테이블 형식)
         function loadEquipmentList() {
+            renderEquipmentListGrouped(equipmentList);
+        }
+
+        // 위치별 그룹화 렌더링
+        function renderEquipmentListGrouped(items) {
             const grid = document.getElementById('equipmentListGrid');
             if (!grid) return;
 
-            grid.innerHTML = equipmentList.map(eq => `
-                <div class="equipment-list-item">
-                    <div class="equipment-header">
-                        <span class="equipment-name">${eq.display_name || eq.name}</span>
-                        <span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span>
+            if (items.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><p>검색 결과가 없습니다.</p></div>';
+                return;
+            }
+
+            // 위치별로 그룹화
+            const groupedByLocation = {};
+            items.forEach(eq => {
+                const loc = eq.location || '기타';
+                if (!groupedByLocation[loc]) {
+                    groupedByLocation[loc] = [];
+                }
+                groupedByLocation[loc].push(eq);
+            });
+
+            // 위치 정렬 (가나다순)
+            const sortedLocations = Object.keys(groupedByLocation).sort();
+
+            let html = '';
+            sortedLocations.forEach(location => {
+                const equipments = groupedByLocation[location];
+                const groupId = 'loc-' + location.replace(/\s/g, '-');
+
+                html += `
+                    <div class="equipment-location-group">
+                        <div class="equipment-location-header" onclick="toggleLocationGroup('${groupId}')">
+                            <span>📍 ${location}</span>
+                            <span class="location-count">${equipments.length}개</span>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div class="equipment-table-wrapper" id="${groupId}">
+                            <table class="equipment-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;">장비명</th>
+                                        <th style="width: 35%;">설명</th>
+                                        <th style="width: 15%;">최대 시간</th>
+                                        <th style="width: 12%;">상태</th>
+                                        <th style="width: 13%;">승인</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${equipments.map(eq => `
+                                        <tr>
+                                            <td class="eq-name">${eq.display_name || eq.name}</td>
+                                            <td class="eq-desc" title="${eq.description || '-'}">${eq.description || '-'}</td>
+                                            <td>${eq.max_duration_hours}시간</td>
+                                            <td><span class="eq-status ${eq.status}">${getStatusText(eq.status)}</span></td>
+                                            <td class="eq-approval">${eq.approval_mode === 'auto' ? '⚡ 자동' : '🔒 승인필요'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="equipment-info">
-                        <p><strong>📍 위치:</strong> ${eq.location}</p>
-                        ${eq.description ? `<p><strong>📝 설명:</strong> ${eq.description}</p>` : ''}
-                        <p><strong>⏱️ 최대 사용시간:</strong> ${eq.max_duration_hours}시간</p>
-                        <p><strong>🔐 승인방식:</strong> ${eq.approval_mode === 'auto' ? '자동승인' : '관리자 승인 필요'}</p>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            });
+
+            grid.innerHTML = html;
+        }
+
+        // 위치 그룹 토글
+        function toggleLocationGroup(groupId) {
+            const wrapper = document.getElementById(groupId);
+            const header = wrapper.previousElementSibling;
+
+            if (wrapper.style.display === 'none') {
+                wrapper.style.display = 'block';
+                header.classList.remove('collapsed');
+            } else {
+                wrapper.style.display = 'none';
+                header.classList.add('collapsed');
+            }
         }
 
         // 장비 목록 검색 필터
         function filterEquipmentList() {
             const searchInput = document.getElementById('equipmentSearchInput');
             const searchTerm = searchInput.value.toLowerCase();
-            const grid = document.getElementById('equipmentListGrid');
-            if (!grid) return;
 
             const filtered = equipmentList.filter(eq =>
                 (eq.display_name || eq.name).toLowerCase().includes(searchTerm) ||
@@ -3011,20 +3154,7 @@
                 (eq.description || '').toLowerCase().includes(searchTerm)
             );
 
-            grid.innerHTML = filtered.map(eq => `
-                <div class="equipment-list-item">
-                    <div class="equipment-header">
-                        <span class="equipment-name">${eq.display_name || eq.name}</span>
-                        <span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span>
-                    </div>
-                    <div class="equipment-info">
-                        <p><strong>📍 위치:</strong> ${eq.location}</p>
-                        ${eq.description ? `<p><strong>📝 설명:</strong> ${eq.description}</p>` : ''}
-                        <p><strong>⏱️ 최대 사용시간:</strong> ${eq.max_duration_hours}시간</p>
-                        <p><strong>🔐 승인방식:</strong> ${eq.approval_mode === 'auto' ? '자동승인' : '관리자 승인 필요'}</p>
-                    </div>
-                </div>
-            `).join('');
+            renderEquipmentListGrouped(filtered);
         }
 
         // 실험 선택 핸들러
