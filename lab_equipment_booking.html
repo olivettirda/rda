@@ -546,6 +546,26 @@
             background: var(--bg-page);
         }
 
+        .calendar-weekday:first-child {
+            color: #c45a5a;
+        }
+
+        .calendar-weekday:last-child {
+            color: #5a7fc4;
+        }
+
+        .calendar-day.sunday .calendar-day-number {
+            color: #c45a5a;
+        }
+
+        .calendar-day.saturday .calendar-day-number {
+            color: #5a7fc4;
+        }
+
+        .calendar-day.selected .calendar-day-number {
+            color: white;
+        }
+
         .calendar-day {
             padding: var(--space-3);
             min-height: 80px;
@@ -2152,6 +2172,7 @@
                                     <div class="time-mode-toggle">
                                         <button class="btn btn-sm" id="timeModeAll" onclick="setTimeMode('allday')">하루 종일</button>
                                         <button class="btn btn-sm btn-primary" id="timeModeDetail" onclick="setTimeMode('detail')">시간 지정</button>
+                                        <button class="btn btn-sm" id="timeModeNight" onclick="setTimeMode('night')">🌙 야간</button>
                                     </div>
                                 </div>
                                 <div class="card-body" id="timeSlotsPanel">
@@ -3177,31 +3198,45 @@
             timeMode = mode;
             const allBtn = document.getElementById('timeModeAll');
             const detailBtn = document.getElementById('timeModeDetail');
+            const nightBtn = document.getElementById('timeModeNight');
             const timeSlotsPanel = document.getElementById('timeSlotsPanel');
+
+            // 모든 버튼 초기화
+            [allBtn, detailBtn, nightBtn].forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline');
+            });
 
             if (mode === 'allday') {
                 allBtn.classList.add('btn-primary');
                 allBtn.classList.remove('btn-outline');
-                detailBtn.classList.remove('btn-primary');
-                detailBtn.classList.add('btn-outline');
                 if (timeSlotsPanel) {
                     timeSlotsPanel.style.display = 'none';
                 }
-                // 하루 종일 모드: 자동으로 09:00~18:00 선택
+                // 하루 종일 모드: 자동으로 07:00~18:00 선택
                 if (selectedDate) {
                     selectedTimeSlots = [];
-                    for (let h = 9; h < 18; h++) {
+                    for (let h = 7; h < 18; h++) {
                         for (let m = 0; m < 60; m += 10) {
                             selectedTimeSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
                         }
                     }
-                    showToast('하루 종일(09:00~18:00) 선택됨', 'info');
+                    showToast('하루 종일(07:00~18:00) 선택됨', 'info');
+                }
+            } else if (mode === 'night') {
+                nightBtn.classList.add('btn-primary');
+                nightBtn.classList.remove('btn-outline');
+                if (timeSlotsPanel) {
+                    timeSlotsPanel.style.display = 'none';
+                }
+                // 야간 모드: 18:00~23:59 (통으로)
+                if (selectedDate) {
+                    selectedTimeSlots = ['NIGHT'];
+                    showToast('야간(18:00~24:00) 선택됨', 'info');
                 }
             } else {
                 detailBtn.classList.add('btn-primary');
                 detailBtn.classList.remove('btn-outline');
-                allBtn.classList.remove('btn-primary');
-                allBtn.classList.add('btn-outline');
                 if (timeSlotsPanel) {
                     timeSlotsPanel.style.display = 'block';
                 }
@@ -3277,6 +3312,7 @@
                 const date = new Date(startDate);
                 date.setDate(date.getDate() + i);
 
+                const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
                 const isOtherMonth = date.getMonth() !== month;
                 const isToday = date.getTime() === today.getTime();
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
@@ -3286,12 +3322,14 @@
                 if (isOtherMonth) classes += ' other-month';
                 if (isToday) classes += ' today';
                 if (isSelected) classes += ' selected';
+                if (dayOfWeek === 0) classes += ' sunday';
+                if (dayOfWeek === 6) classes += ' saturday';
 
                 const dateStr = date.toISOString().split('T')[0];
 
                 html += `
                     <div class="${classes}"
-                         onclick="${!isPast && !isOtherMonth ? `selectDate('${dateStr}')` : ''}"
+                         onclick="${!isPast ? `selectDate('${dateStr}')` : ''}"
                          style="${isPast ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                         <div class="calendar-day-number">${date.getDate()}</div>
                         <div class="calendar-day-events" id="events-${dateStr}"></div>
@@ -3350,7 +3388,7 @@
                                 : e.status;
                             const timeStr = e.start_time.slice(0, 5);
                             const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
-                            const clickable = isMine ? 'onclick="showReservationCancelConfirm(' + e.id + ')" style="cursor:pointer;"' : '';
+                            const clickable = isMine ? `onclick="event.stopPropagation(); showReservationCancelConfirm(${e.id})" style="cursor:pointer;"` : 'onclick="event.stopPropagation()"';
 
                             return `<div class="calendar-event ${statusClass}"
                                 data-reservation-id="${e.id}"
@@ -3504,9 +3542,9 @@
             const dateDisplay = new Date(dateStr).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
             header.innerHTML = `📅 ${dateDisplay}`;
 
-            // 시간 슬롯 생성 (09:00 ~ 18:00, 10분 단위)
+            // 시간 슬롯 생성 (07:00 ~ 18:00, 10분 단위)
             let html = '<div class="time-slots-grid">';
-            for (let hour = 9; hour < 18; hour++) {
+            for (let hour = 7; hour < 18; hour++) {
                 for (let min = 0; min < 60; min += 10) {
                     const startTime = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
                     const endMin = min + 10;
@@ -3540,7 +3578,7 @@
             // 시간 헤더 추가
             const headerHtml = `
                 <div class="time-header">
-                    <div class="hour-label">9:00</div>
+                    <div class="hour-label">7:00</div>
                     <div class="time-legend">
                         <span class="legend-item available">가능</span>
                         <span class="legend-item selected">선택됨</span>
@@ -3690,14 +3728,22 @@
                 return;
             }
 
-            const sortedSlots = [...selectedTimeSlots].sort();
-            const startTime = sortedSlots[0];
-            const lastSlot = sortedSlots[sortedSlots.length - 1];
-            const [lastH, lastM] = lastSlot.split(':').map(Number);
-            const endMin = lastM + 10;
-            const endHour = endMin >= 60 ? lastH + 1 : lastH;
-            const endMinNorm = endMin >= 60 ? 0 : endMin;
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+            let startTime, endTime;
+
+            // 야간 모드 처리
+            if (selectedTimeSlots.includes('NIGHT')) {
+                startTime = '18:00';
+                endTime = '24:00';
+            } else {
+                const sortedSlots = [...selectedTimeSlots].sort();
+                startTime = sortedSlots[0];
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const [lastH, lastM] = lastSlot.split(':').map(Number);
+                const endMin = lastM + 10;
+                const endHour = endMin >= 60 ? lastH + 1 : lastH;
+                const endMinNorm = endMin >= 60 ? 0 : endMin;
+                endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+            }
 
             const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -3723,14 +3769,22 @@
                 return;
             }
 
-            const sortedSlots = [...selectedTimeSlots].sort();
-            const startTime = sortedSlots[0] + ':00';
-            const lastSlot = sortedSlots[sortedSlots.length - 1];
-            const [lastH, lastM] = lastSlot.split(':').map(Number);
-            const endMin = lastM + 10;
-            const endHour = endMin >= 60 ? lastH + 1 : lastH;
-            const endMinNorm = endMin >= 60 ? 0 : endMin;
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}:00`;
+            let startTime, endTime;
+
+            // 야간 모드 처리
+            if (selectedTimeSlots.includes('NIGHT')) {
+                startTime = '18:00:00';
+                endTime = '23:59:00';
+            } else {
+                const sortedSlots = [...selectedTimeSlots].sort();
+                startTime = sortedSlots[0] + ':00';
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const [lastH, lastM] = lastSlot.split(':').map(Number);
+                const endMin = lastM + 10;
+                const endHour = endMin >= 60 ? lastH + 1 : lastH;
+                const endMinNorm = endMin >= 60 ? 0 : endMin;
+                endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}:00`;
+            }
 
             // 항상 관리자 승인 필요
             const status = 'pending';
@@ -5305,14 +5359,22 @@
                 return;
             }
 
-            const sortedSlots = [...selectedTimeSlots].sort();
-            const startTime = sortedSlots[0];
-            const lastSlot = sortedSlots[sortedSlots.length - 1];
-            const [lastH, lastM] = lastSlot.split(':').map(Number);
-            const endMin = lastM + 10;
-            const endHour = endMin >= 60 ? lastH + 1 : lastH;
-            const endMinNorm = endMin >= 60 ? 0 : endMin;
-            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+            let startTime, endTime;
+
+            // 야간 모드 처리
+            if (selectedTimeSlots.includes('NIGHT')) {
+                startTime = '18:00';
+                endTime = '24:00';
+            } else {
+                const sortedSlots = [...selectedTimeSlots].sort();
+                startTime = sortedSlots[0];
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const [lastH, lastM] = lastSlot.split(':').map(Number);
+                const endMin = lastM + 10;
+                const endHour = endMin >= 60 ? lastH + 1 : lastH;
+                const endMinNorm = endMin >= 60 ? 0 : endMin;
+                endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
+            }
 
             const cartItem = {
                 id: Date.now(),
@@ -5322,7 +5384,8 @@
                 slots: [...selectedTimeSlots],
                 experimentLocation: experimentLocation,
                 experimentTitle: experimentTitle,
-                experimentDesc: experimentDesc
+                experimentDesc: experimentDesc,
+                isNight: selectedTimeSlots.includes('NIGHT')
             };
 
             // 중복 체크
@@ -5438,8 +5501,8 @@
                         .insert([{
                             user_id: currentUser.id,
                             reservation_date: item.date,
-                            start_time: item.startTime + ':00',
-                            end_time: item.endTime + ':00',
+                            start_time: item.isNight ? '18:00:00' : item.startTime + ':00',
+                            end_time: item.isNight ? '23:59:00' : (item.endTime === '24:00' ? '23:59:00' : item.endTime + ':00'),
                             location: item.experimentLocation,
                             purpose: item.experimentTitle,
                             detail: item.experimentDesc,
