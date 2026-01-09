@@ -669,6 +669,34 @@
         .calendar-event.my-approved:hover {
             opacity: 0.85;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transform: scale(1.02);
+        }
+
+        .calendar-event.my-pending:active,
+        .calendar-event.my-approved:active {
+            transform: scale(0.98);
+            opacity: 1;
+        }
+
+        .calendar-event.my-pending,
+        .calendar-event.my-approved {
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .calendar-event.my-pending::after,
+        .calendar-event.my-approved::after {
+            content: '클릭하여 취소';
+            position: absolute;
+            right: 4px;
+            font-size: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .calendar-event.my-pending:hover::after,
+        .calendar-event.my-approved:hover::after {
+            opacity: 0.7;
         }
 
         /* Calendar Event Tooltip */
@@ -3541,19 +3569,20 @@
                         const maxShow = 2; // 최대 표시 개수
 
                         let html = events.slice(0, maxShow).map(e => {
-                            const isMine = e.user_id === currentUser.id;
+                            const isMine = currentUser && e.user_id === currentUser.id;
                             const statusClass = isMine
                                 ? (e.status === 'approved' ? 'my-approved' : 'my-pending')
                                 : e.status;
                             const timeStr = e.start_time.slice(0, 5);
                             const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
-                            const clickable = isMine ? `onclick="event.stopPropagation(); showReservationCancelConfirm(${e.id})" style="cursor:pointer;"` : 'onclick="event.stopPropagation()"';
 
                             return `<div class="calendar-event ${statusClass}"
                                 data-reservation-id="${e.id}"
+                                data-is-mine="${isMine}"
                                 onmouseenter="showEventTooltip(event, ${e.id})"
                                 onmouseleave="hideEventTooltip()"
-                                ${clickable}>
+                                onclick="handleCalendarEventClick(event, ${e.id}, ${isMine})"
+                                style="${isMine ? 'cursor:pointer;' : ''}">
                                 ${timeStr} ${displayName}
                             </div>`;
                         }).join('');
@@ -3635,6 +3664,17 @@
             if (tooltip) {
                 tooltip.remove();
             }
+        }
+
+        // 캘린더 이벤트 클릭 핸들러
+        function handleCalendarEventClick(e, reservationId, isMine) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            if (isMine) {
+                showReservationCancelConfirm(reservationId);
+            }
+            // 내 예약이 아니면 아무 동작 안함 (날짜 선택도 안됨)
         }
 
         // 내 예약 취소 확인
