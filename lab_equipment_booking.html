@@ -3815,9 +3815,17 @@
 
             if (isMultiDayEndMode || isSelectingEndTime) {
                 const startDateDisplay = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-                header.innerHTML = `📅 <span style="color: var(--primary-main);">시작</span> ${startDateDisplay} ${multiDaySelection.startTime} → <span style="color: var(--error);">종료</span> ${dateDisplay}`;
+                header.innerHTML = `
+                    <div style="font-size: 0.85rem; line-height: 1.4;">
+                        <div><span style="color: var(--primary-main); font-weight: 600;">시작</span> ${startDateDisplay} ${multiDaySelection.startTime}</div>
+                        <div><span style="color: var(--error); font-weight: 600;">종료</span> ${dateDisplay}</div>
+                    </div>`;
             } else if (hasStartTimeOnly) {
-                header.innerHTML = `📅 ${dateDisplay} - <span style="color: var(--primary-main);">시작</span> ${firstSelectedSlot} (종료 시간 선택)`;
+                header.innerHTML = `
+                    <div style="font-size: 0.85rem; line-height: 1.4;">
+                        <div>📅 ${dateDisplay}</div>
+                        <div><span style="color: var(--primary-main); font-weight: 600;">시작</span> ${firstSelectedSlot} <span style="color: var(--text-secondary);">(종료 선택)</span></div>
+                    </div>`;
             } else {
                 header.innerHTML = `📅 ${dateDisplay}`;
             }
@@ -4180,7 +4188,7 @@
                     detail: detail || null,
                     status: status
                 };
-                console.log('예약 데이터:', insertData);
+                console.log('예약 데이터:', JSON.stringify(insertData, null, 2));
 
                 const { data, error } = await supabaseClient
                     .from('reservations')
@@ -4189,7 +4197,7 @@
                     .single();
 
                 if (error) {
-                    console.error('Supabase 에러:', error);
+                    console.error('Supabase 에러:', JSON.stringify(error, null, 2));
                     throw error;
                 }
 
