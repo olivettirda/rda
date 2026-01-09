@@ -686,21 +686,7 @@
         .calendar-event.my-approved {
             transition: all 0.15s ease;
             position: relative;
-        }
-
-        .calendar-event.my-pending::after,
-        .calendar-event.my-approved::after {
-            content: '클릭하여 취소';
-            position: absolute;
-            right: 4px;
-            font-size: 0.5rem;
-            opacity: 0;
-            transition: opacity 0.15s;
-        }
-
-        .calendar-event.my-pending:hover::after,
-        .calendar-event.my-approved:hover::after {
-            opacity: 0.7;
+            cursor: pointer;
         }
 
         /* Calendar Event Tooltip */
@@ -2290,7 +2276,7 @@
                                         </select>
                                     </div>
                                     <div class="form-group mb-3">
-                                        <label class="form-label">실험 선택</label>
+                                        <label class="form-label">실험 선택 <span style="color: var(--error);">*</span></label>
                                         <select class="form-select" id="experimentSelect" onchange="handleExperimentSelect()">
                                             <option value="">-- 선택하세요 --</option>
                                             <option value="custom">✏️ 직접 작성</option>
@@ -2314,7 +2300,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">실험 내용</label>
-                                        <textarea class="form-input" id="experimentDescription" rows="2" placeholder="실험 내용 (선택사항)"></textarea>
+                                        <textarea class="form-input" id="experimentDescription" rows="1" placeholder="실험 내용 (선택사항)" style="min-height: 36px; resize: none;"></textarea>
                                     </div>
                                 </div>
                             </div>
@@ -3581,7 +3567,7 @@
                         const maxShow = 2; // 최대 표시 개수
 
                         let html = events.slice(0, maxShow).map(e => {
-                            const isMine = currentUser && e.user_id === currentUser.id;
+                            const isMine = currentUser && String(e.user_id) === String(currentUser.id);
                             const statusClass = isMine
                                 ? (e.status === 'approved' ? 'my-approved' : 'my-pending')
                                 : e.status;
@@ -3617,7 +3603,7 @@
             // 기존 툴팁 제거
             hideEventTooltip();
 
-            const isMine = r.user_id === currentUser.id;
+            const isMine = currentUser && String(r.user_id) === String(currentUser.id);
             const statusText = r.status === 'approved' ? '승인됨' : '대기중';
             const statusClass = r.status;
             const userName = isMine ? '나' : (r.users?.name || '알 수 없음');
@@ -3692,8 +3678,16 @@
         // 내 예약 취소 확인
         function showReservationCancelConfirm(reservationId) {
             const r = calendarReservations[reservationId];
-            if (!r) return;
-            if (r.user_id !== currentUser.id) {
+            if (!r) {
+                showToast('예약 정보를 찾을 수 없습니다.', 'warning');
+                return;
+            }
+            if (!currentUser) {
+                showToast('로그인이 필요합니다.', 'warning');
+                return;
+            }
+            // 타입 일치를 위해 String으로 비교
+            if (String(r.user_id) !== String(currentUser.id)) {
                 showToast('본인의 예약만 취소할 수 있습니다.', 'warning');
                 return;
             }
