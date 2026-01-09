@@ -3819,21 +3819,51 @@
             // 시작 시간만 선택된 상태 (당일)
             const hasStartTimeOnly = firstSelectedSlot && selectedTimeSlots.length === 0 && !isSelectingEndTime;
 
+            // 시간 범위가 선택 완료된 상태 (당일)
+            const hasTimeRange = selectedTimeSlots.length > 0;
+
+            // 일관된 헤더 스타일 적용
+            const headerStyle = 'font-size: 0.9rem; line-height: 1.5; text-align: center;';
+
             if (isMultiDayEndMode || isSelectingEndTime) {
-                const startDateDisplay = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                // 다일 선택 모드
+                const startDateDisplay = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+                const endDateDisplay = multiDaySelection.endDate
+                    ? multiDaySelection.endDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
+                    : dateDisplay;
                 header.innerHTML = `
-                    <div style="font-size: 0.85rem; line-height: 1.4;">
+                    <div style="${headerStyle}">
                         <div><span style="color: var(--primary-main); font-weight: 600;">시작</span> ${startDateDisplay} ${multiDaySelection.startTime}</div>
-                        <div><span style="color: var(--error); font-weight: 600;">종료</span> ${dateDisplay}</div>
+                        <div><span style="color: var(--error); font-weight: 600;">종료</span> ${endDateDisplay}${multiDaySelection.endTime ? ' ' + multiDaySelection.endTime : ''}</div>
+                    </div>`;
+            } else if (hasTimeRange) {
+                // 당일 시간 범위 선택 완료
+                const sortedSlots = [...selectedTimeSlots].sort();
+                const startTime = sortedSlots[0];
+                const lastSlot = sortedSlots[sortedSlots.length - 1];
+                const [lastH, lastM] = lastSlot.split(':').map(Number);
+                const endMin = lastM + 10;
+                const endHour = endMin >= 60 ? lastH + 1 : lastH;
+                const endTime = `${endHour.toString().padStart(2, '0')}:${(endMin % 60).toString().padStart(2, '0')}`;
+                header.innerHTML = `
+                    <div style="${headerStyle}">
+                        <div style="font-weight: 600; color: var(--text-primary);">📅 ${dateDisplay}</div>
+                        <div style="color: var(--text-secondary);">⏰ ${startTime} ~ ${endTime}</div>
                     </div>`;
             } else if (hasStartTimeOnly) {
+                // 당일 시작 시간만 선택
                 header.innerHTML = `
-                    <div style="font-size: 0.85rem; line-height: 1.4;">
-                        <div>📅 ${dateDisplay}</div>
-                        <div><span style="color: var(--primary-main); font-weight: 600;">시작</span> ${firstSelectedSlot} <span style="color: var(--text-secondary);">(종료 선택)</span></div>
+                    <div style="${headerStyle}">
+                        <div style="font-weight: 600; color: var(--text-primary);">📅 ${dateDisplay}</div>
+                        <div><span style="color: var(--primary-main);">⏰ ${firstSelectedSlot} ~</span> <span style="color: var(--text-secondary);">(종료 선택)</span></div>
                     </div>`;
             } else {
-                header.innerHTML = `📅 ${dateDisplay}`;
+                // 날짜만 선택된 상태
+                header.innerHTML = `
+                    <div style="${headerStyle}">
+                        <div style="font-weight: 600; color: var(--text-primary);">📅 ${dateDisplay}</div>
+                        <div style="color: var(--text-secondary);">아래에서 시간을 선택하세요</div>
+                    </div>`;
             }
 
             // 시간 슬롯 생성 (07:00 ~ 24:00, 10분 단위)
