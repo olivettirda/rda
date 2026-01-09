@@ -584,7 +584,7 @@
 
         .calendar-day.other-month {
             color: var(--text-placeholder);
-            background: #fafafa;
+            background: #e8e8e8;
         }
 
         .calendar-day.today {
@@ -3462,11 +3462,26 @@
 
         async function loadUserData() {
             await loadEquipment();
+            populateExperimentLocationDropdown(); // 위치 드롭다운 채우기
             loadEquipmentList();
             renderCalendar();
             loadMyReservations();
             loadSchedule();
             loadProfile();
+        }
+
+        // 실험 위치 드롭다운을 equipment 테이블에서 동적으로 채우기
+        function populateExperimentLocationDropdown() {
+            const select = document.getElementById('experimentLocation');
+            if (!select || !equipmentList) return;
+
+            // 고유한 위치 목록 추출
+            const locations = [...new Set(equipmentList.map(eq => eq.location).filter(loc => loc))];
+            console.log('사용 가능한 실험 위치:', locations);
+
+            // 드롭다운 옵션 생성
+            select.innerHTML = '<option value="">-- 위치 선택 --</option>' +
+                locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
         }
 
         async function loadAdminData() {
@@ -3824,17 +3839,16 @@
 
             // 일관된 헤더 스타일 적용
             const headerStyle = 'font-size: 0.9rem; line-height: 1.5; text-align: center;';
+            const dateTextStyle = 'color: var(--text-primary);'; // 날짜 텍스트는 일반 색상
 
             if (isMultiDayEndMode || isSelectingEndTime) {
-                // 다일 선택 모드
-                const startDateDisplay = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-                const endDateDisplay = multiDaySelection.endDate
-                    ? multiDaySelection.endDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
-                    : dateDisplay;
+                // 다일 선택 모드 - 시작/종료 모두 월 일 (요일) 시간 형식
+                const startDateFull = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+                const endDateFull = (multiDaySelection.endDate || selectedDate).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
                 header.innerHTML = `
                     <div style="${headerStyle}">
-                        <div><span style="color: var(--primary-main); font-weight: 600;">시작</span> ${startDateDisplay} ${multiDaySelection.startTime}</div>
-                        <div><span style="color: var(--error); font-weight: 600;">종료</span> ${endDateDisplay}${multiDaySelection.endTime ? ' ' + multiDaySelection.endTime : ''}</div>
+                        <div><span style="color: var(--primary-main); font-weight: 600;">시작</span> <span style="${dateTextStyle}">${startDateFull} ${multiDaySelection.startTime}</span></div>
+                        <div><span style="color: var(--error); font-weight: 600;">종료</span> <span style="${dateTextStyle}">${endDateFull}${multiDaySelection.endTime ? ' ' + multiDaySelection.endTime : ''}</span></div>
                     </div>`;
             } else if (hasTimeRange) {
                 // 당일 시간 범위 선택 완료
@@ -4218,8 +4232,16 @@
             const status = 'pending';
 
             try {
+                // 위치에 맞는 equipment_id 찾기
+                const equipmentId = getEquipmentIdByLocation(location);
+                if (!equipmentId) {
+                    showToast('장비 정보를 불러올 수 없습니다. 페이지를 새로고침해주세요.', 'error');
+                    return;
+                }
+
                 const insertData = {
                     user_id: currentUser.id,
+                    equipment_id: equipmentId,
                     reservation_date: formatLocalDate(selectedDate),
                     start_time: startTime,
                     end_time: endTime,
@@ -5104,6 +5126,24 @@
         // =============================================
         // Utility Functions
         // =============================================
+
+        // 위치명으로 equipment_id 찾기
+        function getEquipmentIdByLocation(locationName) {
+            if (!equipmentList || equipmentList.length === 0) {
+                console.log('장비 목록이 비어있음');
+                return null;
+            }
+            // 위치명과 일치하는 장비 찾기
+            const equipment = equipmentList.find(eq => eq.location === locationName);
+            if (equipment) {
+                console.log('위치 매칭 장비 찾음:', equipment.id, equipment.name);
+                return equipment.id;
+            }
+            // 일치하는 장비가 없으면 첫 번째 장비 사용 (fallback)
+            console.log('위치 매칭 실패, 첫 번째 장비 사용:', equipmentList[0].id);
+            return equipmentList[0].id;
+        }
+
         function getStatusText(status) {
             const map = {
                 'available': '사용가능',
@@ -5952,13 +5992,22 @@
 
             for (const item of cart) {
                 try {
-                    // location을 detail에 합쳐서 저장 (DB에 location 컬럼이 없으므로)
+                    // location을 detail에 합쳐서 저장
                     const detailWithLocation = item.experimentLocation
                         ? `[위치: ${item.experimentLocation}] ${item.experimentDesc || ''}`.trim()
                         : item.experimentDesc;
 
+                    // 위치에 맞는 equipment_id 찾기
+                    const equipmentId = getEquipmentIdByLocation(item.experimentLocation);
+                    if (!equipmentId) {
+                        console.error('장비 ID를 찾을 수 없음:', item.experimentLocation);
+                        errorCount++;
+                        continue;
+                    }
+
                     const insertData = {
                         user_id: currentUser.id,
+                        equipment_id: equipmentId,
                         reservation_date: item.date,
                         start_time: item.isNight ? '18:00:00' : item.startTime + ':00',
                         end_time: item.isNight ? '23:59:00' : (item.endTime === '24:00' ? '23:59:00' : item.endTime + ':00'),
@@ -6104,9 +6153,16 @@
             const status = currentResubmitReservation.equipment?.approval_mode === 'auto' ? 'approved' : 'pending';
 
             try {
-                // 새 예약 생성 (location 필드는 detail에 포함되어 있음)
+                // 새 예약 생성 - 원래 예약의 equipment_id 유지
+                const equipmentId = currentResubmitReservation.equipment_id;
+                if (!equipmentId) {
+                    showToast('장비 정보를 찾을 수 없습니다.', 'error');
+                    return;
+                }
+
                 const insertData = {
                     user_id: currentUser.id,
+                    equipment_id: equipmentId,
                     reservation_date: date,
                     start_time: startTime + ':00',
                     end_time: endTime + ':00',
