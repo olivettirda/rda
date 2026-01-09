@@ -3569,8 +3569,25 @@
 
             const firstDay = new Date(year, month, 1);
             const lastDay = new Date(year, month + 1, 0);
+
+            // 1일이 일요일이면 이전 달 행 불필요
+            const firstDayOfWeek = firstDay.getDay(); // 0 = Sunday
+            const skipFirstRow = (firstDayOfWeek === 0);
+
+            // 마지막 날이 토요일이면 다음 달 행 불필요
+            const lastDayOfWeek = lastDay.getDay(); // 6 = Saturday
+            const lastDate = lastDay.getDate();
+
+            // 필요한 행 수 계산
+            const startOffset = skipFirstRow ? 0 : firstDayOfWeek;
+            const totalCells = startOffset + lastDate;
+            const rowsNeeded = Math.ceil(totalCells / 7);
+
+            // 시작일 계산
             const startDate = new Date(firstDay);
-            startDate.setDate(startDate.getDate() - firstDay.getDay());
+            if (!skipFirstRow) {
+                startDate.setDate(startDate.getDate() - firstDayOfWeek);
+            }
 
             const grid = document.getElementById('calendarGrid');
             let html = '';
@@ -3585,7 +3602,8 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            for (let i = 0; i < 42; i++) {
+            const cellCount = rowsNeeded * 7;
+            for (let i = 0; i < cellCount; i++) {
                 const date = new Date(startDate);
                 date.setDate(date.getDate() + i);
 
