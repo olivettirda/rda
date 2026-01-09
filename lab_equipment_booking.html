@@ -592,6 +592,21 @@
             color: white;
         }
 
+        .calendar-day.in-range {
+            background: rgba(1, 127, 151, 0.15);
+        }
+
+        .calendar-day.range-start,
+        .calendar-day.range-end {
+            background: rgba(1, 127, 151, 0.3);
+        }
+
+        .calendar-day.range-start .calendar-day-number,
+        .calendar-day.range-end .calendar-day-number {
+            font-weight: 700;
+            color: var(--primary-main);
+        }
+
         .calendar-day-number {
             font-weight: 600;
             margin-bottom: var(--space-1);
@@ -928,6 +943,29 @@
         .time-slot-mini.my-booking {
             background: var(--primary-light);
             border-color: var(--primary-main);
+        }
+
+        .time-slot-mini.night-slot {
+            background: #f3f0ff;
+            border-color: #c9bff5;
+        }
+
+        .time-slot-mini.night-slot:hover:not(.disabled) {
+            background: #e8e0ff;
+            border-color: #9b85e6;
+        }
+
+        .time-slot-mini.night-slot.selected {
+            background: #6b5b95;
+            border-color: #5a4a84;
+            color: white;
+        }
+
+        .hour-label.night-label {
+            background: #f3f0ff;
+            color: #6b5b95;
+            border-radius: 4px;
+            padding: 2px 6px;
         }
 
         .slot-time {
@@ -2170,16 +2208,16 @@
                                 <div class="card-header">
                                     <h3>⏰ 시간 선택</h3>
                                     <div class="time-mode-toggle">
-                                        <button class="btn btn-sm" id="timeModeAll" onclick="setTimeMode('allday')">하루 종일</button>
+                                        <button class="btn btn-sm" id="timeModeAll" onclick="setTimeMode('allday')">주간 종일</button>
+                                        <button class="btn btn-sm" id="timeModeAllWithNight" onclick="setTimeMode('alldaynight')">24시간</button>
                                         <button class="btn btn-sm btn-primary" id="timeModeDetail" onclick="setTimeMode('detail')">시간 지정</button>
-                                        <button class="btn btn-sm" id="timeModeNight" onclick="setTimeMode('night')">🌙 야간</button>
                                     </div>
                                 </div>
                                 <div class="card-body" id="timeSlotsPanel">
                                     <div class="time-slots-header" id="timeSlotsHeader" style="margin-bottom: 12px; font-weight: 600; color: var(--primary-main);">
                                         📅 날짜를 선택하세요
                                     </div>
-                                    <div class="time-slots-body" id="timeSlotsBody" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="time-slots-body" id="timeSlotsBody" style="max-height: 400px; overflow-y: auto;">
                                         <div class="empty-state" style="padding: 20px;">
                                             <p style="color: var(--text-secondary); text-align: center;">캘린더에서 날짜를 선택하면<br>시간대가 표시됩니다</p>
                                         </div>
@@ -2833,6 +2871,23 @@
             '생공'
         ];
 
+        // 로컬 타임존 날짜 문자열 변환 (YYYY-MM-DD)
+        function formatLocalDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 다일 예약 관련 변수
+        let multiDaySelection = {
+            startDate: null,
+            startTime: null,
+            endDate: null,
+            endTime: null,
+            includeNight: false
+        };
+
         // 장바구니 관련 변수
         let cart = [];
         let firstSelectedSlot = null; // 범위 선택용 첫 번째 슬롯
@@ -3201,18 +3256,20 @@
             }
         }
 
-        // 시간 모드 변경 (하루 종일 / 시간 지정)
+        // 시간 모드 변경 (주간 종일 / 24시간 / 시간 지정)
         function setTimeMode(mode) {
             timeMode = mode;
             const allBtn = document.getElementById('timeModeAll');
+            const allNightBtn = document.getElementById('timeModeAllWithNight');
             const detailBtn = document.getElementById('timeModeDetail');
-            const nightBtn = document.getElementById('timeModeNight');
             const timeSlotsPanel = document.getElementById('timeSlotsPanel');
 
             // 모든 버튼 초기화
-            [allBtn, detailBtn, nightBtn].forEach(btn => {
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-outline');
+            [allBtn, allNightBtn, detailBtn].forEach(btn => {
+                if (btn) {
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-outline');
+                }
             });
 
             if (mode === 'allday') {
@@ -3221,7 +3278,7 @@
                 if (timeSlotsPanel) {
                     timeSlotsPanel.style.display = 'none';
                 }
-                // 하루 종일 모드: 자동으로 07:00~18:00 선택
+                // 주간 종일 모드: 자동으로 07:00~18:00 선택
                 if (selectedDate) {
                     selectedTimeSlots = [];
                     for (let h = 7; h < 18; h++) {
@@ -3229,18 +3286,23 @@
                             selectedTimeSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
                         }
                     }
-                    showToast('하루 종일(07:00~18:00) 선택됨', 'info');
+                    showToast('주간 종일(07:00~18:00) 선택됨', 'info');
                 }
-            } else if (mode === 'night') {
-                nightBtn.classList.add('btn-primary');
-                nightBtn.classList.remove('btn-outline');
+            } else if (mode === 'alldaynight') {
+                allNightBtn.classList.add('btn-primary');
+                allNightBtn.classList.remove('btn-outline');
                 if (timeSlotsPanel) {
                     timeSlotsPanel.style.display = 'none';
                 }
-                // 야간 모드: 18:00~23:59 (통으로)
+                // 24시간 모드: 자동으로 07:00~24:00 선택
                 if (selectedDate) {
-                    selectedTimeSlots = ['NIGHT'];
-                    showToast('야간(18:00~24:00) 선택됨', 'info');
+                    selectedTimeSlots = [];
+                    for (let h = 7; h < 24; h++) {
+                        for (let m = 0; m < 60; m += 10) {
+                            selectedTimeSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                        }
+                    }
+                    showToast('24시간(07:00~24:00, 야간 포함) 선택됨', 'info');
                 }
             } else {
                 detailBtn.classList.add('btn-primary');
@@ -3326,14 +3388,28 @@
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
                 const isPast = date < today;
 
+                // 다일 선택 범위 내에 있는지 확인
+                const isInMultiDayRange = multiDaySelection.startDate &&
+                    (multiDaySelection.endDate
+                        ? (formatLocalDate(date) >= formatLocalDate(multiDaySelection.startDate) &&
+                           formatLocalDate(date) <= formatLocalDate(multiDaySelection.endDate))
+                        : formatLocalDate(date) === formatLocalDate(multiDaySelection.startDate));
+                const isMultiDayStart = multiDaySelection.startDate &&
+                    formatLocalDate(date) === formatLocalDate(multiDaySelection.startDate);
+                const isMultiDayEnd = multiDaySelection.endDate &&
+                    formatLocalDate(date) === formatLocalDate(multiDaySelection.endDate);
+
                 let classes = 'calendar-day';
                 if (isOtherMonth) classes += ' other-month';
                 if (isToday) classes += ' today';
                 if (isSelected) classes += ' selected';
                 if (dayOfWeek === 0) classes += ' sunday';
                 if (dayOfWeek === 6) classes += ' saturday';
+                if (isInMultiDayRange && !isSelected) classes += ' in-range';
+                if (isMultiDayStart) classes += ' range-start';
+                if (isMultiDayEnd) classes += ' range-end';
 
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = formatLocalDate(date);
 
                 html += `
                     <div class="${classes}"
@@ -3355,8 +3431,8 @@
         async function loadCalendarEvents() {
             const year = currentMonth.getFullYear();
             const month = currentMonth.getMonth();
-            const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-            const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+            const startDate = formatLocalDate(new Date(year, month, 1));
+            const endDate = formatLocalDate(new Date(year, month + 1, 0));
 
             const { data } = await supabaseClient
                 .from('reservations')
@@ -3535,9 +3611,39 @@
         }
 
         function selectDate(dateStr) {
-            selectedDate = new Date(dateStr);
+            const newDate = new Date(dateStr);
+
+            // 다일 선택 모드: 시작 날짜와 시간이 이미 선택된 경우
+            if (multiDaySelection.startDate && multiDaySelection.startTime && !multiDaySelection.endDate) {
+                // 종료 날짜로 설정
+                if (newDate >= multiDaySelection.startDate) {
+                    multiDaySelection.endDate = newDate;
+                    selectedDate = newDate;
+                } else {
+                    // 이전 날짜를 선택하면 새로 시작
+                    resetMultiDaySelection();
+                    selectedDate = newDate;
+                }
+            } else {
+                // 새로운 선택 시작
+                resetMultiDaySelection();
+                selectedDate = newDate;
+            }
+
             renderCalendar();
             loadTimeSlots();
+        }
+
+        function resetMultiDaySelection() {
+            multiDaySelection = {
+                startDate: null,
+                startTime: null,
+                endDate: null,
+                endTime: null,
+                includeNight: false
+            };
+            selectedTimeSlots = [];
+            firstSelectedSlot = null;
         }
 
         async function loadTimeSlots() {
@@ -3546,13 +3652,23 @@
             const header = document.getElementById('timeSlotsHeader');
             const body = document.getElementById('timeSlotsBody');
 
-            const dateStr = selectedDate.toISOString().split('T')[0];
-            const dateDisplay = new Date(dateStr).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
-            header.innerHTML = `📅 ${dateDisplay}`;
+            const dateStr = formatLocalDate(selectedDate);
+            const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
 
-            // 시간 슬롯 생성 (07:00 ~ 18:00, 10분 단위)
+            // 다일 선택 모드 확인
+            const isMultiDayEndMode = multiDaySelection.startDate && multiDaySelection.startTime && multiDaySelection.endDate;
+            const isSelectingEndTime = multiDaySelection.startDate && multiDaySelection.startTime && !multiDaySelection.endTime;
+
+            if (isMultiDayEndMode || isSelectingEndTime) {
+                const startDateDisplay = multiDaySelection.startDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                header.innerHTML = `📅 ${startDateDisplay} ${multiDaySelection.startTime} → ${dateDisplay}`;
+            } else {
+                header.innerHTML = `📅 ${dateDisplay}`;
+            }
+
+            // 시간 슬롯 생성 (07:00 ~ 24:00, 10분 단위)
             let html = '<div class="time-slots-grid">';
-            for (let hour = 7; hour < 18; hour++) {
+            for (let hour = 7; hour < 24; hour++) {
                 for (let min = 0; min < 60; min += 10) {
                     const startTime = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
                     const endMin = min + 10;
@@ -3561,10 +3677,14 @@
                     const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
                     const isSelected = selectedTimeSlots.includes(startTime);
+                    const isNightTime = hour >= 18;
 
                     let slotClass = 'time-slot-mini';
                     if (isSelected) {
                         slotClass += ' selected';
+                    }
+                    if (isNightTime) {
+                        slotClass += ' night-slot';
                     }
 
                     html += `
@@ -3575,9 +3695,10 @@
                         </div>
                     `;
 
-                    // 매 시간 구분선
+                    // 매 시간 구분선 (18시에 야간 표시 추가)
                     if (min === 50) {
-                        html += `</div><div class="hour-label">${endHour}:00</div><div class="time-slots-grid">`;
+                        const nextHourLabel = endHour === 18 ? '🌙 18:00' : `${endHour}:00`;
+                        html += `</div><div class="hour-label${endHour >= 18 ? ' night-label' : ''}">${nextHourLabel}</div><div class="time-slots-grid">`;
                     }
                 }
             }
@@ -3595,8 +3716,18 @@
             `;
             body.innerHTML = headerHtml + html;
 
-            // 범위 선택 힌트
-            if (firstSelectedSlot && selectedTimeSlots.length === 0) {
+            // 다일 선택 힌트
+            if (isSelectingEndTime) {
+                body.innerHTML = `
+                    <div class="range-select-hint" style="background: #e8f4ff; border-color: var(--primary-main);">
+                        🗓️ <strong>${multiDaySelection.startDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'})} ${multiDaySelection.startTime}</strong> 부터 시작<br>
+                        <span style="font-size: 0.85em; color: var(--text-secondary);">다른 날짜를 클릭하거나 종료 시간을 선택하세요</span>
+                    </div>
+                ` + body.innerHTML;
+            }
+
+            // 범위 선택 힌트 (당일)
+            if (firstSelectedSlot && selectedTimeSlots.length === 0 && !isSelectingEndTime) {
                 body.innerHTML = `
                     <div class="range-select-hint">
                         시작 시간 ${firstSelectedSlot} 선택됨 - 종료 시간을 클릭하세요
@@ -3616,9 +3747,20 @@
                 const endSlot = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
                 const duration = selectedTimeSlots.length * 10;
 
+                // 다일 선택 완료 상태인지 확인
+                let summaryText = '';
+                if (multiDaySelection.startDate && multiDaySelection.endDate &&
+                    formatLocalDate(multiDaySelection.startDate) !== formatLocalDate(multiDaySelection.endDate)) {
+                    const startDateStr = multiDaySelection.startDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
+                    const endDateStr = multiDaySelection.endDate.toLocaleDateString('ko-KR', {month:'short', day:'numeric'});
+                    summaryText = `<strong>${startDateStr} ${multiDaySelection.startTime} ~ ${endDateStr} ${endSlot}</strong>`;
+                } else {
+                    summaryText = `<strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})`;
+                }
+
                 body.innerHTML += `
                     <div class="selected-time-summary">
-                        <strong>선택: ${startSlot} ~ ${endSlot}</strong> (${duration >= 60 ? Math.floor(duration/60) + '시간 ' + (duration%60 ? duration%60 + '분' : '') : duration + '분'})
+                        ${summaryText}
                     </div>
                     <div style="display: flex; gap: 8px; margin-top: var(--space-4);">
                         <button class="btn btn-outline" style="flex: 1;" onclick="addToCart()">
@@ -3638,45 +3780,98 @@
             // 이미 선택된 슬롯을 다시 클릭하면 전체 초기화하고 새 시작점 설정 (스카이스캐너 방식)
             if (index > -1) {
                 // 선택된 범위 내 클릭: 전체 초기화 후 새 시작점
-                selectedTimeSlots = [];
-                firstSelectedSlot = time;
-                loadTimeSlots();
+                resetMultiDaySelection();
+                startNewSelection(time);
                 return;
             }
 
             // 이미 범위가 선택된 상태에서 다른 곳 클릭: 전체 초기화 후 새 시작점
             if (selectedTimeSlots.length > 0) {
-                selectedTimeSlots = [];
-                firstSelectedSlot = time;
+                resetMultiDaySelection();
+                startNewSelection(time);
+                return;
+            }
+
+            // 다일 선택 모드: 종료 시간 선택
+            if (multiDaySelection.startDate && multiDaySelection.startTime && multiDaySelection.endDate) {
+                multiDaySelection.endTime = time;
+                // 다일 범위 슬롯 생성
+                selectedTimeSlots = generateMultiDaySlots();
+                showToast('다일 예약 범위가 선택되었습니다.', 'info');
                 loadTimeSlots();
                 return;
             }
 
-            // 범위 선택 로직
-            if (firstSelectedSlot === null) {
+            // 범위 선택 로직 (당일)
+            if (firstSelectedSlot === null && !multiDaySelection.startTime) {
                 // 첫 번째 클릭: 시작점 설정
-                firstSelectedSlot = time;
-                loadTimeSlots();
+                startNewSelection(time);
                 return;
             }
 
-            // 두 번째 클릭: 범위 선택
-            const slots = generateSlotRange(firstSelectedSlot, time);
-
-            // 최대 시간 체크 (기본 9시간 = 하루)
-            const maxHours = 9;
-            const maxSlots = maxHours * 6;
-            if (slots.length > maxSlots) {
-                showToast(`최대 ${maxHours}시간까지 예약 가능합니다.`, 'warning');
-                firstSelectedSlot = time; // 새 시작점으로 설정
-                loadTimeSlots();
-                return;
-            }
+            // 두 번째 클릭 (같은 날짜): 범위 선택
+            const slots = generateSlotRange(firstSelectedSlot || multiDaySelection.startTime, time);
 
             selectedTimeSlots = slots;
             firstSelectedSlot = null;
             selectedTimeSlots.sort();
             loadTimeSlots();
+        }
+
+        // 새 선택 시작
+        function startNewSelection(time) {
+            firstSelectedSlot = time;
+            multiDaySelection.startDate = new Date(selectedDate);
+            multiDaySelection.startTime = time;
+            multiDaySelection.endDate = null;
+            multiDaySelection.endTime = null;
+            loadTimeSlots();
+        }
+
+        // 다일 범위 슬롯 생성
+        function generateMultiDaySlots() {
+            const slots = [];
+            const startDate = multiDaySelection.startDate;
+            const endDate = multiDaySelection.endDate;
+            const startTime = multiDaySelection.startTime;
+            const endTime = multiDaySelection.endTime;
+
+            // 같은 날인 경우
+            if (formatLocalDate(startDate) === formatLocalDate(endDate)) {
+                return generateSlotRange(startTime, endTime);
+            }
+
+            // 다른 날인 경우
+            // 첫째 날: 시작 시간부터 24:00까지
+            const [startH, startM] = startTime.split(':').map(Number);
+            for (let t = startH * 60 + startM; t < 24 * 60; t += 10) {
+                const h = Math.floor(t / 60);
+                const m = t % 60;
+                slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+            }
+
+            // 중간 날들: 전체 시간 (07:00~24:00, 야간 포함 여부에 따라)
+            const currentDate = new Date(startDate);
+            currentDate.setDate(currentDate.getDate() + 1);
+            while (formatLocalDate(currentDate) < formatLocalDate(endDate)) {
+                // 중간 날은 7:00부터 24:00까지
+                for (let t = 7 * 60; t < 24 * 60; t += 10) {
+                    const h = Math.floor(t / 60);
+                    const m = t % 60;
+                    slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            // 마지막 날: 07:00부터 종료 시간까지
+            const [endH, endM] = endTime.split(':').map(Number);
+            for (let t = 7 * 60; t <= endH * 60 + endM; t += 10) {
+                const h = Math.floor(t / 60);
+                const m = t % 60;
+                slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+            }
+
+            return slots;
         }
 
         // 시간 범위에 해당하는 모든 슬롯 생성
@@ -3736,22 +3931,14 @@
                 return;
             }
 
-            let startTime, endTime;
-
-            // 야간 모드 처리
-            if (selectedTimeSlots.includes('NIGHT')) {
-                startTime = '18:00';
-                endTime = '24:00';
-            } else {
-                const sortedSlots = [...selectedTimeSlots].sort();
-                startTime = sortedSlots[0];
-                const lastSlot = sortedSlots[sortedSlots.length - 1];
-                const [lastH, lastM] = lastSlot.split(':').map(Number);
-                const endMin = lastM + 10;
-                const endHour = endMin >= 60 ? lastH + 1 : lastH;
-                const endMinNorm = endMin >= 60 ? 0 : endMin;
-                endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
-            }
+            const sortedSlots = [...selectedTimeSlots].sort();
+            const startTime = sortedSlots[0];
+            const lastSlot = sortedSlots[sortedSlots.length - 1];
+            const [lastH, lastM] = lastSlot.split(':').map(Number);
+            const endMin = lastM + 10;
+            const endHour = endMin >= 60 ? lastH + 1 : lastH;
+            const endMinNorm = endMin >= 60 ? 0 : endMin;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
             const dateDisplay = selectedDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -3777,22 +3964,14 @@
                 return;
             }
 
-            let startTime, endTime;
-
-            // 야간 모드 처리
-            if (selectedTimeSlots.includes('NIGHT')) {
-                startTime = '18:00:00';
-                endTime = '23:59:00';
-            } else {
-                const sortedSlots = [...selectedTimeSlots].sort();
-                startTime = sortedSlots[0] + ':00';
-                const lastSlot = sortedSlots[sortedSlots.length - 1];
-                const [lastH, lastM] = lastSlot.split(':').map(Number);
-                const endMin = lastM + 10;
-                const endHour = endMin >= 60 ? lastH + 1 : lastH;
-                const endMinNorm = endMin >= 60 ? 0 : endMin;
-                endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}:00`;
-            }
+            const sortedSlots = [...selectedTimeSlots].sort();
+            const startTime = sortedSlots[0] + ':00';
+            const lastSlot = sortedSlots[sortedSlots.length - 1];
+            const [lastH, lastM] = lastSlot.split(':').map(Number);
+            const endMin = lastM + 10;
+            const endHour = endMin >= 60 ? lastH + 1 : lastH;
+            const endMinNorm = endMin >= 60 ? 0 : endMin;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}:00`;
 
             // 항상 관리자 승인 필요
             const status = 'pending';
@@ -3802,7 +3981,7 @@
                     .from('reservations')
                     .insert([{
                         user_id: currentUser.id,
-                        reservation_date: selectedDate.toISOString().split('T')[0],
+                        reservation_date: formatLocalDate(selectedDate),
                         start_time: startTime,
                         end_time: endTime,
                         location: location,
@@ -3925,7 +4104,7 @@
 
         async function loadSchedule() {
             const locationFilter = document.getElementById('scheduleLocationFilter')?.value || '';
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatLocalDate(new Date());
 
             let query = supabaseClient
                 .from('reservations')
@@ -4037,7 +4216,7 @@
         // Admin Functions
         // =============================================
         async function loadAdminStats() {
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatLocalDate(new Date());
 
             const [pendingRes, todayRes, equipmentRes] = await Promise.all([
                 supabaseClient.from('reservations').select('id', { count: 'exact' }).eq('status', 'pending'),
@@ -4952,7 +5131,7 @@
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, '장비목록');
 
-                const today = new Date().toISOString().split('T')[0];
+                const today = formatLocalDate(new Date());
                 XLSX.writeFile(wb, `장비목록_${today}.xlsx`);
                 showToast('장비 목록이 다운로드되었습니다.', 'success');
             } catch (err) {
@@ -5369,33 +5548,28 @@
                 return;
             }
 
-            let startTime, endTime;
+            const sortedSlots = [...selectedTimeSlots].sort();
+            const startTime = sortedSlots[0];
+            const lastSlot = sortedSlots[sortedSlots.length - 1];
+            const [lastH, lastM] = lastSlot.split(':').map(Number);
+            const endMin = lastM + 10;
+            const endHour = endMin >= 60 ? lastH + 1 : lastH;
+            const endMinNorm = endMin >= 60 ? 0 : endMin;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
 
-            // 야간 모드 처리
-            if (selectedTimeSlots.includes('NIGHT')) {
-                startTime = '18:00';
-                endTime = '24:00';
-            } else {
-                const sortedSlots = [...selectedTimeSlots].sort();
-                startTime = sortedSlots[0];
-                const lastSlot = sortedSlots[sortedSlots.length - 1];
-                const [lastH, lastM] = lastSlot.split(':').map(Number);
-                const endMin = lastM + 10;
-                const endHour = endMin >= 60 ? lastH + 1 : lastH;
-                const endMinNorm = endMin >= 60 ? 0 : endMin;
-                endTime = `${endHour.toString().padStart(2, '0')}:${endMinNorm.toString().padStart(2, '0')}`;
-            }
+            // 야간 시간대 포함 여부 확인 (18:00 이후)
+            const hasNightSlots = sortedSlots.some(slot => parseInt(slot.split(':')[0]) >= 18);
 
             const cartItem = {
                 id: Date.now(),
-                date: selectedDate.toISOString().split('T')[0],
+                date: formatLocalDate(selectedDate),
                 startTime: startTime,
                 endTime: endTime,
                 slots: [...selectedTimeSlots],
                 experimentLocation: experimentLocation,
                 experimentTitle: experimentTitle,
                 experimentDesc: experimentDesc,
-                isNight: selectedTimeSlots.includes('NIGHT')
+                isNight: hasNightSlots
             };
 
             // 중복 체크
@@ -5576,7 +5750,7 @@
                 document.getElementById('resubmitEquipment').value = data.equipment?.display_name || data.equipment?.name || '장비';
 
                 // 날짜 (최소 오늘 이후로 설정)
-                const today = new Date().toISOString().split('T')[0];
+                const today = formatLocalDate(new Date());
                 const resubmitDate = document.getElementById('resubmitDate');
                 resubmitDate.min = today;
                 resubmitDate.value = data.reservation_date >= today ? data.reservation_date : today;
