@@ -838,8 +838,8 @@
             <!-- 로그인 폼 -->
             <form id="loginForm" class="login-form">
                 <div class="form-group">
-                    <label class="form-label">이메일</label>
-                    <input type="email" id="loginEmail" class="form-input" placeholder="example@email.com" required>
+                    <label class="form-label">아이디</label>
+                    <input type="text" id="loginUsername" class="form-input" placeholder="아이디 입력" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">비밀번호</label>
@@ -855,8 +855,8 @@
             <!-- 회원가입 폼 -->
             <form id="signupForm" class="login-form hidden">
                 <div class="form-group">
-                    <label class="form-label">이메일</label>
-                    <input type="email" id="signupEmail" class="form-input" placeholder="example@email.com" required>
+                    <label class="form-label">아이디</label>
+                    <input type="text" id="signupUsername" class="form-input" placeholder="영문, 숫자 4자 이상" minlength="4" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">비밀번호</label>
@@ -981,13 +981,19 @@
         const app = document.getElementById('app');
         const loginForm = document.getElementById('loginForm');
         const signupForm = document.getElementById('signupForm');
-        const loginEmail = document.getElementById('loginEmail');
+        const loginUsername = document.getElementById('loginUsername');
         const loginPassword = document.getElementById('loginPassword');
         const loginError = document.getElementById('loginError');
-        const signupEmail = document.getElementById('signupEmail');
+        const signupUsername = document.getElementById('signupUsername');
         const signupPassword = document.getElementById('signupPassword');
         const signupPasswordConfirm = document.getElementById('signupPasswordConfirm');
         const signupError = document.getElementById('signupError');
+
+        // 아이디를 이메일 형식으로 변환 (내부 저장용)
+        const EMAIL_DOMAIN = '@stickynotes.local';
+        function usernameToEmail(username) {
+            return username.toLowerCase() + EMAIL_DOMAIN;
+        }
         const showSignup = document.getElementById('showSignup');
         const showLogin = document.getElementById('showLogin');
         const guestBtn = document.getElementById('guestBtn');
@@ -1093,13 +1099,13 @@
         // 로그인
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            console.log('로그인 시도:', loginEmail.value);
+            console.log('로그인 시도:', loginUsername.value);
 
-            const email = loginEmail.value.trim();
+            const username = loginUsername.value.trim();
             const password = loginPassword.value;
 
-            if (!email || !password) {
-                showFormError(loginError, '이메일과 비밀번호를 입력해주세요');
+            if (!username || !password) {
+                showFormError(loginError, '아이디와 비밀번호를 입력해주세요');
                 return;
             }
 
@@ -1107,6 +1113,9 @@
             loginError.classList.remove('show');
 
             try {
+                const email = usernameToEmail(username);
+                console.log('변환된 이메일:', email);
+
                 const { data, error } = await supabase.auth.signInWithPassword({
                     email: email,
                     password: password
@@ -1117,9 +1126,7 @@
                 if (error) {
                     hideLoading();
                     if (error.message.includes('Invalid login credentials')) {
-                        showFormError(loginError, '이메일 또는 비밀번호가 올바르지 않습니다');
-                    } else if (error.message.includes('Email not confirmed')) {
-                        showFormError(loginError, '이메일 인증이 필요합니다. 메일함을 확인해주세요.');
+                        showFormError(loginError, '아이디 또는 비밀번호가 올바르지 않습니다');
                     } else {
                         showFormError(loginError, error.message);
                     }
@@ -1138,14 +1145,25 @@
         // 회원가입
         signupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            console.log('회원가입 시도:', signupEmail.value);
+            console.log('회원가입 시도:', signupUsername.value);
 
-            const email = signupEmail.value.trim();
+            const username = signupUsername.value.trim();
             const password = signupPassword.value;
             const passwordConfirm = signupPasswordConfirm.value;
 
-            if (!email || !password) {
-                showFormError(signupError, '이메일과 비밀번호를 입력해주세요');
+            if (!username || !password) {
+                showFormError(signupError, '아이디와 비밀번호를 입력해주세요');
+                return;
+            }
+
+            // 아이디 유효성 검사 (영문, 숫자만)
+            if (!/^[a-zA-Z0-9]+$/.test(username)) {
+                showFormError(signupError, '아이디는 영문과 숫자만 사용 가능합니다');
+                return;
+            }
+
+            if (username.length < 4) {
+                showFormError(signupError, '아이디는 4자 이상이어야 합니다');
                 return;
             }
 
@@ -1163,11 +1181,17 @@
             signupError.classList.remove('show');
 
             try {
+                const email = usernameToEmail(username);
+                console.log('변환된 이메일:', email);
+
                 const { data, error } = await supabase.auth.signUp({
                     email: email,
                     password: password,
                     options: {
-                        emailRedirectTo: window.location.origin + window.location.pathname
+                        data: {
+                            username: username,
+                            full_name: username
+                        }
                     }
                 });
 
@@ -1176,7 +1200,7 @@
                 if (error) {
                     hideLoading();
                     if (error.message.includes('already registered')) {
-                        showFormError(signupError, '이미 등록된 이메일입니다');
+                        showFormError(signupError, '이미 사용 중인 아이디입니다');
                     } else {
                         showFormError(signupError, error.message);
                     }
@@ -1185,13 +1209,12 @@
 
                 hideLoading();
 
-                // 이메일 인증 필요 여부 확인
-                if (data.user && !data.session) {
-                    showToast('가입 완료! 이메일 인증 후 로그인해주세요.');
-                    showLogin.click();
-                } else {
-                    // 이메일 인증 없이 바로 로그인
+                // 바로 로그인 처리
+                if (data.user && data.session) {
                     showToast('가입이 완료되었습니다!');
+                } else {
+                    showToast('가입이 완료되었습니다! 로그인해주세요.');
+                    showLogin.click();
                 }
             } catch (err) {
                 console.error('회원가입 에러:', err);
@@ -1244,8 +1267,11 @@
 
             if (currentUser) {
                 userAvatarImg.src = currentUser.user_metadata?.avatar_url || '';
-                userName.textContent = currentUser.user_metadata?.full_name || '사용자';
-                userEmail.textContent = currentUser.email || '';
+                // username 표시 (이메일에서 도메인 제거)
+                const displayName = currentUser.user_metadata?.username ||
+                                   currentUser.email?.replace(EMAIL_DOMAIN, '') || '사용자';
+                userName.textContent = displayName;
+                userEmail.textContent = ''; // 아이디 방식이므로 이메일 숨김
             } else if (isGuest) {
                 userAvatarImg.src = '';
                 userName.textContent = '게스트';
