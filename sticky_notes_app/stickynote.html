@@ -8,25 +8,20 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="스티키 노트">
-    <link rel="manifest" href="sticky_notes_manifest.json">
-    <link rel="icon" type="image/png" href="ssallogo.png">
-    <link rel="apple-touch-icon" href="ssallogo.png">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="assets/icon.png">
+    <link rel="apple-touch-icon" href="assets/icon.png">
     <title>스티키 노트</title>
 
     <style>
         :root {
-            --note-yellow: #FFEB3B;
-            --note-yellow-dark: #FDD835;
-            --note-pink: #F8BBD9;
-            --note-pink-dark: #F48FB1;
-            --note-blue: #B3E5FC;
-            --note-blue-dark: #81D4FA;
-            --note-green: #C8E6C9;
-            --note-green-dark: #A5D6A7;
-            --note-orange: #FFE0B2;
-            --note-orange-dark: #FFCC80;
-            --note-purple: #E1BEE7;
-            --note-purple-dark: #CE93D8;
+            /* 스티키 노트 색상 - 파스텔톤 */
+            --note-yellow: #fffacd;
+            --note-pink: #ffdbdb;
+            --note-green: #d4f5d4;
+            --note-orange: #ffe4c9;
+            --note-purple: #e8d5f0;
+            --note-blue: #d4eeff;
 
             --shadow-note: 2px 4px 8px rgba(0,0,0,0.2),
                            0 0 2px rgba(0,0,0,0.1);
@@ -1037,7 +1032,7 @@
             // 서비스 워커 등록
             if ('serviceWorker' in navigator) {
                 try {
-                    const registration = await navigator.serviceWorker.register('sticky_notes_sw.js');
+                    const registration = await navigator.serviceWorker.register('sw.js');
                     console.log('Service Worker 등록 성공:', registration);
                 } catch (error) {
                     console.log('Service Worker 등록 실패:', error);
@@ -1125,9 +1120,10 @@
                     password: password
                 });
 
-                console.log('로그인 결과:', { data, error });
+                console.log('로그인 결과:', JSON.stringify({ data, error }, null, 2));
 
                 if (error) {
+                    console.error('로그인 에러:', JSON.stringify(error, null, 2));
                     hideLoading();
                     if (error.message.includes('Invalid login credentials')) {
                         showFormError(loginError, '아이디 또는 비밀번호가 올바르지 않습니다');
@@ -1199,9 +1195,10 @@
                     }
                 });
 
-                console.log('회원가입 결과:', { data, error });
+                console.log('회원가입 결과:', JSON.stringify({ data, error }, null, 2));
 
                 if (error) {
+                    console.error('회원가입 에러:', JSON.stringify(error, null, 2));
                     hideLoading();
                     if (error.message.includes('already registered')) {
                         showFormError(signupError, '이미 사용 중인 아이디입니다');
@@ -1306,7 +1303,7 @@
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    console.error('노트 로드 에러:', error);
+                    console.error('노트 로드 에러:', JSON.stringify(error, null, 2));
                     throw error;
                 }
 
@@ -1359,7 +1356,10 @@
                         .select()
                         .single();
 
-                    if (error) throw error;
+                    if (error) {
+                        console.error('노트 생성 에러:', JSON.stringify(error, null, 2));
+                        throw error;
+                    }
 
                     console.log('노트 생성 성공:', data);
                     notes.unshift(data);
@@ -1393,11 +1393,14 @@
                         .update(updates)
                         .eq('id', noteId);
 
-                    if (error) throw error;
+                    if (error) {
+                        console.error('노트 업데이트 에러:', JSON.stringify(error, null, 2));
+                        throw error;
+                    }
 
                     setSyncStatus('synced');
                 } catch (error) {
-                    console.error('노트 업데이트 실패:', error);
+                    console.error('노트 업데이트 실패:', JSON.stringify(error, null, 2));
                     setSyncStatus('error');
                 }
             }
@@ -1422,12 +1425,15 @@
                         .delete()
                         .eq('id', noteId);
 
-                    if (error) throw error;
+                    if (error) {
+                        console.error('노트 삭제 에러:', JSON.stringify(error, null, 2));
+                        throw error;
+                    }
 
                     renderNotes();
                     setSyncStatus('synced');
                 } catch (error) {
-                    console.error('노트 삭제 실패:', error);
+                    console.error('노트 삭제 실패:', JSON.stringify(error, null, 2));
                     showToast('노트 삭제에 실패했습니다');
                     setSyncStatus('error');
                 }
