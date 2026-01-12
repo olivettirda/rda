@@ -4195,7 +4195,7 @@
                         const reservationId = parseInt(eventEl.getAttribute('data-reservation-id'));
                         const isMine = eventEl.getAttribute('data-is-mine') === 'true';
 
-                        console.log('이벤트 리스너 등록:', { reservationId, isMine });
+                        console.log('이벤트 리스너 등록:', JSON.stringify({ reservationId, isMine }));
 
                         // 호버링 이벤트
                         eventEl.addEventListener('mouseenter', (e) => {
@@ -6116,7 +6116,7 @@
                         name: row['장비명'],
                         display_name: row['표시명(선택)'] || row['장비명'],
                         location: row['위치'] || '',
-                        asset_number: row['자산번호(선택)'] || null,
+                        asset_no: row['자산번호(선택)'] || null,
                         lab_department: row['부서(선택)'] || null,
                         lab_room: row['연구실(선택)'] || null,
                         acquisition_year: row['취득연도(선택)'] ? parseInt(row['취득연도(선택)']) : null,
@@ -6131,12 +6131,14 @@
                         continue;
                     }
 
+                    console.log('장비 추가 시도:', JSON.stringify(equipmentData, null, 2));
+
                     const { error } = await supabaseClient
                         .from('equipment')
                         .insert([equipmentData]);
 
                     if (error) {
-                        console.error('장비 추가 오류:', error);
+                        console.error('장비 추가 오류:', JSON.stringify(error, null, 2));
                         errorCount++;
                     } else {
                         successCount++;
@@ -6166,7 +6168,7 @@
                     '장비명': eq.name,
                     '표시명': eq.display_name || eq.name,
                     '위치': eq.location,
-                    '자산번호': eq.asset_number || '',
+                    '자산번호': eq.asset_no || '',
                     '부서': eq.lab_department || '',
                     '연구실': eq.lab_room || '',
                     '취득연도': eq.acquisition_year || '',
