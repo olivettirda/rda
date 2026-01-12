@@ -135,11 +135,6 @@
             justify-content: center;
             font-size: 12px;
             transition: all 0.2s;
-            opacity: 0;
-        }
-
-        .custom-titlebar:hover .titlebar-btn {
-            opacity: 1;
         }
 
         .titlebar-btn:hover {
@@ -951,8 +946,8 @@
         }
 
         .note-btn {
-            width: 25px;
-            height: 25px;
+            width: 22px;
+            height: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -969,8 +964,8 @@
         }
 
         .note-btn img {
-            width: 25px;
-            height: 25px;
+            width: 22px;
+            height: 22px;
             object-fit: contain;
             opacity: 0.4;
             filter: grayscale(100%);
@@ -1589,7 +1584,7 @@
         </div>
         <div class="titlebar-controls">
             <button class="titlebar-btn" id="minimizeToTaskbarBtn" title="작업표시줄로 최소화">─</button>
-            <button class="titlebar-btn" id="sidebarModeBtn" title="사이드바 모드">▢▢</button>
+            <button class="titlebar-btn" id="trayModeBtn" title="트레이 모드">◫</button>
             <button class="titlebar-btn close" id="closeBtn" title="닫기">✕</button>
         </div>
     </div>
@@ -1832,10 +1827,10 @@
         // ============================================
         // 앱 버전 정보
         // ============================================
-        const APP_VERSION = '1.0.2';
+        const APP_VERSION = '1.0.4';
         console.log('========================================');
         console.log(`스티키 노트 v${APP_VERSION} 시작`);
-        console.log('빌드 시간:', '2026-01-12 v2');
+        console.log('빌드 시간:', '2026-01-12 v4');
         console.log('========================================');
 
         // ============================================
@@ -2747,13 +2742,13 @@
                 console.log('5. toggleSidebar 타입:', typeof window.electronAPI.toggleSidebar);
             }
             console.log('6. minimizeToTaskbarBtn 존재:', !!document.getElementById('minimizeToTaskbarBtn'));
-            console.log('7. sidebarModeBtn 존재:', !!document.getElementById('sidebarModeBtn'));
+            console.log('7. trayModeBtn 존재:', !!document.getElementById('trayModeBtn'));
             console.log('8. closeBtn 존재:', !!document.getElementById('closeBtn'));
             console.log('==================================');
             // ===== 디버깅 끝 =====
 
             // 타이틀바 버튼 (Electron 전용)
-            const sidebarModeBtn = document.getElementById('sidebarModeBtn');
+            const trayModeBtn = document.getElementById('trayModeBtn');
 
             if (window.electronAPI) {
                 // X 버튼 - 닫기 (자동로그인 시 트레이로, 아니면 종료)
@@ -2762,26 +2757,26 @@
                     window.electronAPI.closeWindow();
                 });
 
-                // ─ 버튼 - 작업표시줄로 최소화 (완전히 숨기기)
+                // ─ 버튼 - 작업표시줄로 최소화
                 document.getElementById('minimizeToTaskbarBtn').addEventListener('click', () => {
                     console.log('작업표시줄로 최소화');
                     window.electronAPI.minimizeToTray();
                 });
 
-                // ▢▢/▢ 버튼 - 사이드바 모드 토글
-                sidebarModeBtn.addEventListener('click', async () => {
-                    console.log('사이드바 모드 토글');
+                // ◫/▢ 버튼 - 트레이 모드 토글
+                trayModeBtn.addEventListener('click', async () => {
+                    console.log('트레이 모드 토글');
                     await window.electronAPI.toggleSidebar();
                 });
 
-                // 사이드바 모드 변경 감지
+                // 트레이 모드 변경 감지
                 window.electronAPI.onSidebarModeChanged((data) => {
-                    console.log('사이드바 모드 변경:', data);
+                    console.log('트레이 모드 변경:', data);
                     document.body.classList.toggle('sidebar-mode', data.isSidebar);
 
-                    // 버튼 아이콘 변경
-                    sidebarModeBtn.textContent = data.isSidebar ? '▢' : '▢▢';
-                    sidebarModeBtn.title = data.isSidebar ? '일반 모드로 복원' : '사이드바 모드';
+                    // 버튼 아이콘 변경: 트레이 모드면 ▢(복원), 일반이면 ◫(트레이로)
+                    trayModeBtn.textContent = data.isSidebar ? '▢' : '◫';
+                    trayModeBtn.title = data.isSidebar ? '일반 모드로 복원' : '트레이 모드';
 
                     const sidebarToggle = document.getElementById('sidebarToggle');
                     if (sidebarToggle) {
@@ -2795,8 +2790,8 @@
                     document.body.classList.toggle('sidebar-mode', state.isSidebar);
 
                     // 버튼 아이콘 초기화
-                    sidebarModeBtn.textContent = state.isSidebar ? '▢' : '▢▢';
-                    sidebarModeBtn.title = state.isSidebar ? '일반 모드로 복원' : '사이드바 모드';
+                    trayModeBtn.textContent = state.isSidebar ? '▢' : '◫';
+                    trayModeBtn.title = state.isSidebar ? '일반 모드로 복원' : '트레이 모드';
                 });
             }
 

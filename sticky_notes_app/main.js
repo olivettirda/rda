@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -301,8 +301,13 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
-    // 개발자 도구 열기 (디버깅용)
-    mainWindow.webContents.openDevTools();
+    // F12로 개발자 도구 토글
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F12') {
+            mainWindow.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+    });
 
     // 창 닫기 방지 - 숨기기로 처리
     mainWindow.on('close', (event) => {
@@ -401,12 +406,12 @@ app.on('window-all-closed', () => {
     app.quit();
 });
 
-// IPC 핸들러 - 작업표시줄로 최소화 (숨기기)
+// IPC 핸들러 - 작업표시줄로 최소화
 ipcMain.handle('minimize-to-tray', () => {
     console.log('minimize-to-tray 호출됨');
     if (mainWindow) {
-        mainWindow.hide();
-        console.log('창 숨김 완료');
+        mainWindow.minimize();
+        console.log('작업표시줄로 최소화 완료');
     } else {
         console.log('mainWindow가 없음!');
     }

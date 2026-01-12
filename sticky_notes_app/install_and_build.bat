@@ -14,12 +14,20 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [1/4] Node.js 버전 확인...
+echo [1/5] Node.js 버전 확인...
 node --version
 npm --version
 echo.
 
-echo [2/4] 의존성 설치 중... (2-5분 소요)
+echo [2/5] 캐시 정리 중...
+rmdir /s /q dist 2>nul
+rmdir /s /q node_modules\.cache 2>nul
+rmdir /s /q "%LOCALAPPDATA%\electron-builder\Cache" 2>nul
+rmdir /s /q "%USERPROFILE%\.cache\electron-builder" 2>nul
+echo    캐시 정리 완료
+echo.
+
+echo [3/5] 의존성 설치 중... (2-5분 소요)
 call npm install
 if %errorlevel% neq 0 (
     echo [오류] npm install 실패
@@ -28,7 +36,7 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-echo [3/4] 테스트 실행하시겠습니까? (Y/N)
+echo [4/5] 테스트 실행하시겠습니까? (Y/N)
 set /p test_choice=선택:
 if /i "%test_choice%"=="Y" (
     echo 앱을 테스트합니다. 창을 닫으면 빌드로 진행됩니다.
@@ -36,7 +44,7 @@ if /i "%test_choice%"=="Y" (
 )
 echo.
 
-echo [4/4] Windows 설치파일 빌드 중... (5-10분 소요)
+echo [5/5] Windows 설치파일 빌드 중... (5-10분 소요)
 call npm run build:win
 if %errorlevel% neq 0 (
     echo [오류] 빌드 실패
@@ -49,6 +57,6 @@ echo ========================================
 echo    빌드 완료!
 echo ========================================
 echo.
-echo 설치파일: 스티키 노트 Setup 1.0.0.exe (현재 폴더)
+for %%f in (dist\*.exe) do echo 설치파일: %%~nxf
 echo.
 pause
