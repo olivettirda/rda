@@ -301,6 +301,15 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
+    // 창 닫기 방지 - 숨기기로 처리
+    mainWindow.on('close', (event) => {
+        if (!app.isQuitting) {
+            event.preventDefault();
+            mainWindow.hide();
+            console.log('창 닫기 -> 숨김 처리');
+        }
+    });
+
     // 사이드바 모드에서 이동 후 스냅
     mainWindow.on('moved', () => {
         if (isSidebarMode) {
