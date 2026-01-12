@@ -4,8 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     // 창 컨트롤
     closeWindow: () => ipcRenderer.invoke('close-window'),
-    minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
-    maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+    minimizeToTray: () => ipcRenderer.invoke('minimize-to-tray'),
+    forceQuit: () => ipcRenderer.invoke('force-quit'),
 
     // 자격 증명 저장 (자동 로그인용)
     saveCredentials: (username, password, autoLogin) => {
