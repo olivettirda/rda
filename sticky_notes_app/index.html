@@ -534,8 +534,9 @@
            ============================================ */
         .sticky-note {
             position: absolute;
-            width: 200px;
-            min-height: 200px;
+            width: 280px;
+            min-width: 250px;
+            min-height: 220px;
             display: flex;
             flex-direction: column;
             border-radius: 2px;
@@ -637,6 +638,86 @@
         }
 
         .note-textarea::placeholder {
+            color: rgba(0, 0, 0, 0.3);
+        }
+
+        /* 서식 도구모음 */
+        .note-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            background: rgba(255,255,255,0.3);
+            align-items: center;
+        }
+
+        .note-toolbar select,
+        .note-toolbar input[type="color"] {
+            padding: 2px 4px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.8);
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .note-toolbar select {
+            max-width: 90px;
+        }
+
+        .note-toolbar select.font-size-select {
+            max-width: 50px;
+        }
+
+        .note-toolbar input[type="color"] {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: none;
+        }
+
+        .note-toolbar .format-btn {
+            width: 24px;
+            height: 24px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.8);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .note-toolbar .format-btn:hover {
+            background: rgba(255,255,255,1);
+        }
+
+        .note-toolbar .format-btn.active {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        /* contenteditable 영역 */
+        .note-editor {
+            width: 100%;
+            height: 100%;
+            min-height: 120px;
+            background: transparent;
+            border: none;
+            resize: none;
+            font-family: var(--font-note);
+            font-size: 14px;
+            line-height: 1.5;
+            color: rgba(0, 0, 0, 0.8);
+            outline: none;
+            overflow-y: auto;
+        }
+
+        .note-editor:empty::before {
+            content: attr(data-placeholder);
             color: rgba(0, 0, 0, 0.3);
         }
 
@@ -1553,8 +1634,8 @@
             el.dataset.id = note.id;
             el.style.left = (note.position_x || Math.random() * 400 + 50) + 'px';
             el.style.top = (note.position_y || Math.random() * 300 + 50) + 'px';
-            el.style.width = (note.width || 200) + 'px';
-            el.style.minHeight = (note.height || 200) + 'px';
+            el.style.width = (note.width || 280) + 'px';
+            el.style.minHeight = (note.height || 220) + 'px';
 
             el.innerHTML = `
                 <div class="note-header">
@@ -1569,8 +1650,36 @@
                         <div class="color-option blue" data-color="blue"></div>
                     </div>
                 </div>
+                <div class="note-toolbar">
+                    <select class="font-select" title="글꼴">
+                        <option value="'맑은 고딕', sans-serif">맑은 고딕</option>
+                        <option value="'나눔고딕', sans-serif">나눔고딕</option>
+                        <option value="'돋움', Dotum, sans-serif">돋움</option>
+                        <option value="'굴림', Gulim, sans-serif">굴림</option>
+                        <option value="'바탕', Batang, serif">바탕</option>
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="'Times New Roman', serif">Times New Roman</option>
+                        <option value="'Courier New', monospace">Courier New</option>
+                        <option value="Georgia, serif">Georgia</option>
+                    </select>
+                    <select class="font-size-select" title="크기">
+                        <option value="10px">10</option>
+                        <option value="12px">12</option>
+                        <option value="14px" selected>14</option>
+                        <option value="16px">16</option>
+                        <option value="18px">18</option>
+                        <option value="20px">20</option>
+                        <option value="24px">24</option>
+                        <option value="28px">28</option>
+                        <option value="32px">32</option>
+                    </select>
+                    <input type="color" class="text-color-picker" value="#000000" title="글자색">
+                    <button class="format-btn bold-btn" title="굵게 (Ctrl+B)"><b>B</b></button>
+                    <button class="format-btn italic-btn" title="기울임 (Ctrl+I)"><i>I</i></button>
+                    <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)"><u>U</u></button>
+                </div>
                 <div class="note-content">
-                    <textarea class="note-textarea" placeholder="메모를 입력하세요...">${note.content || ''}</textarea>
+                    <div class="note-editor" contenteditable="true" data-placeholder="메모를 입력하세요...">${note.content || ''}</div>
                 </div>
                 <div class="note-resize"></div>
             `;
@@ -1582,18 +1691,84 @@
         }
 
         function setupNoteEvents(el, note) {
-            const textarea = el.querySelector('.note-textarea');
+            const editor = el.querySelector('.note-editor');
             const colorBtn = el.querySelector('.color-btn');
             const colorPicker = el.querySelector('.color-picker');
             const deleteBtn = el.querySelector('.delete-btn');
             const resizeHandle = el.querySelector('.note-resize');
 
+            // 서식 도구모음
+            const fontSelect = el.querySelector('.font-select');
+            const fontSizeSelect = el.querySelector('.font-size-select');
+            const textColorPicker = el.querySelector('.text-color-picker');
+            const boldBtn = el.querySelector('.bold-btn');
+            const italicBtn = el.querySelector('.italic-btn');
+            const underlineBtn = el.querySelector('.underline-btn');
+
             // 내용 변경
             let saveTimeout;
-            textarea.addEventListener('input', () => {
-                note.content = textarea.value;
+            editor.addEventListener('input', () => {
+                note.content = editor.innerHTML;
                 clearTimeout(saveTimeout);
                 saveTimeout = setTimeout(() => saveNote(note), 500);
+            });
+
+            // 서식 버튼 이벤트
+            fontSelect.addEventListener('change', (e) => {
+                document.execCommand('fontName', false, e.target.value);
+                editor.focus();
+            });
+
+            fontSizeSelect.addEventListener('change', (e) => {
+                // fontSize command uses 1-7, so we use CSS instead
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    if (!range.collapsed) {
+                        const span = document.createElement('span');
+                        span.style.fontSize = e.target.value;
+                        range.surroundContents(span);
+                        note.content = editor.innerHTML;
+                        saveNote(note);
+                    }
+                }
+                editor.focus();
+            });
+
+            textColorPicker.addEventListener('input', (e) => {
+                document.execCommand('foreColor', false, e.target.value);
+                editor.focus();
+            });
+
+            boldBtn.addEventListener('click', () => {
+                document.execCommand('bold', false, null);
+                editor.focus();
+            });
+
+            italicBtn.addEventListener('click', () => {
+                document.execCommand('italic', false, null);
+                editor.focus();
+            });
+
+            underlineBtn.addEventListener('click', () => {
+                document.execCommand('underline', false, null);
+                editor.focus();
+            });
+
+            // 키보드 단축키
+            editor.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'b') {
+                        e.preventDefault();
+                        document.execCommand('bold', false, null);
+                    } else if (e.key === 'i') {
+                        e.preventDefault();
+                        document.execCommand('italic', false, null);
+                    } else if (e.key === 'u') {
+                        e.preventDefault();
+                        document.execCommand('underline', false, null);
+                    }
+                }
             });
 
             // 드래그
@@ -1601,7 +1776,7 @@
             let startX, startY, origX, origY;
 
             el.addEventListener('mousedown', (e) => {
-                if (e.target === textarea || e.target.closest('.note-btn') || e.target.closest('.color-picker') || e.target === resizeHandle) return;
+                if (e.target === editor || e.target.closest('.note-btn') || e.target.closest('.color-picker') || e.target.closest('.note-toolbar') || e.target === resizeHandle) return;
 
                 isDragging = true;
                 el.classList.add('dragging');
