@@ -301,6 +301,9 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
+    // 개발자 도구 열기 (디버깅용)
+    mainWindow.webContents.openDevTools();
+
     // 창 닫기 방지 - 숨기기로 처리
     mainWindow.on('close', (event) => {
         if (!app.isQuitting) {
