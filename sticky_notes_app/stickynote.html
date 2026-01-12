@@ -786,6 +786,28 @@
         </div>
     </div>
 
+    <!-- 전달 모달 -->
+    <div id="transferModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">메모 전달</span>
+                <button class="modal-close" id="transferModalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: var(--text-secondary);">메모를 받을 사용자를 선택하세요:</p>
+                <div id="userListContainer" style="max-height: 300px; overflow-y: auto;">
+                    <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                        사용자 목록을 불러오는 중...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="transferModalCancel" style="flex:1">취소</button>
+                <button class="btn btn-primary" id="transferModalConfirm" style="flex:1" disabled>전달</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // =====================
         // Supabase 설정
@@ -849,22 +871,47 @@
         }
 
         // =====================
-        // 인증 함수
+        // 인증 함수 (데스크톱과 동일)
         // =====================
         async function login(username, password) {
             console.log('로그인 시도:', username);
             showLoading(true);
+            const loginAlert = document.getElementById('loginAlert');
 
             try {
                 const email = username + EMAIL_DOMAIN;
+
+                // 먼저 사용자 존재 여부 확인 (회원가입 시도로 체크)
+                const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
+                    email: email,
+                    password: 'temp_check_12345'
+                });
+
+                const userExists = signUpError?.message?.includes('already registered') ||
+                                   (signUpData?.user && signUpData?.user?.identities?.length === 0);
+
+                // 실제 로그인 시도
                 const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
 
+                console.log('로그인 결과:', { data, error });
+
                 if (error) {
-                    console.error('로그인 에러:', error);
-                    showAlert(document.getElementById('loginAlert'), '아이디 또는 비밀번호가 올바르지 않습니다.', 'error');
+                    console.error('로그인 에러:', JSON.stringify(error, null, 2));
+
+                    if (error.message?.includes('Invalid login credentials')) {
+                        if (!userExists) {
+                            showAlert(loginAlert, '존재하지 않는 아이디입니다', 'error');
+                        } else {
+                            showAlert(loginAlert, '비밀번호가 틀렸습니다', 'error');
+                        }
+                    } else if (error.message?.includes('Email not confirmed')) {
+                        showAlert(loginAlert, '이메일 인증이 필요합니다', 'error');
+                    } else {
+                        showAlert(loginAlert, '로그인에 실패했습니다: ' + error.message, 'error');
+                    }
                     showLoading(false);
                     return;
                 }
@@ -872,9 +919,10 @@
                 console.log('로그인 성공:', data.user);
                 currentUser = data.user;
                 showApp();
+                showToast('로그인 되었습니다');
             } catch (err) {
                 console.error('로그인 예외:', err);
-                showAlert(document.getElementById('loginAlert'), '로그인 중 오류가 발생했습니다.', 'error');
+                showAlert(loginAlert, '로그인 중 오류가 발생했습니다.', 'error');
             }
 
             showLoading(false);
@@ -883,6 +931,26 @@
         async function signup(username, password, displayName, organization) {
             console.log('회원가입 시도:', username);
             showLoading(true);
+            const signupAlert = document.getElementById('signupAlert');
+
+            // 유효성 검사 (데스크톱과 동일)
+            if (displayName.length < 2) {
+                showAlert(signupAlert, '이름은 2자 이상이어야 합니다', 'error');
+                showLoading(false);
+                return;
+            }
+
+            if (!/^[a-zA-Z0-9]{3,}$/.test(username)) {
+                showAlert(signupAlert, '아이디는 3자 이상, 영문/숫자만 사용 가능합니다', 'error');
+                showLoading(false);
+                return;
+            }
+
+            if (password.length < 6) {
+                showAlert(signupAlert, '비밀번호는 6자 이상이어야 합니다', 'error');
+                showLoading(false);
+                return;
+            }
 
             try {
                 const email = username + EMAIL_DOMAIN;
@@ -898,35 +966,47 @@
                     }
                 });
 
+                console.log('회원가입 결과:', { data, error });
+
                 if (error) {
-                    console.error('회원가입 에러:', error);
-                    showAlert(document.getElementById('signupAlert'), error.message, 'error');
+                    console.error('회원가입 에러:', JSON.stringify(error, null, 2));
+                    if (error.message.includes('already registered')) {
+                        showAlert(signupAlert, '이미 사용중인 아이디입니다', 'error');
+                    } else {
+                        showAlert(signupAlert, '회원가입 실패: ' + error.message, 'error');
+                    }
                     showLoading(false);
                     return;
                 }
 
                 // 프로필 생성
-                const { error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .insert({
-                        id: data.user.id,
-                        username: username,
-                        display_name: displayName,
-                        organization: organization
-                    });
+                if (data.user) {
+                    const { error: profileError } = await supabaseClient
+                        .from('profiles')
+                        .insert({
+                            id: data.user.id,
+                            username: username,
+                            display_name: displayName,
+                            organization: organization
+                        });
 
-                if (profileError) {
-                    console.error('프로필 생성 에러:', profileError);
+                    if (profileError) {
+                        console.error('프로필 생성 에러:', profileError);
+                    }
                 }
 
-                console.log('회원가입 성공');
-                showAlert(document.getElementById('signupAlert'), '회원가입이 완료되었습니다. 로그인해주세요.', 'success');
-
-                // 로그인 탭으로 전환
-                document.querySelector('[data-tab="login"]').click();
+                // 세션이 있으면 바로 로그인
+                if (data.session) {
+                    currentUser = data.user;
+                    showApp();
+                    showToast('회원가입이 완료되었습니다');
+                } else {
+                    showAlert(signupAlert, '회원가입이 완료되었습니다. 로그인해주세요.', 'success');
+                    document.querySelector('[data-tab="login"]').click();
+                }
             } catch (err) {
                 console.error('회원가입 예외:', err);
-                showAlert(document.getElementById('signupAlert'), '회원가입 중 오류가 발생했습니다.', 'error');
+                showAlert(signupAlert, '회원가입 중 오류가 발생했습니다.', 'error');
             }
 
             showLoading(false);
@@ -1014,14 +1094,22 @@
                     indicatorHtml = '<div class="note-indicator"><img src="assets/passed.png" alt=""> 전달받음</div>';
                 }
 
+                // 전달한 메모 표시
+                let sentIndicatorHtml = '';
+                if (note.transferred_note_id) {
+                    sentIndicatorHtml = '<div class="note-indicator sent"><img src="assets/passed.png" alt="" style="transform:scaleX(-1)"> 전달함</div>';
+                }
+
                 card.innerHTML = `
                     <div class="note-header">
                         <div>
                             <span class="note-date">${date}</span>
                             ${indicatorHtml}
+                            ${sentIndicatorHtml}
                         </div>
                         <div class="note-actions">
                             <button class="note-action-btn edit-btn"><img src="assets/pencil.png" alt="편집"></button>
+                            <button class="note-action-btn transfer-btn"><img src="assets/share.png" alt="전달"></button>
                             <button class="note-action-btn delete-btn"><img src="assets/trashcan.png" alt="삭제"></button>
                         </div>
                     </div>
@@ -1031,6 +1119,11 @@
                 // 편집 버튼
                 card.querySelector('.edit-btn').addEventListener('click', () => {
                     openNoteEditor(note);
+                });
+
+                // 전달 버튼
+                card.querySelector('.transfer-btn').addEventListener('click', () => {
+                    openTransferModal(note);
                 });
 
                 // 삭제 버튼
@@ -1158,6 +1251,127 @@
         }
 
         // =====================
+        // 메모 전달 기능
+        // =====================
+        let transferNoteData = null;
+        let selectedUserId = null;
+
+        async function loadUserList() {
+            console.log('사용자 목록 조회 시작');
+            const container = document.getElementById('userListContainer');
+
+            try {
+                const { data: profiles, error } = await supabaseClient
+                    .from('profiles')
+                    .select('id, username, display_name, organization')
+                    .neq('id', currentUser.id)
+                    .order('display_name');
+
+                console.log('사용자 목록:', { profiles, error });
+
+                if (error || !profiles || profiles.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-secondary);">다른 사용자가 없습니다.</div>';
+                    return;
+                }
+
+                container.innerHTML = profiles.map(user => `
+                    <div class="user-item" data-user-id="${user.id}" style="display:flex;align-items:center;padding:12px;border-radius:8px;cursor:pointer;margin-bottom:8px;background:var(--bg-main);">
+                        <div style="width:40px;height:40px;border-radius:50%;background:var(--primary-main);display:flex;align-items:center;justify-content:center;color:white;font-weight:600;margin-right:12px;">
+                            ${(user.display_name || user.username || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <div style="font-weight:500;">${user.display_name || user.username}</div>
+                            <div style="font-size:12px;color:var(--text-secondary);">@${user.username}${user.organization ? ' · ' + user.organization : ''}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.querySelectorAll('.user-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.user-item').forEach(i => i.style.background = 'var(--bg-main)');
+                        item.style.background = 'var(--primary-light)';
+                        selectedUserId = item.dataset.userId;
+                        document.getElementById('transferModalConfirm').disabled = false;
+                    });
+                });
+
+            } catch (err) {
+                console.error('사용자 목록 조회 오류:', err);
+                container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--error);">오류가 발생했습니다.</div>';
+            }
+        }
+
+        function openTransferModal(note) {
+            console.log('전달 모달 열기:', note);
+            transferNoteData = note;
+            selectedUserId = null;
+            document.getElementById('transferModalConfirm').disabled = true;
+            document.getElementById('transferModal').classList.add('show');
+            loadUserList();
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').classList.remove('show');
+            transferNoteData = null;
+            selectedUserId = null;
+        }
+
+        async function transferNote() {
+            if (!transferNoteData || !selectedUserId) return;
+
+            console.log('메모 전달:', { noteId: transferNoteData.id, targetUserId: selectedUserId });
+            showLoading(true);
+
+            try {
+                const newNote = {
+                    user_id: selectedUserId,
+                    from_user_id: currentUser.id,
+                    content: transferNoteData.content,
+                    color: transferNoteData.color,
+                    position_x: Math.random() * 400 + 50,
+                    position_y: Math.random() * 300 + 50,
+                    width: transferNoteData.width || 280,
+                    height: transferNoteData.height || 220
+                };
+
+                const { data, error } = await supabaseClient
+                    .from('notes')
+                    .insert(newNote)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('전달 에러:', error);
+                    showToast('전달 실패');
+                    showLoading(false);
+                    return;
+                }
+
+                // 원본 메모에 전달 정보 저장
+                await supabaseClient
+                    .from('notes')
+                    .update({ transferred_note_id: data.id })
+                    .eq('id', transferNoteData.id);
+
+                // 로컬 업데이트
+                const idx = notes.findIndex(n => n.id === transferNoteData.id);
+                if (idx !== -1) {
+                    notes[idx].transferred_note_id = data.id;
+                }
+
+                renderNotes();
+                closeTransferModal();
+                showToast('메모가 전달되었습니다');
+
+            } catch (err) {
+                console.error('전달 예외:', err);
+                showToast('오류가 발생했습니다');
+            }
+
+            showLoading(false);
+        }
+
+        // =====================
         // 이벤트 리스너
         // =====================
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1271,6 +1485,14 @@
 
             noteModal.addEventListener('click', (e) => {
                 if (e.target === noteModal) closeNoteEditor();
+            });
+
+            // 전달 모달 이벤트
+            document.getElementById('transferModalClose').addEventListener('click', closeTransferModal);
+            document.getElementById('transferModalCancel').addEventListener('click', closeTransferModal);
+            document.getElementById('transferModalConfirm').addEventListener('click', transferNote);
+            document.getElementById('transferModal').addEventListener('click', (e) => {
+                if (e.target.id === 'transferModal') closeTransferModal();
             });
 
             // 세션 체크
