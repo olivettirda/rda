@@ -714,14 +714,59 @@
 
         /* 다일 예약 스타일 */
         .calendar-event.multi-day {
-            border-radius: 2px;
+            position: relative;
         }
 
+        /* 다일 예약: 시작일 */
+        .calendar-event.multi-day.start-day {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            margin-right: -2px;
+            padding-right: 4px;
+        }
+
+        .calendar-event.multi-day.start-day::after {
+            content: '▶';
+            position: absolute;
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.5rem;
+            opacity: 0.6;
+        }
+
+        /* 다일 예약: 중간일 */
         .calendar-event.multi-day.middle-day {
             border-left: none;
+            border-right: none;
             border-radius: 0;
+            margin-left: -2px;
+            margin-right: -2px;
+            padding-left: 6px;
+            padding-right: 6px;
+            font-weight: 500;
+        }
+
+        /* 다일 예약: 종료일 */
+        .calendar-event.multi-day.end-day {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            border-left: none;
             margin-left: -4px;
-            margin-right: -4px;
+            padding-left: 8px;
+        }
+
+        /* 다일 예약: 시작일 */
+        .calendar-event.multi-day:not(.middle-day):not(.end-day) {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        /* 다일 예약: 종료일 */
+        .calendar-event.multi-day.end-day {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            margin-left: -4px;
             padding-left: 8px;
         }
 
@@ -4127,17 +4172,24 @@
 
                         const displayName = isMine ? '내 예약' : (e.users?.name || '예약');
 
+                        // 다일 예약 클래스 추가
+                        let dayTypeClass = '';
+                        if (e.isMultiDay) {
+                            if (e.isStartDay) dayTypeClass = 'start-day';
+                            else if (e.isEndDay) dayTypeClass = 'end-day';
+                            else if (e.isMiddleDay) dayTypeClass = 'middle-day';
+                        }
+
                         // 시간 기반 위치 계산 (시작일 기준)
                         const topPosition = e.isStartDay || !e.isMultiDay
                             ? getTimePosition(e.start_time)
                             : 0;
 
-                        return `<div class="calendar-event ${statusClass} ${e.isMultiDay ? 'multi-day' : ''} ${e.isMiddleDay ? 'middle-day' : ''}"
+                        console.log('이벤트 렌더링:', { id: e.id, isMultiDay: e.isMultiDay, dayTypeClass, displayDate: e.displayDate });
+
+                        return `<div class="calendar-event ${statusClass} ${e.isMultiDay ? 'multi-day' : ''} ${dayTypeClass}"
                             data-reservation-id="${e.id}"
                             data-is-mine="${isMine}"
-                            onmouseenter="showEventTooltip(event, ${e.id})"
-                            onmouseleave="hideEventTooltip()"
-                            onclick="handleCalendarEventClick(event, ${e.id}, ${isMine})"
                             style="cursor:pointer; --time-position: ${topPosition}%;">
                             ${timeStr} ${displayName}
                         </div>`;
@@ -4148,6 +4200,31 @@
                     }
 
                     el.innerHTML = html;
+
+                    // 이벤트 리스너 등록
+                    el.querySelectorAll('.calendar-event').forEach(eventEl => {
+                        const reservationId = parseInt(eventEl.getAttribute('data-reservation-id'));
+                        const isMine = eventEl.getAttribute('data-is-mine') === 'true';
+
+                        console.log('이벤트 리스너 등록:', { reservationId, isMine });
+
+                        // 호버링 이벤트
+                        eventEl.addEventListener('mouseenter', (e) => {
+                            console.log('마우스 진입:', reservationId);
+                            showEventTooltip(e, reservationId);
+                        });
+
+                        eventEl.addEventListener('mouseleave', () => {
+                            console.log('마우스 이탈');
+                            hideEventTooltip();
+                        });
+
+                        // 클릭 이벤트
+                        eventEl.addEventListener('click', (e) => {
+                            console.log('클릭:', { reservationId, isMine });
+                            handleCalendarEventClick(e, reservationId, isMine);
+                        });
+                    });
                 }
             });
         }
