@@ -577,33 +577,7 @@
             transform: scale(1.05);
         }
 
-        /* 사이드바 토글 버튼 */
-        .sidebar-toggle-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.1);
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-        }
-
-        .sidebar-toggle-btn:hover {
-            background: rgba(255,255,255,0.2);
-        }
-
-        .sidebar-toggle-btn.active {
-            background: var(--primary-main);
-        }
-
-        .sidebar-icon {
-            font-size: 18px;
-        }
-
-        /* 사이드바 모드 스타일 */
+        /* 사이드바(트레이) 모드 스타일 */
         body.sidebar-mode .header {
             padding: 8px 12px;
             height: 40px;
@@ -1585,7 +1559,7 @@
         </div>
         <div class="titlebar-controls">
             <button class="titlebar-btn" id="minimizeToTaskbarBtn" title="작업표시줄로 최소화">─</button>
-            <button class="titlebar-btn" id="trayModeBtn" title="트레이 모드">◫</button>
+            <button class="titlebar-btn" id="trayModeBtn" title="트레이 모드">◨</button>
             <button class="titlebar-btn close" id="closeBtn" title="닫기">✕</button>
         </div>
     </div>
@@ -1661,9 +1635,6 @@
                     <span class="sync-icon">●</span>
                     <span class="sync-text">저장됨</span>
                 </div>
-                <button id="sidebarToggle" class="sidebar-toggle-btn" title="사이드바 모드">
-                    <span class="sidebar-icon">◧</span>
-                </button>
                 <div id="userAvatar" class="user-avatar">U</div>
             </div>
         </header>
@@ -2775,14 +2746,12 @@
                     console.log('트레이 모드 변경:', data);
                     document.body.classList.toggle('sidebar-mode', data.isSidebar);
 
-                    // 버튼 아이콘 변경: 트레이 모드면 ▢(복원), 일반이면 ◫(트레이로)
-                    trayModeBtn.textContent = data.isSidebar ? '▢' : '◫';
+                    // 버튼 아이콘 변경: 트레이 모드면 ▢(복원), 일반이면 ◨(트레이로)
+                    trayModeBtn.textContent = data.isSidebar ? '▢' : '◨';
                     trayModeBtn.title = data.isSidebar ? '일반 모드로 복원' : '트레이 모드';
 
-                    const sidebarToggle = document.getElementById('sidebarToggle');
-                    if (sidebarToggle) {
-                        sidebarToggle.classList.toggle('active', data.isSidebar);
-                    }
+                    // 모드 변경 시 메모 다시 렌더링 (레이아웃 복원)
+                    renderNotes();
                 });
 
                 // 초기 상태 수신
@@ -2791,7 +2760,7 @@
                     document.body.classList.toggle('sidebar-mode', state.isSidebar);
 
                     // 버튼 아이콘 초기화
-                    trayModeBtn.textContent = state.isSidebar ? '▢' : '◫';
+                    trayModeBtn.textContent = state.isSidebar ? '▢' : '◨';
                     trayModeBtn.title = state.isSidebar ? '일반 모드로 복원' : '트레이 모드';
                 });
             }
@@ -2906,25 +2875,6 @@
                     await window.electronAPI.toggleSidebar();
                 }
             });
-
-            // 사이드바 토글 버튼
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            sidebarToggle.addEventListener('click', async () => {
-                if (window.electronAPI) {
-                    const isSidebar = await window.electronAPI.toggleSidebar();
-                    sidebarToggle.classList.toggle('active', isSidebar);
-                    document.body.classList.toggle('sidebar-mode', isSidebar);
-                }
-            });
-
-            // 사이드바 모드 변경 이벤트 수신
-            if (window.electronAPI && window.electronAPI.onSidebarModeChanged) {
-                window.electronAPI.onSidebarModeChanged((isSidebar) => {
-                    sidebarToggle.classList.toggle('active', isSidebar);
-                    document.body.classList.toggle('sidebar-mode', isSidebar);
-                    sidebarModeCheckbox.checked = isSidebar;
-                });
-            }
 
             // 이메일 복사
             document.getElementById('copyEmailBtn').addEventListener('click', async () => {
