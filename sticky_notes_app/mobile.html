@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#0c3026">
+    <title>스티키 노트 - 모바일</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icon.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-dark: #0c3026;
+            --primary-main: #017f97;
+            --primary-light: #4fb3c4;
+            --bg-main: #f5f5f5;
+            --bg-card: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --success: #2e7d32;
+            --error: #d32f2f;
+            --warning: #f9a825;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 로그인 화면 */
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
+        }
+
+        .login-box {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 32px 24px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .login-logo img {
+            width: 64px;
+            height: 64px;
+        }
+
+        .login-logo h1 {
+            font-size: 1.5rem;
+            color: var(--primary-dark);
+            margin-top: 12px;
+        }
+
+        .login-logo p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 4px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px; /* 모바일에서 확대 방지 */
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-main);
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .btn-primary:active {
+            background: var(--primary-dark);
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary-main);
+            border: 1px solid var(--primary-main);
+        }
+
+        .login-tabs {
+            display: flex;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .login-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border: none;
+            background: none;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .login-tab.active {
+            color: var(--primary-main);
+        }
+
+        .login-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary-main);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            margin-top: 12px;
+        }
+
+        .alert-error {
+            background: #ffebee;
+            color: var(--error);
+        }
+
+        .alert-success {
+            background: #e8f5e9;
+            color: var(--success);
+        }
+
+        /* 앱 화면 */
+        .app-container {
+            display: none;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .app-container.active {
+            display: flex;
+        }
+
+        .app-header {
+            background: var(--primary-dark);
+            color: white;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .header-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .header-btn img {
+            width: 20px;
+            height: 20px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* 노트 리스트 */
+        .notes-container {
+            flex: 1;
+            padding: 16px;
+            padding-bottom: 80px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state img {
+            width: 80px;
+            opacity: 0.5;
+            margin-bottom: 16px;
+        }
+
+        .note-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .note-card.yellow { border-left: 4px solid #ffd54f; }
+        .note-card.pink { border-left: 4px solid #f48fb1; }
+        .note-card.green { border-left: 4px solid #81c784; }
+        .note-card.orange { border-left: 4px solid #ffb74d; }
+        .note-card.purple { border-left: 4px solid #ba68c8; }
+        .note-card.blue { border-left: 4px solid #64b5f6; }
+
+        .note-header {
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .note-date {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .note-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .note-action-btn:active {
+            background: var(--border-color);
+        }
+
+        .note-action-btn img {
+            width: 18px;
+            height: 18px;
+        }
+
+        .note-content {
+            padding: 16px;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+            min-height: 60px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .note-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .note-indicator img {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* FAB 버튼 */
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--primary-main);
+            color: white;
+            border: none;
+            font-size: 28px;
+            box-shadow: 0 4px 16px rgba(1, 127, 151, 0.4);
+            cursor: pointer;
+            z-index: 100;
+        }
+
+        .fab:active {
+            transform: scale(0.95);
+            background: var(--primary-dark);
+        }
+
+        /* 모달 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 16px 16px 0 0;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            font-size: 24px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 12px 20px 24px;
+            display: flex;
+            gap: 12px;
+        }
+
+        /* 에디터 */
+        .editor-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 16px;
+            font-size: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .editor-textarea:focus {
+            outline: none;
+            border-color: var(--primary-main);
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 12px;
+            padding: 16px 0;
+        }
+
+        .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+        }
+
+        .color-option.selected {
+            border-color: var(--primary-dark);
+        }
+
+        .color-option.yellow { background: #ffd54f; }
+        .color-option.pink { background: #f48fb1; }
+        .color-option.green { background: #81c784; }
+        .color-option.orange { background: #ffb74d; }
+        .color-option.purple { background: #ba68c8; }
+        .color-option.blue { background: #64b5f6; }
+
+        /* 프로필 메뉴 */
+        .profile-menu {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-card);
+            box-shadow: -4px 0 16px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 1001;
+            overflow-y: auto;
+        }
+
+        .profile-menu.show {
+            right: 0;
+        }
+
+        .profile-menu-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 1000;
+        }
+
+        .profile-menu-backdrop.show {
+            display: block;
+        }
+
+        .profile-header {
+            background: var(--primary-dark);
+            color: white;
+            padding: 24px 20px;
+        }
+
+        .profile-avatar-large {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--primary-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .profile-name {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .profile-org {
+            font-size: 0.875rem;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-size: 1rem;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .menu-item:active {
+            background: var(--bg-main);
+        }
+
+        .menu-item img {
+            width: 20px;
+            height: 20px;
+            opacity: 0.7;
+        }
+
+        .menu-item.logout {
+            color: var(--error);
+        }
+
+        /* 로딩 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary-main);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 토스트 */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 3000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* 동기화 상태 */
+        .sync-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+        }
+
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .sync-dot.synced { background: #4caf50; }
+        .sync-dot.syncing { background: #ffc107; animation: pulse 1s infinite; }
+        .sync-dot.error { background: #f44336; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- 토스트 -->
+    <div id="toast" class="toast"></div>
+
+    <!-- 로그인 화면 -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-box">
+            <div class="login-logo">
+                <img src="assets/icon.png" alt="스티키 노트">
+                <h1>스티키 노트</h1>
+                <p>모바일 버전</p>
+            </div>
+
+            <div class="login-tabs">
+                <button class="login-tab active" data-tab="login">로그인</button>
+                <button class="login-tab" data-tab="signup">회원가입</button>
+            </div>
+
+            <div id="loginTab" class="tab-content active">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label class="form-label">아이디</label>
+                        <input type="text" id="loginUsername" class="form-input" placeholder="아이디를 입력하세요" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">비밀번호</label>
+                        <input type="password" id="loginPassword" class="form-input" placeholder="비밀번호를 입력하세요" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">로그인</button>
+                    <div id="loginAlert" class="alert" style="display: none;"></div>
+                </form>
+            </div>
+
+            <div id="signupTab" class="tab-content">
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label class="form-label">아이디 *</label>
+                        <input type="text" id="signupUsername" class="form-input" placeholder="3자 이상" required minlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">비밀번호 *</label>
+                        <input type="password" id="signupPassword" class="form-input" placeholder="6자 이상" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">비밀번호 확인 *</label>
+                        <input type="password" id="signupPasswordConfirm" class="form-input" placeholder="비밀번호 재입력" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">이름 *</label>
+                        <input type="text" id="signupDisplayName" class="form-input" placeholder="실명 또는 닉네임" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">소속 *</label>
+                        <input type="text" id="signupOrganization" class="form-input" placeholder="회사, 학교 등" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">회원가입</button>
+                    <div id="signupAlert" class="alert" style="display: none;"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 앱 화면 -->
+    <div id="appContainer" class="app-container">
+        <header class="app-header">
+            <div class="header-title">스티키 노트</div>
+            <div class="header-actions">
+                <div class="sync-indicator">
+                    <span class="sync-dot synced" id="syncDot"></span>
+                    <span id="syncText">저장됨</span>
+                </div>
+                <div class="user-avatar" id="userAvatar">U</div>
+            </div>
+        </header>
+
+        <div class="notes-container" id="notesContainer">
+            <div class="empty-state" id="emptyState">
+                <img src="assets/icon.png" alt="">
+                <p>메모가 없습니다.<br>아래 + 버튼을 눌러 새 메모를 추가하세요.</p>
+            </div>
+        </div>
+
+        <button class="fab" id="addNoteBtn">+</button>
+    </div>
+
+    <!-- 프로필 메뉴 -->
+    <div class="profile-menu-backdrop" id="profileBackdrop"></div>
+    <div class="profile-menu" id="profileMenu">
+        <div class="profile-header">
+            <div class="profile-avatar-large" id="profileAvatarLarge">U</div>
+            <div class="profile-name" id="profileName">사용자</div>
+            <div class="profile-org" id="profileOrg">소속</div>
+        </div>
+        <button class="menu-item" id="refreshBtn">
+            <span>🔄</span> 새로고침
+        </button>
+        <button class="menu-item" id="exportBtn">
+            <span>💾</span> 데이터 내보내기
+        </button>
+        <button class="menu-item logout" id="logoutBtn">
+            <span>🚪</span> 로그아웃
+        </button>
+    </div>
+
+    <!-- 메모 편집 모달 -->
+    <div id="noteModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="noteModalTitle">새 메모</span>
+                <button class="modal-close" id="noteModalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <textarea class="editor-textarea" id="noteEditor" placeholder="메모 내용을 입력하세요..."></textarea>
+                <div class="color-picker" id="colorPicker">
+                    <div class="color-option yellow selected" data-color="yellow"></div>
+                    <div class="color-option pink" data-color="pink"></div>
+                    <div class="color-option green" data-color="green"></div>
+                    <div class="color-option orange" data-color="orange"></div>
+                    <div class="color-option purple" data-color="purple"></div>
+                    <div class="color-option blue" data-color="blue"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="noteModalCancel" style="flex:1">취소</button>
+                <button class="btn btn-primary" id="noteModalSave" style="flex:1">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =====================
+        // Supabase 설정
+        // =====================
+        const SUPABASE_URL = 'https://pquslvmqxivljqcsnazm.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxdXNsdm1xeGl2bGpxY3NuYXptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY2NzUzNDYsImV4cCI6MjA1MjI1MTM0Nn0.2gM1SPiYLPUmEcDQ0U2hZqsVwh2EFiB0V9FFJnNLALw';
+        const EMAIL_DOMAIN = '@stickynotes.local';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // =====================
+        // 전역 변수
+        // =====================
+        let currentUser = null;
+        let notes = [];
+        let editingNote = null;
+        let selectedColor = 'yellow';
+
+        // =====================
+        // DOM 요소
+        // =====================
+        const loginContainer = document.getElementById('loginContainer');
+        const appContainer = document.getElementById('appContainer');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const notesContainer = document.getElementById('notesContainer');
+        const emptyState = document.getElementById('emptyState');
+        const profileMenu = document.getElementById('profileMenu');
+        const profileBackdrop = document.getElementById('profileBackdrop');
+        const noteModal = document.getElementById('noteModal');
+        const toast = document.getElementById('toast');
+
+        // =====================
+        // 유틸리티 함수
+        // =====================
+        function showLoading(show) {
+            loadingOverlay.classList.toggle('show', show);
+        }
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function showAlert(element, message, type) {
+            element.textContent = message;
+            element.className = `alert alert-${type}`;
+            element.style.display = 'block';
+        }
+
+        function updateSyncStatus(status) {
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
+
+            dot.className = 'sync-dot ' + status;
+            switch(status) {
+                case 'synced': text.textContent = '저장됨'; break;
+                case 'syncing': text.textContent = '동기화 중...'; break;
+                case 'error': text.textContent = '오류'; break;
+            }
+        }
+
+        // =====================
+        // 인증 함수
+        // =====================
+        async function login(username, password) {
+            console.log('로그인 시도:', username);
+            showLoading(true);
+
+            try {
+                const email = username + EMAIL_DOMAIN;
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    console.error('로그인 에러:', error);
+                    showAlert(document.getElementById('loginAlert'), '아이디 또는 비밀번호가 올바르지 않습니다.', 'error');
+                    showLoading(false);
+                    return;
+                }
+
+                console.log('로그인 성공:', data.user);
+                currentUser = data.user;
+                showApp();
+            } catch (err) {
+                console.error('로그인 예외:', err);
+                showAlert(document.getElementById('loginAlert'), '로그인 중 오류가 발생했습니다.', 'error');
+            }
+
+            showLoading(false);
+        }
+
+        async function signup(username, password, displayName, organization) {
+            console.log('회원가입 시도:', username);
+            showLoading(true);
+
+            try {
+                const email = username + EMAIL_DOMAIN;
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            username: username,
+                            display_name: displayName,
+                            organization: organization
+                        }
+                    }
+                });
+
+                if (error) {
+                    console.error('회원가입 에러:', error);
+                    showAlert(document.getElementById('signupAlert'), error.message, 'error');
+                    showLoading(false);
+                    return;
+                }
+
+                // 프로필 생성
+                const { error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .insert({
+                        id: data.user.id,
+                        username: username,
+                        display_name: displayName,
+                        organization: organization
+                    });
+
+                if (profileError) {
+                    console.error('프로필 생성 에러:', profileError);
+                }
+
+                console.log('회원가입 성공');
+                showAlert(document.getElementById('signupAlert'), '회원가입이 완료되었습니다. 로그인해주세요.', 'success');
+
+                // 로그인 탭으로 전환
+                document.querySelector('[data-tab="login"]').click();
+            } catch (err) {
+                console.error('회원가입 예외:', err);
+                showAlert(document.getElementById('signupAlert'), '회원가입 중 오류가 발생했습니다.', 'error');
+            }
+
+            showLoading(false);
+        }
+
+        async function logout() {
+            showLoading(true);
+            await supabaseClient.auth.signOut();
+            currentUser = null;
+            notes = [];
+            loginContainer.style.display = 'flex';
+            appContainer.classList.remove('active');
+            profileMenu.classList.remove('show');
+            profileBackdrop.classList.remove('show');
+            showLoading(false);
+        }
+
+        // =====================
+        // 앱 표시
+        // =====================
+        async function showApp() {
+            loginContainer.style.display = 'none';
+            appContainer.classList.add('active');
+
+            // 사용자 정보 표시
+            const displayName = currentUser.user_metadata?.display_name || currentUser.email?.split('@')[0] || 'U';
+            const organization = currentUser.user_metadata?.organization || '';
+
+            document.getElementById('userAvatar').textContent = displayName.charAt(0).toUpperCase();
+            document.getElementById('profileAvatarLarge').textContent = displayName.charAt(0).toUpperCase();
+            document.getElementById('profileName').textContent = displayName;
+            document.getElementById('profileOrg').textContent = organization || '소속 없음';
+
+            await loadNotes();
+        }
+
+        // =====================
+        // 노트 관리
+        // =====================
+        async function loadNotes() {
+            console.log('노트 로드 시작');
+            updateSyncStatus('syncing');
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('notes')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .order('updated_at', { ascending: false });
+
+                if (error) {
+                    console.error('노트 로드 에러:', error);
+                    updateSyncStatus('error');
+                    return;
+                }
+
+                notes = data || [];
+                renderNotes();
+                updateSyncStatus('synced');
+                console.log('노트 로드 완료:', notes.length);
+            } catch (err) {
+                console.error('노트 로드 예외:', err);
+                updateSyncStatus('error');
+            }
+        }
+
+        function renderNotes() {
+            emptyState.style.display = notes.length === 0 ? 'block' : 'none';
+
+            // 기존 노트 카드 제거
+            notesContainer.querySelectorAll('.note-card').forEach(card => card.remove());
+
+            notes.forEach(note => {
+                const card = document.createElement('div');
+                card.className = `note-card ${note.color || 'yellow'}`;
+                card.dataset.id = note.id;
+
+                // HTML 태그 제거하고 텍스트만 추출
+                const plainText = (note.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+
+                const date = note.updated_at ? new Date(note.updated_at).toLocaleDateString('ko-KR') : '';
+
+                let indicatorHtml = '';
+                if (note.from_user_id) {
+                    indicatorHtml = '<div class="note-indicator"><img src="assets/passed.png" alt=""> 전달받음</div>';
+                }
+
+                card.innerHTML = `
+                    <div class="note-header">
+                        <div>
+                            <span class="note-date">${date}</span>
+                            ${indicatorHtml}
+                        </div>
+                        <div class="note-actions">
+                            <button class="note-action-btn edit-btn"><img src="assets/pencil.png" alt="편집"></button>
+                            <button class="note-action-btn delete-btn"><img src="assets/trashcan.png" alt="삭제"></button>
+                        </div>
+                    </div>
+                    <div class="note-content">${plainText}</div>
+                `;
+
+                // 편집 버튼
+                card.querySelector('.edit-btn').addEventListener('click', () => {
+                    openNoteEditor(note);
+                });
+
+                // 삭제 버튼
+                card.querySelector('.delete-btn').addEventListener('click', () => {
+                    if (confirm('이 메모를 삭제하시겠습니까?')) {
+                        deleteNote(note.id);
+                    }
+                });
+
+                notesContainer.appendChild(card);
+            });
+        }
+
+        async function saveNote(noteData) {
+            console.log('노트 저장:', noteData);
+            updateSyncStatus('syncing');
+
+            try {
+                if (editingNote) {
+                    // 수정
+                    const { error } = await supabaseClient
+                        .from('notes')
+                        .update({
+                            content: noteData.content,
+                            color: noteData.color,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', editingNote.id);
+
+                    if (error) {
+                        console.error('노트 수정 에러:', error);
+                        updateSyncStatus('error');
+                        return;
+                    }
+
+                    // 로컬 업데이트
+                    const idx = notes.findIndex(n => n.id === editingNote.id);
+                    if (idx !== -1) {
+                        notes[idx].content = noteData.content;
+                        notes[idx].color = noteData.color;
+                        notes[idx].updated_at = new Date().toISOString();
+                    }
+                } else {
+                    // 새 노트
+                    const { data, error } = await supabaseClient
+                        .from('notes')
+                        .insert({
+                            user_id: currentUser.id,
+                            content: noteData.content,
+                            color: noteData.color,
+                            position_x: 50,
+                            position_y: 50,
+                            width: 280,
+                            height: 220
+                        })
+                        .select()
+                        .single();
+
+                    if (error) {
+                        console.error('노트 생성 에러:', error);
+                        updateSyncStatus('error');
+                        return;
+                    }
+
+                    notes.unshift(data);
+                }
+
+                renderNotes();
+                updateSyncStatus('synced');
+                showToast('저장되었습니다');
+            } catch (err) {
+                console.error('노트 저장 예외:', err);
+                updateSyncStatus('error');
+            }
+        }
+
+        async function deleteNote(noteId) {
+            console.log('노트 삭제:', noteId);
+            updateSyncStatus('syncing');
+
+            try {
+                const { error } = await supabaseClient
+                    .from('notes')
+                    .delete()
+                    .eq('id', noteId);
+
+                if (error) {
+                    console.error('노트 삭제 에러:', error);
+                    updateSyncStatus('error');
+                    return;
+                }
+
+                notes = notes.filter(n => n.id !== noteId);
+                renderNotes();
+                updateSyncStatus('synced');
+                showToast('삭제되었습니다');
+            } catch (err) {
+                console.error('노트 삭제 예외:', err);
+                updateSyncStatus('error');
+            }
+        }
+
+        // =====================
+        // 에디터 모달
+        // =====================
+        function openNoteEditor(note = null) {
+            editingNote = note;
+            selectedColor = note?.color || 'yellow';
+
+            document.getElementById('noteModalTitle').textContent = note ? '메모 수정' : '새 메모';
+            document.getElementById('noteEditor').value = note ? (note.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') : '';
+
+            // 색상 선택
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.color === selectedColor);
+            });
+
+            noteModal.classList.add('show');
+            document.getElementById('noteEditor').focus();
+        }
+
+        function closeNoteEditor() {
+            noteModal.classList.remove('show');
+            editingNote = null;
+        }
+
+        // =====================
+        // 이벤트 리스너
+        // =====================
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('모바일 앱 초기화');
+
+            // 로그인 탭 전환
+            document.querySelectorAll('.login-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.tab + 'Tab').classList.add('active');
+                });
+            });
+
+            // 로그인 폼
+            document.getElementById('loginForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('loginUsername').value.trim();
+                const password = document.getElementById('loginPassword').value;
+                login(username, password);
+            });
+
+            // 회원가입 폼
+            document.getElementById('signupForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('signupUsername').value.trim();
+                const password = document.getElementById('signupPassword').value;
+                const confirm = document.getElementById('signupPasswordConfirm').value;
+                const displayName = document.getElementById('signupDisplayName').value.trim();
+                const organization = document.getElementById('signupOrganization').value.trim();
+
+                if (password !== confirm) {
+                    showAlert(document.getElementById('signupAlert'), '비밀번호가 일치하지 않습니다.', 'error');
+                    return;
+                }
+
+                signup(username, password, displayName, organization);
+            });
+
+            // 프로필 메뉴
+            document.getElementById('userAvatar').addEventListener('click', () => {
+                profileMenu.classList.add('show');
+                profileBackdrop.classList.add('show');
+            });
+
+            profileBackdrop.addEventListener('click', () => {
+                profileMenu.classList.remove('show');
+                profileBackdrop.classList.remove('show');
+            });
+
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                profileMenu.classList.remove('show');
+                profileBackdrop.classList.remove('show');
+                loadNotes();
+            });
+
+            document.getElementById('exportBtn').addEventListener('click', () => {
+                const exportData = {
+                    exportDate: new Date().toISOString(),
+                    notes: notes.map(note => ({
+                        content: (note.content || '').replace(/<[^>]*>/g, ''),
+                        color: note.color,
+                        created_at: note.created_at,
+                        updated_at: note.updated_at
+                    }))
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sticky_notes_mobile_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('내보내기 완료');
+            });
+
+            document.getElementById('logoutBtn').addEventListener('click', () => {
+                if (confirm('로그아웃 하시겠습니까?')) {
+                    logout();
+                }
+            });
+
+            // 새 메모 버튼
+            document.getElementById('addNoteBtn').addEventListener('click', () => {
+                openNoteEditor();
+            });
+
+            // 메모 에디터 모달
+            document.getElementById('noteModalClose').addEventListener('click', closeNoteEditor);
+            document.getElementById('noteModalCancel').addEventListener('click', closeNoteEditor);
+
+            document.getElementById('noteModalSave').addEventListener('click', () => {
+                const content = document.getElementById('noteEditor').value.trim();
+                if (!content) {
+                    showToast('내용을 입력하세요');
+                    return;
+                }
+                saveNote({ content: content, color: selectedColor });
+                closeNoteEditor();
+            });
+
+            // 색상 선택
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    selectedColor = opt.dataset.color;
+                });
+            });
+
+            noteModal.addEventListener('click', (e) => {
+                if (e.target === noteModal) closeNoteEditor();
+            });
+
+            // 세션 체크
+            showLoading(true);
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                console.log('기존 세션 발견:', session.user);
+                currentUser = session.user;
+                showApp();
+            }
+            showLoading(false);
+
+            // 인증 상태 변경 감지
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                console.log('인증 상태 변경:', event);
+                if (event === 'SIGNED_IN' && session) {
+                    currentUser = session.user;
+                } else if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    notes = [];
+                    loginContainer.style.display = 'flex';
+                    appContainer.classList.remove('active');
+                }
+            });
+        });
+
+        // PWA 서비스 워커 등록
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => {
+                    console.log('ServiceWorker 등록 실패:', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
