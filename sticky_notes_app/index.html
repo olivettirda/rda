@@ -951,8 +951,8 @@
         }
 
         .note-btn img {
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             object-fit: contain;
             opacity: 0.4;
             filter: grayscale(100%);
@@ -962,6 +962,31 @@
         .note-btn:hover img {
             opacity: 0.6;
             filter: grayscale(50%);
+        }
+
+        /* 전달받은/보낸 메모 표시 아이콘 */
+        .received-indicator,
+        .sent-indicator {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 20px;
+            height: 20px;
+            z-index: 10;
+            cursor: pointer;
+        }
+        .received-indicator img,
+        .sent-indicator img {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+        }
+        .sent-indicator img {
+            transform: scaleX(-1);  /* 좌우 반전 - 보낸 메모 표시 */
+            opacity: 0.7;
+        }
+        .sent-indicator:hover img {
+            opacity: 1;
         }
 
         /* 편집 모드 스타일 */
@@ -1294,6 +1319,55 @@
             padding: var(--space-4) var(--space-6);
             border-top: 1px solid var(--border-default);
             background: var(--bg-card);
+        }
+
+        /* 사용자 목록 스타일 */
+        .user-list-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .user-list-item:hover {
+            background: #e9ecef;
+        }
+        .user-list-item.selected {
+            border-color: var(--primary-main);
+            background: rgba(1, 127, 151, 0.1);
+        }
+        .user-list-item .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-main);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            margin-right: 12px;
+        }
+        .user-list-item .user-info {
+            flex: 1;
+        }
+        .user-list-item .user-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .user-list-item .user-username {
+            font-size: 13px;
+            color: #666;
+        }
+        .no-users-message {
+            text-align: center;
+            padding: 30px;
+            color: #888;
         }
 
         /* 도움말 섹션 */
@@ -1644,6 +1718,10 @@
                 <form id="signupForm" class="login-form">
                     <div id="signupAlert" class="alert hidden"></div>
                     <div class="form-group">
+                        <label class="form-label" for="signupName">이름</label>
+                        <input type="text" id="signupName" class="form-input" placeholder="표시될 이름" required minlength="2">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label" for="signupUsername">아이디</label>
                         <input type="text" id="signupUsername" class="form-input" placeholder="사용할 아이디" required minlength="3">
                         <p class="form-hint">3자 이상, 영문/숫자만 사용 가능</p>
@@ -1810,6 +1888,29 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="settingsModalOk">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메모 전달 모달 -->
+    <div id="transferModal" class="modal-overlay">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2 class="modal-title">📤 메모 전달</h2>
+                <button class="modal-close" id="transferModalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: #666;">이 메모를 받을 사용자를 선택하세요:</p>
+                <div id="userListContainer" style="max-height: 300px; overflow-y: auto;">
+                    <div class="loading-users" style="text-align: center; padding: 20px; color: #888;">
+                        사용자 목록을 불러오는 중...
+                    </div>
+                </div>
+                <div id="transferAlert" class="alert" style="display: none; margin-top: 12px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="transferModalCancel">취소</button>
+                <button class="btn btn-primary" id="transferModalConfirm" disabled>전달</button>
             </div>
         </div>
     </div>
@@ -2049,11 +2150,17 @@
             e.preventDefault();
             console.log('회원가입 시도');
 
+            const displayName = document.getElementById('signupName').value.trim();
             const username = document.getElementById('signupUsername').value.trim();
             const password = document.getElementById('signupPassword').value;
             const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
 
             // 유효성 검사
+            if (displayName.length < 2) {
+                showAlert(signupAlert, '이름은 2자 이상이어야 합니다', 'error');
+                return;
+            }
+
             if (!/^[a-zA-Z0-9]{3,}$/.test(username)) {
                 showAlert(signupAlert, '아이디는 3자 이상, 영문/숫자만 사용 가능합니다', 'error');
                 return;
@@ -2080,7 +2187,10 @@
                     email: email,
                     password: password,
                     options: {
-                        data: { username: username }
+                        data: {
+                            username: username,
+                            display_name: displayName
+                        }
                     }
                 });
 
@@ -2102,6 +2212,20 @@
                     showAlert(signupAlert, '회원가입 완료! Supabase에서 이메일 확인을 비활성화해주세요.', 'success');
                 } else if (data.session) {
                     currentUser = data.user;
+
+                    // profiles 테이블에 저장
+                    try {
+                        await supabaseClient.from('profiles').upsert({
+                            id: data.user.id,
+                            username: username,
+                            display_name: displayName,
+                            updated_at: new Date().toISOString()
+                        });
+                        console.log('프로필 저장 완료');
+                    } catch (profileErr) {
+                        console.log('프로필 저장 실패 (테이블이 없을 수 있음):', profileErr);
+                    }
+
                     showApp();
                     await loadNotes();
                     setupRealtimeSync();
@@ -2290,6 +2414,14 @@
             const plainText = (note.content || '').replace(/<[^>]*>/g, '').trim();
             el.dataset.preview = plainText.substring(0, 50) || '빈 메모';
 
+            // 전달받은/보낸 메모 표시
+            let noteIndicator = '';
+            if (note.from_user_id) {
+                noteIndicator = `<div class="received-indicator" title="전달받은 메모"><img src="assets/passed.png" alt="전달받음"></div>`;
+            } else if (note.transferred_note_id) {
+                noteIndicator = `<div class="sent-indicator" title="전달한 메모 (클릭하여 취소)" data-transferred-id="${note.transferred_note_id}"><img src="assets/passed.png" alt="전달함"></div>`;
+            }
+
             el.innerHTML = `
                 <div class="drag-border">
                     <div class="drag-border-top"></div>
@@ -2301,9 +2433,11 @@
                     <div class="drag-corner drag-corner-bl"></div>
                     <div class="drag-corner drag-corner-br"></div>
                 </div>
+                ${noteIndicator}
                 <div class="note-header">
                     <button class="note-btn edit-btn" title="편집 모드"><img src="assets/pencil.png" alt="편집"></button>
                     <button class="note-btn color-btn" title="색상 변경"><img src="assets/palette.png" alt="색상"></button>
+                    <button class="note-btn transfer-btn" title="다른 사용자에게 전달" style="font-size: 14px;">➤</button>
                     <button class="note-btn delete-btn" title="삭제"><img src="assets/trashcan.png" alt="삭제"></button>
                     <div class="color-picker">
                         <div class="color-option yellow" data-color="yellow"></div>
@@ -2341,6 +2475,8 @@
                     <button class="format-btn bold-btn" title="굵게 (Ctrl+B)"><b>B</b></button>
                     <button class="format-btn italic-btn" title="기울임 (Ctrl+I)"><i>I</i></button>
                     <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)"><u>U</u></button>
+                    <button class="format-btn bullet-btn" title="말머리 기호">•</button>
+                    <button class="format-btn checkbox-btn" title="체크박스">☐</button>
                 </div>
                 <div class="note-content">
                     <div class="note-editor" contenteditable="true" data-placeholder="메모를 입력하세요...">${note.content || ''}</div>
@@ -2359,8 +2495,10 @@
             const editBtn = el.querySelector('.edit-btn');
             const colorBtn = el.querySelector('.color-btn');
             const colorPicker = el.querySelector('.color-picker');
+            const transferBtn = el.querySelector('.transfer-btn');
             const deleteBtn = el.querySelector('.delete-btn');
             const resizeHandle = el.querySelector('.note-resize');
+            const sentIndicator = el.querySelector('.sent-indicator');
 
             // 편집 모드 토글 함수
             function setEditMode(editing) {
@@ -2396,6 +2534,17 @@
             const boldBtn = el.querySelector('.bold-btn');
             const italicBtn = el.querySelector('.italic-btn');
             const underlineBtn = el.querySelector('.underline-btn');
+            const bulletBtn = el.querySelector('.bullet-btn');
+            const checkboxBtn = el.querySelector('.checkbox-btn');
+
+            // 체크박스 클릭 이벤트 (이벤트 위임 - 저장된 체크박스도 동작)
+            editor.addEventListener('click', (e) => {
+                if (e.target.classList.contains('note-checkbox')) {
+                    e.target.textContent = e.target.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                    note.content = editor.innerHTML;
+                    saveNote(note);
+                }
+            });
 
             // 내용 변경
             let saveTimeout;
@@ -2444,6 +2593,41 @@
 
             underlineBtn.addEventListener('click', () => {
                 document.execCommand('underline', false, null);
+                editor.focus();
+            });
+
+            // 말머리 기호 (불릿 리스트)
+            bulletBtn.addEventListener('click', () => {
+                document.execCommand('insertUnorderedList', false, null);
+                editor.focus();
+            });
+
+            // 체크박스 삽입
+            checkboxBtn.addEventListener('click', () => {
+                const checkbox = document.createElement('span');
+                checkbox.className = 'note-checkbox';
+                checkbox.textContent = '☐ ';
+                checkbox.style.cursor = 'pointer';
+                checkbox.onclick = function() {
+                    this.textContent = this.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                    note.content = editor.innerHTML;
+                    saveNote(note);
+                };
+
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.insertNode(checkbox);
+                    range.setStartAfter(checkbox);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    editor.appendChild(checkbox);
+                }
+
+                note.content = editor.innerHTML;
+                saveNote(note);
                 editor.focus();
             });
 
@@ -2554,6 +2738,56 @@
                     saveNote(note);
                 });
             });
+
+            // 전달 버튼
+            transferBtn.addEventListener('click', () => {
+                console.log('전달 버튼 클릭, 노트 ID:', note.id);
+                openTransferModal(note);
+            });
+
+            // 전달 취소 (보낸 메모 아이콘 클릭)
+            if (sentIndicator) {
+                sentIndicator.addEventListener('click', async () => {
+                    const transferredId = sentIndicator.dataset.transferredId;
+                    console.log('전달 취소 클릭, 전달된 메모 ID:', transferredId);
+
+                    if (confirm('전달을 취소하시겠습니까?\n상대방의 메모가 삭제됩니다.')) {
+                        try {
+                            // 전달된 메모 삭제
+                            const { error: deleteError } = await supabaseClient
+                                .from('notes')
+                                .delete()
+                                .eq('id', transferredId);
+
+                            if (deleteError) {
+                                console.error('전달 취소 에러:', JSON.stringify(deleteError, null, 2));
+                                showToast('전달 취소에 실패했습니다');
+                                return;
+                            }
+
+                            // 원본 메모에서 transferred_note_id 제거
+                            note.transferred_note_id = null;
+                            const { error: updateError } = await supabaseClient
+                                .from('notes')
+                                .update({ transferred_note_id: null })
+                                .eq('id', note.id);
+
+                            if (updateError) {
+                                console.error('원본 메모 업데이트 에러:', JSON.stringify(updateError, null, 2));
+                            }
+
+                            // UI 업데이트 - 아이콘 제거
+                            sentIndicator.remove();
+                            showToast('전달이 취소되었습니다');
+                            console.log('전달 취소 완료');
+
+                        } catch (err) {
+                            console.error('전달 취소 예외:', err);
+                            showToast('오류가 발생했습니다');
+                        }
+                    }
+                });
+            }
 
             // 삭제
             deleteBtn.addEventListener('click', () => {
@@ -3161,6 +3395,192 @@
                 console.log('밑줄 적용');
             });
         }
+
+        // =====================
+        // 메모 전달 기능
+        // =====================
+        let transferNoteData = null;
+        let selectedUserId = null;
+
+        // 사용자 목록 조회
+        async function loadUserList() {
+            console.log('사용자 목록 조회 시작');
+            const container = document.getElementById('userListContainer');
+
+            try {
+                const { data: profiles, error } = await supabaseClient
+                    .from('profiles')
+                    .select('id, username, display_name')
+                    .neq('id', currentUser.id)
+                    .order('display_name');
+
+                console.log('사용자 목록 조회 결과:', { profiles, error });
+
+                if (error) {
+                    console.error('사용자 목록 조회 에러:', JSON.stringify(error, null, 2));
+                    container.innerHTML = '<div class="no-users-message">사용자 목록을 불러올 수 없습니다.<br><small>profiles 테이블을 확인해주세요.</small></div>';
+                    return;
+                }
+
+                if (!profiles || profiles.length === 0) {
+                    container.innerHTML = '<div class="no-users-message">다른 사용자가 없습니다.</div>';
+                    return;
+                }
+
+                container.innerHTML = profiles.map(user => `
+                    <div class="user-list-item" data-user-id="${user.id}">
+                        <div class="user-avatar">${(user.display_name || user.username || '?').charAt(0).toUpperCase()}</div>
+                        <div class="user-info">
+                            <div class="user-name">${user.display_name || user.username}</div>
+                            <div class="user-username">@${user.username}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // 사용자 선택 이벤트
+                container.querySelectorAll('.user-list-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.user-list-item').forEach(i => i.classList.remove('selected'));
+                        item.classList.add('selected');
+                        selectedUserId = item.dataset.userId;
+                        document.getElementById('transferModalConfirm').disabled = false;
+                        console.log('사용자 선택됨:', selectedUserId);
+                    });
+                });
+
+            } catch (err) {
+                console.error('사용자 목록 조회 예외:', err);
+                container.innerHTML = '<div class="no-users-message">오류가 발생했습니다.</div>';
+            }
+        }
+
+        // 전달 모달 열기
+        function openTransferModal(note) {
+            if (!currentUser) {
+                showToast('로그인이 필요합니다');
+                return;
+            }
+
+            console.log('전달 모달 열기, 노트:', note);
+            transferNoteData = note;
+            selectedUserId = null;
+
+            const modal = document.getElementById('transferModal');
+            const confirmBtn = document.getElementById('transferModalConfirm');
+            const alert = document.getElementById('transferAlert');
+
+            confirmBtn.disabled = true;
+            alert.style.display = 'none';
+            document.getElementById('userListContainer').innerHTML = '<div class="loading-users" style="text-align: center; padding: 20px; color: #888;">사용자 목록을 불러오는 중...</div>';
+
+            modal.classList.add('show');
+            loadUserList();
+        }
+
+        // 메모 전달 실행
+        async function transferNote() {
+            if (!transferNoteData || !selectedUserId) {
+                console.log('전달 데이터 없음');
+                return;
+            }
+
+            const alertEl = document.getElementById('transferAlert');
+            const confirmBtn = document.getElementById('transferModalConfirm');
+            confirmBtn.disabled = true;
+
+            console.log('메모 전달 시작:', { noteId: transferNoteData.id, targetUserId: selectedUserId });
+
+            try {
+                // 새 메모로 복사해서 대상 사용자에게 전달
+                const newNote = {
+                    user_id: selectedUserId,
+                    from_user_id: currentUser.id,  // 보낸 사람 ID
+                    content: transferNoteData.content,
+                    color: transferNoteData.color,
+                    position_x: Math.random() * 400 + 50,
+                    position_y: Math.random() * 300 + 50,
+                    width: transferNoteData.width || 280,
+                    height: transferNoteData.height || 220,
+                    z_index: 1
+                };
+
+                console.log('전달할 메모 데이터:', JSON.stringify(newNote, null, 2));
+
+                const { data, error } = await supabaseClient
+                    .from('notes')
+                    .insert(newNote)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('메모 전달 에러:', JSON.stringify(error, null, 2));
+                    showAlert(alertEl, '메모 전달에 실패했습니다: ' + error.message, 'error');
+                    confirmBtn.disabled = false;
+                    return;
+                }
+
+                console.log('메모 전달 성공, 전달된 메모 ID:', data.id);
+
+                // 원본 메모에 전달 정보 저장
+                const { error: updateError } = await supabaseClient
+                    .from('notes')
+                    .update({ transferred_note_id: data.id })
+                    .eq('id', transferNoteData.id);
+
+                if (updateError) {
+                    console.error('원본 메모 업데이트 에러:', JSON.stringify(updateError, null, 2));
+                } else {
+                    // 로컬 데이터 업데이트 및 UI 갱신
+                    const originalNote = notes.find(n => n.id === transferNoteData.id);
+                    if (originalNote) {
+                        originalNote.transferred_note_id = data.id;
+                    }
+                    renderNotes();
+                }
+
+                showToast('메모가 전달되었습니다');
+                document.getElementById('transferModal').classList.remove('show');
+                transferNoteData = null;
+                selectedUserId = null;
+
+            } catch (err) {
+                console.error('메모 전달 예외:', err);
+                showAlert(alertEl, '오류가 발생했습니다', 'error');
+                confirmBtn.disabled = false;
+            }
+        }
+
+        // 전달 모달 이벤트 설정
+        (function setupTransferModal() {
+            const modal = document.getElementById('transferModal');
+            const closeBtn = document.getElementById('transferModalClose');
+            const cancelBtn = document.getElementById('transferModalCancel');
+            const confirmBtn = document.getElementById('transferModalConfirm');
+
+            closeBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+                transferNoteData = null;
+                selectedUserId = null;
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+                transferNoteData = null;
+                selectedUserId = null;
+            });
+
+            confirmBtn.addEventListener('click', () => {
+                transferNote();
+            });
+
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('show');
+                    transferNoteData = null;
+                    selectedUserId = null;
+                }
+            });
+        })();
 
         // 앱 시작
         init();
