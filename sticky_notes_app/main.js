@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -301,8 +301,13 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
-    // 개발자 도구 열기 (디버깅용)
-    mainWindow.webContents.openDevTools();
+    // F12로 개발자 도구 토글
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F12') {
+            mainWindow.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+    });
 
     // 창 닫기 방지 - 숨기기로 처리
     mainWindow.on('close', (event) => {
