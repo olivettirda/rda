@@ -951,8 +951,8 @@
         }
 
         .note-btn img {
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             object-fit: contain;
             opacity: 0.4;
             filter: grayscale(100%);
@@ -962,6 +962,21 @@
         .note-btn:hover img {
             opacity: 0.6;
             filter: grayscale(50%);
+        }
+
+        /* 전달받은 메모 표시 아이콘 */
+        .received-indicator {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 20px;
+            height: 20px;
+            z-index: 10;
+        }
+        .received-indicator img {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
         }
 
         /* 편집 모드 스타일 */
@@ -2389,6 +2404,10 @@
             const plainText = (note.content || '').replace(/<[^>]*>/g, '').trim();
             el.dataset.preview = plainText.substring(0, 50) || '빈 메모';
 
+            // 전달받은 메모인지 확인
+            const receivedIndicator = note.from_user_id ?
+                `<div class="received-indicator" title="전달받은 메모"><img src="assets/passed.png" alt="전달받음"></div>` : '';
+
             el.innerHTML = `
                 <div class="drag-border">
                     <div class="drag-border-top"></div>
@@ -2400,6 +2419,7 @@
                     <div class="drag-corner drag-corner-bl"></div>
                     <div class="drag-corner drag-corner-br"></div>
                 </div>
+                ${receivedIndicator}
                 <div class="note-header">
                     <button class="note-btn edit-btn" title="편집 모드"><img src="assets/pencil.png" alt="편집"></button>
                     <button class="note-btn color-btn" title="색상 변경"><img src="assets/palette.png" alt="색상"></button>
@@ -3415,6 +3435,7 @@
                 // 새 메모로 복사해서 대상 사용자에게 전달
                 const newNote = {
                     user_id: selectedUserId,
+                    from_user_id: currentUser.id,  // 보낸 사람 ID
                     content: transferNoteData.content,
                     color: transferNoteData.color,
                     position_x: Math.random() * 400 + 50,
