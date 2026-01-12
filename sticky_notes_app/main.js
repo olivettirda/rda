@@ -84,15 +84,15 @@ function createWindow() {
 }
 
 function createTray() {
-    // 트레이 아이콘 - Windows에서는 .ico 파일 사용
+    // 트레이 아이콘 - 작은 사이즈 사용 (16x16 또는 32x32)
     const iconPath = process.platform === 'win32'
-        ? path.join(__dirname, 'assets', 'icon.ico')
+        ? path.join(__dirname, 'assets', 'icon32.ico')
         : path.join(__dirname, 'assets', 'icon.png');
     let trayIcon;
 
     try {
         trayIcon = nativeImage.createFromPath(iconPath);
-        // Windows 트레이는 보통 16x16 또는 32x32 사용
+        // macOS/Linux는 리사이즈
         if (process.platform !== 'win32') {
             trayIcon = trayIcon.resize({ width: 16, height: 16 });
         }
