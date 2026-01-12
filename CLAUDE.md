@@ -20,6 +20,302 @@
 
 ---
 
+## 예약 시스템 템플릿 가이드
+
+현재 구현된 예약 시스템의 구조와 흐름을 다른 예약 시스템 개발 시 템플릿으로 활용할 수 있습니다.
+
+### 시스템 구조 개요
+
+```
+[인증 레이어]
+    ↓
+[자원 관리] ←→ [카테고리 동적 로딩]
+    ↓
+[예약 폼] → [시간대 선택] → [장바구니]
+    ↓
+[예약 제출] → [승인 워크플로우] → [예약 확정]
+```
+
+### 핵심 컴포넌트
+
+#### 1. 데이터 모델 설계
+```javascript
+// 자원 엔티티 (예: 장비, 회의실, 차량 등)
+{
+    id: 'UUID',
+    name: '자원명',
+    primary_category: '주 카테고리',      // 필수: 그룹핑 기준
+    secondary_location: '부 위치',         // 선택: 추가 위치 정보
+    metadata_field: '메타데이터',          // 선택: 추가 식별 정보
+    status: 'available/maintenance/broken',
+    approval_mode: 'auto/manual'
+}
+
+// 예약 엔티티
+{
+    resource_id: 'FK to 자원',
+    user_id: 'FK to 사용자',
+    category: '카테고리명',
+    start_time: 'timestamp',
+    end_time: 'timestamp',
+    purpose: '예약 목적',
+    status: 'pending/approved/rejected'
+}
+```
+
+#### 2. 동적 카테고리 로딩 패턴
+```javascript
+// 1. 자원 로드 시 카테고리 자동 추출
+async function loadResources() {
+    const { data } = await fetchResources();
+    resourceList = data;
+
+    // 주요 카테고리 추출
+    const categories = [...new Set(data
+        .map(r => r.primary_category)
+        .filter(c => c && c.trim() !== '')
+    )];
+
+    CATEGORIES = categories;
+    updateCategoryDropdowns(); // 모든 드롭다운 업데이트
+}
+
+// 2. 카테고리 드롭다운 업데이트
+function updateCategoryDropdowns() {
+    // 예약 폼, 필터, 검색 등 모든 드롭다운 업데이트
+    populateDropdown('categorySelect', CATEGORIES);
+}
+```
+
+#### 3. Excel 업로드/다운로드 패턴
+```javascript
+// 업로드: 필수 필드 검증 + 중복 체크
+async function handleExcelUpload(file) {
+    const jsonData = parseExcel(file);
+
+    for (const row of jsonData) {
+        const data = {
+            name: row['필수필드1'],                    // 필수
+            primary_category: row['필수필드2'],        // 필수
+            optional_field: row['선택필드(선택)'] || null  // 선택
+        };
+
+        // 필수 필드 검증
+        if (!data.name || !data.primary_category) {
+            errorList.push({ name: data.name, reason: '필수 필드 누락' });
+            continue;
+        }
+
+        // 중복 체크 (이름 + 카테고리 조합)
+        const { data: duplicates } = await checkDuplicate(data.name, data.primary_category);
+        if (duplicates.length > 0) {
+            errorList.push({ name: data.name, reason: '중복 자원' });
+            continue;
+        }
+
+        // 데이터 삽입
+        await insertResource(data);
+    }
+
+    // 결과 로그
+    console.log('업로드 결과:', { successCount, errorCount });
+    console.log('실패 목록:', JSON.stringify(errorList, null, 2));
+}
+
+// 다운로드: 업로드된 데이터 그대로 유지
+function exportToExcel() {
+    const exportData = resourceList.map(r => ({
+        '필수필드1': r.name,
+        '필수필드2': r.primary_category,
+        '선택필드(선택)': r.optional_field || ''
+    }));
+
+    downloadExcel(exportData);
+}
+```
+
+#### 4. 예약 흐름 구현
+```javascript
+// Step 1: 카테고리 선택
+onCategorySelect() {
+    // 선택한 카테고리에 해당하는 자원 필터링
+    filteredResources = resourceList.filter(r => r.primary_category === selectedCategory);
+    renderResourceGrid(filteredResources);
+}
+
+// Step 2: 날짜/시간 선택
+onDateSelect() {
+    loadAvailableTimeSlots(selectedResource, selectedDate);
+}
+
+// Step 3: 장바구니 추가
+addToCart() {
+    cartItems.push({
+        resource_id: selectedResource.id,
+        category: selectedCategory,
+        date: selectedDate,
+        timeSlots: selectedTimeSlots
+    });
+}
+
+// Step 4: 일괄 예약 제출
+async submitReservations() {
+    for (const item of cartItems) {
+        const reservation = {
+            resource_id: findResourceByCategory(item.category),
+            start_time: combineDateTime(item.date, item.startTime),
+            end_time: combineDateTime(item.date, item.endTime),
+            status: getApprovalMode() === 'auto' ? 'approved' : 'pending'
+        };
+
+        await insertReservation(reservation);
+    }
+}
+```
+
+#### 5. 자원-카테고리 매칭 패턴
+```javascript
+// 카테고리명으로 자원 ID 찾기
+function findResourceByCategory(categoryName) {
+    // 1순위: 주 카테고리 매칭
+    let resource = resourceList.find(r => r.primary_category === categoryName);
+    if (resource) return resource.id;
+
+    // 2순위: 부 위치 매칭 (하위 호환성)
+    resource = resourceList.find(r => r.secondary_location === categoryName);
+    if (resource) return resource.id;
+
+    // Fallback: 첫 번째 자원
+    return resourceList[0]?.id;
+}
+```
+
+### 사용자 역할별 기능
+
+#### 일반 사용자
+- 자원 검색 및 예약
+- 내 예약 조회/취소
+- 자원 등록 신청 (승인 대기)
+
+#### 관리자
+- 모든 예약 조회/관리
+- 예약 승인/거부
+- 자원 CRUD
+- 사용자 관리
+- Excel 일괄 업로드/다운로드
+
+### 필수 구현 사항
+
+#### 1. 상태 관리
+```javascript
+// 전역 상태
+let resourceList = [];          // 자원 목록
+let CATEGORIES = [];            // 카테고리 목록 (동적 추출)
+let selectedCategory = null;    // 현재 선택된 카테고리
+let cartItems = [];             // 장바구니
+```
+
+#### 2. 동기화 포인트
+```javascript
+// 자원 로드 시 모든 관련 UI 업데이트
+async function loadResources() {
+    await fetchData();
+    updateCategories();          // 카테고리 추출
+    updateAllDropdowns();        // 모든 드롭다운 동기화
+    renderResourceGrid();        // 자원 그리드 렌더링
+}
+```
+
+#### 3. 검증 레이어
+```javascript
+// 필수 필드 검증
+function validateRequired(data, requiredFields) {
+    for (const field of requiredFields) {
+        if (!data[field]) {
+            return { valid: false, message: `${field} 필드 누락` };
+        }
+    }
+    return { valid: true };
+}
+
+// 중복 검증
+async function checkDuplicate(identifier1, identifier2) {
+    const { data } = await db
+        .select('id')
+        .eq('field1', identifier1)
+        .eq('field2', identifier2);
+
+    return data.length > 0;
+}
+```
+
+#### 4. 에러 처리
+```javascript
+// 일괄 작업 시 에러 수집
+const successList = [];
+const errorList = [];
+
+for (const item of items) {
+    try {
+        await processItem(item);
+        successList.push(item.name);
+    } catch (error) {
+        errorList.push({
+            name: item.name,
+            reason: error.message
+        });
+    }
+}
+
+// 결과 로그 출력
+console.log('성공:', JSON.stringify(successList, null, 2));
+console.log('실패:', JSON.stringify(errorList, null, 2));
+```
+
+### UI 상호작용 패턴
+
+#### 1. Tooltip 표시
+```html
+<!-- 호버 시 추가 정보 표시 -->
+<td title="메타정보: ${metadata}" style="cursor: help;">
+    ${name}
+</td>
+```
+
+#### 2. 동적 옵션 생성
+```javascript
+function populateDropdown(selectId, options) {
+    const select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">-- 선택 --</option>' +
+        options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+}
+```
+
+#### 3. 상태 표시
+```javascript
+function renderStatusBadge(status) {
+    const statusMap = {
+        'available': { text: '사용가능', class: 'status-success' },
+        'maintenance': { text: '점검중', class: 'status-warning' },
+        'broken': { text: '고장', class: 'status-error' }
+    };
+
+    const { text, class: className } = statusMap[status];
+    return `<span class="${className}">${text}</span>`;
+}
+```
+
+### 디버깅 체크리스트
+
+개발 중 콘솔에서 확인해야 할 로그:
+1. ✅ 자원 로드: `console.log('자원 목록:', resourceList.length)`
+2. ✅ 카테고리 추출: `console.log('카테고리:', JSON.stringify(CATEGORIES))`
+3. ✅ 드롭다운 업데이트: `console.log('드롭다운 생성:', CATEGORIES.length + '개')`
+4. ✅ 매칭 결과: `console.log('카테고리 매칭:', resource.id, resource.name)`
+5. ✅ 업로드 결과: `console.log('성공/실패:', successCount, errorCount)`
+
+---
+
 ## 디버깅 코드 필수 규칙
 
 코드 작성 시 **반드시** 디버깅용 로그를 포함해야 합니다.
