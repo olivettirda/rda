@@ -1843,6 +1843,75 @@
             }
         });
 
+        // ============================================
+        // Electron 연동 (데스크톱 앱용)
+        // ============================================
+        const isElectron = window.electronAPI?.isElectron || false;
+
+        if (isElectron) {
+            console.log('Electron 환경 감지됨');
+
+            // 자동 로그인 이벤트 수신
+            window.electronAPI.onAutoLogin(async (credentials) => {
+                console.log('자동 로그인 시도:', credentials.username);
+
+                if (credentials && credentials.username && credentials.password) {
+                    const email = usernameToEmail(credentials.username);
+
+                    try {
+                        const { data, error } = await supabase.auth.signInWithPassword({
+                            email: email,
+                            password: credentials.password
+                        });
+
+                        if (error) {
+                            console.error('자동 로그인 실패:', error);
+                            // 저장된 자격 증명이 유효하지 않으면 삭제
+                            window.electronAPI.clearCredentials();
+                        } else {
+                            console.log('자동 로그인 성공');
+                        }
+                    } catch (err) {
+                        console.error('자동 로그인 에러:', err);
+                    }
+                }
+            });
+
+            // 트레이 메뉴에서 새 메모 생성
+            window.electronAPI.onCreateNote(() => {
+                console.log('트레이에서 새 메모 생성');
+                createNote();
+            });
+
+            // 로그인 성공 시 자격 증명 저장 (기존 onAuthStateChange 확장)
+            const originalOnAuthStateChange = supabase.auth.onAuthStateChange;
+
+            // 로그인 폼에서 자격 증명 저장
+            const originalLoginSubmit = loginForm.onsubmit;
+            loginForm.addEventListener('submit', function(e) {
+                // 로그인 성공 시 자격 증명 저장 (setTimeout으로 결과 확인 후)
+                const username = loginUsername.value.trim();
+                const password = loginPassword.value;
+
+                setTimeout(async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session && isElectron) {
+                        console.log('자격 증명 저장');
+                        window.electronAPI.saveCredentials(username, password);
+                    }
+                }, 2000);
+            });
+
+            // 로그아웃 시 자격 증명 삭제
+            const originalLogout = logoutBtn.onclick;
+            logoutBtn.addEventListener('click', () => {
+                if (isElectron) {
+                    console.log('자격 증명 삭제');
+                    window.electronAPI.clearCredentials();
+                }
+            });
+        }
+
         // 초기화
         init();
     </script>
