@@ -1,7 +1,7 @@
 // 스티키 노트 서비스 워커
 const CACHE_NAME = 'sticky-notes-v1';
 const urlsToCache = [
-  '/mobile.html',
+  '/stickynote.html',
   '/assets/icon.png',
   '/assets/pencil.png',
   '/assets/trashcan.png',
