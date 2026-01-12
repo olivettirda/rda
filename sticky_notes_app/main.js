@@ -1,13 +1,16 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 // 앱 데이터 경로
 const userDataPath = app.getPath('userData');
 const credentialsPath = path.join(userDataPath, 'credentials.json');
+const settingsPath = path.join(userDataPath, 'settings.json');
 
 let mainWindow;
 let tray;
+let isSidebarMode = false;
+let normalBounds = null; // 일반 모드 창 크기 저장
 
 // 자격 증명 저장
 function saveCredentials(username, password) {
@@ -40,6 +43,120 @@ function clearCredentials() {
     } catch (error) {
         console.error('자격 증명 삭제 실패:', error);
     }
+}
+
+// 설정 저장
+function saveSettings(settings) {
+    try {
+        const existing = loadSettings();
+        const merged = { ...existing, ...settings };
+        fs.writeFileSync(settingsPath, JSON.stringify(merged));
+        console.log('설정 저장됨:', merged);
+    } catch (error) {
+        console.error('설정 저장 실패:', error);
+    }
+}
+
+// 설정 로드
+function loadSettings() {
+    try {
+        if (fs.existsSync(settingsPath)) {
+            const data = fs.readFileSync(settingsPath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (error) {
+        console.error('설정 로드 실패:', error);
+    }
+    return { sidebarMode: false, sidebarPosition: 'right' };
+}
+
+// 사이드바 모드 토글
+function toggleSidebarMode() {
+    const display = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = display.workAreaSize;
+
+    if (!isSidebarMode) {
+        // 일반 → 사이드바 모드
+        normalBounds = mainWindow.getBounds();
+        const sidebarWidth = 320;
+        mainWindow.setBounds({
+            x: screenWidth - sidebarWidth,
+            y: 0,
+            width: sidebarWidth,
+            height: screenHeight
+        });
+        mainWindow.setAlwaysOnTop(true);
+        isSidebarMode = true;
+    } else {
+        // 사이드바 → 일반 모드
+        if (normalBounds) {
+            mainWindow.setBounds(normalBounds);
+        } else {
+            mainWindow.setBounds({
+                x: Math.floor(screenWidth / 4),
+                y: Math.floor(screenHeight / 4),
+                width: 1200,
+                height: 800
+            });
+        }
+        mainWindow.setAlwaysOnTop(false);
+        isSidebarMode = false;
+    }
+
+    // 상태 저장
+    saveSettings({ sidebarMode: isSidebarMode });
+    mainWindow.webContents.send('sidebar-mode-changed', isSidebarMode);
+    updateTrayMenu();
+}
+
+// 트레이 메뉴 업데이트
+function updateTrayMenu() {
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: '열기',
+            click: () => {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+        },
+        {
+            label: '새 메모',
+            click: () => {
+                mainWindow.show();
+                mainWindow.webContents.send('create-note');
+            }
+        },
+        { type: 'separator' },
+        {
+            label: '사이드바 모드',
+            type: 'checkbox',
+            checked: isSidebarMode,
+            click: () => {
+                mainWindow.show();
+                toggleSidebarMode();
+            }
+        },
+        {
+            label: '시작 시 실행',
+            type: 'checkbox',
+            checked: app.getLoginItemSettings().openAtLogin,
+            click: (menuItem) => {
+                app.setLoginItemSettings({
+                    openAtLogin: menuItem.checked
+                });
+            }
+        },
+        { type: 'separator' },
+        {
+            label: '종료',
+            click: () => {
+                app.isQuitting = true;
+                app.quit();
+            }
+        }
+    ]);
+
+    tray.setContextMenu(contextMenu);
 }
 
 function createWindow() {
@@ -103,45 +220,8 @@ function createTray() {
     }
 
     tray = new Tray(trayIcon);
-
-    const contextMenu = Menu.buildFromTemplate([
-        {
-            label: '열기',
-            click: () => {
-                mainWindow.show();
-                mainWindow.focus();
-            }
-        },
-        {
-            label: '새 메모',
-            click: () => {
-                mainWindow.show();
-                mainWindow.webContents.send('create-note');
-            }
-        },
-        { type: 'separator' },
-        {
-            label: '시작 시 실행',
-            type: 'checkbox',
-            checked: app.getLoginItemSettings().openAtLogin,
-            click: (menuItem) => {
-                app.setLoginItemSettings({
-                    openAtLogin: menuItem.checked
-                });
-            }
-        },
-        { type: 'separator' },
-        {
-            label: '종료',
-            click: () => {
-                app.isQuitting = true;
-                app.quit();
-            }
-        }
-    ]);
-
     tray.setToolTip('스티키 노트');
-    tray.setContextMenu(contextMenu);
+    updateTrayMenu();
 
     // 트레이 더블클릭으로 창 열기
     tray.on('double-click', () => {
@@ -189,6 +269,28 @@ ipcMain.handle('clear-credentials', () => {
 // IPC 핸들러 - 자격 증명 로드
 ipcMain.handle('load-credentials', () => {
     return loadCredentials();
+});
+
+// IPC 핸들러 - 사이드바 모드 토글
+ipcMain.handle('toggle-sidebar', () => {
+    toggleSidebarMode();
+    return isSidebarMode;
+});
+
+// IPC 핸들러 - 사이드바 모드 상태 확인
+ipcMain.handle('get-sidebar-mode', () => {
+    return isSidebarMode;
+});
+
+// IPC 핸들러 - 설정 저장
+ipcMain.handle('save-settings', (event, settings) => {
+    saveSettings(settings);
+    return true;
+});
+
+// IPC 핸들러 - 설정 로드
+ipcMain.handle('load-settings', () => {
+    return loadSettings();
 });
 
 console.log('Electron 앱 시작됨');

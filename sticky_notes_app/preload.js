@@ -31,6 +31,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
         });
     },
 
+    // 사이드바 모드 토글
+    toggleSidebar: () => {
+        return ipcRenderer.invoke('toggle-sidebar');
+    },
+
+    // 사이드바 모드 상태 확인
+    getSidebarMode: () => {
+        return ipcRenderer.invoke('get-sidebar-mode');
+    },
+
+    // 사이드바 모드 변경 이벤트 수신
+    onSidebarModeChanged: (callback) => {
+        ipcRenderer.on('sidebar-mode-changed', (event, isSidebar) => {
+            callback(isSidebar);
+        });
+    },
+
+    // 설정 저장
+    saveSettings: (settings) => {
+        return ipcRenderer.invoke('save-settings', settings);
+    },
+
+    // 설정 로드
+    loadSettings: () => {
+        return ipcRenderer.invoke('load-settings');
+    },
+
     // 플랫폼 정보
     platform: process.platform,
 

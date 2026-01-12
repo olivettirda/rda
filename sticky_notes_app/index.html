@@ -413,6 +413,63 @@
             transform: scale(1.05);
         }
 
+        /* 사이드바 토글 버튼 */
+        .sidebar-toggle-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .sidebar-toggle-btn.active {
+            background: var(--primary-main);
+        }
+
+        .sidebar-icon {
+            font-size: 18px;
+        }
+
+        /* 사이드바 모드 스타일 */
+        body.sidebar-mode .header {
+            padding: 8px 12px;
+        }
+
+        body.sidebar-mode .header-title {
+            display: none;
+        }
+
+        body.sidebar-mode .sticky-note {
+            position: relative !important;
+            width: 100% !important;
+            min-width: auto !important;
+            left: 0 !important;
+            top: auto !important;
+            margin-bottom: 8px;
+        }
+
+        body.sidebar-mode .notes-container {
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+        }
+
+        body.sidebar-mode .fab {
+            bottom: 16px;
+            right: 16px;
+            width: 48px;
+            height: 48px;
+        }
+
         /* ============================================
            사용자 메뉴
            ============================================ */
@@ -1011,6 +1068,88 @@
         }
 
         /* ============================================
+           설정 모달
+           ============================================ */
+        .settings-section {
+            margin-bottom: var(--space-6);
+        }
+
+        .settings-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .settings-section h3 {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-bottom: var(--space-3);
+            padding-bottom: var(--space-2);
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .settings-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-3) 0;
+            cursor: pointer;
+        }
+
+        .settings-item span {
+            font-size: 0.875rem;
+            color: var(--text-primary);
+        }
+
+        .settings-item input[type="checkbox"] {
+            width: 44px;
+            height: 24px;
+            appearance: none;
+            background: var(--border-default);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .settings-item input[type="checkbox"]:checked {
+            background: var(--primary-main);
+        }
+
+        .settings-item input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .settings-item input[type="checkbox"]:checked::after {
+            transform: translateX(20px);
+        }
+
+        .settings-info {
+            padding: var(--space-3);
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .settings-info p {
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .settings-hint {
+            font-size: 0.75rem !important;
+            color: var(--text-secondary) !important;
+            margin-top: var(--space-2) !important;
+        }
+
+        /* ============================================
            토스트
            ============================================ */
         .toast-container {
@@ -1157,6 +1296,9 @@
                     <span class="sync-icon">●</span>
                     <span class="sync-text">저장됨</span>
                 </div>
+                <button id="sidebarToggle" class="sidebar-toggle-btn" title="사이드바 모드">
+                    <span class="sidebar-icon">◧</span>
+                </button>
                 <div id="userAvatar" class="user-avatar">U</div>
             </div>
         </header>
@@ -1169,6 +1311,9 @@
             </div>
             <button class="user-menu-item" id="exportBtn">
                 <span>📥</span> 노트 내보내기
+            </button>
+            <button class="user-menu-item" id="settingsBtn">
+                <span>⚙️</span> 설정
             </button>
             <button class="user-menu-item" id="helpBtn">
                 <span>❓</span> 도움말
@@ -1236,6 +1381,39 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="helpModalOk">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 설정 모달 -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">⚙️ 설정</h2>
+                <button class="modal-close" id="settingsModalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <section class="settings-section">
+                    <h3>일반</h3>
+                    <label class="settings-item">
+                        <span>Windows 시작 시 자동 실행</span>
+                        <input type="checkbox" id="autoStartCheckbox">
+                    </label>
+                    <label class="settings-item">
+                        <span>사이드바 모드</span>
+                        <input type="checkbox" id="sidebarModeCheckbox">
+                    </label>
+                </section>
+                <section class="settings-section">
+                    <h3>동기화</h3>
+                    <div class="settings-info">
+                        <p id="syncInfo">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
+                        <p class="settings-hint">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
+                    </div>
+                </section>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="settingsModalOk">확인</button>
             </div>
         </div>
     </div>
@@ -2107,6 +2285,62 @@
                     helpModal.classList.remove('show');
                 }
             });
+
+            // 설정 모달
+            const settingsModal = document.getElementById('settingsModal');
+            const autoStartCheckbox = document.getElementById('autoStartCheckbox');
+            const sidebarModeCheckbox = document.getElementById('sidebarModeCheckbox');
+
+            document.getElementById('settingsBtn').addEventListener('click', async () => {
+                settingsModal.classList.add('show');
+                userMenu.classList.remove('show');
+
+                // Electron에서만 자동 시작 옵션 표시
+                if (window.electronAPI) {
+                    const sidebarMode = await window.electronAPI.getSidebarMode();
+                    sidebarModeCheckbox.checked = sidebarMode;
+                }
+            });
+
+            document.getElementById('settingsModalClose').addEventListener('click', () => {
+                settingsModal.classList.remove('show');
+            });
+
+            document.getElementById('settingsModalOk').addEventListener('click', () => {
+                settingsModal.classList.remove('show');
+            });
+
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    settingsModal.classList.remove('show');
+                }
+            });
+
+            // 사이드바 모드 체크박스
+            sidebarModeCheckbox.addEventListener('change', async () => {
+                if (window.electronAPI) {
+                    await window.electronAPI.toggleSidebar();
+                }
+            });
+
+            // 사이드바 토글 버튼
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            sidebarToggle.addEventListener('click', async () => {
+                if (window.electronAPI) {
+                    const isSidebar = await window.electronAPI.toggleSidebar();
+                    sidebarToggle.classList.toggle('active', isSidebar);
+                    document.body.classList.toggle('sidebar-mode', isSidebar);
+                }
+            });
+
+            // 사이드바 모드 변경 이벤트 수신
+            if (window.electronAPI && window.electronAPI.onSidebarModeChanged) {
+                window.electronAPI.onSidebarModeChanged((isSidebar) => {
+                    sidebarToggle.classList.toggle('active', isSidebar);
+                    document.body.classList.toggle('sidebar-mode', isSidebar);
+                    sidebarModeCheckbox.checked = isSidebar;
+                });
+            }
 
             // 이메일 복사
             document.getElementById('copyEmailBtn').addEventListener('click', async () => {
