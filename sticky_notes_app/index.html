@@ -2580,7 +2580,7 @@
                 <div class="note-header">
                     <button class="note-btn edit-btn" title="편집 모드"><img src="assets/pencil.png" alt="편집"></button>
                     <button class="note-btn color-btn" title="색상 변경"><img src="assets/palette.png" alt="색상"></button>
-                    <button class="note-btn transfer-btn" title="다른 사용자에게 전달" style="font-size: 14px;">➤</button>
+                    <button class="note-btn transfer-btn" title="다른 사용자에게 전달"><img src="assets/share.png" alt="전달"></button>
                     <button class="note-btn delete-btn" title="삭제"><img src="assets/trashcan.png" alt="삭제"></button>
                     <div class="color-picker">
                         <div class="color-option yellow" data-color="yellow"></div>
@@ -2618,6 +2618,9 @@
                     <button class="format-btn bold-btn" title="굵게 (Ctrl+B)"><b>B</b></button>
                     <button class="format-btn italic-btn" title="기울임 (Ctrl+I)"><i>I</i></button>
                     <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)"><u>U</u></button>
+                    <button class="format-btn align-left-btn" title="왼쪽 정렬" style="font-size:11px;">⫷</button>
+                    <button class="format-btn align-center-btn" title="가운데 정렬" style="font-size:11px;">☰</button>
+                    <button class="format-btn align-right-btn" title="오른쪽 정렬" style="font-size:11px;">⫸</button>
                     <button class="format-btn bullet-btn" title="말머리 기호">•</button>
                     <button class="format-btn checkbox-btn" title="체크박스">☐</button>
                 </div>
@@ -2677,6 +2680,9 @@
             const boldBtn = el.querySelector('.bold-btn');
             const italicBtn = el.querySelector('.italic-btn');
             const underlineBtn = el.querySelector('.underline-btn');
+            const alignLeftBtn = el.querySelector('.align-left-btn');
+            const alignCenterBtn = el.querySelector('.align-center-btn');
+            const alignRightBtn = el.querySelector('.align-right-btn');
             const bulletBtn = el.querySelector('.bullet-btn');
             const checkboxBtn = el.querySelector('.checkbox-btn');
 
@@ -2699,22 +2705,45 @@
 
             // 서식 버튼 이벤트
             fontSelect.addEventListener('change', (e) => {
-                document.execCommand('fontName', false, e.target.value);
+                // CSS를 사용하여 폰트 적용
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                    const range = selection.getRangeAt(0);
+                    const span = document.createElement('span');
+                    span.style.fontFamily = e.target.value;
+                    try {
+                        range.surroundContents(span);
+                    } catch (err) {
+                        // 여러 노드에 걸친 선택인 경우
+                        const fragment = range.extractContents();
+                        span.appendChild(fragment);
+                        range.insertNode(span);
+                    }
+                    note.content = editor.innerHTML;
+                    saveNote(note);
+                } else {
+                    // 선택 영역이 없으면 전체 에디터에 적용
+                    editor.style.fontFamily = e.target.value;
+                }
                 editor.focus();
             });
 
             fontSizeSelect.addEventListener('change', (e) => {
                 // fontSize command uses 1-7, so we use CSS instead
                 const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
+                if (selection.rangeCount > 0 && !selection.isCollapsed) {
                     const range = selection.getRangeAt(0);
-                    if (!range.collapsed) {
-                        const span = document.createElement('span');
-                        span.style.fontSize = e.target.value;
+                    const span = document.createElement('span');
+                    span.style.fontSize = e.target.value;
+                    try {
                         range.surroundContents(span);
-                        note.content = editor.innerHTML;
-                        saveNote(note);
+                    } catch (err) {
+                        const fragment = range.extractContents();
+                        span.appendChild(fragment);
+                        range.insertNode(span);
                     }
+                    note.content = editor.innerHTML;
+                    saveNote(note);
                 }
                 editor.focus();
             });
@@ -2736,6 +2765,22 @@
 
             underlineBtn.addEventListener('click', () => {
                 document.execCommand('underline', false, null);
+                editor.focus();
+            });
+
+            // 정렬 버튼
+            alignLeftBtn.addEventListener('click', () => {
+                document.execCommand('justifyLeft', false, null);
+                editor.focus();
+            });
+
+            alignCenterBtn.addEventListener('click', () => {
+                document.execCommand('justifyCenter', false, null);
+                editor.focus();
+            });
+
+            alignRightBtn.addEventListener('click', () => {
+                document.execCommand('justifyRight', false, null);
                 editor.focus();
             });
 
