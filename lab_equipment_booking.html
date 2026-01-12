@@ -6147,6 +6147,20 @@
                         continue;
                     }
 
+                    // 중복 체크: 같은 이름 + 같은 연구실
+                    const { data: duplicates } = await supabaseClient
+                        .from('equipment')
+                        .select('id')
+                        .eq('name', equipmentData.name)
+                        .eq('lab_room', equipmentData.lab_room);
+
+                    if (duplicates && duplicates.length > 0) {
+                        console.log('중복 장비 건너뜀:', equipmentData.name, '(', equipmentData.lab_room, ')');
+                        errorCount++;
+                        errorList.push({ name: equipmentData.name, reason: `중복 장비 (연구실: ${equipmentData.lab_room})` });
+                        continue;
+                    }
+
                     console.log('장비 추가 시도:', JSON.stringify(equipmentData, null, 2));
 
                     const { error } = await supabaseClient
