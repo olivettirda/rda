@@ -1722,6 +1722,10 @@
                         <input type="text" id="signupName" class="form-input" placeholder="표시될 이름" required minlength="2">
                     </div>
                     <div class="form-group">
+                        <label class="form-label" for="signupOrg">소속</label>
+                        <input type="text" id="signupOrg" class="form-input" placeholder="소속 부서/기관">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label" for="signupUsername">아이디</label>
                         <input type="text" id="signupUsername" class="form-input" placeholder="사용할 아이디" required minlength="3">
                         <p class="form-hint">3자 이상, 영문/숫자만 사용 가능</p>
@@ -2151,6 +2155,7 @@
             console.log('회원가입 시도');
 
             const displayName = document.getElementById('signupName').value.trim();
+            const organization = document.getElementById('signupOrg').value.trim();
             const username = document.getElementById('signupUsername').value.trim();
             const password = document.getElementById('signupPassword').value;
             const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
@@ -2189,7 +2194,8 @@
                     options: {
                         data: {
                             username: username,
-                            display_name: displayName
+                            display_name: displayName,
+                            organization: organization
                         }
                     }
                 });
@@ -2219,6 +2225,7 @@
                             id: data.user.id,
                             username: username,
                             display_name: displayName,
+                            organization: organization,
                             updated_at: new Date().toISOString()
                         });
                         console.log('프로필 저장 완료');
@@ -3410,7 +3417,7 @@
             try {
                 const { data: profiles, error } = await supabaseClient
                     .from('profiles')
-                    .select('id, username, display_name')
+                    .select('id, username, display_name, organization')
                     .neq('id', currentUser.id)
                     .order('display_name');
 
@@ -3431,8 +3438,7 @@
                     <div class="user-list-item" data-user-id="${user.id}">
                         <div class="user-avatar">${(user.display_name || user.username || '?').charAt(0).toUpperCase()}</div>
                         <div class="user-info">
-                            <div class="user-name">${user.display_name || user.username}</div>
-                            <div class="user-username">@${user.username}</div>
+                            <div class="user-name">${user.display_name || user.username} (${user.username}${user.organization ? ', ' + user.organization : ''})</div>
                         </div>
                     </div>
                 `).join('');
