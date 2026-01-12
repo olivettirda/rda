@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#FFEB3B">
+    <meta name="description" content="플로팅 스티키 노트 - 어디서나 메모하세요">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="스티키 노트">
+    <link rel="manifest" href="sticky_notes_manifest.json">
+    <link rel="icon" type="image/png" href="ssallogo.png">
+    <link rel="apple-touch-icon" href="ssallogo.png">
+    <title>스티키 노트</title>
+
+    <style>
+        :root {
+            --note-yellow: #FFEB3B;
+            --note-yellow-dark: #FDD835;
+            --note-pink: #F8BBD9;
+            --note-pink-dark: #F48FB1;
+            --note-blue: #B3E5FC;
+            --note-blue-dark: #81D4FA;
+            --note-green: #C8E6C9;
+            --note-green-dark: #A5D6A7;
+            --note-orange: #FFE0B2;
+            --note-orange-dark: #FFCC80;
+            --note-purple: #E1BEE7;
+            --note-purple-dark: #CE93D8;
+
+            --shadow-note: 2px 4px 8px rgba(0,0,0,0.2),
+                           0 0 2px rgba(0,0,0,0.1);
+            --shadow-note-hover: 4px 8px 16px rgba(0,0,0,0.25),
+                                 0 0 4px rgba(0,0,0,0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 로그인 화면 */
+        .login-container {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 10000;
+        }
+
+        .login-card {
+            background: white;
+            padding: 48px 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-logo {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .login-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .login-subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 32px;
+        }
+
+        .google-login-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 32px;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .google-login-btn:hover {
+            border-color: #4285F4;
+            box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .google-login-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .login-divider {
+            display: flex;
+            align-items: center;
+            margin: 24px 0;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .login-divider::before,
+        .login-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #ddd;
+        }
+
+        .login-divider span {
+            padding: 0 16px;
+        }
+
+        .guest-btn {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .guest-btn:hover {
+            color: #333;
+        }
+
+        /* 헤더 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-logo {
+            font-size: 24px;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #ddd;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .sync-status {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .sync-status.synced {
+            color: #4CAF50;
+        }
+
+        .sync-status.syncing {
+            color: #FF9800;
+        }
+
+        /* 메인 보드 */
+        .board {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .notes-container {
+            position: relative;
+            min-height: calc(100vh - 56px);
+            min-width: 100%;
+        }
+
+        /* 스티키 노트 - 3M 포스트잇 스타일 */
+        .sticky-note {
+            position: absolute;
+            width: 220px;
+            min-height: 220px;
+            padding: 0;
+            cursor: grab;
+            transition: box-shadow 0.2s, transform 0.1s;
+            z-index: 1;
+        }
+
+        .sticky-note:active {
+            cursor: grabbing;
+        }
+
+        .sticky-note.dragging {
+            z-index: 9999;
+            transform: rotate(2deg) scale(1.02);
+        }
+
+        .sticky-note:hover {
+            z-index: 100;
+        }
+
+        .note-paper {
+            position: relative;
+            width: 100%;
+            min-height: 220px;
+            background: var(--note-yellow);
+            box-shadow: var(--shadow-note);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sticky-note:hover .note-paper {
+            box-shadow: var(--shadow-note-hover);
+        }
+
+        /* 접착 부분 효과 */
+        .note-paper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            background: linear-gradient(
+                180deg,
+                rgba(0,0,0,0.08) 0%,
+                rgba(0,0,0,0.02) 50%,
+                transparent 100%
+            );
+            pointer-events: none;
+        }
+
+        /* 종이 질감 */
+        .note-paper::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 27px,
+                    rgba(0,0,0,0.03) 27px,
+                    rgba(0,0,0,0.03) 28px
+                );
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        /* 노트 색상들 */
+        .note-paper.yellow { background: var(--note-yellow); }
+        .note-paper.pink { background: var(--note-pink); }
+        .note-paper.blue { background: var(--note-blue); }
+        .note-paper.green { background: var(--note-green); }
+        .note-paper.orange { background: var(--note-orange); }
+        .note-paper.purple { background: var(--note-purple); }
+
+        /* 노트 헤더 */
+        .note-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            min-height: 36px;
+        }
+
+        .note-date {
+            font-size: 10px;
+            color: rgba(0,0,0,0.4);
+            font-weight: 500;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .sticky-note:hover .note-actions {
+            opacity: 1;
+        }
+
+        .note-action-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: rgba(0,0,0,0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .note-action-btn:hover {
+            background: rgba(0,0,0,0.2);
+        }
+
+        .note-action-btn.delete:hover {
+            background: rgba(220, 53, 69, 0.3);
+        }
+
+        /* 노트 내용 */
+        .note-content {
+            flex: 1;
+            padding: 4px 16px 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .note-textarea {
+            width: 100%;
+            min-height: 160px;
+            border: none;
+            background: transparent;
+            font-family: 'Nanum Pen Script', 'KoPub Dotum', cursive, sans-serif;
+            font-size: 18px;
+            line-height: 28px;
+            color: #333;
+            resize: none;
+            outline: none;
+        }
+
+        .note-textarea::placeholder {
+            color: rgba(0,0,0,0.3);
+        }
+
+        /* 색상 선택기 */
+        .color-picker {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: none;
+            gap: 4px;
+            z-index: 100;
+        }
+
+        .color-picker.show {
+            display: flex;
+        }
+
+        .color-option {
+            width: 28px;
+            height: 28px;
+            border: 2px solid transparent;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .color-option:hover {
+            transform: scale(1.15);
+        }
+
+        .color-option.yellow { background: var(--note-yellow); }
+        .color-option.pink { background: var(--note-pink); }
+        .color-option.blue { background: var(--note-blue); }
+        .color-option.green { background: var(--note-green); }
+        .color-option.orange { background: var(--note-orange); }
+        .color-option.purple { background: var(--note-purple); }
+
+        /* 새 노트 추가 버튼 (FAB) */
+        .fab-add {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 64px;
+            height: 64px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FFEB3B 0%, #FFC107 100%);
+            color: #333;
+            font-size: 32px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(255, 193, 7, 0.4);
+            transition: all 0.3s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .fab-add:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 6px 24px rgba(255, 193, 7, 0.5);
+        }
+
+        .fab-add:active {
+            transform: scale(1.05) rotate(90deg);
+        }
+
+        /* PWA 설치 배너 */
+        .install-banner {
+            position: fixed;
+            bottom: 100px;
+            right: 24px;
+            background: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .install-banner.show {
+            display: flex;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .install-banner-icon {
+            font-size: 32px;
+        }
+
+        .install-banner-text {
+            flex: 1;
+        }
+
+        .install-banner-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .install-banner-desc {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .install-btn {
+            padding: 8px 16px;
+            background: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .install-btn:hover {
+            background: #3367D6;
+        }
+
+        .install-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #999;
+        }
+
+        /* 사용자 메뉴 */
+        .user-menu {
+            position: fixed;
+            top: 56px;
+            right: 8px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 8px;
+            display: none;
+            z-index: 1001;
+            min-width: 200px;
+        }
+
+        .user-menu.show {
+            display: block;
+        }
+
+        .user-menu-header {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 8px;
+        }
+
+        .user-menu-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .user-menu-email {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .user-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .user-menu-item:hover {
+            background: #f5f5f5;
+        }
+
+        .user-menu-item.danger {
+            color: #dc3545;
+        }
+
+        /* 토스트 메시지 */
+        .toast-container {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10001;
+        }
+
+        .toast {
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* 빈 상태 */
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .empty-state-icon {
+            font-size: 80px;
+            margin-bottom: 16px;
+            opacity: 0.7;
+        }
+
+        .empty-state-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-state-desc {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* 로딩 */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #eee;
+            border-top-color: #FFEB3B;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 리사이즈 핸들 */
+        .resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: se-resize;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .sticky-note:hover .resize-handle {
+            opacity: 1;
+        }
+
+        .resize-handle::before {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            width: 10px;
+            height: 10px;
+            border-right: 2px solid rgba(0,0,0,0.3);
+            border-bottom: 2px solid rgba(0,0,0,0.3);
+        }
+
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .sticky-note {
+                width: 180px;
+                min-height: 180px;
+            }
+
+            .note-paper {
+                min-height: 180px;
+            }
+
+            .note-textarea {
+                font-size: 16px;
+                min-height: 120px;
+            }
+
+            .fab-add {
+                width: 56px;
+                height: 56px;
+                font-size: 28px;
+                bottom: 16px;
+                right: 16px;
+            }
+
+            .install-banner {
+                left: 16px;
+                right: 16px;
+                bottom: 80px;
+                max-width: none;
+            }
+        }
+
+        /* 숨김 클래스 */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- 로그인 화면 -->
+    <div id="loginContainer" class="login-container">
+        <div class="login-card">
+            <div class="login-logo">📝</div>
+            <h1 class="login-title">스티키 노트</h1>
+            <p class="login-subtitle">어디서나 메모하고, 모든 기기에서 동기화하세요</p>
+
+            <button id="googleLoginBtn" class="google-login-btn">
+                <svg viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Google로 로그인
+            </button>
+
+            <div class="login-divider">
+                <span>또는</span>
+            </div>
+
+            <button id="guestBtn" class="guest-btn">게스트로 사용하기 (동기화 안됨)</button>
+        </div>
+    </div>
+
+    <!-- 메인 앱 -->
+    <div id="app" class="hidden">
+        <!-- 헤더 -->
+        <header class="header">
+            <div class="header-left">
+                <span class="header-logo">📝</span>
+                <span class="header-title">스티키 노트</span>
+            </div>
+            <div class="header-right">
+                <span id="syncStatus" class="sync-status">
+                    <span class="sync-icon">●</span>
+                    <span class="sync-text">저장됨</span>
+                </span>
+                <div id="userAvatar" class="user-avatar">
+                    <img src="" alt="프로필" id="userAvatarImg">
+                </div>
+            </div>
+        </header>
+
+        <!-- 사용자 메뉴 -->
+        <div id="userMenu" class="user-menu">
+            <div class="user-menu-header">
+                <div id="userName" class="user-menu-name">사용자</div>
+                <div id="userEmail" class="user-menu-email">email@example.com</div>
+            </div>
+            <button class="user-menu-item" id="exportBtn">
+                <span>📥</span> 노트 내보내기
+            </button>
+            <button class="user-menu-item danger" id="logoutBtn">
+                <span>🚪</span> 로그아웃
+            </button>
+        </div>
+
+        <!-- 노트 보드 -->
+        <div class="board">
+            <div id="notesContainer" class="notes-container">
+                <!-- 빈 상태 -->
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-state-icon">📌</div>
+                    <h2 class="empty-state-title">아직 메모가 없어요</h2>
+                    <p class="empty-state-desc">+ 버튼을 눌러 첫 메모를 작성해보세요!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 새 노트 추가 버튼 -->
+        <button id="fabAdd" class="fab-add">+</button>
+
+        <!-- PWA 설치 배너 -->
+        <div id="installBanner" class="install-banner">
+            <button id="installClose" class="install-close">×</button>
+            <span class="install-banner-icon">📲</span>
+            <div class="install-banner-text">
+                <div class="install-banner-title">앱으로 설치하기</div>
+                <div class="install-banner-desc">홈 화면에 추가하여 빠르게 접근하세요</div>
+            </div>
+            <button id="installBtn" class="install-btn">설치</button>
+        </div>
+    </div>
+
+    <!-- 토스트 -->
+    <div class="toast-container">
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- 로딩 -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // ============================================
+        // Supabase 설정
+        // ============================================
+        const SUPABASE_URL = 'https://jbvpjcncpjfnpbabmhgo.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpidnBqY25jcGpmbnBiYWJtaGdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcxNjg3MDksImV4cCI6MjA1Mjc0NDcwOX0.t-tZ2rMo4KMfEAWfkFkfxvH_4r1VqGW2vR0hM8plpS4';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        console.log('Supabase 클라이언트 초기화 완료');
+
+        // ============================================
+        // 앱 상태
+        // ============================================
+        let currentUser = null;
+        let notes = [];
+        let isGuest = false;
+        let deferredPrompt = null;
+        let draggedNote = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // ============================================
+        // DOM 요소
+        // ============================================
+        const loginContainer = document.getElementById('loginContainer');
+        const app = document.getElementById('app');
+        const googleLoginBtn = document.getElementById('googleLoginBtn');
+        const guestBtn = document.getElementById('guestBtn');
+        const notesContainer = document.getElementById('notesContainer');
+        const emptyState = document.getElementById('emptyState');
+        const fabAdd = document.getElementById('fabAdd');
+        const userAvatar = document.getElementById('userAvatar');
+        const userAvatarImg = document.getElementById('userAvatarImg');
+        const userMenu = document.getElementById('userMenu');
+        const userName = document.getElementById('userName');
+        const userEmail = document.getElementById('userEmail');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const syncStatus = document.getElementById('syncStatus');
+        const toast = document.getElementById('toast');
+        const installBanner = document.getElementById('installBanner');
+        const installBtn = document.getElementById('installBtn');
+        const installClose = document.getElementById('installClose');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // ============================================
+        // 초기화
+        // ============================================
+        async function init() {
+            console.log('앱 초기화 시작');
+
+            // PWA 설치 이벤트 감지
+            window.addEventListener('beforeinstallprompt', (e) => {
+                console.log('PWA 설치 가능');
+                e.preventDefault();
+                deferredPrompt = e;
+                setTimeout(() => {
+                    installBanner.classList.add('show');
+                }, 3000);
+            });
+
+            // 서비스 워커 등록
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.register('sticky_notes_sw.js');
+                    console.log('Service Worker 등록 성공:', registration);
+                } catch (error) {
+                    console.log('Service Worker 등록 실패:', error);
+                }
+            }
+
+            // 세션 확인
+            const { data: { session } } = await supabase.auth.getSession();
+            console.log('현재 세션:', session);
+
+            if (session) {
+                currentUser = session.user;
+                showApp();
+                await loadNotes();
+                setupRealtimeSync();
+            } else {
+                // 게스트 모드 확인
+                const guestNotes = localStorage.getItem('sticky_notes_guest');
+                if (guestNotes) {
+                    isGuest = true;
+                    notes = JSON.parse(guestNotes);
+                    showApp();
+                    renderNotes();
+                }
+            }
+
+            // 인증 상태 변경 감지
+            supabase.auth.onAuthStateChange((event, session) => {
+                console.log('인증 상태 변경:', event, session);
+                if (event === 'SIGNED_IN' && session) {
+                    currentUser = session.user;
+                    isGuest = false;
+                    showApp();
+                    loadNotes();
+                    setupRealtimeSync();
+                } else if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    notes = [];
+                    showLogin();
+                }
+            });
+        }
+
+        // ============================================
+        // 인증
+        // ============================================
+        googleLoginBtn.addEventListener('click', async () => {
+            console.log('Google 로그인 시도');
+            showLoading();
+
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin + window.location.pathname
+                }
+            });
+
+            if (error) {
+                console.error('Google 로그인 에러:', error);
+                hideLoading();
+                showToast('로그인에 실패했습니다');
+            }
+        });
+
+        guestBtn.addEventListener('click', () => {
+            console.log('게스트 모드 시작');
+            isGuest = true;
+            notes = JSON.parse(localStorage.getItem('sticky_notes_guest') || '[]');
+            showApp();
+            renderNotes();
+            showToast('게스트 모드입니다. 로그인하면 동기화됩니다.');
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            console.log('로그아웃');
+            userMenu.classList.remove('show');
+
+            if (isGuest) {
+                isGuest = false;
+                notes = [];
+                showLogin();
+            } else {
+                await supabase.auth.signOut();
+            }
+        });
+
+        // ============================================
+        // UI 전환
+        // ============================================
+        function showLogin() {
+            loginContainer.classList.remove('hidden');
+            app.classList.add('hidden');
+        }
+
+        function showApp() {
+            loginContainer.classList.add('hidden');
+            app.classList.remove('hidden');
+
+            if (currentUser) {
+                userAvatarImg.src = currentUser.user_metadata?.avatar_url || '';
+                userName.textContent = currentUser.user_metadata?.full_name || '사용자';
+                userEmail.textContent = currentUser.email || '';
+            } else if (isGuest) {
+                userAvatarImg.src = '';
+                userName.textContent = '게스트';
+                userEmail.textContent = '로그인하면 동기화됩니다';
+            }
+        }
+
+        function showLoading() {
+            loadingOverlay.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.add('hidden');
+        }
+
+        // ============================================
+        // 노트 CRUD
+        // ============================================
+        async function loadNotes() {
+            console.log('노트 로드 시작');
+            setSyncStatus('syncing');
+
+            try {
+                const { data, error } = await supabase
+                    .from('sticky_notes')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    console.error('노트 로드 에러:', error);
+                    throw error;
+                }
+
+                console.log('로드된 노트:', data);
+                notes = data || [];
+                renderNotes();
+                setSyncStatus('synced');
+            } catch (error) {
+                console.error('노트 로드 실패:', error);
+                showToast('노트를 불러오는데 실패했습니다');
+                setSyncStatus('error');
+            }
+        }
+
+        async function createNote() {
+            console.log('새 노트 생성');
+
+            const newNote = {
+                id: isGuest ? Date.now().toString() : undefined,
+                content: '',
+                color: 'yellow',
+                position_x: Math.random() * (window.innerWidth - 250) + 20,
+                position_y: Math.random() * (window.innerHeight - 300) + 80,
+                width: 220,
+                height: 220,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            if (isGuest) {
+                notes.unshift(newNote);
+                saveGuestNotes();
+                renderNotes();
+                focusNote(newNote.id);
+            } else {
+                setSyncStatus('syncing');
+
+                try {
+                    const { data, error } = await supabase
+                        .from('sticky_notes')
+                        .insert({
+                            user_id: currentUser.id,
+                            content: newNote.content,
+                            color: newNote.color,
+                            position_x: newNote.position_x,
+                            position_y: newNote.position_y,
+                            width: newNote.width,
+                            height: newNote.height
+                        })
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+
+                    console.log('노트 생성 성공:', data);
+                    notes.unshift(data);
+                    renderNotes();
+                    focusNote(data.id);
+                    setSyncStatus('synced');
+                } catch (error) {
+                    console.error('노트 생성 실패:', error);
+                    showToast('노트 생성에 실패했습니다');
+                    setSyncStatus('error');
+                }
+            }
+        }
+
+        async function updateNote(noteId, updates) {
+            console.log('노트 업데이트:', noteId, updates);
+
+            const noteIndex = notes.findIndex(n => n.id == noteId);
+            if (noteIndex === -1) return;
+
+            notes[noteIndex] = { ...notes[noteIndex], ...updates, updated_at: new Date().toISOString() };
+
+            if (isGuest) {
+                saveGuestNotes();
+            } else {
+                setSyncStatus('syncing');
+
+                try {
+                    const { error } = await supabase
+                        .from('sticky_notes')
+                        .update(updates)
+                        .eq('id', noteId);
+
+                    if (error) throw error;
+
+                    setSyncStatus('synced');
+                } catch (error) {
+                    console.error('노트 업데이트 실패:', error);
+                    setSyncStatus('error');
+                }
+            }
+        }
+
+        async function deleteNote(noteId) {
+            console.log('노트 삭제:', noteId);
+
+            if (!confirm('이 메모를 삭제하시겠습니까?')) return;
+
+            notes = notes.filter(n => n.id != noteId);
+
+            if (isGuest) {
+                saveGuestNotes();
+                renderNotes();
+            } else {
+                setSyncStatus('syncing');
+
+                try {
+                    const { error } = await supabase
+                        .from('sticky_notes')
+                        .delete()
+                        .eq('id', noteId);
+
+                    if (error) throw error;
+
+                    renderNotes();
+                    setSyncStatus('synced');
+                } catch (error) {
+                    console.error('노트 삭제 실패:', error);
+                    showToast('노트 삭제에 실패했습니다');
+                    setSyncStatus('error');
+                }
+            }
+        }
+
+        function saveGuestNotes() {
+            localStorage.setItem('sticky_notes_guest', JSON.stringify(notes));
+        }
+
+        // ============================================
+        // 렌더링
+        // ============================================
+        function renderNotes() {
+            console.log('노트 렌더링:', notes.length);
+
+            // 기존 노트 제거 (빈 상태 제외)
+            const existingNotes = notesContainer.querySelectorAll('.sticky-note');
+            existingNotes.forEach(el => el.remove());
+
+            // 빈 상태 표시
+            if (notes.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            // 노트 렌더링
+            notes.forEach(note => {
+                const noteEl = createNoteElement(note);
+                notesContainer.appendChild(noteEl);
+            });
+        }
+
+        function createNoteElement(note) {
+            const el = document.createElement('div');
+            el.className = 'sticky-note';
+            el.dataset.id = note.id;
+            el.style.left = `${note.position_x}px`;
+            el.style.top = `${note.position_y}px`;
+            el.style.transform = `rotate(${(Math.random() - 0.5) * 4}deg)`;
+
+            const date = new Date(note.created_at);
+            const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+
+            el.innerHTML = `
+                <div class="note-paper ${note.color}">
+                    <div class="note-header">
+                        <span class="note-date">${dateStr}</span>
+                        <div class="note-actions">
+                            <button class="note-action-btn color-btn" title="색상 변경">🎨</button>
+                            <button class="note-action-btn delete" title="삭제">🗑️</button>
+                        </div>
+                        <div class="color-picker">
+                            <div class="color-option yellow" data-color="yellow"></div>
+                            <div class="color-option pink" data-color="pink"></div>
+                            <div class="color-option blue" data-color="blue"></div>
+                            <div class="color-option green" data-color="green"></div>
+                            <div class="color-option orange" data-color="orange"></div>
+                            <div class="color-option purple" data-color="purple"></div>
+                        </div>
+                    </div>
+                    <div class="note-content">
+                        <textarea class="note-textarea" placeholder="메모를 입력하세요...">${note.content || ''}</textarea>
+                    </div>
+                    <div class="resize-handle"></div>
+                </div>
+            `;
+
+            // 이벤트 바인딩
+            setupNoteEvents(el, note);
+
+            return el;
+        }
+
+        function setupNoteEvents(el, note) {
+            const textarea = el.querySelector('.note-textarea');
+            const colorBtn = el.querySelector('.color-btn');
+            const colorPicker = el.querySelector('.color-picker');
+            const deleteBtn = el.querySelector('.delete');
+            const notePaper = el.querySelector('.note-paper');
+            const resizeHandle = el.querySelector('.resize-handle');
+
+            // 내용 변경
+            let saveTimeout;
+            textarea.addEventListener('input', () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    updateNote(note.id, { content: textarea.value });
+                }, 500);
+            });
+
+            // 색상 변경
+            colorBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                colorPicker.classList.toggle('show');
+            });
+
+            colorPicker.querySelectorAll('.color-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const newColor = option.dataset.color;
+                    notePaper.className = `note-paper ${newColor}`;
+                    colorPicker.classList.remove('show');
+                    updateNote(note.id, { color: newColor });
+                });
+            });
+
+            // 삭제
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteNote(note.id);
+            });
+
+            // 드래그
+            el.addEventListener('mousedown', handleDragStart);
+            el.addEventListener('touchstart', handleDragStart, { passive: false });
+
+            // 리사이즈
+            resizeHandle.addEventListener('mousedown', handleResizeStart);
+            resizeHandle.addEventListener('touchstart', handleResizeStart, { passive: false });
+
+            // 클릭시 맨 앞으로
+            el.addEventListener('mousedown', () => {
+                bringToFront(el);
+            });
+        }
+
+        function bringToFront(el) {
+            const allNotes = document.querySelectorAll('.sticky-note');
+            allNotes.forEach(n => n.style.zIndex = 1);
+            el.style.zIndex = 100;
+        }
+
+        function focusNote(noteId) {
+            setTimeout(() => {
+                const noteEl = document.querySelector(`.sticky-note[data-id="${noteId}"]`);
+                if (noteEl) {
+                    const textarea = noteEl.querySelector('.note-textarea');
+                    textarea.focus();
+                    bringToFront(noteEl);
+                }
+            }, 100);
+        }
+
+        // ============================================
+        // 드래그 & 드롭
+        // ============================================
+        function handleDragStart(e) {
+            // textarea나 버튼 클릭시 드래그 방지
+            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' ||
+                e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle')) {
+                return;
+            }
+
+            e.preventDefault();
+
+            draggedNote = e.currentTarget;
+            draggedNote.classList.add('dragging');
+
+            const rect = draggedNote.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            dragOffsetX = clientX - rect.left;
+            dragOffsetY = clientY - rect.top;
+
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('mouseup', handleDragEnd);
+            document.addEventListener('touchmove', handleDragMove, { passive: false });
+            document.addEventListener('touchend', handleDragEnd);
+        }
+
+        function handleDragMove(e) {
+            if (!draggedNote) return;
+
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const x = clientX - dragOffsetX;
+            const y = clientY - dragOffsetY - 56; // 헤더 높이 보정
+
+            draggedNote.style.left = `${Math.max(0, x)}px`;
+            draggedNote.style.top = `${Math.max(0, y)}px`;
+        }
+
+        function handleDragEnd(e) {
+            if (!draggedNote) return;
+
+            draggedNote.classList.remove('dragging');
+
+            const noteId = draggedNote.dataset.id;
+            const x = parseInt(draggedNote.style.left);
+            const y = parseInt(draggedNote.style.top);
+
+            updateNote(noteId, { position_x: x, position_y: y });
+
+            draggedNote = null;
+
+            document.removeEventListener('mousemove', handleDragMove);
+            document.removeEventListener('mouseup', handleDragEnd);
+            document.removeEventListener('touchmove', handleDragMove);
+            document.removeEventListener('touchend', handleDragEnd);
+        }
+
+        // ============================================
+        // 리사이즈
+        // ============================================
+        let resizingNote = null;
+        let startWidth = 0;
+        let startHeight = 0;
+        let startX = 0;
+        let startY = 0;
+
+        function handleResizeStart(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            resizingNote = e.target.closest('.sticky-note');
+            const rect = resizingNote.getBoundingClientRect();
+
+            startWidth = rect.width;
+            startHeight = rect.height;
+            startX = e.touches ? e.touches[0].clientX : e.clientX;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            document.addEventListener('mousemove', handleResizeMove);
+            document.addEventListener('mouseup', handleResizeEnd);
+            document.addEventListener('touchmove', handleResizeMove, { passive: false });
+            document.addEventListener('touchend', handleResizeEnd);
+        }
+
+        function handleResizeMove(e) {
+            if (!resizingNote) return;
+
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const newWidth = Math.max(150, startWidth + (clientX - startX));
+            const newHeight = Math.max(150, startHeight + (clientY - startY));
+
+            resizingNote.style.width = `${newWidth}px`;
+            resizingNote.querySelector('.note-paper').style.minHeight = `${newHeight}px`;
+        }
+
+        function handleResizeEnd(e) {
+            if (!resizingNote) return;
+
+            const noteId = resizingNote.dataset.id;
+            const width = parseInt(resizingNote.style.width);
+            const height = parseInt(resizingNote.querySelector('.note-paper').style.minHeight);
+
+            updateNote(noteId, { width, height });
+
+            resizingNote = null;
+
+            document.removeEventListener('mousemove', handleResizeMove);
+            document.removeEventListener('mouseup', handleResizeEnd);
+            document.removeEventListener('touchmove', handleResizeMove);
+            document.removeEventListener('touchend', handleResizeEnd);
+        }
+
+        // ============================================
+        // 실시간 동기화
+        // ============================================
+        function setupRealtimeSync() {
+            if (isGuest || !currentUser) return;
+
+            console.log('실시간 동기화 설정');
+
+            const channel = supabase
+                .channel('sticky_notes_changes')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'sticky_notes',
+                        filter: `user_id=eq.${currentUser.id}`
+                    },
+                    (payload) => {
+                        console.log('실시간 변경 감지:', payload);
+
+                        if (payload.eventType === 'INSERT') {
+                            const exists = notes.find(n => n.id === payload.new.id);
+                            if (!exists) {
+                                notes.unshift(payload.new);
+                                renderNotes();
+                            }
+                        } else if (payload.eventType === 'UPDATE') {
+                            const index = notes.findIndex(n => n.id === payload.new.id);
+                            if (index !== -1) {
+                                notes[index] = payload.new;
+                                // 해당 노트만 업데이트 (전체 렌더링 방지)
+                                const noteEl = document.querySelector(`.sticky-note[data-id="${payload.new.id}"]`);
+                                if (noteEl) {
+                                    const textarea = noteEl.querySelector('.note-textarea');
+                                    const paper = noteEl.querySelector('.note-paper');
+                                    if (document.activeElement !== textarea) {
+                                        textarea.value = payload.new.content || '';
+                                    }
+                                    paper.className = `note-paper ${payload.new.color}`;
+                                }
+                            }
+                        } else if (payload.eventType === 'DELETE') {
+                            notes = notes.filter(n => n.id !== payload.old.id);
+                            renderNotes();
+                        }
+
+                        setSyncStatus('synced');
+                    }
+                )
+                .subscribe();
+        }
+
+        // ============================================
+        // 유틸리티
+        // ============================================
+        function setSyncStatus(status) {
+            const icon = syncStatus.querySelector('.sync-icon');
+            const text = syncStatus.querySelector('.sync-text');
+
+            syncStatus.className = `sync-status ${status}`;
+
+            switch(status) {
+                case 'synced':
+                    icon.textContent = '●';
+                    text.textContent = '저장됨';
+                    break;
+                case 'syncing':
+                    icon.textContent = '◐';
+                    text.textContent = '동기화 중...';
+                    break;
+                case 'error':
+                    icon.textContent = '●';
+                    text.textContent = '오류';
+                    break;
+            }
+        }
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // ============================================
+        // 이벤트 리스너
+        // ============================================
+        fabAdd.addEventListener('click', createNote);
+
+        userAvatar.addEventListener('click', () => {
+            userMenu.classList.toggle('show');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!userMenu.contains(e.target) && !userAvatar.contains(e.target)) {
+                userMenu.classList.remove('show');
+            }
+
+            // 색상 선택기 닫기
+            if (!e.target.closest('.color-btn') && !e.target.closest('.color-picker')) {
+                document.querySelectorAll('.color-picker.show').forEach(cp => {
+                    cp.classList.remove('show');
+                });
+            }
+        });
+
+        // PWA 설치
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log('PWA 설치 결과:', outcome);
+                deferredPrompt = null;
+                installBanner.classList.remove('show');
+            }
+        });
+
+        installClose.addEventListener('click', () => {
+            installBanner.classList.remove('show');
+        });
+
+        // 내보내기
+        exportBtn.addEventListener('click', () => {
+            const exportData = notes.map(n => ({
+                content: n.content,
+                color: n.color,
+                created_at: n.created_at
+            }));
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sticky_notes_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('노트를 내보냈습니다');
+            userMenu.classList.remove('show');
+        });
+
+        // 키보드 단축키
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'n') {
+                    e.preventDefault();
+                    createNote();
+                }
+            }
+        });
+
+        // 초기화
+        init();
+    </script>
+</body>
+</html>
