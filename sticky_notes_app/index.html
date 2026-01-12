@@ -2341,6 +2341,8 @@
                     <button class="format-btn bold-btn" title="굵게 (Ctrl+B)"><b>B</b></button>
                     <button class="format-btn italic-btn" title="기울임 (Ctrl+I)"><i>I</i></button>
                     <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)"><u>U</u></button>
+                    <button class="format-btn bullet-btn" title="말머리 기호">•</button>
+                    <button class="format-btn checkbox-btn" title="체크박스">☐</button>
                 </div>
                 <div class="note-content">
                     <div class="note-editor" contenteditable="true" data-placeholder="메모를 입력하세요...">${note.content || ''}</div>
@@ -2396,6 +2398,17 @@
             const boldBtn = el.querySelector('.bold-btn');
             const italicBtn = el.querySelector('.italic-btn');
             const underlineBtn = el.querySelector('.underline-btn');
+            const bulletBtn = el.querySelector('.bullet-btn');
+            const checkboxBtn = el.querySelector('.checkbox-btn');
+
+            // 체크박스 클릭 이벤트 (이벤트 위임 - 저장된 체크박스도 동작)
+            editor.addEventListener('click', (e) => {
+                if (e.target.classList.contains('note-checkbox')) {
+                    e.target.textContent = e.target.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                    note.content = editor.innerHTML;
+                    saveNote(note);
+                }
+            });
 
             // 내용 변경
             let saveTimeout;
@@ -2444,6 +2457,41 @@
 
             underlineBtn.addEventListener('click', () => {
                 document.execCommand('underline', false, null);
+                editor.focus();
+            });
+
+            // 말머리 기호 (불릿 리스트)
+            bulletBtn.addEventListener('click', () => {
+                document.execCommand('insertUnorderedList', false, null);
+                editor.focus();
+            });
+
+            // 체크박스 삽입
+            checkboxBtn.addEventListener('click', () => {
+                const checkbox = document.createElement('span');
+                checkbox.className = 'note-checkbox';
+                checkbox.textContent = '☐ ';
+                checkbox.style.cursor = 'pointer';
+                checkbox.onclick = function() {
+                    this.textContent = this.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                    note.content = editor.innerHTML;
+                    saveNote(note);
+                };
+
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.insertNode(checkbox);
+                    range.setStartAfter(checkbox);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    editor.appendChild(checkbox);
+                }
+
+                note.content = editor.innerHTML;
+                saveNote(note);
                 editor.focus();
             });
 

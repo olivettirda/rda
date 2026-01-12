@@ -94,19 +94,29 @@ function enterSidebarMode(position = null) {
     const { width: screenWidth, height: screenHeight } = display.workAreaSize;
     const { x: screenX, y: screenY } = display.workArea;
 
+    // 현재 창 크기 저장 (일반 모드로 돌아갈 때 복원용)
     if (!isSidebarMode) {
         normalBounds = mainWindow.getBounds();
     }
 
     sidebarPosition = position || sidebarPosition;
 
-    // 이전 사이드바 크기가 있으면 사용, 없으면 기본값
-    const width = sidebarBounds?.width || SIDEBAR_MAX_WIDTH;
-    const height = sidebarBounds?.height || screenHeight;
+    // 이전 사이드바 크기가 있으면 사용, 없으면 현재 너비의 3/4 (최소 160, 최대 320)
+    let width;
+    if (sidebarBounds?.width) {
+        width = sidebarBounds.width;
+    } else {
+        const currentWidth = mainWindow.getBounds().width;
+        width = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(currentWidth * 0.75)));
+    }
+    const height = screenHeight;
 
+    // 화면 가장자리에 딱 붙도록 x 계산
     const x = sidebarPosition === 'right'
         ? screenX + screenWidth - width
         : screenX;
+
+    console.log('트레이 모드 진입:', { x, width, screenWidth, screenX });
 
     mainWindow.setBounds({
         x: x,
