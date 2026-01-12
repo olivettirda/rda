@@ -2202,7 +2202,7 @@
                                 <h4 style="color: var(--primary-main); margin-bottom: 8px;">2단계: 실험실 선택</h4>
                                 <p>드롭다운 메뉴에서 실험실을 선택합니다.</p>
                                 <ul style="margin-left: 20px; margin-top: 8px; line-height: 1.8;">
-                                    <li>분자육종실험실, 가공적성실험실, 품질분석실험실, 생공 중 선택</li>
+                                    <li>등록된 장비의 연구실 목록이 자동으로 표시됩니다</li>
                                     <li>실험실 선택 후 예약을 진행합니다</li>
                                 </ul>
                             </div>
@@ -2440,10 +2440,8 @@
                                     <div class="form-group mb-3">
                                         <label class="form-label">실험실 <span style="color: var(--error);">*</span></label>
                                         <select class="form-select" id="experimentLocation">
-                                            <option value="">-- 위치 선택 --</option>
-                                            <option value="분자육종실험실">분자육종실험실</option>
-                                            <option value="가공적성실험실">가공적성실험실</option>
-                                            <option value="생공">생공</option>
+                                            <option value="">-- 실험실 선택 --</option>
+                                            <!-- 장비의 연구실 목록이 동적으로 로드됩니다 -->
                                         </select>
                                     </div>
                                     <div class="form-group mb-3">
@@ -3648,6 +3646,9 @@
             SHARED_LOCATIONS = labRooms;
             console.log('실험실 목록 업데이트:', JSON.stringify(SHARED_LOCATIONS));
 
+            // 예약 폼의 실험실 드롭다운도 업데이트
+            populateExperimentLocationDropdown();
+
             renderEquipmentGrid();
         }
 
@@ -3900,15 +3901,37 @@
         // 실험실 드롭다운을 equipment 테이블에서 동적으로 채우기
         function populateExperimentLocationDropdown() {
             const select = document.getElementById('experimentLocation');
-            if (!select || !equipmentList) return;
+            if (!select) {
+                console.warn('experimentLocation 셀렉트 박스를 찾을 수 없음');
+                return;
+            }
 
-            // 고유한 위치 목록 추출
-            const locations = [...new Set(equipmentList.map(eq => eq.location).filter(loc => loc))];
-            console.log('사용 가능한 실험실:', locations);
+            console.log('=== 실험실 드롭다운 업데이트 ===');
+            console.log('SHARED_LOCATIONS:', JSON.stringify(SHARED_LOCATIONS));
+            console.log('equipmentList 개수:', equipmentList ? equipmentList.length : 0);
+
+            // SHARED_LOCATIONS가 비어있으면 equipmentList에서 직접 추출
+            let locations = SHARED_LOCATIONS;
+            if (!locations || locations.length === 0) {
+                console.warn('SHARED_LOCATIONS가 비어있음, equipmentList에서 직접 추출');
+                if (equipmentList && equipmentList.length > 0) {
+                    locations = [...new Set(equipmentList
+                        .map(eq => eq.lab_room)
+                        .filter(room => room && room.trim() !== '')
+                    )];
+                    console.log('직접 추출한 연구실 목록:', JSON.stringify(locations));
+                }
+            }
 
             // 드롭다운 옵션 생성
-            select.innerHTML = '<option value="">-- 위치 선택 --</option>' +
-                locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+            if (locations && locations.length > 0) {
+                select.innerHTML = '<option value="">-- 실험실 선택 --</option>' +
+                    locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+                console.log('실험실 드롭다운 생성 완료:', locations.length + '개');
+            } else {
+                select.innerHTML = '<option value="">-- 실험실 없음 (장비를 먼저 등록하세요) --</option>';
+                console.warn('실험실 목록이 비어있음');
+            }
         }
 
         async function loadAdminData() {
@@ -5877,20 +5900,29 @@
         // Utility Functions
         // =============================================
 
-        // 위치명으로 equipment_id 찾기
+        // 연구실/위치명으로 equipment_id 찾기
         function getEquipmentIdByLocation(locationName) {
             if (!equipmentList || equipmentList.length === 0) {
                 console.log('장비 목록이 비어있음');
                 return null;
             }
-            // 위치명과 일치하는 장비 찾기
-            const equipment = equipmentList.find(eq => eq.location === locationName);
+
+            // 1순위: 연구실(lab_room)과 일치하는 장비 찾기
+            let equipment = equipmentList.find(eq => eq.lab_room === locationName);
+            if (equipment) {
+                console.log('연구실 매칭 장비 찾음:', equipment.id, equipment.name, '(', equipment.lab_room, ')');
+                return equipment.id;
+            }
+
+            // 2순위: 위치(location)와 일치하는 장비 찾기 (하위 호환성)
+            equipment = equipmentList.find(eq => eq.location === locationName);
             if (equipment) {
                 console.log('위치 매칭 장비 찾음:', equipment.id, equipment.name);
                 return equipment.id;
             }
+
             // 일치하는 장비가 없으면 첫 번째 장비 사용 (fallback)
-            console.log('위치 매칭 실패, 첫 번째 장비 사용:', equipmentList[0].id);
+            console.log('매칭 실패, 첫 번째 장비 사용:', equipmentList[0].id);
             return equipmentList[0].id;
         }
 
