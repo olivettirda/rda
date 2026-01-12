@@ -2365,10 +2365,7 @@
             // 편집 모드 토글 함수
             function setEditMode(editing) {
                 if (editing) {
-                    // 다른 노트들의 편집 모드 해제
-                    document.querySelectorAll('.sticky-note.editing').forEach(n => {
-                        if (n !== el) n.classList.remove('editing');
-                    });
+                    // 다른 노트 편집 모드는 유지 (바깥 클릭 시에만 해제됨)
                     el.classList.add('editing');
                     editor.focus();
                     console.log('편집 모드 활성화:', note.id);
@@ -2468,12 +2465,14 @@
 
             // 드래그 - 비편집 모드: 전체 영역, 편집 모드: 테두리만
             let isDragging = false;
+            let hasMoved = false; // 실제로 이동했는지 확인
             let startX, startY, origX, origY;
             const dragBorders = el.querySelectorAll('.drag-border-top, .drag-border-bottom, .drag-border-left, .drag-border-right, .drag-corner');
 
             // 드래그 시작 함수
             function startDrag(e) {
                 isDragging = true;
+                hasMoved = false;
                 el.classList.add('dragging');
                 startX = e.clientX;
                 startY = e.clientY;
@@ -2483,8 +2482,10 @@
                 console.log('드래그 시작');
             }
 
-            // 비편집 모드에서 전체 영역 드래그
+            // 비편집 모드에서 전체 영역 드래그 (좌클릭만)
             el.addEventListener('mousedown', (e) => {
+                // 우클릭은 드래그 안함
+                if (e.button !== 0) return;
                 // 편집 모드이거나 버튼/에디터 클릭 시 드래그 안함
                 if (el.classList.contains('editing')) return;
                 if (e.target.closest('.note-btn')) return;
@@ -2507,6 +2508,10 @@
                 if (!isDragging) return;
                 const dx = e.clientX - startX;
                 const dy = e.clientY - startY;
+                // 5px 이상 이동해야 실제 드래그로 인정
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                    hasMoved = true;
+                }
                 el.style.left = Math.max(0, origX + dx) + 'px';
                 el.style.top = Math.max(0, origY + dy) + 'px';
             });
@@ -2515,10 +2520,18 @@
                 if (isDragging) {
                     isDragging = false;
                     el.classList.remove('dragging');
-                    note.position_x = el.offsetLeft;
-                    note.position_y = el.offsetTop;
-                    saveNote(note);
-                    console.log('드래그 종료:', { x: note.position_x, y: note.position_y });
+
+                    if (hasMoved) {
+                        // 실제 드래그 - 위치 저장
+                        note.position_x = el.offsetLeft;
+                        note.position_y = el.offsetTop;
+                        saveNote(note);
+                        console.log('드래그 종료:', { x: note.position_x, y: note.position_y });
+                    } else {
+                        // 클릭 (이동 없음) - 편집 모드 활성화
+                        setEditMode(true);
+                        console.log('클릭 -> 편집 모드 활성화');
+                    }
                 }
             });
 
