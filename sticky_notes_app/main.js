@@ -385,8 +385,15 @@ app.whenReady().then(() => {
     });
 });
 
+// 종료 전 이벤트
+app.on('before-quit', () => {
+    console.log('before-quit 이벤트 발생');
+    app.isQuitting = true;
+});
+
 // 모든 창이 닫히면
 app.on('window-all-closed', () => {
+    console.log('window-all-closed 이벤트 발생, isQuitting:', app.isQuitting);
     // 트레이에 남아있으면 종료 안함
     if (!app.isQuitting) {
         return;
@@ -396,7 +403,13 @@ app.on('window-all-closed', () => {
 
 // IPC 핸들러 - 작업표시줄로 최소화 (숨기기)
 ipcMain.handle('minimize-to-tray', () => {
-    mainWindow.hide();
+    console.log('minimize-to-tray 호출됨');
+    if (mainWindow) {
+        mainWindow.hide();
+        console.log('창 숨김 완료');
+    } else {
+        console.log('mainWindow가 없음!');
+    }
     return true;
 });
 
