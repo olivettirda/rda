@@ -2928,6 +2928,10 @@
                         <input type="text" class="form-input" id="equipmentLocation" placeholder="예: 209호">
                     </div>
                     <div class="form-group">
+                        <label class="form-label">자산취득번호 (선택)</label>
+                        <input type="text" class="form-input" id="equipmentAssetNo" placeholder="예: 029150400050993846">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">설명</label>
                         <textarea class="form-input" id="equipmentDescription" rows="3"></textarea>
                     </div>
@@ -5432,7 +5436,7 @@
                 }
                 return `
                     <tr>
-                        <td><strong>${eq.name}</strong></td>
+                        <td><strong title="${eq.asset_no ? '자산취득번호: ' + eq.asset_no : '자산취득번호 없음'}" style="cursor: help;">${eq.name}</strong></td>
                         <td>${eq.lab_room || '-'}</td>
                         <td>${eq.location || '-'}</td>
                         <td><span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span></td>
@@ -5651,6 +5655,7 @@
             document.getElementById('equipmentName').value = eq?.name || '';
             document.getElementById('equipmentLabRoom').value = eq?.lab_room || '';
             document.getElementById('equipmentLocation').value = eq?.location || '';
+            document.getElementById('equipmentAssetNo').value = eq?.asset_no || '';
             document.getElementById('equipmentDescription').value = eq?.description || '';
             document.getElementById('equipmentStatus').value = eq?.status || 'available';
             document.getElementById('equipmentApprovalMode').value = eq?.approval_mode || 'manual';
@@ -5670,6 +5675,7 @@
                 name: document.getElementById('equipmentName').value,
                 lab_room: document.getElementById('equipmentLabRoom').value,
                 location: document.getElementById('equipmentLocation').value || null,
+                asset_no: document.getElementById('equipmentAssetNo').value || null,
                 description: document.getElementById('equipmentDescription').value,
                 status: document.getElementById('equipmentStatus').value,
                 approval_mode: document.getElementById('equipmentApprovalMode').value,
@@ -6075,7 +6081,8 @@
                     '장비명': '예시: PCR 기기',
                     '표시명(선택)': '예시: 1층 PCR',
                     '연구실': '분자생물학 연구실',
-                    '위치': '예시: 1동 101호',
+                    '위치(선택)': '예시: 1동 101호',
+                    '자산취득번호(선택)': '029150400050993846',
                     '부서(선택)': '생명과학부',
                     '취득연도(선택)': '2023',
                     '최대예약시간': '4',
@@ -6127,6 +6134,7 @@
                         display_name: row['표시명(선택)'] || row['장비명'],
                         lab_room: row['연구실'],
                         location: row['위치(선택)'] || null,
+                        asset_no: row['자산취득번호(선택)'] || null,
                         lab_department: row['부서(선택)'] || null,
                         acquisition_year: row['취득연도(선택)'] ? parseInt(row['취득연도(선택)']) : null,
                         max_duration_hours: parseInt(row['최대예약시간']) || 4,
@@ -6213,6 +6221,7 @@
                     '표시명(선택)': eq.display_name || eq.name,
                     '연구실': eq.lab_room || '',
                     '위치(선택)': eq.location || '',
+                    '자산취득번호(선택)': eq.asset_no || '',
                     '부서(선택)': eq.lab_department || '',
                     '취득연도(선택)': eq.acquisition_year || '',
                     '최대예약시간': eq.max_duration_hours,
