@@ -945,9 +945,14 @@
             opacity: 1;
         }
 
+        /* 편집 모드일 때도 버튼 표시 */
+        .sticky-note.editing .note-header {
+            opacity: 1;
+        }
+
         .note-btn {
-            width: 28px;
-            height: 28px;
+            width: 20px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -955,12 +960,43 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
+            padding: 2px;
+            transition: background 0.2s, transform 0.1s;
         }
 
         .note-btn:hover {
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
+            transform: scale(1.1);
+        }
+
+        .note-btn img {
+            width: 16px;
+            height: 16px;
+            object-fit: contain;
+        }
+
+        /* 편집 모드 스타일 */
+        .sticky-note.editing {
+            box-shadow: 0 0 0 2px var(--primary-main), 4px 4px 16px rgba(0,0,0,0.15);
+        }
+
+        .sticky-note:not(.editing) {
+            cursor: move;
+        }
+
+        .sticky-note:not(.editing) .note-editor {
+            pointer-events: none;
+            cursor: move;
+        }
+
+        .sticky-note.editing .note-editor {
+            pointer-events: auto;
+            cursor: text;
+        }
+
+        /* 편집 모드가 아닐 때 드래그 테두리 숨김 */
+        .sticky-note:not(.editing) .drag-border {
+            display: none;
         }
 
         .note-content {
@@ -2223,8 +2259,9 @@
                     <div class="drag-corner drag-corner-br"></div>
                 </div>
                 <div class="note-header">
-                    <button class="note-btn color-btn" title="색상 변경">🎨</button>
-                    <button class="note-btn delete-btn" title="삭제">🗑️</button>
+                    <button class="note-btn edit-btn" title="편집 모드"><img src="assets/pencil.png" alt="편집"></button>
+                    <button class="note-btn color-btn" title="색상 변경"><img src="assets/palette.png" alt="색상"></button>
+                    <button class="note-btn delete-btn" title="삭제"><img src="assets/trashcan.png" alt="삭제"></button>
                     <div class="color-picker">
                         <div class="color-option yellow" data-color="yellow"></div>
                         <div class="color-option pink" data-color="pink"></div>
@@ -2276,10 +2313,33 @@
 
         function setupNoteEvents(el, note) {
             const editor = el.querySelector('.note-editor');
+            const editBtn = el.querySelector('.edit-btn');
             const colorBtn = el.querySelector('.color-btn');
             const colorPicker = el.querySelector('.color-picker');
             const deleteBtn = el.querySelector('.delete-btn');
             const resizeHandle = el.querySelector('.note-resize');
+
+            // 편집 모드 토글 함수
+            function setEditMode(editing) {
+                if (editing) {
+                    // 다른 노트들의 편집 모드 해제
+                    document.querySelectorAll('.sticky-note.editing').forEach(n => {
+                        if (n !== el) n.classList.remove('editing');
+                    });
+                    el.classList.add('editing');
+                    editor.focus();
+                    console.log('편집 모드 활성화:', note.id);
+                } else {
+                    el.classList.remove('editing');
+                    console.log('편집 모드 비활성화:', note.id);
+                }
+            }
+
+            // 편집 버튼 클릭
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setEditMode(true);
+            });
 
             // 접힌 노트 클릭 시 펼치기
             el.addEventListener('click', (e) => {
@@ -2363,22 +2423,40 @@
                 }
             });
 
-            // 드래그 - 테두리 영역에서만 가능
+            // 드래그 - 비편집 모드: 전체 영역, 편집 모드: 테두리만
             let isDragging = false;
             let startX, startY, origX, origY;
             const dragBorders = el.querySelectorAll('.drag-border-top, .drag-border-bottom, .drag-border-left, .drag-border-right, .drag-corner');
 
+            // 드래그 시작 함수
+            function startDrag(e) {
+                isDragging = true;
+                el.classList.add('dragging');
+                startX = e.clientX;
+                startY = e.clientY;
+                origX = el.offsetLeft;
+                origY = el.offsetTop;
+                e.preventDefault();
+                console.log('드래그 시작');
+            }
+
+            // 비편집 모드에서 전체 영역 드래그
+            el.addEventListener('mousedown', (e) => {
+                // 편집 모드이거나 버튼/에디터 클릭 시 드래그 안함
+                if (el.classList.contains('editing')) return;
+                if (e.target.closest('.note-btn')) return;
+                if (e.target.closest('.color-picker')) return;
+                if (e.target === resizeHandle) return;
+
+                startDrag(e);
+            });
+
+            // 편집 모드에서 테두리 드래그
             dragBorders.forEach(border => {
                 border.addEventListener('mousedown', (e) => {
-                    isDragging = true;
-                    el.classList.add('dragging');
-                    startX = e.clientX;
-                    startY = e.clientY;
-                    origX = el.offsetLeft;
-                    origY = el.offsetTop;
-                    e.preventDefault();
+                    if (!el.classList.contains('editing')) return; // 비편집 모드에서는 위에서 처리
+                    startDrag(e);
                     e.stopPropagation();
-                    console.log('드래그 시작 (테두리)');
                 });
             });
 
@@ -2713,6 +2791,13 @@
                 if (!e.target.closest('.color-btn') && !e.target.closest('.color-picker')) {
                     document.querySelectorAll('.color-picker.show').forEach(cp => {
                         cp.classList.remove('show');
+                    });
+                }
+                // 노트 바깥 클릭 시 편집 모드 해제
+                if (!e.target.closest('.sticky-note') && !e.target.closest('.floating-format-toolbar')) {
+                    document.querySelectorAll('.sticky-note.editing').forEach(note => {
+                        note.classList.remove('editing');
+                        console.log('편집 모드 해제 (바깥 클릭)');
                     });
                 }
             });
