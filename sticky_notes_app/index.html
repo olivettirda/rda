@@ -50,13 +50,13 @@
             --font-primary: 'KoPub Dotum', 'Malgun Gothic', sans-serif;
             --font-note: 'Nanum Pen Script', cursive;
 
-            /* 스티키 노트 색상 */
-            --note-yellow: #fff740;
-            --note-pink: #ff7eb9;
-            --note-green: #7afcff;
-            --note-orange: #ffa756;
-            --note-purple: #cb9dff;
-            --note-blue: #78dcfa;
+            /* 스티키 노트 색상 - 파스텔톤 */
+            --note-yellow: #fffacd;
+            --note-pink: #ffdbdb;
+            --note-green: #d4f5d4;
+            --note-orange: #ffe4c9;
+            --note-purple: #e8d5f0;
+            --note-blue: #d4eeff;
         }
 
         /* ============================================
@@ -610,6 +610,7 @@
         /* 사이드바 모드 스타일 */
         body.sidebar-mode .header {
             padding: 8px 12px;
+            height: 40px;
         }
 
         body.sidebar-mode .header-title {
@@ -623,19 +624,84 @@
             left: 0 !important;
             top: auto !important;
             margin-bottom: 8px;
+            min-height: 80px;
+            max-height: 200px;
+            overflow: hidden;
+        }
+
+        body.sidebar-mode .sticky-note.folded {
+            max-height: 40px;
+            cursor: pointer;
+        }
+
+        body.sidebar-mode .sticky-note.folded .note-content,
+        body.sidebar-mode .sticky-note.folded .note-toolbar,
+        body.sidebar-mode .sticky-note.folded .note-header,
+        body.sidebar-mode .sticky-note.folded .note-resize {
+            display: none;
+        }
+
+        body.sidebar-mode .sticky-note.folded::after {
+            content: attr(data-preview);
+            display: block;
+            padding: 10px;
+            font-size: 12px;
+            color: rgba(0,0,0,0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         body.sidebar-mode .notes-container {
             display: flex;
             flex-direction: column;
             padding: 8px;
+            gap: 4px;
+            overflow-y: auto;
+        }
+
+        body.sidebar-mode .note-toolbar {
+            padding: 4px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+        }
+
+        body.sidebar-mode .note-toolbar select {
+            max-width: 70px;
+            font-size: 10px;
+        }
+
+        body.sidebar-mode .note-content {
+            padding: 8px;
+        }
+
+        body.sidebar-mode .note-editor {
+            min-height: 60px;
+            font-size: 13px;
         }
 
         body.sidebar-mode .fab {
             bottom: 16px;
             right: 16px;
-            width: 48px;
-            height: 48px;
+            width: 44px;
+            height: 44px;
+            font-size: 24px;
+        }
+
+        body.sidebar-mode .empty-state {
+            padding: 20px;
+        }
+
+        body.sidebar-mode .empty-state-icon {
+            font-size: 40px;
+        }
+
+        body.sidebar-mode .empty-state-title {
+            font-size: 1rem;
+        }
+
+        body.sidebar-mode .empty-state-desc {
+            font-size: 0.8rem;
         }
 
         /* ============================================
@@ -768,10 +834,68 @@
             box-shadow:
                 2px 2px 8px rgba(0,0,0,0.1),
                 0 0 1px rgba(0,0,0,0.1);
-            cursor: move;
+            cursor: default;
             transition: box-shadow 0.2s, transform 0.1s;
             z-index: 1;
         }
+
+        /* 드래그 가능한 테두리 영역 */
+        .sticky-note .drag-border {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .sticky-note .drag-border-top,
+        .sticky-note .drag-border-bottom,
+        .sticky-note .drag-border-left,
+        .sticky-note .drag-border-right {
+            position: absolute;
+            pointer-events: auto;
+            cursor: move;
+        }
+
+        .sticky-note .drag-border-top {
+            top: 0;
+            left: 10px;
+            right: 10px;
+            height: 10px;
+        }
+
+        .sticky-note .drag-border-bottom {
+            bottom: 0;
+            left: 10px;
+            right: 10px;
+            height: 10px;
+        }
+
+        .sticky-note .drag-border-left {
+            left: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 10px;
+        }
+
+        .sticky-note .drag-border-right {
+            right: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 10px;
+        }
+
+        /* 모서리 드래그 영역 */
+        .sticky-note .drag-corner {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            pointer-events: auto;
+            cursor: move;
+        }
+
+        .sticky-note .drag-corner-tl { top: 0; left: 0; }
+        .sticky-note .drag-corner-tr { top: 0; right: 0; }
+        .sticky-note .drag-corner-bl { bottom: 0; left: 0; }
+        .sticky-note .drag-corner-br { bottom: 0; right: 0; }
 
         .sticky-note:hover {
             box-shadow:
@@ -866,61 +990,75 @@
             color: rgba(0, 0, 0, 0.3);
         }
 
-        /* 서식 도구모음 */
+        /* 서식 도구모음 - 기본 숨김 */
         .note-toolbar {
-            display: flex;
+            display: none;
+        }
+
+        /* 플로팅 서식 도구모음 */
+        .floating-format-toolbar {
+            position: fixed;
+            display: none;
             flex-wrap: wrap;
             gap: 4px;
-            padding: 6px 8px;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-            background: rgba(255,255,255,0.3);
+            padding: 8px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 10000;
             align-items: center;
         }
 
-        .note-toolbar select,
-        .note-toolbar input[type="color"] {
-            padding: 2px 4px;
+        .floating-format-toolbar.show {
+            display: flex;
+        }
+
+        .floating-format-toolbar select,
+        .floating-format-toolbar input[type="color"] {
+            padding: 4px 6px;
             border: 1px solid rgba(0,0,0,0.2);
             border-radius: 4px;
-            background: rgba(255,255,255,0.8);
-            font-size: 11px;
-            cursor: pointer;
-        }
-
-        .note-toolbar select {
-            max-width: 90px;
-        }
-
-        .note-toolbar select.font-size-select {
-            max-width: 50px;
-        }
-
-        .note-toolbar input[type="color"] {
-            width: 24px;
-            height: 24px;
-            padding: 0;
-            border: none;
-        }
-
-        .note-toolbar .format-btn {
-            width: 24px;
-            height: 24px;
-            border: 1px solid rgba(0,0,0,0.2);
-            border-radius: 4px;
-            background: rgba(255,255,255,0.8);
-            cursor: pointer;
+            background: white;
             font-size: 12px;
+            cursor: pointer;
+        }
+
+        .floating-format-toolbar select {
+            max-width: 100px;
+        }
+
+        .floating-format-toolbar select.font-size-select {
+            max-width: 55px;
+        }
+
+        .floating-format-toolbar input[type="color"] {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        .floating-format-toolbar .format-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: background 0.15s;
         }
 
-        .note-toolbar .format-btn:hover {
-            background: rgba(255,255,255,1);
+        .floating-format-toolbar .format-btn:hover {
+            background: var(--primary-light);
         }
 
-        .note-toolbar .format-btn.active {
+        .floating-format-toolbar .format-btn.active {
             background: var(--primary-main);
             color: white;
         }
@@ -1407,8 +1545,9 @@
             <span>스티키 노트</span>
         </div>
         <div class="titlebar-controls">
-            <button class="titlebar-btn minimize" id="minimizeBtn" title="사이드바로 최소화">─</button>
-            <button class="titlebar-btn close" id="closeBtn" title="종료">✕</button>
+            <button class="titlebar-btn" id="minimizeToTaskbarBtn" title="작업표시줄로 최소화">─</button>
+            <button class="titlebar-btn" id="sidebarModeBtn" title="사이드바 모드">▢▢</button>
+            <button class="titlebar-btn close" id="closeBtn" title="닫기">✕</button>
         </div>
     </div>
 
@@ -1476,8 +1615,7 @@
     <div id="appContainer" class="app-container">
         <header class="header">
             <div class="header-left">
-                <span class="header-logo">📝</span>
-                <span class="header-title">스티키 노트</span>
+                <!-- 타이틀바에서 이미 표시하므로 제거 -->
             </div>
             <div class="header-right">
                 <div id="syncStatus" class="sync-status synced">
@@ -1604,6 +1742,36 @@
                 <button class="btn btn-primary" id="settingsModalOk">확인</button>
             </div>
         </div>
+    </div>
+
+    <!-- 플로팅 서식 도구모음 (우클릭 시 표시) -->
+    <div id="floatingFormatToolbar" class="floating-format-toolbar">
+        <select id="floatingFontSelect" class="font-select" title="글꼴">
+            <option value="'맑은 고딕', sans-serif">맑은 고딕</option>
+            <option value="'나눔고딕', sans-serif">나눔고딕</option>
+            <option value="'돋움', Dotum, sans-serif">돋움</option>
+            <option value="'굴림', Gulim, sans-serif">굴림</option>
+            <option value="'바탕', Batang, serif">바탕</option>
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="'Times New Roman', serif">Times New Roman</option>
+            <option value="'Courier New', monospace">Courier New</option>
+            <option value="Georgia, serif">Georgia</option>
+        </select>
+        <select id="floatingFontSizeSelect" class="font-size-select" title="크기">
+            <option value="10px">10</option>
+            <option value="12px">12</option>
+            <option value="14px" selected>14</option>
+            <option value="16px">16</option>
+            <option value="18px">18</option>
+            <option value="20px">20</option>
+            <option value="24px">24</option>
+            <option value="28px">28</option>
+            <option value="32px">32</option>
+        </select>
+        <input type="color" id="floatingTextColor" class="text-color-picker" value="#000000" title="글자색">
+        <button class="format-btn" id="floatingBoldBtn" title="굵게 (Ctrl+B)"><b>B</b></button>
+        <button class="format-btn" id="floatingItalicBtn" title="기울임 (Ctrl+I)"><i>I</i></button>
+        <button class="format-btn" id="floatingUnderlineBtn" title="밑줄 (Ctrl+U)"><u>U</u></button>
     </div>
 
     <!-- 토스트 -->
@@ -2020,20 +2188,40 @@
             // 빈 상태 표시
             emptyState.style.display = notes.length === 0 ? 'block' : 'none';
 
+            // 사이드바 모드에서 8개 이상이면 접기
+            const isSidebarMode = document.body.classList.contains('sidebar-mode');
+            const shouldFold = isSidebarMode && notes.length >= 8;
+
             // 노트 생성
-            notes.forEach(note => createNoteElement(note));
+            notes.forEach((note, index) => {
+                createNoteElement(note, shouldFold && index >= 7);
+            });
         }
 
-        function createNoteElement(note) {
+        function createNoteElement(note, folded = false) {
             const el = document.createElement('div');
-            el.className = `sticky-note ${note.color || 'yellow'}`;
+            el.className = `sticky-note ${note.color || 'yellow'}${folded ? ' folded' : ''}`;
             el.dataset.id = note.id;
             el.style.left = (note.position_x || Math.random() * 400 + 50) + 'px';
             el.style.top = (note.position_y || Math.random() * 300 + 50) + 'px';
             el.style.width = (note.width || 280) + 'px';
             el.style.minHeight = (note.height || 220) + 'px';
 
+            // 접힌 노트의 미리보기 텍스트 설정
+            const plainText = (note.content || '').replace(/<[^>]*>/g, '').trim();
+            el.dataset.preview = plainText.substring(0, 50) || '빈 메모';
+
             el.innerHTML = `
+                <div class="drag-border">
+                    <div class="drag-border-top"></div>
+                    <div class="drag-border-bottom"></div>
+                    <div class="drag-border-left"></div>
+                    <div class="drag-border-right"></div>
+                    <div class="drag-corner drag-corner-tl"></div>
+                    <div class="drag-corner drag-corner-tr"></div>
+                    <div class="drag-corner drag-corner-bl"></div>
+                    <div class="drag-corner drag-corner-br"></div>
+                </div>
                 <div class="note-header">
                     <button class="note-btn color-btn" title="색상 변경">🎨</button>
                     <button class="note-btn delete-btn" title="삭제">🗑️</button>
@@ -2092,6 +2280,14 @@
             const colorPicker = el.querySelector('.color-picker');
             const deleteBtn = el.querySelector('.delete-btn');
             const resizeHandle = el.querySelector('.note-resize');
+
+            // 접힌 노트 클릭 시 펼치기
+            el.addEventListener('click', (e) => {
+                if (el.classList.contains('folded')) {
+                    el.classList.remove('folded');
+                    console.log('노트 펼침:', note.id);
+                }
+            });
 
             // 서식 도구모음
             const fontSelect = el.querySelector('.font-select');
@@ -2167,20 +2363,23 @@
                 }
             });
 
-            // 드래그
+            // 드래그 - 테두리 영역에서만 가능
             let isDragging = false;
             let startX, startY, origX, origY;
+            const dragBorders = el.querySelectorAll('.drag-border-top, .drag-border-bottom, .drag-border-left, .drag-border-right, .drag-corner');
 
-            el.addEventListener('mousedown', (e) => {
-                if (e.target === editor || e.target.closest('.note-btn') || e.target.closest('.color-picker') || e.target.closest('.note-toolbar') || e.target === resizeHandle) return;
-
-                isDragging = true;
-                el.classList.add('dragging');
-                startX = e.clientX;
-                startY = e.clientY;
-                origX = el.offsetLeft;
-                origY = el.offsetTop;
-                e.preventDefault();
+            dragBorders.forEach(border => {
+                border.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    el.classList.add('dragging');
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    origX = el.offsetLeft;
+                    origY = el.offsetTop;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('드래그 시작 (테두리)');
+                });
             });
 
             document.addEventListener('mousemove', (e) => {
@@ -2198,6 +2397,7 @@
                     note.position_x = el.offsetLeft;
                     note.position_y = el.offsetTop;
                     saveNote(note);
+                    console.log('드래그 종료:', { x: note.position_x, y: note.position_y });
                 }
             });
 
@@ -2444,18 +2644,36 @@
         // ============================================
         function setupEventListeners() {
             // 타이틀바 버튼 (Electron 전용)
+            const sidebarModeBtn = document.getElementById('sidebarModeBtn');
+
             if (window.electronAPI) {
+                // X 버튼 - 닫기 (자동로그인 시 트레이로, 아니면 종료)
                 document.getElementById('closeBtn').addEventListener('click', () => {
+                    console.log('닫기 버튼 클릭');
                     window.electronAPI.closeWindow();
                 });
 
-                document.getElementById('minimizeBtn').addEventListener('click', () => {
-                    window.electronAPI.minimizeWindow();
+                // ─ 버튼 - 작업표시줄로 최소화 (완전히 숨기기)
+                document.getElementById('minimizeToTaskbarBtn').addEventListener('click', () => {
+                    console.log('작업표시줄로 최소화');
+                    window.electronAPI.minimizeToTray();
+                });
+
+                // ▢▢/▢ 버튼 - 사이드바 모드 토글
+                sidebarModeBtn.addEventListener('click', async () => {
+                    console.log('사이드바 모드 토글');
+                    await window.electronAPI.toggleSidebar();
                 });
 
                 // 사이드바 모드 변경 감지
                 window.electronAPI.onSidebarModeChanged((data) => {
+                    console.log('사이드바 모드 변경:', data);
                     document.body.classList.toggle('sidebar-mode', data.isSidebar);
+
+                    // 버튼 아이콘 변경
+                    sidebarModeBtn.textContent = data.isSidebar ? '▢' : '▢▢';
+                    sidebarModeBtn.title = data.isSidebar ? '일반 모드로 복원' : '사이드바 모드';
+
                     const sidebarToggle = document.getElementById('sidebarToggle');
                     if (sidebarToggle) {
                         sidebarToggle.classList.toggle('active', data.isSidebar);
@@ -2464,7 +2682,12 @@
 
                 // 초기 상태 수신
                 window.electronAPI.onInitState((state) => {
+                    console.log('초기 상태:', state);
                     document.body.classList.toggle('sidebar-mode', state.isSidebar);
+
+                    // 버튼 아이콘 초기화
+                    sidebarModeBtn.textContent = state.isSidebar ? '▢' : '▢▢';
+                    sidebarModeBtn.title = state.isSidebar ? '일반 모드로 복원' : '사이드바 모드';
                 });
             }
 
@@ -2631,7 +2854,106 @@
                 }
                 if (e.key === 'Escape') {
                     helpModal.classList.remove('show');
+                    floatingToolbar.classList.remove('show');
                 }
+            });
+
+            // 플로팅 서식 도구모음
+            const floatingToolbar = document.getElementById('floatingFormatToolbar');
+            const floatingFontSelect = document.getElementById('floatingFontSelect');
+            const floatingFontSizeSelect = document.getElementById('floatingFontSizeSelect');
+            const floatingTextColor = document.getElementById('floatingTextColor');
+            const floatingBoldBtn = document.getElementById('floatingBoldBtn');
+            const floatingItalicBtn = document.getElementById('floatingItalicBtn');
+            const floatingUnderlineBtn = document.getElementById('floatingUnderlineBtn');
+
+            let currentEditingNote = null;
+
+            // 우클릭 시 플로팅 도구모음 표시
+            document.addEventListener('contextmenu', (e) => {
+                const editor = e.target.closest('.note-editor');
+                if (editor) {
+                    const selection = window.getSelection();
+                    if (selection && selection.toString().trim().length > 0) {
+                        e.preventDefault();
+                        currentEditingNote = editor.closest('.sticky-note');
+
+                        // 위치 설정
+                        const x = Math.min(e.clientX, window.innerWidth - 350);
+                        const y = Math.min(e.clientY, window.innerHeight - 50);
+                        floatingToolbar.style.left = x + 'px';
+                        floatingToolbar.style.top = y + 'px';
+                        floatingToolbar.classList.add('show');
+                        console.log('플로팅 도구모음 표시:', { x, y });
+                    }
+                }
+            });
+
+            // 다른 곳 클릭 시 도구모음 숨기기
+            document.addEventListener('mousedown', (e) => {
+                if (!floatingToolbar.contains(e.target)) {
+                    floatingToolbar.classList.remove('show');
+                }
+            });
+
+            // 선택 영역에 스타일 적용하는 헬퍼 함수
+            function applyStyleToSelection(styleProp, styleValue) {
+                const selection = window.getSelection();
+                if (!selection || selection.rangeCount === 0) return false;
+
+                const range = selection.getRangeAt(0);
+                if (range.collapsed) return false;
+
+                try {
+                    // 선택된 텍스트를 span으로 감싸기
+                    const span = document.createElement('span');
+                    span.style[styleProp] = styleValue;
+                    range.surroundContents(span);
+                    console.log('스타일 적용:', styleProp, styleValue);
+                    return true;
+                } catch (err) {
+                    // 선택 영역이 여러 요소에 걸쳐 있는 경우
+                    console.log('스타일 적용 실패, 대체 방법 시도:', err);
+
+                    // 선택된 내용을 새로운 span으로 복사
+                    const fragment = range.extractContents();
+                    const span = document.createElement('span');
+                    span.style[styleProp] = styleValue;
+                    span.appendChild(fragment);
+                    range.insertNode(span);
+                    return true;
+                }
+            }
+
+            // 플로팅 도구모음 이벤트
+            floatingFontSelect.addEventListener('change', (e) => {
+                applyStyleToSelection('fontFamily', e.target.value);
+                console.log('폰트 변경:', e.target.value);
+            });
+
+            floatingFontSizeSelect.addEventListener('change', (e) => {
+                applyStyleToSelection('fontSize', e.target.value);
+                console.log('폰트 크기 변경:', e.target.value);
+            });
+
+            floatingTextColor.addEventListener('input', (e) => {
+                applyStyleToSelection('color', e.target.value);
+                console.log('글자색 변경:', e.target.value);
+            });
+
+            floatingBoldBtn.addEventListener('click', () => {
+                document.execCommand('bold', false, null);
+                console.log('굵게 적용');
+            });
+
+            floatingItalicBtn.addEventListener('click', () => {
+                document.execCommand('italic', false, null);
+                console.log('기울임 적용');
+            });
+
+            floatingUnderlineBtn.addEventListener('click', () => {
+                document.execCommand('underline', false, null);
+                console.log('밑줄 적용');
             });
         }
 

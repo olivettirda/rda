@@ -10,8 +10,15 @@ const settingsPath = path.join(userDataPath, 'settings.json');
 let mainWindow;
 let tray;
 let isSidebarMode = false;
-let sidebarPosition = 'right'; // 'left' or 'right'
+let sidebarPosition = 'right';
 let normalBounds = null;
+let sidebarBounds = null; // 사이드바 크기 저장
+
+// 사이드바 크기 설정
+const SIDEBAR_MAX_WIDTH = 320;
+const SIDEBAR_MIN_WIDTH = 160;
+const SIDEBAR_MAX_HEIGHT_RATIO = 1.0;
+const SIDEBAR_MIN_HEIGHT_RATIO = 0.5;
 
 // 자격 증명 저장
 function saveCredentials(username, password, autoLogin = false) {
@@ -19,7 +26,6 @@ function saveCredentials(username, password, autoLogin = false) {
     fs.writeFileSync(credentialsPath, JSON.stringify(data));
     console.log('자격 증명 저장됨:', credentialsPath);
 
-    // 자동 로그인이면 자동 시작도 활성화
     if (autoLogin) {
         app.setLoginItemSettings({ openAtLogin: true });
     }
@@ -76,42 +82,66 @@ function loadSettings() {
     return { sidebarMode: false, sidebarPosition: 'right', autoStart: false };
 }
 
+// 현재 모니터 정보 가져오기
+function getCurrentDisplay() {
+    const cursor = screen.getCursorScreenPoint();
+    return screen.getDisplayNearestPoint(cursor);
+}
+
 // 사이드바 모드로 전환
 function enterSidebarMode(position = null) {
-    const display = screen.getPrimaryDisplay();
+    const display = getCurrentDisplay();
     const { width: screenWidth, height: screenHeight } = display.workAreaSize;
+    const { x: screenX, y: screenY } = display.workArea;
 
     if (!isSidebarMode) {
         normalBounds = mainWindow.getBounds();
     }
 
-    const sidebarWidth = 320;
     sidebarPosition = position || sidebarPosition;
 
+    // 이전 사이드바 크기가 있으면 사용, 없으면 기본값
+    const width = sidebarBounds?.width || SIDEBAR_MAX_WIDTH;
+    const height = sidebarBounds?.height || screenHeight;
+
     const x = sidebarPosition === 'right'
-        ? screenWidth - sidebarWidth
-        : 0;
+        ? screenX + screenWidth - width
+        : screenX;
 
     mainWindow.setBounds({
         x: x,
-        y: 0,
-        width: sidebarWidth,
-        height: screenHeight
+        y: screenY,
+        width: width,
+        height: height
     });
+
     mainWindow.setAlwaysOnTop(true);
+    mainWindow.setResizable(true);
+    mainWindow.setMinimumSize(SIDEBAR_MIN_WIDTH, Math.floor(screenHeight * SIDEBAR_MIN_HEIGHT_RATIO));
+    mainWindow.setMaximumSize(SIDEBAR_MAX_WIDTH, screenHeight);
+
     isSidebarMode = true;
 
     saveSettings({ sidebarMode: true, sidebarPosition });
-    mainWindow.webContents.send('sidebar-mode-changed', { isSidebar: true, position: sidebarPosition });
+    mainWindow.webContents.send('sidebar-mode-changed', {
+        isSidebar: true,
+        position: sidebarPosition,
+        bounds: mainWindow.getBounds()
+    });
     updateTrayMenu();
 }
 
 // 일반 모드로 전환
 function exitSidebarMode() {
+    // 현재 사이드바 크기 저장
+    if (isSidebarMode) {
+        sidebarBounds = mainWindow.getBounds();
+    }
+
     if (normalBounds) {
         mainWindow.setBounds(normalBounds);
     } else {
-        const display = screen.getPrimaryDisplay();
+        const display = getCurrentDisplay();
         const { width: screenWidth, height: screenHeight } = display.workAreaSize;
         mainWindow.setBounds({
             x: Math.floor(screenWidth / 4),
@@ -120,11 +150,19 @@ function exitSidebarMode() {
             height: 800
         });
     }
+
     mainWindow.setAlwaysOnTop(false);
+    mainWindow.setResizable(true);
+    mainWindow.setMinimumSize(400, 300);
+    mainWindow.setMaximumSize(0, 0); // 제한 없음
+
     isSidebarMode = false;
 
     saveSettings({ sidebarMode: false });
-    mainWindow.webContents.send('sidebar-mode-changed', { isSidebar: false, position: sidebarPosition });
+    mainWindow.webContents.send('sidebar-mode-changed', {
+        isSidebar: false,
+        position: sidebarPosition
+    });
     updateTrayMenu();
 }
 
@@ -138,18 +176,43 @@ function toggleSidebarMode() {
     return isSidebarMode;
 }
 
-// 사이드바 위치 변경
-function setSidebarPosition(position) {
-    sidebarPosition = position;
-    if (isSidebarMode) {
-        enterSidebarMode(position);
+// 사이드바 가장자리에 스냅
+function snapToEdge() {
+    if (!isSidebarMode) return;
+
+    const display = getCurrentDisplay();
+    const bounds = mainWindow.getBounds();
+    const { width: screenWidth } = display.workAreaSize;
+    const { x: screenX, y: screenY } = display.workArea;
+
+    // 현재 위치에 따라 왼쪽 또는 오른쪽으로 스냅
+    const centerX = bounds.x + bounds.width / 2;
+    const screenCenterX = screenX + screenWidth / 2;
+
+    if (centerX < screenCenterX) {
+        // 왼쪽으로 스냅
+        sidebarPosition = 'left';
+        mainWindow.setBounds({
+            ...bounds,
+            x: screenX,
+            y: screenY
+        });
+    } else {
+        // 오른쪽으로 스냅
+        sidebarPosition = 'right';
+        mainWindow.setBounds({
+            ...bounds,
+            x: screenX + screenWidth - bounds.width,
+            y: screenY
+        });
     }
-    saveSettings({ sidebarPosition: position });
+
+    saveSettings({ sidebarPosition });
+    mainWindow.webContents.send('sidebar-position-changed', sidebarPosition);
 }
 
 // 트레이 메뉴 업데이트
 function updateTrayMenu() {
-    const settings = loadSettings();
     const contextMenu = Menu.buildFromTemplate([
         {
             label: '열기',
@@ -220,14 +283,13 @@ function createWindow() {
     const settings = loadSettings();
     sidebarPosition = settings.sidebarPosition || 'right';
 
-    // 프레임 없는 윈도우 (둥근 모서리)
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         minWidth: 400,
         minHeight: 300,
-        frame: false,  // 프레임 없음
-        transparent: true,  // 투명 배경 (둥근 모서리용)
+        frame: false,
+        transparent: true,
         backgroundColor: '#00000000',
         icon: path.join(__dirname, 'assets', 'icon.png'),
         webPreferences: {
@@ -239,15 +301,20 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
-    // 최소화 시 사이드바 모드로 전환
-    mainWindow.on('minimize', (event) => {
-        event.preventDefault();
-        enterSidebarMode();
-        mainWindow.show();
+    // 사이드바 모드에서 이동 후 스냅
+    mainWindow.on('moved', () => {
+        if (isSidebarMode) {
+            snapToEdge();
+        }
     });
 
-    // X 버튼 클릭 시 완전 종료 (IPC로 처리)
-    // 기본 close 이벤트는 앱 종료
+    // 사이드바 모드에서 크기 변경 시 저장
+    mainWindow.on('resized', () => {
+        if (isSidebarMode) {
+            sidebarBounds = mainWindow.getBounds();
+            mainWindow.webContents.send('sidebar-resized', sidebarBounds);
+        }
+    });
 
     // 창이 준비되면 저장된 자격 증명 전송
     mainWindow.webContents.on('did-finish-load', () => {
@@ -256,7 +323,6 @@ function createWindow() {
             mainWindow.webContents.send('auto-login', credentials);
         }
 
-        // 사이드바 모드 상태 전송
         mainWindow.webContents.send('init-state', {
             isSidebar: isSidebarMode,
             sidebarPosition: sidebarPosition
@@ -307,31 +373,45 @@ app.whenReady().then(() => {
     });
 });
 
-// 모든 창이 닫히면 앱 종료
+// 모든 창이 닫히면
 app.on('window-all-closed', () => {
+    // 트레이에 남아있으면 종료 안함
+    if (!app.isQuitting) {
+        return;
+    }
     app.quit();
 });
 
-// IPC 핸들러 - 창 닫기 (완전 종료)
-ipcMain.handle('close-window', () => {
-    app.isQuitting = true;
-    app.quit();
-});
-
-// IPC 핸들러 - 창 최소화 (사이드바 모드)
-ipcMain.handle('minimize-window', () => {
-    enterSidebarMode();
+// IPC 핸들러 - 작업표시줄로 최소화 (숨기기)
+ipcMain.handle('minimize-to-tray', () => {
+    mainWindow.hide();
     return true;
 });
 
-// IPC 핸들러 - 창 최대화 토글
-ipcMain.handle('maximize-window', () => {
-    if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
+// IPC 핸들러 - 트레이(사이드바) 모드 토글
+ipcMain.handle('toggle-sidebar', () => {
+    return toggleSidebarMode();
+});
+
+// IPC 핸들러 - 창 닫기
+ipcMain.handle('close-window', () => {
+    const credentials = loadCredentials();
+    if (credentials && credentials.autoLogin) {
+        // 자동로그인 설정됨 -> 트레이로 숨기기
+        mainWindow.hide();
     } else {
-        mainWindow.maximize();
+        // 자동로그인 아님 -> 완전 종료
+        app.isQuitting = true;
+        app.quit();
     }
-    return mainWindow.isMaximized();
+    return true;
+});
+
+// IPC 핸들러 - 완전 종료 (강제)
+ipcMain.handle('force-quit', () => {
+    app.isQuitting = true;
+    app.quit();
+    return true;
 });
 
 // IPC 핸들러 - 자격 증명 저장
@@ -340,7 +420,7 @@ ipcMain.handle('save-credentials', (event, username, password, autoLogin) => {
     return true;
 });
 
-// IPC 핸들러 - 자격 증명 삭제 (로그아웃)
+// IPC 핸들러 - 자격 증명 삭제
 ipcMain.handle('clear-credentials', () => {
     clearCredentials();
     return true;
@@ -351,19 +431,22 @@ ipcMain.handle('load-credentials', () => {
     return loadCredentials();
 });
 
-// IPC 핸들러 - 사이드바 모드 토글
-ipcMain.handle('toggle-sidebar', () => {
-    return toggleSidebarMode();
-});
-
-// IPC 핸들러 - 사이드바 모드 상태 확인
+// IPC 핸들러 - 사이드바 모드 상태
 ipcMain.handle('get-sidebar-mode', () => {
-    return { isSidebar: isSidebarMode, position: sidebarPosition };
+    return {
+        isSidebar: isSidebarMode,
+        position: sidebarPosition,
+        bounds: isSidebarMode ? mainWindow.getBounds() : null
+    };
 });
 
 // IPC 핸들러 - 사이드바 위치 설정
 ipcMain.handle('set-sidebar-position', (event, position) => {
-    setSidebarPosition(position);
+    sidebarPosition = position;
+    if (isSidebarMode) {
+        enterSidebarMode(position);
+    }
+    saveSettings({ sidebarPosition: position });
     return true;
 });
 
