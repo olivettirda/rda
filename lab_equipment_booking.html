@@ -3646,6 +3646,9 @@
             SHARED_LOCATIONS = labRooms;
             console.log('실험실 목록 업데이트:', JSON.stringify(SHARED_LOCATIONS));
 
+            // 예약 폼의 실험실 드롭다운도 업데이트
+            populateExperimentLocationDropdown();
+
             renderEquipmentGrid();
         }
 
@@ -3898,14 +3901,37 @@
         // 실험실 드롭다운을 equipment 테이블에서 동적으로 채우기
         function populateExperimentLocationDropdown() {
             const select = document.getElementById('experimentLocation');
-            if (!select) return;
+            if (!select) {
+                console.warn('experimentLocation 셀렉트 박스를 찾을 수 없음');
+                return;
+            }
 
-            // SHARED_LOCATIONS 사용 (장비의 lab_room에서 추출됨)
-            console.log('예약 폼 실험실 목록 업데이트:', SHARED_LOCATIONS);
+            console.log('=== 실험실 드롭다운 업데이트 ===');
+            console.log('SHARED_LOCATIONS:', JSON.stringify(SHARED_LOCATIONS));
+            console.log('equipmentList 개수:', equipmentList ? equipmentList.length : 0);
+
+            // SHARED_LOCATIONS가 비어있으면 equipmentList에서 직접 추출
+            let locations = SHARED_LOCATIONS;
+            if (!locations || locations.length === 0) {
+                console.warn('SHARED_LOCATIONS가 비어있음, equipmentList에서 직접 추출');
+                if (equipmentList && equipmentList.length > 0) {
+                    locations = [...new Set(equipmentList
+                        .map(eq => eq.lab_room)
+                        .filter(room => room && room.trim() !== '')
+                    )];
+                    console.log('직접 추출한 연구실 목록:', JSON.stringify(locations));
+                }
+            }
 
             // 드롭다운 옵션 생성
-            select.innerHTML = '<option value="">-- 실험실 선택 --</option>' +
-                SHARED_LOCATIONS.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+            if (locations && locations.length > 0) {
+                select.innerHTML = '<option value="">-- 실험실 선택 --</option>' +
+                    locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+                console.log('실험실 드롭다운 생성 완료:', locations.length + '개');
+            } else {
+                select.innerHTML = '<option value="">-- 실험실 없음 (장비를 먼저 등록하세요) --</option>';
+                console.warn('실험실 목록이 비어있음');
+            }
         }
 
         async function loadAdminData() {
