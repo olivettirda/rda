@@ -375,16 +375,21 @@
             align-items: center;
             justify-content: center;
             padding: var(--space-4);
+            padding-top: 52px; /* 타이틀바 높이 + 여유 */
             background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
+            box-sizing: border-box;
         }
 
         .login-card {
             width: 100%;
             max-width: 400px;
+            max-height: calc(100vh - 72px); /* 타이틀바 + 상하 여백 */
             background: white;
-            border-radius: 12px;
+            border-radius: 16px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .login-header {
@@ -424,6 +429,8 @@
 
         .login-body {
             padding: var(--space-6);
+            overflow-y: auto;
+            flex: 1;
         }
 
         .login-tabs {
@@ -1370,6 +1377,85 @@
             color: #888;
         }
 
+        /* 프로필 모달 탭 스타일 */
+        .profile-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-default);
+            padding: 0 var(--space-6);
+        }
+        .profile-tab {
+            flex: 1;
+            padding: var(--space-3) var(--space-4);
+            border: none;
+            background: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .profile-tab:hover {
+            color: var(--primary-main);
+        }
+        .profile-tab.active {
+            color: var(--primary-main);
+            border-bottom-color: var(--primary-main);
+        }
+        .profile-tab-content {
+            display: none;
+            padding-top: var(--space-4);
+        }
+        .profile-tab-content.active {
+            display: block;
+        }
+        .profile-info-display {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        .profile-avatar-large {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--primary-main);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .profile-details {
+            flex: 1;
+        }
+        .profile-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+        .profile-org {
+            font-size: 14px;
+            color: #666;
+            margin-top: 2px;
+        }
+        .profile-username {
+            font-size: 13px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .btn-danger {
+            background: #d32f2f;
+            color: white;
+            border: none;
+        }
+        .btn-danger:hover {
+            background: #b71c1c;
+        }
+
         /* 도움말 섹션 */
         .help-section {
             margin-bottom: var(--space-6);
@@ -1718,25 +1804,25 @@
                 <form id="signupForm" class="login-form">
                     <div id="signupAlert" class="alert hidden"></div>
                     <div class="form-group">
-                        <label class="form-label" for="signupName">이름</label>
-                        <input type="text" id="signupName" class="form-input" placeholder="표시될 이름" required minlength="2">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="signupOrg">소속</label>
-                        <input type="text" id="signupOrg" class="form-input" placeholder="소속 부서/기관">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="signupUsername">아이디</label>
+                        <label class="form-label" for="signupUsername">아이디 *</label>
                         <input type="text" id="signupUsername" class="form-input" placeholder="사용할 아이디" required minlength="3">
                         <p class="form-hint">3자 이상, 영문/숫자만 사용 가능</p>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="signupPassword">비밀번호</label>
+                        <label class="form-label" for="signupPassword">비밀번호 *</label>
                         <input type="password" id="signupPassword" class="form-input" placeholder="비밀번호 (6자 이상)" required minlength="6">
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="signupPasswordConfirm">비밀번호 확인</label>
+                        <label class="form-label" for="signupPasswordConfirm">비밀번호 확인 *</label>
                         <input type="password" id="signupPasswordConfirm" class="form-input" placeholder="비밀번호 다시 입력" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="signupName">이름 *</label>
+                        <input type="text" id="signupName" class="form-input" placeholder="표시될 이름" required minlength="2">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="signupOrg">소속 *</label>
+                        <input type="text" id="signupOrg" class="form-input" placeholder="소속 부서/기관" required>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">회원가입</button>
                 </form>
@@ -1766,13 +1852,10 @@
         <div id="userMenu" class="user-menu">
             <div class="user-menu-header">
                 <div id="menuUserName" class="user-menu-name">사용자</div>
-                <div id="menuUserEmail" class="user-menu-email">user@example.com</div>
+                <div id="menuUserEmail" class="user-menu-email">소속</div>
             </div>
-            <button class="user-menu-item" id="exportBtn">
-                <span>📥</span> 노트 내보내기
-            </button>
-            <button class="user-menu-item" id="settingsBtn">
-                <span>⚙️</span> 설정
+            <button class="user-menu-item" id="profileBtn">
+                <span>👤</span> 프로필
             </button>
             <button class="user-menu-item" id="helpBtn">
                 <span>❓</span> 도움말
@@ -1844,54 +1927,92 @@
         </div>
     </div>
 
-    <!-- 설정 모달 -->
-    <div id="settingsModal" class="modal-overlay">
-        <div class="modal">
+    <!-- 프로필 모달 (탭 구조) -->
+    <div id="profileModal" class="modal-overlay">
+        <div class="modal" style="max-width: 480px;">
             <div class="modal-header">
-                <h2 class="modal-title">⚙️ 설정</h2>
-                <button class="modal-close" id="settingsModalClose">×</button>
+                <h2 class="modal-title">👤 내 프로필</h2>
+                <button class="modal-close" id="profileModalClose">×</button>
             </div>
-            <div class="modal-body">
-                <section class="settings-section">
-                    <h3>일반</h3>
-                    <label class="settings-item">
-                        <span>Windows 시작 시 자동 실행</span>
-                        <input type="checkbox" id="autoStartCheckbox">
-                    </label>
-                    <label class="settings-item">
-                        <span>사이드바 모드</span>
-                        <input type="checkbox" id="sidebarModeCheckbox">
-                    </label>
-                </section>
-                <section class="settings-section">
-                    <h3>동기화</h3>
-                    <div class="settings-info">
-                        <p id="syncInfo">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
-                        <p class="settings-hint">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
-                    </div>
-                </section>
-                <section class="settings-section">
-                    <h3>계정 관리</h3>
-                    <div class="settings-password-change">
-                        <div class="form-group">
-                            <label>현재 비밀번호</label>
-                            <input type="password" id="currentPassword" class="form-input" placeholder="현재 비밀번호 입력">
+            <!-- 탭 네비게이션 -->
+            <div class="profile-tabs">
+                <button class="profile-tab active" data-tab="info">나의 정보</button>
+                <button class="profile-tab" data-tab="settings">설정</button>
+            </div>
+            <div class="modal-body" style="padding-top: 0;">
+                <!-- 나의 정보 탭 -->
+                <div id="profileInfoTab" class="profile-tab-content active">
+                    <section class="settings-section">
+                        <div class="profile-info-display">
+                            <div class="profile-avatar-large" id="profileAvatarLarge">U</div>
+                            <div class="profile-details">
+                                <div class="profile-name" id="profileDisplayName">사용자</div>
+                                <div class="profile-org" id="profileOrg">소속 없음</div>
+                                <div class="profile-username" id="profileUsername">@username</div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>새 비밀번호</label>
-                            <input type="password" id="newPassword" class="form-input" placeholder="새 비밀번호 입력">
+                    </section>
+                    <section class="settings-section">
+                        <h3>비밀번호 변경</h3>
+                        <div class="settings-password-change">
+                            <div class="form-group">
+                                <label>현재 비밀번호</label>
+                                <input type="password" id="currentPassword" class="form-input" placeholder="현재 비밀번호 입력">
+                            </div>
+                            <div class="form-group">
+                                <label>새 비밀번호</label>
+                                <input type="password" id="newPassword" class="form-input" placeholder="새 비밀번호 입력">
+                            </div>
+                            <div class="form-group">
+                                <label>새 비밀번호 확인</label>
+                                <input type="password" id="confirmPassword" class="form-input" placeholder="새 비밀번호 다시 입력">
+                            </div>
+                            <button class="btn btn-secondary" id="changePasswordBtn">비밀번호 변경</button>
+                            <div id="passwordChangeAlert" class="alert" style="display: none; margin-top: 8px;"></div>
                         </div>
-                        <div class="form-group">
-                            <label>새 비밀번호 확인</label>
-                            <input type="password" id="confirmPassword" class="form-input" placeholder="새 비밀번호 다시 입력">
+                    </section>
+                    <section class="settings-section">
+                        <h3>회원 탈퇴</h3>
+                        <p class="settings-hint" style="margin-bottom: 12px; color: #d32f2f;">
+                            탈퇴 시 모든 데이터(메모, 전달한 메모 포함)가 영구적으로 삭제됩니다.
+                        </p>
+                        <button class="btn btn-danger" id="deleteAccountBtn">회원 탈퇴</button>
+                    </section>
+                </div>
+                <!-- 설정 탭 -->
+                <div id="profileSettingsTab" class="profile-tab-content">
+                    <section class="settings-section">
+                        <h3>일반</h3>
+                        <label class="settings-item">
+                            <span>Windows 시작 시 자동 실행</span>
+                            <input type="checkbox" id="autoStartCheckbox">
+                        </label>
+                        <label class="settings-item">
+                            <span>사이드바 모드</span>
+                            <input type="checkbox" id="sidebarModeCheckbox">
+                        </label>
+                    </section>
+                    <section class="settings-section">
+                        <h3>데이터 백업</h3>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" id="exportDataBtn">📥 내보내기</button>
+                            <button class="btn btn-secondary" id="importDataBtn">📤 불러오기</button>
+                            <button class="btn btn-secondary" id="exportExcelBtn">📊 엑셀</button>
+                            <input type="file" id="importFileInput" accept=".json" style="display: none;">
                         </div>
-                        <button class="btn btn-secondary" id="changePasswordBtn">비밀번호 변경</button>
-                        <div id="passwordChangeAlert" class="alert" style="display: none; margin-top: 8px;"></div>
-                    </div>
-                </section>
+                        <p class="settings-hint" style="margin-top: 8px;">JSON 백업/복원 또는 엑셀로 내보내기</p>
+                    </section>
+                    <section class="settings-section">
+                        <h3>동기화</h3>
+                        <div class="settings-info">
+                            <p id="syncInfo">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
+                            <p class="settings-hint">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
+                        </div>
+                    </section>
+                </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" id="settingsModalOk">확인</button>
+                <button class="btn btn-primary" id="profileModalOk">확인</button>
             </div>
         </div>
     </div>
@@ -2303,11 +2424,15 @@
                 menuUserEmail.textContent = '동기화 안됨';
                 setSyncStatus('offline');
             } else if (currentUser) {
+                const displayName = currentUser.user_metadata?.display_name || '';
                 const username = currentUser.user_metadata?.username ||
                     currentUser.email?.replace(EMAIL_DOMAIN, '') || 'User';
-                userAvatar.textContent = username.charAt(0).toUpperCase();
-                menuUserName.textContent = username;
-                menuUserEmail.textContent = currentUser.email?.replace(EMAIL_DOMAIN, '') || '';
+                const organization = currentUser.user_metadata?.organization || '';
+
+                // 이름 첫글자 표시 (이름이 없으면 아이디 첫글자)
+                userAvatar.textContent = (displayName || username).charAt(0).toUpperCase();
+                menuUserName.textContent = displayName || username;
+                menuUserEmail.textContent = organization || username;
                 setSyncStatus('synced');
             }
 
@@ -3121,23 +3246,6 @@
             // 로그아웃
             document.getElementById('logoutBtn').addEventListener('click', handleLogout);
 
-            // 내보내기
-            document.getElementById('exportBtn').addEventListener('click', () => {
-                const data = notes.map(n => ({
-                    content: n.content,
-                    color: n.color,
-                    created_at: n.created_at
-                }));
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `sticky_notes_${new Date().toISOString().split('T')[0]}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-                showToast('노트를 내보냈습니다');
-                userMenu.classList.remove('show');
-            });
 
             // 도움말
             document.getElementById('helpBtn').addEventListener('click', () => {
@@ -3159,14 +3267,27 @@
                 }
             });
 
-            // 설정 모달
-            const settingsModal = document.getElementById('settingsModal');
+            // 프로필 모달
+            const profileModal = document.getElementById('profileModal');
             const autoStartCheckbox = document.getElementById('autoStartCheckbox');
             const sidebarModeCheckbox = document.getElementById('sidebarModeCheckbox');
 
-            document.getElementById('settingsBtn').addEventListener('click', async () => {
-                settingsModal.classList.add('show');
+            // 프로필 모달 열기
+            document.getElementById('profileBtn').addEventListener('click', async () => {
+                profileModal.classList.add('show');
                 userMenu.classList.remove('show');
+
+                // 프로필 정보 표시
+                if (currentUser) {
+                    const displayName = currentUser.user_metadata?.display_name || '';
+                    const username = currentUser.user_metadata?.username || currentUser.email?.replace(EMAIL_DOMAIN, '') || '';
+                    const organization = currentUser.user_metadata?.organization || '';
+
+                    document.getElementById('profileAvatarLarge').textContent = (displayName || username).charAt(0).toUpperCase();
+                    document.getElementById('profileDisplayName').textContent = displayName || username;
+                    document.getElementById('profileOrg').textContent = organization || '소속 없음';
+                    document.getElementById('profileUsername').textContent = '@' + username;
+                }
 
                 // Electron에서만 자동 시작 옵션 표시
                 if (window.electronAPI) {
@@ -3175,17 +3296,28 @@
                 }
             });
 
-            document.getElementById('settingsModalClose').addEventListener('click', () => {
-                settingsModal.classList.remove('show');
+            // 프로필 탭 전환
+            document.querySelectorAll('.profile-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const tabId = tab.dataset.tab === 'info' ? 'profileInfoTab' : 'profileSettingsTab';
+                    document.getElementById(tabId).classList.add('active');
+                });
             });
 
-            document.getElementById('settingsModalOk').addEventListener('click', () => {
-                settingsModal.classList.remove('show');
+            document.getElementById('profileModalClose').addEventListener('click', () => {
+                profileModal.classList.remove('show');
             });
 
-            settingsModal.addEventListener('click', (e) => {
-                if (e.target === settingsModal) {
-                    settingsModal.classList.remove('show');
+            document.getElementById('profileModalOk').addEventListener('click', () => {
+                profileModal.classList.remove('show');
+            });
+
+            profileModal.addEventListener('click', (e) => {
+                if (e.target === profileModal) {
+                    profileModal.classList.remove('show');
                 }
             });
 
@@ -3251,6 +3383,223 @@
                     console.error('비밀번호 변경 오류:', err);
                     showAlert(alertEl, '오류가 발생했습니다.', 'error');
                 }
+            });
+
+            // 회원 탈퇴
+            document.getElementById('deleteAccountBtn').addEventListener('click', async () => {
+                if (!currentUser) return;
+
+                const confirmed = confirm(
+                    '정말로 회원 탈퇴하시겠습니까?\n\n' +
+                    '⚠️ 다음 데이터가 영구적으로 삭제됩니다:\n' +
+                    '• 모든 메모\n' +
+                    '• 다른 사용자에게 전달한 메모\n' +
+                    '• 계정 정보\n\n' +
+                    '이 작업은 되돌릴 수 없습니다.'
+                );
+
+                if (!confirmed) return;
+
+                const doubleConfirm = confirm('마지막 확인입니다.\n정말로 탈퇴하시겠습니까?');
+                if (!doubleConfirm) return;
+
+                showLoading(true);
+                console.log('회원 탈퇴 시작, 사용자 ID:', currentUser.id);
+
+                try {
+                    // 1. 내가 전달한 메모 삭제 (다른 사용자의 메모 중 from_user_id가 나인 것)
+                    const { error: transferredError } = await supabaseClient
+                        .from('notes')
+                        .delete()
+                        .eq('from_user_id', currentUser.id);
+
+                    if (transferredError) {
+                        console.error('전달한 메모 삭제 에러:', transferredError);
+                    } else {
+                        console.log('전달한 메모 삭제 완료');
+                    }
+
+                    // 2. 내 메모 전체 삭제
+                    const { error: notesError } = await supabaseClient
+                        .from('notes')
+                        .delete()
+                        .eq('user_id', currentUser.id);
+
+                    if (notesError) {
+                        console.error('메모 삭제 에러:', notesError);
+                    } else {
+                        console.log('메모 삭제 완료');
+                    }
+
+                    // 3. 프로필 삭제
+                    const { error: profileError } = await supabaseClient
+                        .from('profiles')
+                        .delete()
+                        .eq('id', currentUser.id);
+
+                    if (profileError) {
+                        console.error('프로필 삭제 에러:', profileError);
+                    } else {
+                        console.log('프로필 삭제 완료');
+                    }
+
+                    // 4. 로그아웃
+                    await supabaseClient.auth.signOut();
+
+                    showLoading(false);
+                    showToast('회원 탈퇴가 완료되었습니다');
+                    profileModal.classList.remove('show');
+
+                    // 로그인 화면으로 이동
+                    currentUser = null;
+                    notes = [];
+                    loginContainer.style.display = 'flex';
+                    appContainer.classList.remove('active');
+
+                } catch (err) {
+                    console.error('회원 탈퇴 오류:', err);
+                    showLoading(false);
+                    alert('회원 탈퇴 중 오류가 발생했습니다.');
+                }
+            });
+
+            // 데이터 내보내기 (JSON)
+            document.getElementById('exportDataBtn').addEventListener('click', () => {
+                const exportData = {
+                    version: APP_VERSION,
+                    exportDate: new Date().toISOString(),
+                    notes: notes.map(note => ({
+                        content: note.content,
+                        color: note.color,
+                        position_x: note.position_x,
+                        position_y: note.position_y,
+                        width: note.width,
+                        height: note.height,
+                        created_at: note.created_at,
+                        updated_at: note.updated_at
+                    }))
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sticky_notes_backup_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('백업 파일이 다운로드되었습니다');
+            });
+
+            // 데이터 불러오기 (JSON)
+            document.getElementById('importDataBtn').addEventListener('click', () => {
+                document.getElementById('importFileInput').click();
+            });
+
+            document.getElementById('importFileInput').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    console.log('불러온 데이터:', data);
+
+                    if (!data.notes || !Array.isArray(data.notes)) {
+                        alert('올바른 백업 파일이 아닙니다.');
+                        return;
+                    }
+
+                    const confirmed = confirm(`${data.notes.length}개의 메모를 불러오시겠습니까?\n기존 메모는 유지됩니다.`);
+                    if (!confirmed) return;
+
+                    showLoading(true);
+
+                    for (const note of data.notes) {
+                        const newNote = {
+                            user_id: currentUser?.id,
+                            content: note.content,
+                            color: note.color || 'yellow',
+                            position_x: note.position_x || Math.random() * 300 + 50,
+                            position_y: note.position_y || Math.random() * 200 + 50,
+                            width: note.width || 280,
+                            height: note.height || 220
+                        };
+
+                        if (isGuest) {
+                            newNote.id = Date.now().toString() + Math.random();
+                            notes.push(newNote);
+                        } else {
+                            const { data: inserted, error } = await supabaseClient
+                                .from('notes')
+                                .insert(newNote)
+                                .select()
+                                .single();
+
+                            if (!error && inserted) {
+                                notes.push(inserted);
+                            }
+                        }
+                    }
+
+                    renderNotes();
+                    showLoading(false);
+                    showToast(`${data.notes.length}개의 메모를 불러왔습니다`);
+                    profileModal.classList.remove('show');
+
+                } catch (err) {
+                    console.error('불러오기 오류:', err);
+                    alert('파일을 읽는 중 오류가 발생했습니다.');
+                }
+
+                e.target.value = ''; // 같은 파일 재선택 가능하도록
+            });
+
+            // 엑셀 내보내기 (CSV)
+            document.getElementById('exportExcelBtn').addEventListener('click', () => {
+                // CSV 헤더
+                const headers = ['번호', '내용', '색상', '작성일시', '수정일시'];
+                const rows = [headers];
+
+                // 데이터 행 추가
+                notes.forEach((note, index) => {
+                    // HTML 태그 제거하고 텍스트만 추출
+                    const content = (note.content || '')
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/"/g, '""'); // CSV에서 따옴표 이스케이프
+
+                    const colorNames = {
+                        yellow: '노랑',
+                        pink: '분홍',
+                        green: '초록',
+                        orange: '주황',
+                        purple: '보라',
+                        blue: '파랑'
+                    };
+
+                    const createdAt = note.created_at ?
+                        new Date(note.created_at).toLocaleString('ko-KR') : '';
+                    const updatedAt = note.updated_at ?
+                        new Date(note.updated_at).toLocaleString('ko-KR') : '';
+
+                    rows.push([
+                        index + 1,
+                        `"${content}"`,
+                        colorNames[note.color] || note.color,
+                        createdAt,
+                        updatedAt
+                    ]);
+                });
+
+                // CSV 문자열 생성 (UTF-8 BOM 추가로 한글 깨짐 방지)
+                const csvContent = '\uFEFF' + rows.map(row => row.join(',')).join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sticky_notes_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('엑셀 파일이 다운로드되었습니다');
             });
 
             // 사이드바 모드 체크박스
