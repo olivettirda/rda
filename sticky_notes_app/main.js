@@ -84,14 +84,20 @@ function createWindow() {
 }
 
 function createTray() {
-    // 트레이 아이콘 (16x16 또는 32x32)
-    const iconPath = path.join(__dirname, 'assets', 'icon.png');
+    // 트레이 아이콘 - Windows에서는 .ico 파일 사용
+    const iconPath = process.platform === 'win32'
+        ? path.join(__dirname, 'assets', 'icon.ico')
+        : path.join(__dirname, 'assets', 'icon.png');
     let trayIcon;
 
     try {
         trayIcon = nativeImage.createFromPath(iconPath);
-        trayIcon = trayIcon.resize({ width: 16, height: 16 });
+        // Windows 트레이는 보통 16x16 또는 32x32 사용
+        if (process.platform !== 'win32') {
+            trayIcon = trayIcon.resize({ width: 16, height: 16 });
+        }
     } catch (error) {
+        console.log('트레이 아이콘 로드 실패:', error);
         // 아이콘이 없으면 기본 아이콘 사용
         trayIcon = nativeImage.createEmpty();
     }

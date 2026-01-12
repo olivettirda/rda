@@ -1177,9 +1177,9 @@
         const SUPABASE_URL = 'https://lbfvshavniomfykvqnwm.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZnZzaGF2bmlvbWZ5a3ZxbndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNTMzMjMsImV4cCI6MjA4MzcyOTMyM30.HfZudwH6vKbsukg_K3wZGxQ1oEiEvJ1kGoxPnp1-2FA';
 
-        let supabase = null;
+        let supabaseClient = null;
         try {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log('Supabase 초기화 성공');
         } catch (e) {
             console.error('Supabase 초기화 실패:', e);
@@ -1246,9 +1246,9 @@
             document.getElementById('guestBtn').addEventListener('click', handleGuest);
 
             // 세션 확인
-            if (supabase) {
+            if (supabaseClient) {
                 try {
-                    const { data: { session }, error } = await supabase.auth.getSession();
+                    const { data: { session }, error } = await supabaseClient.auth.getSession();
                     console.log('세션 확인:', session, error);
 
                     if (session && session.user) {
@@ -1293,7 +1293,7 @@
             console.log('로그인 이메일:', email);
 
             try {
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
@@ -1352,7 +1352,7 @@
             console.log('회원가입 이메일:', email);
 
             try {
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -1418,8 +1418,8 @@
         async function handleLogout() {
             console.log('로그아웃');
 
-            if (!isGuest && supabase) {
-                await supabase.auth.signOut();
+            if (!isGuest && supabaseClient) {
+                await supabaseClient.auth.signOut();
             }
 
             currentUser = null;
@@ -1504,13 +1504,13 @@
         // 노트 관리
         // ============================================
         async function loadNotes() {
-            if (isGuest || !supabase) return;
+            if (isGuest || !supabaseClient) return;
 
             console.log('노트 로드 시작');
             setSyncStatus('syncing');
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('sticky_notes')
                     .select('*')
                     .eq('user_id', currentUser.id)
@@ -1707,10 +1707,10 @@
                 notes.push(newNote);
                 saveGuestNotes();
                 renderNotes();
-            } else if (supabase) {
+            } else if (supabaseClient) {
                 setSyncStatus('syncing');
                 try {
-                    const { data, error } = await supabase
+                    const { data, error } = await supabaseClient
                         .from('sticky_notes')
                         .insert([{
                             content: newNote.content,
@@ -1752,11 +1752,11 @@
                 return;
             }
 
-            if (!supabase) return;
+            if (!supabaseClient) return;
 
             setSyncStatus('syncing');
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('sticky_notes')
                     .update({
                         content: note.content,
@@ -1794,11 +1794,11 @@
                 return;
             }
 
-            if (!supabase) return;
+            if (!supabaseClient) return;
 
             setSyncStatus('syncing');
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('sticky_notes')
                     .delete()
                     .eq('id', note.id);
@@ -1830,11 +1830,11 @@
         // 실시간 동기화
         // ============================================
         function setupRealtimeSync() {
-            if (isGuest || !supabase || !currentUser) return;
+            if (isGuest || !supabaseClient || !currentUser) return;
 
             console.log('실시간 동기화 설정');
 
-            supabase
+            supabaseClient
                 .channel('sticky_notes_changes')
                 .on('postgres_changes',
                     {
