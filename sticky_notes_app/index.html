@@ -964,19 +964,29 @@
             filter: grayscale(50%);
         }
 
-        /* 전달받은 메모 표시 아이콘 */
-        .received-indicator {
+        /* 전달받은/보낸 메모 표시 아이콘 */
+        .received-indicator,
+        .sent-indicator {
             position: absolute;
             top: 8px;
             left: 8px;
             width: 20px;
             height: 20px;
             z-index: 10;
+            cursor: pointer;
         }
-        .received-indicator img {
+        .received-indicator img,
+        .sent-indicator img {
             width: 20px;
             height: 20px;
             object-fit: contain;
+        }
+        .sent-indicator img {
+            transform: scaleX(-1);  /* 좌우 반전 - 보낸 메모 표시 */
+            opacity: 0.7;
+        }
+        .sent-indicator:hover img {
+            opacity: 1;
         }
 
         /* 편집 모드 스타일 */
@@ -2404,9 +2414,13 @@
             const plainText = (note.content || '').replace(/<[^>]*>/g, '').trim();
             el.dataset.preview = plainText.substring(0, 50) || '빈 메모';
 
-            // 전달받은 메모인지 확인
-            const receivedIndicator = note.from_user_id ?
-                `<div class="received-indicator" title="전달받은 메모"><img src="assets/passed.png" alt="전달받음"></div>` : '';
+            // 전달받은/보낸 메모 표시
+            let noteIndicator = '';
+            if (note.from_user_id) {
+                noteIndicator = `<div class="received-indicator" title="전달받은 메모"><img src="assets/passed.png" alt="전달받음"></div>`;
+            } else if (note.transferred_note_id) {
+                noteIndicator = `<div class="sent-indicator" title="전달한 메모 (클릭하여 취소)" data-transferred-id="${note.transferred_note_id}"><img src="assets/passed.png" alt="전달함"></div>`;
+            }
 
             el.innerHTML = `
                 <div class="drag-border">
@@ -2419,7 +2433,7 @@
                     <div class="drag-corner drag-corner-bl"></div>
                     <div class="drag-corner drag-corner-br"></div>
                 </div>
-                ${receivedIndicator}
+                ${noteIndicator}
                 <div class="note-header">
                     <button class="note-btn edit-btn" title="편집 모드"><img src="assets/pencil.png" alt="편집"></button>
                     <button class="note-btn color-btn" title="색상 변경"><img src="assets/palette.png" alt="색상"></button>
@@ -2484,6 +2498,7 @@
             const transferBtn = el.querySelector('.transfer-btn');
             const deleteBtn = el.querySelector('.delete-btn');
             const resizeHandle = el.querySelector('.note-resize');
+            const sentIndicator = el.querySelector('.sent-indicator');
 
             // 편집 모드 토글 함수
             function setEditMode(editing) {
@@ -2729,6 +2744,50 @@
                 console.log('전달 버튼 클릭, 노트 ID:', note.id);
                 openTransferModal(note);
             });
+
+            // 전달 취소 (보낸 메모 아이콘 클릭)
+            if (sentIndicator) {
+                sentIndicator.addEventListener('click', async () => {
+                    const transferredId = sentIndicator.dataset.transferredId;
+                    console.log('전달 취소 클릭, 전달된 메모 ID:', transferredId);
+
+                    if (confirm('전달을 취소하시겠습니까?\n상대방의 메모가 삭제됩니다.')) {
+                        try {
+                            // 전달된 메모 삭제
+                            const { error: deleteError } = await supabaseClient
+                                .from('notes')
+                                .delete()
+                                .eq('id', transferredId);
+
+                            if (deleteError) {
+                                console.error('전달 취소 에러:', JSON.stringify(deleteError, null, 2));
+                                showToast('전달 취소에 실패했습니다');
+                                return;
+                            }
+
+                            // 원본 메모에서 transferred_note_id 제거
+                            note.transferred_note_id = null;
+                            const { error: updateError } = await supabaseClient
+                                .from('notes')
+                                .update({ transferred_note_id: null })
+                                .eq('id', note.id);
+
+                            if (updateError) {
+                                console.error('원본 메모 업데이트 에러:', JSON.stringify(updateError, null, 2));
+                            }
+
+                            // UI 업데이트 - 아이콘 제거
+                            sentIndicator.remove();
+                            showToast('전달이 취소되었습니다');
+                            console.log('전달 취소 완료');
+
+                        } catch (err) {
+                            console.error('전달 취소 예외:', err);
+                            showToast('오류가 발생했습니다');
+                        }
+                    }
+                });
+            }
 
             // 삭제
             deleteBtn.addEventListener('click', () => {
@@ -3449,7 +3508,9 @@
 
                 const { data, error } = await supabaseClient
                     .from('notes')
-                    .insert(newNote);
+                    .insert(newNote)
+                    .select()
+                    .single();
 
                 if (error) {
                     console.error('메모 전달 에러:', JSON.stringify(error, null, 2));
@@ -3458,7 +3519,25 @@
                     return;
                 }
 
-                console.log('메모 전달 성공');
+                console.log('메모 전달 성공, 전달된 메모 ID:', data.id);
+
+                // 원본 메모에 전달 정보 저장
+                const { error: updateError } = await supabaseClient
+                    .from('notes')
+                    .update({ transferred_note_id: data.id })
+                    .eq('id', transferNoteData.id);
+
+                if (updateError) {
+                    console.error('원본 메모 업데이트 에러:', JSON.stringify(updateError, null, 2));
+                } else {
+                    // 로컬 데이터 업데이트 및 UI 갱신
+                    const originalNote = notes.find(n => n.id === transferNoteData.id);
+                    if (originalNote) {
+                        originalNote.transferred_note_id = data.id;
+                    }
+                    renderNotes();
+                }
+
                 showToast('메모가 전달되었습니다');
                 document.getElementById('transferModal').classList.remove('show');
                 transferNoteData = null;
