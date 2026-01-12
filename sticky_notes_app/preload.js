@@ -2,9 +2,14 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // 안전한 API 노출
 contextBridge.exposeInMainWorld('electronAPI', {
+    // 창 컨트롤
+    closeWindow: () => ipcRenderer.invoke('close-window'),
+    minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
+    maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+
     // 자격 증명 저장 (자동 로그인용)
-    saveCredentials: (username, password) => {
-        return ipcRenderer.invoke('save-credentials', username, password);
+    saveCredentials: (username, password, autoLogin) => {
+        return ipcRenderer.invoke('save-credentials', username, password, autoLogin);
     },
 
     // 자격 증명 삭제 (로그아웃 시)
@@ -21,6 +26,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onAutoLogin: (callback) => {
         ipcRenderer.on('auto-login', (event, credentials) => {
             callback(credentials);
+        });
+    },
+
+    // 초기 상태 이벤트 수신
+    onInitState: (callback) => {
+        ipcRenderer.on('init-state', (event, state) => {
+            callback(state);
         });
     },
 
@@ -41,10 +53,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return ipcRenderer.invoke('get-sidebar-mode');
     },
 
+    // 사이드바 위치 설정
+    setSidebarPosition: (position) => {
+        return ipcRenderer.invoke('set-sidebar-position', position);
+    },
+
+    // 사이드바 모드 종료
+    exitSidebar: () => {
+        return ipcRenderer.invoke('exit-sidebar');
+    },
+
     // 사이드바 모드 변경 이벤트 수신
     onSidebarModeChanged: (callback) => {
-        ipcRenderer.on('sidebar-mode-changed', (event, isSidebar) => {
-            callback(isSidebar);
+        ipcRenderer.on('sidebar-mode-changed', (event, data) => {
+            callback(data);
         });
     },
 
