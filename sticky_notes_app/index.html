@@ -410,6 +410,18 @@
             color: var(--text-secondary);
         }
 
+        .forgot-link-header {
+            display: block;
+            margin-top: var(--space-3);
+            font-size: 0.8125rem;
+            color: var(--primary-main);
+            text-decoration: none;
+        }
+
+        .forgot-link-header:hover {
+            text-decoration: underline;
+        }
+
         .login-body {
             padding: var(--space-6);
         }
@@ -1468,6 +1480,34 @@
             margin-top: var(--space-2) !important;
         }
 
+        .settings-password-change .form-group {
+            margin-bottom: var(--space-3);
+        }
+
+        .settings-password-change label {
+            display: block;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-1);
+        }
+
+        .settings-password-change .form-input {
+            width: 100%;
+            padding: var(--space-2) var(--space-3);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .settings-password-change .form-input:focus {
+            outline: none;
+            border-color: var(--primary-main);
+        }
+
+        .settings-password-change .btn {
+            margin-top: var(--space-2);
+        }
+
         /* ============================================
            토스트
            ============================================ */
@@ -1571,6 +1611,7 @@
                 <div class="login-logo">📝</div>
                 <h1 class="login-title">스티키 노트</h1>
                 <p class="login-subtitle">어디서나 메모를 동기화하세요</p>
+                <a href="#" id="forgotPasswordLinkHeader" class="forgot-link-header">아이디/비밀번호 찾기</a>
             </div>
             <div class="login-body">
                 <div class="login-tabs">
@@ -1747,6 +1788,25 @@
                         <p class="settings-hint">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
                     </div>
                 </section>
+                <section class="settings-section">
+                    <h3>계정 관리</h3>
+                    <div class="settings-password-change">
+                        <div class="form-group">
+                            <label>현재 비밀번호</label>
+                            <input type="password" id="currentPassword" class="form-input" placeholder="현재 비밀번호 입력">
+                        </div>
+                        <div class="form-group">
+                            <label>새 비밀번호</label>
+                            <input type="password" id="newPassword" class="form-input" placeholder="새 비밀번호 입력">
+                        </div>
+                        <div class="form-group">
+                            <label>새 비밀번호 확인</label>
+                            <input type="password" id="confirmPassword" class="form-input" placeholder="새 비밀번호 다시 입력">
+                        </div>
+                        <button class="btn btn-secondary" id="changePasswordBtn">비밀번호 변경</button>
+                        <div id="passwordChangeAlert" class="alert" style="display: none; margin-top: 8px;"></div>
+                    </div>
+                </section>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="settingsModalOk">확인</button>
@@ -1799,10 +1859,10 @@
         // ============================================
         // 앱 버전 정보
         // ============================================
-        const APP_VERSION = '1.0.4';
+        const APP_VERSION = '1.0.5';
         console.log('========================================');
         console.log(`스티키 노트 v${APP_VERSION} 시작`);
-        console.log('빌드 시간:', '2026-01-12 v4');
+        console.log('빌드 시간:', '2026-01-12 v5');
         console.log('========================================');
 
         // ============================================
@@ -2771,6 +2831,12 @@
                 showAlert(loginAlert, '아이디/비밀번호 찾기는 관리자에게 문의하세요: olivetti90@korea.kr', 'info');
             });
 
+            // 아이디/비밀번호 찾기 (헤더)
+            document.getElementById('forgotPasswordLinkHeader').addEventListener('click', (e) => {
+                e.preventDefault();
+                showAlert(loginAlert, '아이디/비밀번호 찾기는 관리자에게 문의하세요: olivetti90@korea.kr', 'info');
+            });
+
             // FAB
             document.getElementById('fabAdd').addEventListener('click', createNote);
 
@@ -2866,6 +2932,70 @@
             settingsModal.addEventListener('click', (e) => {
                 if (e.target === settingsModal) {
                     settingsModal.classList.remove('show');
+                }
+            });
+
+            // 비밀번호 변경
+            document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const alertEl = document.getElementById('passwordChangeAlert');
+
+                console.log('비밀번호 변경 시도');
+
+                // 입력 검증
+                if (!currentPassword || !newPassword || !confirmPassword) {
+                    showAlert(alertEl, '모든 필드를 입력해주세요.', 'error');
+                    return;
+                }
+
+                if (newPassword !== confirmPassword) {
+                    showAlert(alertEl, '새 비밀번호가 일치하지 않습니다.', 'error');
+                    return;
+                }
+
+                if (newPassword.length < 6) {
+                    showAlert(alertEl, '비밀번호는 최소 6자 이상이어야 합니다.', 'error');
+                    return;
+                }
+
+                try {
+                    // 현재 비밀번호로 재인증
+                    const { error: signInError } = await supabaseClient.auth.signInWithPassword({
+                        email: currentUser.email,
+                        password: currentPassword
+                    });
+
+                    if (signInError) {
+                        console.error('현재 비밀번호 확인 실패:', signInError);
+                        showAlert(alertEl, '현재 비밀번호가 올바르지 않습니다.', 'error');
+                        return;
+                    }
+
+                    // 비밀번호 변경
+                    const { error: updateError } = await supabaseClient.auth.updateUser({
+                        password: newPassword
+                    });
+
+                    if (updateError) {
+                        console.error('비밀번호 변경 실패:', updateError);
+                        showAlert(alertEl, '비밀번호 변경에 실패했습니다: ' + updateError.message, 'error');
+                        return;
+                    }
+
+                    console.log('비밀번호 변경 성공');
+                    showAlert(alertEl, '비밀번호가 변경되었습니다!', 'success');
+
+                    // 입력 필드 초기화
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+
+                    showToast('비밀번호가 변경되었습니다');
+                } catch (err) {
+                    console.error('비밀번호 변경 오류:', err);
+                    showAlert(alertEl, '오류가 발생했습니다.', 'error');
                 }
             });
 
