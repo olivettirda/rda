@@ -1946,11 +1946,22 @@
                         <div class="profile-info-display">
                             <div class="profile-avatar-large" id="profileAvatarLarge">U</div>
                             <div class="profile-details">
-                                <div class="profile-name" id="profileDisplayName">사용자</div>
-                                <div class="profile-org" id="profileOrg">소속 없음</div>
                                 <div class="profile-username" id="profileUsername">@username</div>
                             </div>
                         </div>
+                    </section>
+                    <section class="settings-section">
+                        <h3>내 정보 수정</h3>
+                        <div class="form-group">
+                            <label>이름</label>
+                            <input type="text" id="profileNameInput" class="form-input" placeholder="이름">
+                        </div>
+                        <div class="form-group">
+                            <label>소속</label>
+                            <input type="text" id="profileOrgInput" class="form-input" placeholder="소속 부서/기관">
+                        </div>
+                        <button class="btn btn-primary" id="saveProfileBtn">정보 저장</button>
+                        <div id="profileSaveAlert" class="alert" style="display: none; margin-top: 8px;"></div>
                     </section>
                     <section class="settings-section">
                         <h3>비밀번호 변경</h3>
@@ -3284,9 +3295,9 @@
                     const organization = currentUser.user_metadata?.organization || '';
 
                     document.getElementById('profileAvatarLarge').textContent = (displayName || username).charAt(0).toUpperCase();
-                    document.getElementById('profileDisplayName').textContent = displayName || username;
-                    document.getElementById('profileOrg').textContent = organization || '소속 없음';
                     document.getElementById('profileUsername').textContent = '@' + username;
+                    document.getElementById('profileNameInput').value = displayName;
+                    document.getElementById('profileOrgInput').value = organization;
                 }
 
                 // Electron에서만 자동 시작 옵션 표시
@@ -3318,6 +3329,71 @@
             profileModal.addEventListener('click', (e) => {
                 if (e.target === profileModal) {
                     profileModal.classList.remove('show');
+                }
+            });
+
+            // 프로필 정보 저장
+            document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+                const newName = document.getElementById('profileNameInput').value.trim();
+                const newOrg = document.getElementById('profileOrgInput').value.trim();
+                const alertEl = document.getElementById('profileSaveAlert');
+
+                if (!newName) {
+                    showAlert(alertEl, '이름을 입력해주세요.', 'error');
+                    return;
+                }
+
+                console.log('프로필 정보 저장:', { newName, newOrg });
+
+                try {
+                    // 1. Supabase Auth user_metadata 업데이트
+                    const { error: authError } = await supabaseClient.auth.updateUser({
+                        data: {
+                            display_name: newName,
+                            organization: newOrg
+                        }
+                    });
+
+                    if (authError) {
+                        console.error('Auth 업데이트 에러:', authError);
+                        showAlert(alertEl, '정보 저장에 실패했습니다.', 'error');
+                        return;
+                    }
+
+                    // 2. profiles 테이블 업데이트
+                    const { error: profileError } = await supabaseClient
+                        .from('profiles')
+                        .update({
+                            display_name: newName,
+                            organization: newOrg,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', currentUser.id);
+
+                    if (profileError) {
+                        console.error('프로필 테이블 업데이트 에러:', profileError);
+                    }
+
+                    // 3. 로컬 currentUser 업데이트
+                    currentUser.user_metadata = {
+                        ...currentUser.user_metadata,
+                        display_name: newName,
+                        organization: newOrg
+                    };
+
+                    // 4. UI 업데이트
+                    document.getElementById('profileAvatarLarge').textContent = newName.charAt(0).toUpperCase();
+                    userAvatar.textContent = newName.charAt(0).toUpperCase();
+                    menuUserName.textContent = newName;
+                    menuUserEmail.textContent = newOrg || currentUser.user_metadata?.username || '';
+
+                    showAlert(alertEl, '정보가 저장되었습니다!', 'success');
+                    showToast('프로필이 업데이트되었습니다');
+                    console.log('프로필 저장 완료');
+
+                } catch (err) {
+                    console.error('프로필 저장 오류:', err);
+                    showAlert(alertEl, '오류가 발생했습니다.', 'error');
                 }
             });
 
