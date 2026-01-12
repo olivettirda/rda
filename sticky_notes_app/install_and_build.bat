@@ -49,8 +49,6 @@ echo ========================================
 echo    빌드 완료!
 echo ========================================
 echo.
-echo 설치파일 위치: dist\스티키 노트 Setup 1.0.0.exe
+echo 설치파일: 스티키 노트 Setup 1.0.0.exe (현재 폴더)
 echo.
-echo dist 폴더를 열겠습니다...
-start dist
 pause
