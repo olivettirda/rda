@@ -406,12 +406,12 @@ app.on('window-all-closed', () => {
     app.quit();
 });
 
-// IPC 핸들러 - 작업표시줄로 최소화 (숨기기)
+// IPC 핸들러 - 작업표시줄로 최소화
 ipcMain.handle('minimize-to-tray', () => {
     console.log('minimize-to-tray 호출됨');
     if (mainWindow) {
-        mainWindow.hide();
-        console.log('창 숨김 완료');
+        mainWindow.minimize();
+        console.log('작업표시줄로 최소화 완료');
     } else {
         console.log('mainWindow가 없음!');
     }
