@@ -818,6 +818,51 @@
             display: none !important;
         }
 
+        /* 모달 오버레이 */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            max-width: 90%;
+            width: 480px;
+            max-height: 90vh;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .profile-tab.active {
+            color: #017f97 !important;
+            border-bottom-color: #017f97 !important;
+        }
+
+        .profile-tab:hover {
+            background: rgba(1, 127, 151, 0.05);
+        }
+
         /* 그룹 패널 스타일 */
         .groups-panel {
             position: fixed;
@@ -1108,6 +1153,73 @@
     <!-- 토스트 -->
     <div class="toast-container">
         <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- 프로필 모달 -->
+    <div id="profileModal" class="modal-overlay">
+        <div class="modal" style="max-width: 480px;">
+            <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 1px solid #eee;">
+                <h2 class="modal-title" style="margin: 0; font-size: 20px; font-weight: 600;">👤 내 프로필</h2>
+                <button class="modal-close" id="profileModalClose" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button>
+            </div>
+            <!-- 탭 네비게이션 -->
+            <div class="profile-tabs" style="display: flex; border-bottom: 1px solid #eee;">
+                <button class="profile-tab active" data-tab="info" style="flex: 1; padding: 12px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; transition: all 0.2s;">나의 정보</button>
+                <button class="profile-tab" data-tab="settings" style="flex: 1; padding: 12px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; transition: all 0.2s;">설정</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; max-height: 500px; overflow-y: auto;">
+                <!-- 나의 정보 탭 -->
+                <div id="profileInfoTab" class="profile-tab-content active">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <div id="profileAvatarLarge" style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 32px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px;">U</div>
+                        <div id="profileUsername" style="font-size: 14px; color: #999;">@username</div>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">이름</label>
+                        <input type="text" id="profileNameInput" class="form-input" placeholder="이름">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">소속</label>
+                        <input type="text" id="profileOrgInput" class="form-input" placeholder="소속 부서/기관">
+                    </div>
+                    <button class="login-btn" id="saveProfileBtn" style="margin-bottom: 16px;">저장</button>
+                    <div id="profileSaveAlert" class="form-error"></div>
+
+                    <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #eee;">
+                        <h3 style="font-size: 16px; margin-bottom: 16px;">비밀번호 변경</h3>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">새 비밀번호</label>
+                            <input type="password" id="newPassword" class="form-input" placeholder="새 비밀번호 입력">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">새 비밀번호 확인</label>
+                            <input type="password" id="confirmPassword" class="form-input" placeholder="새 비밀번호 다시 입력">
+                        </div>
+                        <button class="login-btn" id="changePasswordBtn">비밀번호 변경</button>
+                        <div id="passwordChangeAlert" class="form-error"></div>
+                    </div>
+                </div>
+
+                <!-- 설정 탭 -->
+                <div id="profileSettingsTab" class="profile-tab-content" style="display: none;">
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px;">데이터 백업</h3>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="login-btn" id="exportDataBtn" style="flex: 1; min-width: 100px;">📥 내보내기</button>
+                            <button class="login-btn" id="importDataBtn" style="flex: 1; min-width: 100px;">📤 불러오기</button>
+                            <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                        </div>
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">JSON 형식으로 모든 메모를 저장하고 불러올 수 있습니다</p>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px;">동기화</h3>
+                        <p id="syncInfo" style="font-size: 14px; color: #666; margin-bottom: 8px;">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
+                        <p style="font-size: 12px; color: #999;">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 로딩 -->
@@ -1696,8 +1808,15 @@
                             <div class="color-option purple" data-color="purple"></div>
                         </div>
                     </div>
+                    <div class="note-toolbar" style="padding: 4px 8px; display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                        <button class="format-btn bold-btn" title="굵게 (Ctrl+B)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">B</button>
+                        <button class="format-btn italic-btn" title="기울임 (Ctrl+I)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-style: italic; font-size: 12px;">I</button>
+                        <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; text-decoration: underline; font-size: 12px;">U</button>
+                        <button class="format-btn bullet-btn" title="말머리 기호" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 16px;">•</button>
+                        <button class="format-btn checkbox-btn" title="체크박스" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 14px;">☐</button>
+                    </div>
                     <div class="note-content">
-                        <textarea class="note-textarea" placeholder="메모를 입력하세요...">${note.content || ''}</textarea>
+                        <div class="note-editor" contenteditable="true" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'Nanum Pen Script', 'KoPub Dotum', cursive, sans-serif; font-size: 18px; line-height: 28px; color: #333; overflow-y: auto;">${note.content || ''}</div>
                     </div>
                     <div class="resize-handle"></div>
                 </div>
@@ -1710,20 +1829,92 @@
         }
 
         function setupNoteEvents(el, note) {
-            const textarea = el.querySelector('.note-textarea');
+            const editor = el.querySelector('.note-editor');
             const colorBtn = el.querySelector('.color-btn');
             const colorPicker = el.querySelector('.color-picker');
             const deleteBtn = el.querySelector('.delete');
             const notePaper = el.querySelector('.note-paper');
             const resizeHandle = el.querySelector('.resize-handle');
+            const boldBtn = el.querySelector('.bold-btn');
+            const italicBtn = el.querySelector('.italic-btn');
+            const underlineBtn = el.querySelector('.underline-btn');
+            const bulletBtn = el.querySelector('.bullet-btn');
+            const checkboxBtn = el.querySelector('.checkbox-btn');
 
             // 내용 변경
             let saveTimeout;
-            textarea.addEventListener('input', () => {
+            editor.addEventListener('input', () => {
                 clearTimeout(saveTimeout);
                 saveTimeout = setTimeout(() => {
-                    updateNote(note.id, { content: textarea.value });
+                    updateNote(note.id, { content: editor.innerHTML });
                 }, 500);
+            });
+
+            // 서식 버튼들
+            boldBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('bold', false, null);
+                editor.focus();
+            });
+
+            italicBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('italic', false, null);
+                editor.focus();
+            });
+
+            underlineBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('underline', false, null);
+                editor.focus();
+            });
+
+            bulletBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('insertUnorderedList', false, null);
+                editor.focus();
+            });
+
+            checkboxBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const checkbox = document.createElement('span');
+                checkbox.className = 'note-checkbox';
+                checkbox.textContent = '☐ ';
+                checkbox.style.cursor = 'pointer';
+                checkbox.onclick = function() {
+                    this.textContent = this.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                    updateNote(note.id, { content: editor.innerHTML });
+                };
+
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.insertNode(checkbox);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    editor.appendChild(checkbox);
+                }
+
+                updateNote(note.id, { content: editor.innerHTML });
+                editor.focus();
+            });
+
+            // 키보드 단축키
+            editor.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'b') {
+                        e.preventDefault();
+                        document.execCommand('bold', false, null);
+                    } else if (e.key === 'i') {
+                        e.preventDefault();
+                        document.execCommand('italic', false, null);
+                    } else if (e.key === 'u') {
+                        e.preventDefault();
+                        document.execCommand('underline', false, null);
+                    }
+                }
             });
 
             // 색상 변경
@@ -1754,9 +1945,10 @@
             let startY = 0;
 
             const startLongPress = (e) => {
-                // textarea나 버튼 클릭시 롱프레스 방지
-                if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' ||
-                    e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle')) {
+                // editor, 버튼, 입력 요소 클릭시 롱프레스 방지
+                if (e.target.closest('.note-editor') || e.target.tagName === 'BUTTON' ||
+                    e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle') ||
+                    e.target.classList.contains('format-btn') || e.target.closest('.note-toolbar')) {
                     return;
                 }
 
@@ -1834,9 +2026,10 @@
         // 드래그 & 드롭
         // ============================================
         function handleDragStart(e) {
-            // textarea나 버튼 클릭시 드래그 방지
-            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' ||
-                e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle')) {
+            // editor, 버튼, 입력 요소 클릭시 드래그 방지
+            if (e.target.closest('.note-editor') || e.target.tagName === 'BUTTON' ||
+                e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle') ||
+                e.target.classList.contains('format-btn') || e.target.closest('.note-toolbar')) {
                 return;
             }
 
@@ -2529,15 +2722,222 @@
         // ============================================
         const profileBtn = document.getElementById('profileBtn');
         const helpBtn = document.getElementById('helpBtn');
+        const profileModal = document.getElementById('profileModal');
 
         if (profileBtn) {
             profileBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
-                alert('프로필 설정은 추후 업데이트 예정입니다.\n\n현재 사용자 정보:\n' +
-                      '이름: ' + (currentUser?.user_metadata?.display_name || '게스트') + '\n' +
-                      '소속: ' + (currentUser?.user_metadata?.organization || '-'));
+                profileModal.classList.add('show');
+
+                // 프로필 정보 표시
+                if (currentUser) {
+                    const displayName = currentUser.user_metadata?.display_name || '';
+                    const username = currentUser.user_metadata?.username || currentUser.email?.replace(EMAIL_DOMAIN, '') || '';
+                    const organization = currentUser.user_metadata?.organization || '';
+
+                    document.getElementById('profileAvatarLarge').textContent = (displayName || username).charAt(0).toUpperCase();
+                    document.getElementById('profileUsername').textContent = '@' + username;
+                    document.getElementById('profileNameInput').value = displayName;
+                    document.getElementById('profileOrgInput').value = organization;
+                }
             });
         }
+
+        // 프로필 탭 전환
+        document.querySelectorAll('.profile-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.profile-tab-content').forEach(c => c.style.display = 'none');
+                tab.classList.add('active');
+                const tabId = tab.dataset.tab === 'info' ? 'profileInfoTab' : 'profileSettingsTab';
+                document.getElementById(tabId).style.display = 'block';
+            });
+        });
+
+        // 프로필 모달 닫기
+        document.getElementById('profileModalClose').addEventListener('click', () => {
+            profileModal.classList.remove('show');
+        });
+
+        profileModal.addEventListener('click', (e) => {
+            if (e.target === profileModal) {
+                profileModal.classList.remove('show');
+            }
+        });
+
+        // 프로필 정보 저장
+        document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+            const newName = document.getElementById('profileNameInput').value.trim();
+            const newOrg = document.getElementById('profileOrgInput').value.trim();
+            const alertEl = document.getElementById('profileSaveAlert');
+
+            if (!newName) {
+                alertEl.textContent = '이름을 입력해주세요';
+                alertEl.classList.add('show');
+                return;
+            }
+
+            try {
+                const { error } = await supabase.auth.updateUser({
+                    data: {
+                        display_name: newName,
+                        organization: newOrg
+                    }
+                });
+
+                if (error) throw error;
+
+                // 현재 사용자 정보 업데이트
+                currentUser.user_metadata.display_name = newName;
+                currentUser.user_metadata.organization = newOrg;
+
+                // UI 업데이트
+                document.getElementById('profileAvatarLarge').textContent = newName.charAt(0).toUpperCase();
+                userName.textContent = newName;
+                userEmail.textContent = newOrg;
+
+                showToast('프로필이 업데이트되었습니다');
+                alertEl.classList.remove('show');
+            } catch (error) {
+                console.error('프로필 저장 에러:', error);
+                alertEl.textContent = '프로필 저장에 실패했습니다';
+                alertEl.classList.add('show');
+            }
+        });
+
+        // 비밀번호 변경
+        document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const alertEl = document.getElementById('passwordChangeAlert');
+
+            if (!newPassword || newPassword.length < 6) {
+                alertEl.textContent = '비밀번호는 6자 이상이어야 합니다';
+                alertEl.classList.add('show');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                alertEl.textContent = '비밀번호가 일치하지 않습니다';
+                alertEl.classList.add('show');
+                return;
+            }
+
+            try {
+                const { error } = await supabase.auth.updateUser({
+                    password: newPassword
+                });
+
+                if (error) throw error;
+
+                showToast('비밀번호가 변경되었습니다');
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+                alertEl.classList.remove('show');
+            } catch (error) {
+                console.error('비밀번호 변경 에러:', error);
+                alertEl.textContent = '비밀번호 변경에 실패했습니다';
+                alertEl.classList.add('show');
+            }
+        });
+
+        // 데이터 내보내기
+        document.getElementById('exportDataBtn').addEventListener('click', () => {
+            const exportData = {
+                notes: notes.map(n => ({
+                    content: n.content,
+                    color: n.color,
+                    position_x: n.position_x,
+                    position_y: n.position_y,
+                    width: n.width,
+                    height: n.height,
+                    created_at: n.created_at
+                })),
+                groups: noteGroups,
+                connections: groupConnections
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sticky_notes_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('데이터를 내보냈습니다');
+        });
+
+        // 데이터 불러오기
+        document.getElementById('importDataBtn').addEventListener('click', () => {
+            document.getElementById('importFileInput').click();
+        });
+
+        document.getElementById('importFileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+
+                if (confirm(`${data.notes?.length || 0}개의 메모를 불러오시겠습니까?\n(현재 메모에 추가됩니다)`)) {
+                    showLoading();
+
+                    // 메모 추가
+                    if (data.notes) {
+                        for (const noteData of data.notes) {
+                            if (isGuest) {
+                                noteData.id = Date.now().toString() + Math.random();
+                                notes.push(noteData);
+                            } else {
+                                const { data: inserted, error } = await supabase
+                                    .from('notes')
+                                    .insert({
+                                        user_id: currentUser.id,
+                                        content: noteData.content,
+                                        color: noteData.color,
+                                        position_x: noteData.position_x,
+                                        position_y: noteData.position_y,
+                                        width: noteData.width,
+                                        height: noteData.height
+                                    })
+                                    .select()
+                                    .single();
+
+                                if (!error && inserted) {
+                                    notes.push(inserted);
+                                }
+                            }
+                        }
+                    }
+
+                    // 그룹 데이터 추가
+                    if (data.groups) {
+                        noteGroups.push(...data.groups);
+                        saveGroupsToStorage();
+                    }
+
+                    if (data.connections) {
+                        groupConnections.push(...data.connections);
+                        saveGroupsToStorage();
+                    }
+
+                    if (isGuest) {
+                        saveGuestNotes();
+                    }
+
+                    renderNotes();
+                    hideLoading();
+                    showToast(`${data.notes?.length || 0}개의 메모를 불러왔습니다`);
+                }
+            } catch (error) {
+                console.error('불러오기 오류:', error);
+                alert('파일을 읽는 중 오류가 발생했습니다.');
+            }
+
+            e.target.value = '';
+        });
 
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
@@ -2557,4 +2957,4 @@
     </script>
 </body>
 </html>
-<!-- Cache bust: 1768302412 -->
+<!-- Cache bust: 1768303891 -->
