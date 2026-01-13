@@ -1428,6 +1428,35 @@
                         <p id="syncInfo" style="font-size: 14px; color: #666; margin-bottom: 8px;">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
                         <p style="font-size: 12px; color: #999;">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
                     </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px;">📝 폰트 설정</h3>
+                        <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">기본 폰트</label>
+                        <select id="fontSelect" class="form-input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                            <option value="KoPub Dotum, Malgun Gothic, sans-serif">KoPub Dotum (기본)</option>
+                            <option value="Nanum Gothic, sans-serif">나눔고딕</option>
+                            <option value="Nanum Barun Gothic, sans-serif">나눔바른고딕</option>
+                            <option value="Nanum Myeongjo, serif">나눔명조</option>
+                            <option value="Noto Sans KR, sans-serif">Noto Sans KR</option>
+                            <option value="Malgun Gothic, sans-serif">맑은 고딕</option>
+                            <option value="Batang, serif">바탕</option>
+                            <option value="Dotum, sans-serif">돋움</option>
+                            <option value="Gulim, sans-serif">굴림</option>
+                            <option value="Gungsuh, serif">궁서</option>
+                            <option value="Arial, sans-serif">Arial</option>
+                            <option value="Times New Roman, serif">Times New Roman</option>
+                            <option value="Courier New, monospace">Courier New</option>
+                            <option value="Georgia, serif">Georgia</option>
+                            <option value="Verdana, sans-serif">Verdana</option>
+                            <option value="Comic Sans MS, cursive">Comic Sans MS</option>
+                        </select>
+                        <div style="margin-top: 12px;">
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">직접 입력</label>
+                            <input type="text" id="customFontInput" class="form-input" placeholder="폰트 이름 입력 (예: 나눔손글씨)" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                            <button id="applyCustomFont" class="login-btn" style="margin-top: 8px; width: 100%;">사용자 지정 폰트 적용</button>
+                        </div>
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">기기에 설치된 폰트만 사용 가능합니다.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1483,6 +1512,7 @@
         let draggedNote = null;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
+        let currentFont = localStorage.getItem('sticky_notes_font') || 'KoPub Dotum, Malgun Gothic, sans-serif';
 
         // ============================================
         // DOM 요소
@@ -1941,7 +1971,7 @@
                 content: '',
                 color: 'yellow',
                 position_x: Math.random() * (window.innerWidth - 250) + 20,
-                position_y: Math.random() * (window.innerHeight - 300) + 80,
+                position_y: Math.random() * (window.innerHeight - 300) + 64,
                 width: 220,
                 height: 220,
                 created_at: new Date().toISOString(),
@@ -2127,7 +2157,7 @@
                         </div>
                     </div>
                     <div class="note-content">
-                        <div class="note-editor" contenteditable="false" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto; caret-color: #017f97; cursor: text;">${note.content || ''}</div>
+                        <div class="note-editor" contenteditable="false" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: ${currentFont || 'KoPub Dotum, Malgun Gothic, sans-serif'}; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto; caret-color: #017f97; cursor: text;">${note.content || ''}</div>
                     </div>
                     <span class="note-date">${dateStr}</span>
                     <div class="resize-handle"></div>
@@ -3251,6 +3281,68 @@
             showToast('엑셀 파일이 다운로드되었습니다');
         });
 
+        // ============================================
+        // 폰트 설정
+        // ============================================
+        // 앱 시작 시 저장된 폰트 적용
+        function applyFont(fontFamily) {
+            console.log('[폰트] 적용:', fontFamily);
+            currentFont = fontFamily;
+            localStorage.setItem('sticky_notes_font', fontFamily);
+
+            // 모든 노트 에디터에 폰트 적용
+            document.querySelectorAll('.note-editor').forEach(editor => {
+                editor.style.fontFamily = fontFamily;
+            });
+
+            showToast('폰트가 적용되었습니다');
+        }
+
+        // 폰트 선택 드롭다운
+        const fontSelect = document.getElementById('fontSelect');
+        if (fontSelect) {
+            // 저장된 폰트를 선택 상태로 설정
+            fontSelect.value = currentFont;
+
+            fontSelect.addEventListener('change', (e) => {
+                const selectedFont = e.target.value;
+                console.log('[폰트] 드롭다운 선택:', selectedFont);
+                applyFont(selectedFont);
+            });
+        }
+
+        // 사용자 지정 폰트 입력
+        const customFontInput = document.getElementById('customFontInput');
+        const applyCustomFontBtn = document.getElementById('applyCustomFont');
+        if (applyCustomFontBtn) {
+            applyCustomFontBtn.addEventListener('click', () => {
+                const customFont = customFontInput.value.trim();
+                if (!customFont) {
+                    alert('폰트 이름을 입력하세요.');
+                    return;
+                }
+
+                console.log('[폰트] 사용자 지정:', customFont);
+                const fontFamily = `${customFont}, sans-serif`;
+                applyFont(fontFamily);
+
+                // 드롭다운에 사용자 지정 옵션이 없으면 추가
+                if (![...fontSelect.options].some(opt => opt.value === fontFamily)) {
+                    const option = document.createElement('option');
+                    option.value = fontFamily;
+                    option.text = `${customFont} (사용자 지정)`;
+                    fontSelect.add(option);
+                }
+                fontSelect.value = fontFamily;
+                customFontInput.value = '';
+            });
+        }
+
+        // 앱 시작 시 저장된 폰트 적용
+        setTimeout(() => {
+            applyFont(currentFont);
+        }, 500);
+
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
@@ -3437,7 +3529,7 @@
                         content: transferNoteData.content,
                         color: transferNoteData.color,
                         position_x: Math.random() * 200 + 50,
-                        position_y: Math.random() * 150 + 50,
+                        position_y: Math.random() * 150 + 64,
                         width: 220,
                         height: 220
                     })
