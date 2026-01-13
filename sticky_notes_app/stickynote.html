@@ -964,7 +964,7 @@
         const SUPABASE_URL = 'https://lbfvshavniomfykvqnwm.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZnZzaGF2bmlvbWZ5a3ZxbndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNTMzMjMsImV4cCI6MjA4MzcyOTMyM30.HfZudwH6vKbsukg_K3wZGxQ1oEiEvJ1kGoxPnp1-2FA';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         console.log('Supabase 클라이언트 초기화 완료');
 
@@ -1046,7 +1046,7 @@
             }
 
             // 세션 확인
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabaseClient.auth.getSession();
             console.log('현재 세션:', session);
 
             if (session) {
@@ -1066,7 +1066,7 @@
             }
 
             // 인증 상태 변경 감지
-            supabase.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange((event, session) => {
                 console.log('인증 상태 변경:', event, session);
                 if (event === 'SIGNED_IN' && session) {
                     currentUser = session.user;
@@ -1121,7 +1121,7 @@
                 const email = usernameToEmail(username);
                 console.log('변환된 이메일:', email);
 
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
@@ -1190,7 +1190,7 @@
                 const email = usernameToEmail(username);
                 console.log('변환된 이메일:', email);
 
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -1250,7 +1250,7 @@
                 notes = [];
                 showLogin();
             } else {
-                await supabase.auth.signOut();
+                await supabaseClient.auth.signOut();
             }
         });
 
@@ -1302,7 +1302,7 @@
             setSyncStatus('syncing');
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('notes')
                     .select('*')
                     .eq('user_id', currentUser.id)
@@ -1348,7 +1348,7 @@
                 setSyncStatus('syncing');
 
                 try {
-                    const { data, error } = await supabase
+                    const { data, error } = await supabaseClient
                         .from('notes')
                         .insert({
                             user_id: currentUser.id,
@@ -1394,7 +1394,7 @@
                 setSyncStatus('syncing');
 
                 try {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('notes')
                         .update(updates)
                         .eq('id', noteId);
@@ -1426,7 +1426,7 @@
                 setSyncStatus('syncing');
 
                 try {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('notes')
                         .delete()
                         .eq('id', noteId);
@@ -1714,7 +1714,7 @@
 
             console.log('실시간 동기화 설정');
 
-            const channel = supabase
+            const channel = supabaseClient
                 .channel('notes_changes')
                 .on(
                     'postgres_changes',
