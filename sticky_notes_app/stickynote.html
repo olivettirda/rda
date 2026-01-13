@@ -3,18 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#FFEB3B">
+    <meta name="theme-color" content="#0c3026">
     <meta name="description" content="플로팅 스티키 노트 - 어디서나 메모하세요">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="스티키 노트">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/icon.png">
     <link rel="apple-touch-icon" href="assets/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Barun+Gothic&display=swap" rel="stylesheet">
     <title>스티키 노트</title>
 
     <style>
         :root {
+            /* DMRT 디자인 시스템 색상 */
+            --primary-dark: #0c3026;
+            --primary-main: #017f97;
+            --primary-light: #e8f4f8;
+
             /* 스티키 노트 색상 - 파스텔톤 */
             --note-yellow: #fffacd;
             --note-pink: #ffdbdb;
@@ -36,8 +45,8 @@
         }
 
         body {
-            font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Nanum Barun Gothic', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
             min-height: 100vh;
             overflow: hidden;
         }
@@ -49,7 +58,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
             z-index: 10000;
         }
 
@@ -168,7 +177,7 @@
 
         .form-input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--primary-main);
         }
 
         .form-input.error {
@@ -178,7 +187,7 @@
         .login-btn {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-main) 0%, var(--primary-dark) 100%);
             color: white;
             border: none;
             border-radius: 8px;
@@ -206,7 +215,7 @@
         }
 
         .form-switch a {
-            color: #667eea;
+            color: var(--primary-main);
             text-decoration: none;
             font-weight: 600;
             cursor: pointer;
@@ -308,7 +317,7 @@
             background:
                 radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
                 radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                linear-gradient(135deg, var(--primary-main) 0%, var(--primary-dark) 100%);
         }
 
         .notes-container {
@@ -521,11 +530,11 @@
             height: 64px;
             border: none;
             border-radius: 50%;
-            background: linear-gradient(135deg, #FFEB3B 0%, #FFC107 100%);
-            color: #333;
+            background: linear-gradient(135deg, var(--primary-main) 0%, var(--primary-dark) 100%);
+            color: white;
             font-size: 32px;
             cursor: pointer;
-            box-shadow: 0 4px 16px rgba(255, 193, 7, 0.4);
+            box-shadow: 0 4px 16px rgba(1, 127, 151, 0.4);
             transition: all 0.3s;
             z-index: 1000;
             display: flex;
@@ -535,7 +544,7 @@
 
         .fab-add:hover {
             transform: scale(1.1) rotate(90deg);
-            box-shadow: 0 6px 24px rgba(255, 193, 7, 0.5);
+            box-shadow: 0 6px 24px rgba(1, 127, 151, 0.5);
         }
 
         .fab-add:active {
@@ -803,7 +812,7 @@
             width: 48px;
             height: 48px;
             border: 4px solid #eee;
-            border-top-color: #FFEB3B;
+            border-top-color: var(--primary-main);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -1266,7 +1275,7 @@
         const SUPABASE_URL = 'https://lbfvshavniomfykvqnwm.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZnZzaGF2bmlvbWZ5a3ZxbndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNTMzMjMsImV4cCI6MjA4MzcyOTMyM30.HfZudwH6vKbsukg_K3wZGxQ1oEiEvJ1kGoxPnp1-2FA';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         console.log('Supabase 클라이언트 초기화 완료');
 
@@ -1302,7 +1311,7 @@
             return username.toLowerCase() + EMAIL_DOMAIN;
         }
         const showSignup = document.getElementById('showSignup');
-        const showLogin = document.getElementById('showLogin');
+        const showLoginLink = document.getElementById('showLogin');
         const guestBtn = document.getElementById('guestBtn');
         const notesContainer = document.getElementById('notesContainer');
         const emptyState = document.getElementById('emptyState');
@@ -1373,7 +1382,7 @@
             }
 
             // 세션 확인
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabaseClient.auth.getSession();
             console.log('현재 세션:', session);
 
             if (session) {
@@ -1420,7 +1429,7 @@
             }
 
             // 인증 상태 변경 감지
-            supabase.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange((event, session) => {
                 console.log('인증 상태 변경:', event, session);
                 if (event === 'SIGNED_IN' && session) {
                     currentUser = session.user;
@@ -1448,7 +1457,7 @@
             loginError.classList.remove('show');
         });
 
-        showLogin.addEventListener('click', () => {
+        showLoginLink.addEventListener('click', () => {
             console.log('로그인 폼 표시');
             signupForm.classList.add('hidden');
             loginForm.classList.remove('hidden');
@@ -1475,7 +1484,7 @@
                 const email = usernameToEmail(username);
                 console.log('변환된 이메일:', email);
 
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
@@ -1563,7 +1572,7 @@
                 const email = usernameToEmail(username);
                 console.log('변환된 이메일:', email);
 
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -1595,7 +1604,7 @@
                     showToast('가입이 완료되었습니다!');
                 } else {
                     showToast('가입이 완료되었습니다! 로그인해주세요.');
-                    showLogin.click();
+                    showLoginLink.click();
                 }
             } catch (err) {
                 console.error('회원가입 에러:', err);
@@ -1628,7 +1637,7 @@
                 notes = [];
                 showLogin();
             } else {
-                await supabase.auth.signOut();
+                await supabaseClient.auth.signOut();
             }
         });
 
@@ -1708,7 +1717,7 @@
             setSyncStatus('syncing');
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('notes')
                     .select('*')
                     .eq('user_id', currentUser.id)
@@ -1754,16 +1763,16 @@
                 setSyncStatus('syncing');
 
                 try {
-                    const { data, error } = await supabase
+                    const { data, error } = await supabaseClient
                         .from('notes')
                         .insert({
                             user_id: currentUser.id,
                             content: newNote.content,
                             color: newNote.color,
-                            position_x: newNote.position_x,
-                            position_y: newNote.position_y,
-                            width: newNote.width,
-                            height: newNote.height
+                            position_x: Math.round(newNote.position_x),
+                            position_y: Math.round(newNote.position_y),
+                            width: Math.round(newNote.width),
+                            height: Math.round(newNote.height)
                         })
                         .select()
                         .single();
@@ -1799,10 +1808,17 @@
             } else {
                 setSyncStatus('syncing');
 
+                // 숫자 필드는 정수로 변환
+                const dbUpdates = { ...updates };
+                if (dbUpdates.position_x !== undefined) dbUpdates.position_x = Math.round(dbUpdates.position_x);
+                if (dbUpdates.position_y !== undefined) dbUpdates.position_y = Math.round(dbUpdates.position_y);
+                if (dbUpdates.width !== undefined) dbUpdates.width = Math.round(dbUpdates.width);
+                if (dbUpdates.height !== undefined) dbUpdates.height = Math.round(dbUpdates.height);
+
                 try {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('notes')
-                        .update(updates)
+                        .update(dbUpdates)
                         .eq('id', noteId);
 
                     if (error) {
@@ -1832,7 +1848,7 @@
                 setSyncStatus('syncing');
 
                 try {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('notes')
                         .delete()
                         .eq('id', noteId);
@@ -1889,7 +1905,7 @@
             el.style.transform = `rotate(${(Math.random() - 0.5) * 4}deg)`;
 
             const date = new Date(note.created_at);
-            const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+            const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
             el.innerHTML = `
                 <div class="note-paper ${note.color}">
@@ -2203,7 +2219,7 @@
 
             console.log('실시간 동기화 설정');
 
-            const channel = supabase
+            const channel = supabaseClient
                 .channel('notes_changes')
                 .on(
                     'postgres_changes',

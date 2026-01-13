@@ -1,16 +1,16 @@
 // 스티키 노트 서비스 워커
 const CACHE_NAME = 'sticky-notes-v3';
 const urlsToCache = [
-  '/rda/sticky_notes_app/stickynote.html',
-  '/rda/sticky_notes_app/assets/icon.png',
-  '/rda/files/icon/ssal/pencil.png',
-  '/rda/files/icon/ssal/trashcan.png',
-  '/rda/files/icon/ssal/palette.png',
-  '/rda/files/icon/ssal/passed.png',
-  '/rda/files/icon/ssal/share.png',
-  '/rda/files/icon/ssal/folder.png',
-  '/rda/files/icon/ssal/pin.png',
-  '/rda/files/icon/ssal/manual.png'
+  './stickynote.html',
+  './assets/icon.png',
+  '../files/icon/ssal/pencil.png',
+  '../files/icon/ssal/trashcan.png',
+  '../files/icon/ssal/palette.png',
+  '../files/icon/ssal/passed.png',
+  '../files/icon/ssal/share.png',
+  '../files/icon/ssal/folder.png',
+  '../files/icon/ssal/pin.png',
+  '../files/icon/ssal/manual.png'
 ];
 
 // 설치 시 캐시 (즉시 활성화)
