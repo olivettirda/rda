@@ -1,40 +1,67 @@
 // 스티키 노트 서비스 워커
-const CACHE_NAME = 'sticky-notes-v1';
+const CACHE_NAME = 'sticky-notes-v3';
 const urlsToCache = [
-  '/stickynote.html',
-  '/assets/icon.png',
-  '/assets/pencil.png',
-  '/assets/trashcan.png',
-  '/assets/palette.png',
-  '/assets/passed.png',
-  '/assets/share.png',
-  '/assets/folder.png',
-  '/assets/pin.png',
-  '/assets/manual.png'
+  '/rda/sticky_notes_app/stickynote.html',
+  '/rda/sticky_notes_app/assets/icon.png',
+  '/rda/files/icon/ssal/pencil.png',
+  '/rda/files/icon/ssal/trashcan.png',
+  '/rda/files/icon/ssal/palette.png',
+  '/rda/files/icon/ssal/passed.png',
+  '/rda/files/icon/ssal/share.png',
+  '/rda/files/icon/ssal/folder.png',
+  '/rda/files/icon/ssal/pin.png',
+  '/rda/files/icon/ssal/manual.png'
 ];
 
-// 설치 시 캐시
+// 설치 시 캐시 (즉시 활성화)
 self.addEventListener('install', (event) => {
+  console.log('[SW] 설치 중... 버전:', CACHE_NAME);
+  // 즉시 활성화
+  self.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('캐시 열림');
+        console.log('[SW] 캐시 열림');
         return cache.addAll(urlsToCache);
       })
       .catch((err) => {
-        console.log('캐시 실패:', err);
+        console.log('[SW] 캐시 실패:', err);
       })
   );
 });
 
-// 요청 가로채기
+// 요청 가로채기 (네트워크 우선 전략)
 self.addEventListener('fetch', (event) => {
   // API 요청은 네트워크 우선
-  if (event.request.url.includes('supabase')) {
+  if (event.request.url.includes('supabase') ||
+      event.request.url.includes('googleapis') ||
+      event.request.url.includes('supabase.co')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
+  // HTML 파일은 항상 네트워크 우선 (업데이트 즉시 반영)
+  if (event.request.url.includes('.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // 네트워크 응답을 캐시에 저장
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return response;
+        })
+        .catch(() => {
+          // 네트워크 실패 시 캐시에서 반환
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // 나머지는 캐시 우선
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -48,18 +75,32 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// 활성화 시 오래된 캐시 삭제
+// 활성화 시 오래된 캐시 삭제 (즉시 제어)
 self.addEventListener('activate', (event) => {
+  console.log('[SW] 활성화 중... 버전:', CACHE_NAME);
+  // 즉시 클라이언트 제어
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('오래된 캐시 삭제:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
+              console.log('[SW] 오래된 캐시 삭제:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
   );
+  console.log('[SW] 활성화 완료, 모든 클라이언트 제어 시작');
+});
+
+// 메시지 수신 (SKIP_WAITING 처리)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] SKIP_WAITING 메시지 수신, 즉시 활성화');
+    self.skipWaiting();
+  }
 });
