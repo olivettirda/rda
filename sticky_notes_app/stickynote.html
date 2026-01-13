@@ -938,59 +938,8 @@
             color: #017f97;
         }
 
-        /* 핀 아이콘 */
-        .note-pin {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            width: 24px;
-            height: 24px;
-            cursor: grab;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 10;
-            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
-        }
-
-        .sticky-note.show-pin .note-pin {
-            opacity: 1;
-        }
-
-        .note-pin:active {
-            cursor: grabbing;
-        }
-
-        .note-pin img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        /* 그룹 연결선 */
-        .group-connection-line {
-            position: fixed;
-            pointer-events: none;
-            z-index: 999;
-        }
-
-        .group-connection-line svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .group-connection-line path {
-            stroke: #8b4a4a;
-            stroke-width: 2px;
-            fill: none;
-            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
-        }
-
-        /* 그룹화 중 표시 */
-        .sticky-note.grouping {
-            box-shadow: 0 0 0 3px #8b4a4a, 4px 4px 16px rgba(0,0,0,0.15);
-        }
-
-        .sticky-note.group-target {
+        /* 그룹화 중 표시 (80% 이상 겹침) */
+        .sticky-note.overlap-target {
             box-shadow: 0 0 0 3px #4a8b5e, 4px 4px 16px rgba(0,0,0,0.15);
         }
     </style>
@@ -1773,11 +1722,6 @@
                 const noteEl = createNoteElement(note);
                 notesContainer.appendChild(noteEl);
             });
-
-            // 연결선 다시 그리기
-            setTimeout(() => {
-                redrawAllConnections();
-            }, 100);
         }
 
         function createNoteElement(note) {
@@ -1816,7 +1760,7 @@
                         <button class="format-btn checkbox-btn" title="체크박스" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 14px;">☐</button>
                     </div>
                     <div class="note-content">
-                        <div class="note-editor" contenteditable="true" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'Nanum Pen Script', 'KoPub Dotum', cursive, sans-serif; font-size: 18px; line-height: 28px; color: #333; overflow-y: auto;">${note.content || ''}</div>
+                        <div class="note-editor" contenteditable="true" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto;">${note.content || ''}</div>
                     </div>
                     <div class="resize-handle"></div>
                 </div>
@@ -1939,58 +1883,6 @@
                 deleteNote(note.id);
             });
 
-            // 롱 프레스로 핀 표시 (1초)
-            let longPressTimer = null;
-            let startX = 0;
-            let startY = 0;
-
-            const startLongPress = (e) => {
-                // editor, 버튼, 입력 요소 클릭시 롱프레스 방지
-                if (e.target.closest('.note-editor') || e.target.tagName === 'BUTTON' ||
-                    e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle') ||
-                    e.target.classList.contains('format-btn') || e.target.closest('.note-toolbar')) {
-                    return;
-                }
-
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                startX = clientX;
-                startY = clientY;
-
-                longPressTimer = setTimeout(() => {
-                    console.log('롱 프레스 감지 - 핀 표시');
-                    addPinToNote(el);
-                    showToast('핀을 드래그하여 다른 메모와 연결하세요');
-                }, 1000);
-            };
-
-            const cancelLongPress = (e) => {
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
-            };
-
-            const checkLongPressMove = (e) => {
-                if (!longPressTimer) return;
-
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-                // 움직임이 크면 롱프레스 취소
-                const distance = Math.sqrt(Math.pow(clientX - startX, 2) + Math.pow(clientY - startY, 2));
-                if (distance > 10) {
-                    cancelLongPress();
-                }
-            };
-
-            el.addEventListener('mousedown', startLongPress);
-            el.addEventListener('touchstart', startLongPress);
-            el.addEventListener('mouseup', cancelLongPress);
-            el.addEventListener('touchend', cancelLongPress);
-            el.addEventListener('mousemove', checkLongPressMove);
-            el.addEventListener('touchmove', checkLongPressMove);
-
             // 드래그
             el.addEventListener('mousedown', handleDragStart);
             el.addEventListener('touchstart', handleDragStart, { passive: false });
@@ -2064,6 +1956,56 @@
 
             draggedNote.style.left = `${Math.max(0, x)}px`;
             draggedNote.style.top = `${Math.max(0, y)}px`;
+
+            // 다른 노트들과 겹침 체크
+            checkOverlapWithOtherNotes(draggedNote);
+        }
+
+        // 80% 이상 겹침 체크
+        function checkOverlapWithOtherNotes(draggedEl) {
+            const draggedRect = draggedEl.getBoundingClientRect();
+            const draggedArea = draggedRect.width * draggedRect.height;
+
+            let maxOverlapNote = null;
+            let maxOverlapPercent = 0;
+
+            // 모든 노트 확인
+            document.querySelectorAll('.sticky-note').forEach(noteEl => {
+                if (noteEl === draggedEl) return;
+
+                noteEl.classList.remove('overlap-target');
+
+                const noteRect = noteEl.getBoundingClientRect();
+
+                // 교차 영역 계산
+                const overlapLeft = Math.max(draggedRect.left, noteRect.left);
+                const overlapRight = Math.min(draggedRect.right, noteRect.right);
+                const overlapTop = Math.max(draggedRect.top, noteRect.top);
+                const overlapBottom = Math.min(draggedRect.bottom, noteRect.bottom);
+
+                // 겹치는 영역이 있는지 확인
+                if (overlapLeft < overlapRight && overlapTop < overlapBottom) {
+                    const overlapWidth = overlapRight - overlapLeft;
+                    const overlapHeight = overlapBottom - overlapTop;
+                    const overlapArea = overlapWidth * overlapHeight;
+
+                    // 드래그 중인 노트 면적 대비 겹침 비율
+                    const overlapPercent = (overlapArea / draggedArea) * 100;
+
+                    if (overlapPercent > maxOverlapPercent) {
+                        maxOverlapPercent = overlapPercent;
+                        maxOverlapNote = noteEl;
+                    }
+                }
+            });
+
+            // 80% 이상 겹치면 하이라이트
+            if (maxOverlapPercent >= 80 && maxOverlapNote) {
+                maxOverlapNote.classList.add('overlap-target');
+                return maxOverlapNote;
+            }
+
+            return null;
         }
 
         function handleDragEnd(e) {
@@ -2071,11 +2013,25 @@
 
             draggedNote.classList.remove('dragging');
 
+            // 80% 이상 겹치는 노트 찾기
+            const overlappedNote = checkOverlapWithOtherNotes(draggedNote);
+
+            // 모든 overlap-target 클래스 제거
+            document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('overlap-target'));
+
             const noteId = draggedNote.dataset.id;
             const x = parseInt(draggedNote.style.left);
             const y = parseInt(draggedNote.style.top);
 
             updateNote(noteId, { position_x: x, position_y: y });
+
+            // 겹친 노트가 있으면 그룹 생성 제안
+            if (overlappedNote) {
+                const overlappedId = overlappedNote.dataset.id;
+                setTimeout(() => {
+                    suggestGroupCreation(noteId, overlappedId);
+                }, 100);
+            }
 
             draggedNote = null;
 
@@ -2301,23 +2257,10 @@
         // 그루핑 기능
         // ============================================
         let noteGroups = []; // { id, name, noteIds: [] }
-        let groupConnections = []; // { from: noteId, to: noteId, groupId }
-        let activePin = null;
-        let isDraggingPin = false;
-        let tempConnectionLine = null;
-        let connectionSvg = null;
-        let longPressTimer = null;
-        let longPressTarget = null;
 
         // 그룹 패널 초기화
         function initGrouping() {
             console.log('그루핑 기능 초기화');
-
-            // SVG 레이어 생성 (연결선 표시용)
-            connectionSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            connectionSvg.classList.add('group-connection-line');
-            connectionSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:500;';
-            notesContainer.appendChild(connectionSvg);
 
             // 그룹 패널 토글 버튼
             const groupToggleBtn = document.getElementById('groupsToggleBtn');
@@ -2350,229 +2293,56 @@
             loadGroupsFromStorage();
         }
 
-        // 노트에 핀 추가 (1초 롱 프레스)
-        function addPinToNote(noteEl) {
-            // 기존 핀 제거
-            const existingPin = noteEl.querySelector('.note-pin');
-            if (existingPin) return;
-
-            const pin = document.createElement('div');
-            pin.className = 'note-pin';
-            pin.innerHTML = '<img src="assets/pin.png" alt="핀">';
-
-            const notePaper = noteEl.querySelector('.note-paper');
-            notePaper.appendChild(pin);
-
-            // 핀 드래그 이벤트
-            pin.addEventListener('mousedown', (e) => handlePinDragStart(e, noteEl));
-            pin.addEventListener('touchstart', (e) => handlePinDragStart(e, noteEl), { passive: false });
-
-            noteEl.classList.add('show-pin');
-        }
-
-        // 핀 드래그 시작
-        function handlePinDragStart(e, noteEl) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            console.log('핀 드래그 시작:', noteEl.dataset.id);
-            isDraggingPin = true;
-            activePin = noteEl;
-            noteEl.classList.add('grouping');
-
-            document.addEventListener('mousemove', handlePinDrag);
-            document.addEventListener('mouseup', handlePinDragEnd);
-            document.addEventListener('touchmove', handlePinDrag, { passive: false });
-            document.addEventListener('touchend', handlePinDragEnd);
-        }
-
-        // 핀 드래그 중
-        function handlePinDrag(e) {
-            if (!isDraggingPin || !activePin) return;
-            e.preventDefault();
-
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-            // 임시 연결선 그리기
-            drawTempLine(activePin, clientX, clientY);
-
-            // 드래그 중인 위치의 노트 찾기
-            const targetNote = document.elementFromPoint(clientX, clientY)?.closest('.sticky-note');
-            document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('group-target'));
-            if (targetNote && targetNote !== activePin) {
-                targetNote.classList.add('group-target');
-            }
-        }
-
-        // 핀 드래그 종료
-        function handlePinDragEnd(e) {
-            if (!isDraggingPin) return;
-
-            const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-            const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-
-            // 놓은 위치의 노트 찾기
-            const targetNote = document.elementFromPoint(clientX, clientY)?.closest('.sticky-note');
-
-            if (targetNote && targetNote !== activePin) {
-                connectNotes(activePin.dataset.id, targetNote.dataset.id);
-            }
-
-            // 임시 선 제거
-            if (tempConnectionLine) {
-                tempConnectionLine.remove();
-                tempConnectionLine = null;
-            }
-
-            // 클래스 정리
-            document.querySelectorAll('.sticky-note').forEach(n => {
-                n.classList.remove('grouping', 'group-target');
-            });
-
-            isDraggingPin = false;
-            activePin = null;
-
-            document.removeEventListener('mousemove', handlePinDrag);
-            document.removeEventListener('mouseup', handlePinDragEnd);
-            document.removeEventListener('touchmove', handlePinDrag);
-            document.removeEventListener('touchend', handlePinDragEnd);
-        }
-
-        // 임시 연결선 그리기
-        function drawTempLine(fromNote, toX, toY) {
-            if (!connectionSvg) return;
-
-            const fromRect = fromNote.getBoundingClientRect();
-            const fromCenterX = fromRect.left + fromRect.width / 2;
-            const fromCenterY = fromRect.top + fromRect.height / 2;
-
-            if (!tempConnectionLine) {
-                tempConnectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                tempConnectionLine.setAttribute('class', 'connection-line temp');
-                tempConnectionLine.setAttribute('stroke', '#8b4a4a');
-                tempConnectionLine.setAttribute('stroke-width', '2');
-                tempConnectionLine.setAttribute('fill', 'none');
-                connectionSvg.appendChild(tempConnectionLine);
-            }
-
-            const d = `M ${fromCenterX} ${fromCenterY} L ${toX} ${toY}`;
-            tempConnectionLine.setAttribute('d', d);
-        }
-
-        // 두 노트 연결
-        function connectNotes(fromId, toId) {
-            const fromNote = document.querySelector(`.sticky-note[data-id="${fromId}"]`);
-            const toNote = document.querySelector(`.sticky-note[data-id="${toId}"]`);
-
-            if (!fromNote || !toNote) return;
-
-            console.log('노트 연결:', fromId, '->', toId);
-
-            // 이미 연결되어 있는지 확인
-            const existingConnection = groupConnections.find(c =>
-                (c.from === fromId && c.to === toId) || (c.from === toId && c.to === fromId)
+        // 그룹 생성 제안 (80% 이상 겹쳤을 때)
+        function suggestGroupCreation(fromId, toId) {
+            // 이미 같은 그룹에 속해있는지 확인
+            const existingGroup = noteGroups.find(g =>
+                g.noteIds.includes(fromId) && g.noteIds.includes(toId)
             );
 
-            if (existingConnection) {
-                showToast('이미 연결된 노트입니다');
+            if (existingGroup) {
+                showToast('이미 같은 그룹에 속해 있습니다');
                 return;
             }
 
-            // 자기 자신과 연결 방지
-            if (fromId === toId) {
-                showToast('같은 노트는 연결할 수 없습니다');
-                return;
-            }
+            // 두 노트 중 하나라도 기존 그룹에 속해있는지 확인
+            const fromGroup = noteGroups.find(g => g.noteIds.includes(fromId));
+            const toGroup = noteGroups.find(g => g.noteIds.includes(toId));
 
-            // 연결 추가
-            groupConnections.push({ from: fromId, to: toId, groupId: null });
-
-            // 연결선 그리기
-            drawConnection(fromNote, toNote);
-
-            // 그룹 생성 제안
-            suggestGroupCreation(fromId, toId);
-
-            saveGroupsToStorage();
-        }
-
-        // 연결선 그리기
-        function drawConnection(fromNote, toNote) {
-            if (!connectionSvg) return;
-
-            const fromRect = fromNote.getBoundingClientRect();
-            const toRect = toNote.getBoundingClientRect();
-
-            const fromX = fromRect.left + fromRect.width / 2;
-            const fromY = fromRect.top + fromRect.height / 2;
-            const toX = toRect.left + toRect.width / 2;
-            const toY = toRect.top + toRect.height / 2;
-
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('class', 'connection-line');
-            path.setAttribute('d', `M ${fromX} ${fromY} L ${toX} ${toY}`);
-            path.dataset.from = fromNote.dataset.id;
-            path.dataset.to = toNote.dataset.id;
-
-            connectionSvg.appendChild(path);
-        }
-
-        // 모든 연결선 다시 그리기
-        function redrawAllConnections() {
-            if (!connectionSvg) return;
-
-            // 기존 연결선 제거
-            connectionSvg.querySelectorAll('.connection-line').forEach(line => line.remove());
-
-            // 연결선 다시 그리기
-            groupConnections.forEach(conn => {
-                const fromNote = document.querySelector(`.sticky-note[data-id="${conn.from}"]`);
-                const toNote = document.querySelector(`.sticky-note[data-id="${conn.to}"]`);
-                if (fromNote && toNote) {
-                    drawConnection(fromNote, toNote);
+            if (fromGroup && toGroup && fromGroup.id !== toGroup.id) {
+                // 두 그룹 병합
+                if (confirm(`"${fromGroup.name}"과 "${toGroup.name}" 그룹을 병합하시겠습니까?`)) {
+                    fromGroup.noteIds.push(...toGroup.noteIds);
+                    noteGroups = noteGroups.filter(g => g.id !== toGroup.id);
+                    saveGroupsToStorage();
+                    renderGroupList();
+                    showToast('그룹이 병합되었습니다');
                 }
-            });
-        }
-
-        // 그룹 생성 제안
-        function suggestGroupCreation(fromId, toId) {
-            // 연결된 노트들 찾기
-            const connectedNotes = findConnectedNotes(fromId);
-
-            if (connectedNotes.length >= 2) {
-                const createGroup = confirm(`${connectedNotes.length}개의 노트가 연결되었습니다.\n그룹으로 만드시겠습니까?`);
-
-                if (createGroup) {
+            } else if (fromGroup) {
+                // fromGroup에 toId 추가
+                if (confirm(`"${toGroup.name}" 그룹에 메모를 추가하시겠습니까?`)) {
+                    fromGroup.noteIds.push(toId);
+                    saveGroupsToStorage();
+                    renderGroupList();
+                    showToast('메모가 그룹에 추가되었습니다');
+                }
+            } else if (toGroup) {
+                // toGroup에 fromId 추가
+                if (confirm(`"${toGroup.name}" 그룹에 메모를 추가하시겠습니까?`)) {
+                    toGroup.noteIds.push(fromId);
+                    saveGroupsToStorage();
+                    renderGroupList();
+                    showToast('메모가 그룹에 추가되었습니다');
+                }
+            } else {
+                // 새 그룹 생성
+                if (confirm('2개의 메모를 그룹으로 만드시겠습니까?')) {
                     const groupName = prompt('그룹 이름을 입력하세요:', '새 그룹');
                     if (groupName) {
-                        createGroupFromNotes(groupName, connectedNotes);
+                        createGroupFromNotes(groupName, [fromId, toId]);
                     }
                 }
             }
-        }
-
-        // 연결된 모든 노트 찾기 (BFS)
-        function findConnectedNotes(startId) {
-            const visited = new Set();
-            const queue = [startId];
-
-            while (queue.length > 0) {
-                const currentId = queue.shift();
-                visited.add(currentId);
-
-                // 이 노트와 연결된 다른 노트들 찾기
-                groupConnections.forEach(conn => {
-                    if (conn.from === currentId && !visited.has(conn.to)) {
-                        queue.push(conn.to);
-                    }
-                    if (conn.to === currentId && !visited.has(conn.from)) {
-                        queue.push(conn.from);
-                    }
-                });
-            }
-
-            return Array.from(visited);
         }
 
         // 노트들로 그룹 생성
@@ -2586,13 +2356,6 @@
             };
 
             noteGroups.push(newGroup);
-
-            // 연결들에 그룹 ID 할당
-            groupConnections.forEach(conn => {
-                if (noteIds.includes(conn.from) && noteIds.includes(conn.to)) {
-                    conn.groupId = groupId;
-                }
-            });
 
             console.log('그룹 생성됨:', newGroup);
             showToast(`"${name}" 그룹이 생성되었습니다`);
@@ -2695,7 +2458,6 @@
         // 로컬스토리지에 그룹 데이터 저장
         function saveGroupsToStorage() {
             localStorage.setItem('sticky_notes_groups', JSON.stringify(noteGroups));
-            localStorage.setItem('sticky_notes_connections', JSON.stringify(groupConnections));
         }
 
         // 로컬스토리지에서 그룹 데이터 로드
@@ -2704,7 +2466,6 @@
                 const savedGroups = localStorage.getItem('sticky_notes_groups');
                 const savedConnections = localStorage.getItem('sticky_notes_connections');
 
-                if (savedGroups) {
                     noteGroups = JSON.parse(savedGroups);
                 }
                 if (savedConnections) {
@@ -2853,8 +2614,7 @@
                     height: n.height,
                     created_at: n.created_at
                 })),
-                groups: noteGroups,
-                connections: groupConnections
+                groups: noteGroups
             };
 
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -2918,10 +2678,6 @@
                         saveGroupsToStorage();
                     }
 
-                    if (data.connections) {
-                        groupConnections.push(...data.connections);
-                        saveGroupsToStorage();
-                    }
 
                     if (isGuest) {
                         saveGuestNotes();
@@ -2944,8 +2700,8 @@
                 userMenu.classList.remove('show');
                 alert('스티키 노트 사용법\n\n' +
                       '1. + 버튼으로 새 메모 추가\n' +
-                      '2. 메모를 1초간 길게 눌러 핀 표시\n' +
-                      '3. 핀을 드래그하여 다른 메모와 연결\n' +
+                      '2. 메모를 드래그하여 이동\n' +
+                      '3. 메모를 다른 메모 위에 80% 이상 겹치면 그룹 생성\n' +
                       '4. 그룹 버튼(📁)으로 그룹 관리\n' +
                       '5. 메모를 드래그하여 이동\n' +
                       '6. 우측 하단 핸들로 크기 조절');
@@ -2957,4 +2713,4 @@
     </script>
 </body>
 </html>
-<!-- Cache bust: 1768303891 -->
+<!-- Cache bust: 1768293737 -->
