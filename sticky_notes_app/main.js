@@ -2,6 +2,25 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, globalShor
 const path = require('path');
 const fs = require('fs');
 
+// 단일 인스턴스 잠금 - 중복 실행 방지
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    // 이미 다른 인스턴스가 실행 중이면 종료
+    console.log('이미 실행 중인 인스턴스가 있습니다. 종료합니다.');
+    app.quit();
+} else {
+    // 다른 인스턴스가 실행되려 하면 기존 창을 포커스
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        console.log('두 번째 인스턴스 감지 - 기존 창 포커스');
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
 // 앱 데이터 경로
 const userDataPath = app.getPath('userData');
 const credentialsPath = path.join(userDataPath, 'credentials.json');
