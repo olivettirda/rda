@@ -851,6 +851,111 @@
             border-bottom: 2px solid rgba(0,0,0,0.4);
         }
 
+        /* 모바일 썸네일 뷰 */
+        .notes-container.thumbnail-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 16px;
+            padding: 72px 16px 16px 16px;
+            position: static;
+        }
+
+        .notes-container.thumbnail-view .sticky-note {
+            position: static !important;
+            width: 100% !important;
+            min-height: 160px !important;
+            transform: none !important;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .notes-container.thumbnail-view .sticky-note:hover {
+            transform: translateY(-4px) !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-paper {
+            min-height: 160px !important;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-editor {
+            font-size: 12px !important;
+            line-height: 1.4 !important;
+            max-height: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-date {
+            font-size: 9px !important;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .resize-handle {
+            display: none;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-actions {
+            opacity: 1 !important;
+        }
+
+        /* 확대된 메모 (모바일) */
+        .sticky-note.expanded {
+            position: fixed !important;
+            top: 56px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            height: calc(100vh - 56px) !important;
+            z-index: 9999 !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        .sticky-note.expanded .note-paper {
+            width: 100%;
+            height: 100%;
+            min-height: 100% !important;
+            border-radius: 0;
+        }
+
+        .sticky-note.expanded .note-editor {
+            min-height: calc(100vh - 200px) !important;
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+            max-height: none !important;
+            overflow-y: auto !important;
+            pointer-events: auto !important;
+        }
+
+        .sticky-note.expanded .resize-handle {
+            display: none;
+        }
+
+        /* 뒤로가기 버튼 (확대 모드) */
+        .back-btn {
+            display: none;
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .back-btn.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         /* 반응형 */
         @media (max-width: 768px) {
             .sticky-note {
@@ -1324,6 +1429,9 @@
             </button>
         </div>
 
+        <!-- 뒤로가기 버튼 (모바일 확대 모드) -->
+        <button id="backBtn" class="back-btn">←</button>
+
         <!-- 노트 보드 -->
         <div class="board">
             <div id="notesContainer" class="notes-container">
@@ -1428,6 +1536,35 @@
                         <p id="syncInfo" style="font-size: 14px; color: #666; margin-bottom: 8px;">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
                         <p style="font-size: 12px; color: #999;">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
                     </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px;">📝 폰트 설정</h3>
+                        <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">기본 폰트</label>
+                        <select id="fontSelect" class="form-input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                            <option value="KoPub Dotum, Malgun Gothic, sans-serif">KoPub Dotum (기본)</option>
+                            <option value="Nanum Gothic, sans-serif">나눔고딕</option>
+                            <option value="Nanum Barun Gothic, sans-serif">나눔바른고딕</option>
+                            <option value="Nanum Myeongjo, serif">나눔명조</option>
+                            <option value="Noto Sans KR, sans-serif">Noto Sans KR</option>
+                            <option value="Malgun Gothic, sans-serif">맑은 고딕</option>
+                            <option value="Batang, serif">바탕</option>
+                            <option value="Dotum, sans-serif">돋움</option>
+                            <option value="Gulim, sans-serif">굴림</option>
+                            <option value="Gungsuh, serif">궁서</option>
+                            <option value="Arial, sans-serif">Arial</option>
+                            <option value="Times New Roman, serif">Times New Roman</option>
+                            <option value="Courier New, monospace">Courier New</option>
+                            <option value="Georgia, serif">Georgia</option>
+                            <option value="Verdana, sans-serif">Verdana</option>
+                            <option value="Comic Sans MS, cursive">Comic Sans MS</option>
+                        </select>
+                        <div style="margin-top: 12px;">
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">직접 입력</label>
+                            <input type="text" id="customFontInput" class="form-input" placeholder="폰트 이름 입력 (예: 나눔손글씨)" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                            <button id="applyCustomFont" class="login-btn" style="margin-top: 8px; width: 100%;">사용자 지정 폰트 적용</button>
+                        </div>
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">기기에 설치된 폰트만 사용 가능합니다.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1483,6 +1620,9 @@
         let draggedNote = null;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
+        let currentFont = localStorage.getItem('sticky_notes_font') || 'KoPub Dotum, Malgun Gothic, sans-serif';
+        let isMobileThumbnailView = false; // 모바일 썸네일 뷰 상태
+        let expandedNote = null; // 현재 확대된 메모
 
         // ============================================
         // DOM 요소
@@ -1510,6 +1650,7 @@
         const notesContainer = document.getElementById('notesContainer');
         const emptyState = document.getElementById('emptyState');
         const fabAdd = document.getElementById('fabAdd');
+        const backBtn = document.getElementById('backBtn');
         const userAvatar = document.getElementById('userAvatar');
         const userMenu = document.getElementById('userMenu');
         const autoLoginCheckbox = document.getElementById('autoLoginCheckbox');
@@ -1933,15 +2074,95 @@
             }
         }
 
+        // 현재 화면(viewport) 내에서 빈 공간 찾기
+        function findEmptySpaceInViewport() {
+            // 현재 viewport 영역 계산
+            const viewportX = window.scrollX || window.pageXOffset || 0;
+            const viewportY = window.scrollY || window.pageYOffset || 0;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            const noteWidth = 220;
+            const noteHeight = 220;
+            const gridSize = 50; // 50px 간격으로 그리드 체크
+            const padding = 20; // 화면 가장자리 여백
+
+            console.log('[빈 공간 찾기] viewport:', { viewportX, viewportY, viewportWidth, viewportHeight });
+
+            // viewport 내에서 가능한 모든 위치 생성
+            const candidates = [];
+            for (let x = viewportX + padding; x < viewportX + viewportWidth - noteWidth - padding; x += gridSize) {
+                for (let y = viewportY + 64; y < viewportY + viewportHeight - noteHeight - padding; y += gridSize) {
+                    candidates.push({ x: Math.round(x), y: Math.round(y) });
+                }
+            }
+
+            // 기존 메모들과 겹치지 않는 위치 찾기
+            let bestPosition = null;
+            let minOverlap = Infinity;
+
+            for (const candidate of candidates) {
+                let overlapCount = 0;
+
+                // 각 기존 메모와 겹침 여부 확인
+                for (const note of notes) {
+                    const noteX = note.position_x;
+                    const noteY = note.position_y;
+                    const noteW = note.width || 220;
+                    const noteH = note.height || 220;
+
+                    // AABB 충돌 감지
+                    const overlapX = candidate.x < noteX + noteW && candidate.x + noteWidth > noteX;
+                    const overlapY = candidate.y < noteY + noteH && candidate.y + noteHeight > noteY;
+
+                    if (overlapX && overlapY) {
+                        overlapCount++;
+                    }
+                }
+
+                // 겹침이 없는 첫 번째 위치 발견
+                if (overlapCount === 0) {
+                    console.log('[빈 공간 찾기] 완전히 빈 공간 발견:', candidate);
+                    return candidate;
+                }
+
+                // 가장 적게 겹치는 위치 기억
+                if (overlapCount < minOverlap) {
+                    minOverlap = overlapCount;
+                    bestPosition = candidate;
+                }
+            }
+
+            // 완전히 빈 공간이 없으면 가장 적게 겹치는 위치 반환
+            if (bestPosition) {
+                console.log('[빈 공간 찾기] 가장 적게 겹치는 위치:', bestPosition, '겹침 개수:', minOverlap);
+                return bestPosition;
+            }
+
+            // 후보가 없으면 viewport 왼쪽 위 (기본값)
+            console.log('[빈 공간 찾기] 후보 없음, 기본 위치 사용');
+            return { x: viewportX + padding, y: viewportY + 64 };
+        }
+
         async function createNote() {
             console.log('새 노트 생성');
+
+            // 모바일 환경 감지
+            const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+
+            // 빈 공간 찾기 (viewport 내에서)
+            const emptySpace = findEmptySpaceInViewport();
+            const position_x = emptySpace.x;
+            const position_y = emptySpace.y;
+
+            console.log('[메모 생성] 위치:', { isMobile, position_x, position_y });
 
             const newNote = {
                 id: isGuest ? Date.now().toString() : undefined,
                 content: '',
                 color: 'yellow',
-                position_x: Math.random() * (window.innerWidth - 250) + 20,
-                position_y: Math.random() * (window.innerHeight - 300) + 80,
+                position_x: position_x,
+                position_y: position_y,
                 width: 220,
                 height: 220,
                 created_at: new Date().toISOString(),
@@ -1952,7 +2173,18 @@
                 notes.unshift(newNote);
                 saveGuestNotes();
                 renderNotes();
-                focusNote(newNote.id);
+
+                // 새 메모를 맨 위로
+                setTimeout(() => {
+                    const noteEl = document.querySelector(`.sticky-note[data-id="${newNote.id}"]`);
+                    if (noteEl) {
+                        bringToFront(noteEl);
+                        const editor = noteEl.querySelector('.note-editor');
+                        if (editor) {
+                            editor.focus();
+                        }
+                    }
+                }, 100);
             } else {
                 setSyncStatus('syncing');
 
@@ -1979,7 +2211,19 @@
                     console.log('노트 생성 성공:', data);
                     notes.unshift(data);
                     renderNotes();
-                    focusNote(data.id);
+
+                    // 새 메모를 맨 위로
+                    setTimeout(() => {
+                        const noteEl = document.querySelector(`.sticky-note[data-id="${data.id}"]`);
+                        if (noteEl) {
+                            bringToFront(noteEl);
+                            const editor = noteEl.querySelector('.note-editor');
+                            if (editor) {
+                                editor.focus();
+                            }
+                        }
+                    }, 100);
+
                     setSyncStatus('synced');
                 } catch (error) {
                     console.error('노트 생성 실패:', error);
@@ -2079,14 +2323,37 @@
             // 빈 상태 표시
             if (notes.length === 0) {
                 emptyState.classList.remove('hidden');
+                notesContainer.classList.remove('thumbnail-view');
+                isMobileThumbnailView = false;
             } else {
                 emptyState.classList.add('hidden');
+
+                // 모바일 환경에서는 썸네일 뷰로 표시 (확대 모드가 아닐 때만)
+                const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+                if (isMobile && !expandedNote) {
+                    notesContainer.classList.add('thumbnail-view');
+                    isMobileThumbnailView = true;
+                    console.log('[모바일] 썸네일 뷰 활성화');
+                } else {
+                    notesContainer.classList.remove('thumbnail-view');
+                    isMobileThumbnailView = false;
+                }
             }
 
             // 노트 렌더링
             notes.forEach(note => {
                 const noteEl = createNoteElement(note);
                 notesContainer.appendChild(noteEl);
+
+                // 썸네일 뷰에서 메모 클릭 시 확대
+                if (isMobileThumbnailView) {
+                    noteEl.addEventListener('click', (e) => {
+                        // 버튼 클릭이 아닐 때만
+                        if (!e.target.closest('button') && !e.target.closest('.color-picker')) {
+                            expandNote(noteEl, note);
+                        }
+                    });
+                }
             });
         }
 
@@ -2127,7 +2394,7 @@
                         </div>
                     </div>
                     <div class="note-content">
-                        <div class="note-editor" contenteditable="false" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto; caret-color: #017f97; cursor: text;">${note.content || ''}</div>
+                        <div class="note-editor" contenteditable="false" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: ${currentFont || 'KoPub Dotum, Malgun Gothic, sans-serif'}; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto; caret-color: #017f97; cursor: text;">${note.content || ''}</div>
                     </div>
                     <span class="note-date">${dateStr}</span>
                     <div class="resize-handle"></div>
@@ -2169,6 +2436,48 @@
                 e.stopPropagation();
                 const isEditing = el.classList.contains('editing');
                 setEditMode(!isEditing);
+            });
+
+            // 모바일: 에디터 영역 터치로 편집 모드 활성화
+            let touchStartTime = 0;
+            let touchStartX = 0;
+            let touchStartY = 0;
+
+            editor.addEventListener('touchstart', (e) => {
+                touchStartTime = Date.now();
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+
+            editor.addEventListener('touchend', (e) => {
+                const touchEndTime = Date.now();
+                const touchDuration = touchEndTime - touchStartTime;
+
+                // 터치가 300ms 이하이고, 위치 변화가 10px 이하인 경우 (드래그가 아닌 탭)
+                if (touchDuration < 300 && e.changedTouches.length > 0) {
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    const distance = Math.sqrt(
+                        Math.pow(touchEndX - touchStartX, 2) +
+                        Math.pow(touchEndY - touchStartY, 2)
+                    );
+
+                    if (distance < 10) {
+                        // 드래그가 아닌 단순 탭으로 판단
+                        if (!el.classList.contains('editing')) {
+                            console.log('[모바일] 에디터 탭으로 편집 모드 활성화:', note.id);
+                            setEditMode(true);
+                        }
+                    }
+                }
+            });
+
+            // PC: 에디터 영역 클릭으로 편집 모드 활성화
+            editor.addEventListener('click', (e) => {
+                if (!el.classList.contains('editing') && !e.target.closest('button')) {
+                    console.log('[PC] 에디터 클릭으로 편집 모드 활성화:', note.id);
+                    setEditMode(true);
+                }
             });
 
             // 텍스트 선택 시 플로팅 툴바 자동 표시
@@ -3251,6 +3560,68 @@
             showToast('엑셀 파일이 다운로드되었습니다');
         });
 
+        // ============================================
+        // 폰트 설정
+        // ============================================
+        // 앱 시작 시 저장된 폰트 적용
+        function applyFont(fontFamily) {
+            console.log('[폰트] 적용:', fontFamily);
+            currentFont = fontFamily;
+            localStorage.setItem('sticky_notes_font', fontFamily);
+
+            // 모든 노트 에디터에 폰트 적용
+            document.querySelectorAll('.note-editor').forEach(editor => {
+                editor.style.fontFamily = fontFamily;
+            });
+
+            showToast('폰트가 적용되었습니다');
+        }
+
+        // 폰트 선택 드롭다운
+        const fontSelect = document.getElementById('fontSelect');
+        if (fontSelect) {
+            // 저장된 폰트를 선택 상태로 설정
+            fontSelect.value = currentFont;
+
+            fontSelect.addEventListener('change', (e) => {
+                const selectedFont = e.target.value;
+                console.log('[폰트] 드롭다운 선택:', selectedFont);
+                applyFont(selectedFont);
+            });
+        }
+
+        // 사용자 지정 폰트 입력
+        const customFontInput = document.getElementById('customFontInput');
+        const applyCustomFontBtn = document.getElementById('applyCustomFont');
+        if (applyCustomFontBtn) {
+            applyCustomFontBtn.addEventListener('click', () => {
+                const customFont = customFontInput.value.trim();
+                if (!customFont) {
+                    alert('폰트 이름을 입력하세요.');
+                    return;
+                }
+
+                console.log('[폰트] 사용자 지정:', customFont);
+                const fontFamily = `${customFont}, sans-serif`;
+                applyFont(fontFamily);
+
+                // 드롭다운에 사용자 지정 옵션이 없으면 추가
+                if (![...fontSelect.options].some(opt => opt.value === fontFamily)) {
+                    const option = document.createElement('option');
+                    option.value = fontFamily;
+                    option.text = `${customFont} (사용자 지정)`;
+                    fontSelect.add(option);
+                }
+                fontSelect.value = fontFamily;
+                customFontInput.value = '';
+            });
+        }
+
+        // 앱 시작 시 저장된 폰트 적용
+        setTimeout(() => {
+            applyFont(currentFont);
+        }, 500);
+
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
@@ -3437,7 +3808,7 @@
                         content: transferNoteData.content,
                         color: transferNoteData.color,
                         position_x: Math.random() * 200 + 50,
-                        position_y: Math.random() * 150 + 50,
+                        position_y: Math.random() * 150 + 64,
                         width: 220,
                         height: 220
                     })
@@ -3497,6 +3868,68 @@
                 }
             });
         })();
+
+        // ============================================
+        // 모바일 썸네일 뷰 - 메모 확대/축소
+        // ============================================
+        function expandNote(noteEl, note) {
+            console.log('[모바일] 메모 확대:', note.id);
+
+            // 다른 확대된 메모가 있으면 축소
+            if (expandedNote) {
+                expandedNote.classList.remove('expanded');
+            }
+
+            // 현재 메모 확대
+            noteEl.classList.add('expanded');
+            expandedNote = noteEl;
+
+            // 썸네일 뷰 비활성화
+            notesContainer.classList.remove('thumbnail-view');
+            isMobileThumbnailView = false;
+
+            // 뒤로가기 버튼 표시
+            backBtn.classList.add('show');
+
+            // 확대 모드에서는 편집 모드 자동 활성화
+            const editor = noteEl.querySelector('.note-editor');
+            if (editor && !noteEl.classList.contains('editing')) {
+                editor.contentEditable = 'true';
+                noteEl.classList.add('editing');
+                setTimeout(() => {
+                    editor.focus();
+                }, 100);
+            }
+        }
+
+        function collapseNote() {
+            console.log('[모바일] 썸네일 뷰로 복귀');
+
+            if (expandedNote) {
+                // 편집 모드 비활성화
+                expandedNote.classList.remove('editing');
+                const editor = expandedNote.querySelector('.note-editor');
+                if (editor) {
+                    editor.contentEditable = 'false';
+                    editor.blur();
+                }
+
+                // 확대 클래스 제거
+                expandedNote.classList.remove('expanded');
+                expandedNote = null;
+            }
+
+            // 뒤로가기 버튼 숨김
+            backBtn.classList.remove('show');
+
+            // 썸네일 뷰로 다시 렌더링
+            renderNotes();
+        }
+
+        // 뒤로가기 버튼 이벤트
+        if (backBtn) {
+            backBtn.addEventListener('click', collapseNote);
+        }
 
         // 초기화
         init();
