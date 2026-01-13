@@ -827,6 +827,51 @@
             display: none !important;
         }
 
+        /* 모달 오버레이 */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            max-width: 90%;
+            width: 480px;
+            max-height: 90vh;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .profile-tab.active {
+            color: #017f97 !important;
+            border-bottom-color: #017f97 !important;
+        }
+
+        .profile-tab:hover {
+            background: rgba(1, 127, 151, 0.05);
+        }
+
         /* 그룹 패널 스타일 */
         .groups-panel {
             position: fixed;
@@ -902,59 +947,8 @@
             color: #017f97;
         }
 
-        /* 핀 아이콘 */
-        .note-pin {
-            position: absolute;
-            top: 8px;
-            left: 8px;
-            width: 24px;
-            height: 24px;
-            cursor: grab;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 10;
-            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
-        }
-
-        .sticky-note.show-pin .note-pin {
-            opacity: 1;
-        }
-
-        .note-pin:active {
-            cursor: grabbing;
-        }
-
-        .note-pin img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        /* 그룹 연결선 */
-        .group-connection-line {
-            position: fixed;
-            pointer-events: none;
-            z-index: 999;
-        }
-
-        .group-connection-line svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .group-connection-line path {
-            stroke: #8b4a4a;
-            stroke-width: 2px;
-            fill: none;
-            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
-        }
-
-        /* 그룹화 중 표시 */
-        .sticky-note.grouping {
-            box-shadow: 0 0 0 3px #8b4a4a, 4px 4px 16px rgba(0,0,0,0.15);
-        }
-
-        .sticky-note.group-target {
+        /* 그룹화 중 표시 (80% 이상 겹침) */
+        .sticky-note.overlap-target {
             box-shadow: 0 0 0 3px #4a8b5e, 4px 4px 16px rgba(0,0,0,0.15);
         }
     </style>
@@ -1117,6 +1111,73 @@
     <!-- 토스트 -->
     <div class="toast-container">
         <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- 프로필 모달 -->
+    <div id="profileModal" class="modal-overlay">
+        <div class="modal" style="max-width: 480px;">
+            <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 1px solid #eee;">
+                <h2 class="modal-title" style="margin: 0; font-size: 20px; font-weight: 600;">👤 내 프로필</h2>
+                <button class="modal-close" id="profileModalClose" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button>
+            </div>
+            <!-- 탭 네비게이션 -->
+            <div class="profile-tabs" style="display: flex; border-bottom: 1px solid #eee;">
+                <button class="profile-tab active" data-tab="info" style="flex: 1; padding: 12px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; transition: all 0.2s;">나의 정보</button>
+                <button class="profile-tab" data-tab="settings" style="flex: 1; padding: 12px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; transition: all 0.2s;">설정</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; max-height: 500px; overflow-y: auto;">
+                <!-- 나의 정보 탭 -->
+                <div id="profileInfoTab" class="profile-tab-content active">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <div id="profileAvatarLarge" style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 32px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px;">U</div>
+                        <div id="profileUsername" style="font-size: 14px; color: #999;">@username</div>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">이름</label>
+                        <input type="text" id="profileNameInput" class="form-input" placeholder="이름">
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">소속</label>
+                        <input type="text" id="profileOrgInput" class="form-input" placeholder="소속 부서/기관">
+                    </div>
+                    <button class="login-btn" id="saveProfileBtn" style="margin-bottom: 16px;">저장</button>
+                    <div id="profileSaveAlert" class="form-error"></div>
+
+                    <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #eee;">
+                        <h3 style="font-size: 16px; margin-bottom: 16px;">비밀번호 변경</h3>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">새 비밀번호</label>
+                            <input type="password" id="newPassword" class="form-input" placeholder="새 비밀번호 입력">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">새 비밀번호 확인</label>
+                            <input type="password" id="confirmPassword" class="form-input" placeholder="새 비밀번호 다시 입력">
+                        </div>
+                        <button class="login-btn" id="changePasswordBtn">비밀번호 변경</button>
+                        <div id="passwordChangeAlert" class="form-error"></div>
+                    </div>
+                </div>
+
+                <!-- 설정 탭 -->
+                <div id="profileSettingsTab" class="profile-tab-content" style="display: none;">
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px;">데이터 백업</h3>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="login-btn" id="exportDataBtn" style="flex: 1; min-width: 100px;">📥 내보내기</button>
+                            <button class="login-btn" id="importDataBtn" style="flex: 1; min-width: 100px;">📤 불러오기</button>
+                            <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                        </div>
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">JSON 형식으로 모든 메모를 저장하고 불러올 수 있습니다</p>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 16px; margin-bottom: 12px;">동기화</h3>
+                        <p id="syncInfo" style="font-size: 14px; color: #666; margin-bottom: 8px;">로그인하면 모든 기기에서 노트가 자동으로 동기화됩니다.</p>
+                        <p style="font-size: 12px; color: #999;">Supabase 서버를 사용하여 안전하게 데이터를 저장합니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 로딩 -->
@@ -1677,11 +1738,6 @@
                 const noteEl = createNoteElement(note);
                 notesContainer.appendChild(noteEl);
             });
-
-            // 연결선 다시 그리기
-            setTimeout(() => {
-                redrawAllConnections();
-            }, 100);
         }
 
         function createNoteElement(note) {
@@ -1712,8 +1768,15 @@
                             <div class="color-option purple" data-color="purple"></div>
                         </div>
                     </div>
+                    <div class="note-toolbar" style="padding: 4px 8px; display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                        <button class="format-btn bold-btn" title="굵게 (Ctrl+B)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">B</button>
+                        <button class="format-btn italic-btn" title="기울임 (Ctrl+I)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-style: italic; font-size: 12px;">I</button>
+                        <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; text-decoration: underline; font-size: 12px;">U</button>
+                        <button class="format-btn bullet-btn" title="말머리 기호" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 16px;">•</button>
+                        <button class="format-btn checkbox-btn" title="체크박스" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 14px;">☐</button>
+                    </div>
                     <div class="note-content">
-                        <textarea class="note-textarea" placeholder="메모를 입력하세요...">${note.content || ''}</textarea>
+                        <div class="note-editor" contenteditable="true" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto;">${note.content || ''}</div>
                     </div>
                     <div class="resize-handle"></div>
                 </div>
@@ -1726,20 +1789,92 @@
         }
 
         function setupNoteEvents(el, note) {
-            const textarea = el.querySelector('.note-textarea');
+            const editor = el.querySelector('.note-editor');
             const colorBtn = el.querySelector('.color-btn');
             const colorPicker = el.querySelector('.color-picker');
             const deleteBtn = el.querySelector('.delete');
             const notePaper = el.querySelector('.note-paper');
             const resizeHandle = el.querySelector('.resize-handle');
+            const boldBtn = el.querySelector('.bold-btn');
+            const italicBtn = el.querySelector('.italic-btn');
+            const underlineBtn = el.querySelector('.underline-btn');
+            const bulletBtn = el.querySelector('.bullet-btn');
+            const checkboxBtn = el.querySelector('.checkbox-btn');
 
             // 내용 변경
             let saveTimeout;
-            textarea.addEventListener('input', () => {
+            editor.addEventListener('input', () => {
                 clearTimeout(saveTimeout);
                 saveTimeout = setTimeout(() => {
-                    updateNote(note.id, { content: textarea.value });
+                    updateNote(note.id, { content: editor.innerHTML });
                 }, 500);
+            });
+
+            // 서식 버튼들
+            boldBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('bold', false, null);
+                editor.focus();
+            });
+
+            italicBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('italic', false, null);
+                editor.focus();
+            });
+
+            underlineBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('underline', false, null);
+                editor.focus();
+            });
+
+            bulletBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.execCommand('insertUnorderedList', false, null);
+                editor.focus();
+            });
+
+            checkboxBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const checkbox = document.createElement('span');
+                checkbox.className = 'note-checkbox';
+                checkbox.textContent = '☐ ';
+                checkbox.style.cursor = 'pointer';
+                checkbox.onclick = function() {
+                    this.textContent = this.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                    updateNote(note.id, { content: editor.innerHTML });
+                };
+
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.insertNode(checkbox);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    editor.appendChild(checkbox);
+                }
+
+                updateNote(note.id, { content: editor.innerHTML });
+                editor.focus();
+            });
+
+            // 키보드 단축키
+            editor.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'b') {
+                        e.preventDefault();
+                        document.execCommand('bold', false, null);
+                    } else if (e.key === 'i') {
+                        e.preventDefault();
+                        document.execCommand('italic', false, null);
+                    } else if (e.key === 'u') {
+                        e.preventDefault();
+                        document.execCommand('underline', false, null);
+                    }
+                }
             });
 
             // 색상 변경
@@ -1763,57 +1898,6 @@
                 e.stopPropagation();
                 deleteNote(note.id);
             });
-
-            // 롱 프레스로 핀 표시 (1초)
-            let longPressTimer = null;
-            let startX = 0;
-            let startY = 0;
-
-            const startLongPress = (e) => {
-                // textarea나 버튼 클릭시 롱프레스 방지
-                if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' ||
-                    e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle')) {
-                    return;
-                }
-
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                startX = clientX;
-                startY = clientY;
-
-                longPressTimer = setTimeout(() => {
-                    console.log('롱 프레스 감지 - 핀 표시');
-                    addPinToNote(el);
-                    showToast('핀을 드래그하여 다른 메모와 연결하세요');
-                }, 1000);
-            };
-
-            const cancelLongPress = (e) => {
-                if (longPressTimer) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                }
-            };
-
-            const checkLongPressMove = (e) => {
-                if (!longPressTimer) return;
-
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-                // 움직임이 크면 롱프레스 취소
-                const distance = Math.sqrt(Math.pow(clientX - startX, 2) + Math.pow(clientY - startY, 2));
-                if (distance > 10) {
-                    cancelLongPress();
-                }
-            };
-
-            el.addEventListener('mousedown', startLongPress);
-            el.addEventListener('touchstart', startLongPress);
-            el.addEventListener('mouseup', cancelLongPress);
-            el.addEventListener('touchend', cancelLongPress);
-            el.addEventListener('mousemove', checkLongPressMove);
-            el.addEventListener('touchmove', checkLongPressMove);
 
             // 드래그
             el.addEventListener('mousedown', handleDragStart);
@@ -1850,9 +1934,10 @@
         // 드래그 & 드롭
         // ============================================
         function handleDragStart(e) {
-            // textarea나 버튼 클릭시 드래그 방지
-            if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' ||
-                e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle')) {
+            // editor, 버튼, 입력 요소 클릭시 드래그 방지
+            if (e.target.closest('.note-editor') || e.target.tagName === 'BUTTON' ||
+                e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle') ||
+                e.target.classList.contains('format-btn') || e.target.closest('.note-toolbar')) {
                 return;
             }
 
@@ -1887,6 +1972,56 @@
 
             draggedNote.style.left = `${Math.max(0, x)}px`;
             draggedNote.style.top = `${Math.max(0, y)}px`;
+
+            // 다른 노트들과 겹침 체크
+            checkOverlapWithOtherNotes(draggedNote);
+        }
+
+        // 80% 이상 겹침 체크
+        function checkOverlapWithOtherNotes(draggedEl) {
+            const draggedRect = draggedEl.getBoundingClientRect();
+            const draggedArea = draggedRect.width * draggedRect.height;
+
+            let maxOverlapNote = null;
+            let maxOverlapPercent = 0;
+
+            // 모든 노트 확인
+            document.querySelectorAll('.sticky-note').forEach(noteEl => {
+                if (noteEl === draggedEl) return;
+
+                noteEl.classList.remove('overlap-target');
+
+                const noteRect = noteEl.getBoundingClientRect();
+
+                // 교차 영역 계산
+                const overlapLeft = Math.max(draggedRect.left, noteRect.left);
+                const overlapRight = Math.min(draggedRect.right, noteRect.right);
+                const overlapTop = Math.max(draggedRect.top, noteRect.top);
+                const overlapBottom = Math.min(draggedRect.bottom, noteRect.bottom);
+
+                // 겹치는 영역이 있는지 확인
+                if (overlapLeft < overlapRight && overlapTop < overlapBottom) {
+                    const overlapWidth = overlapRight - overlapLeft;
+                    const overlapHeight = overlapBottom - overlapTop;
+                    const overlapArea = overlapWidth * overlapHeight;
+
+                    // 드래그 중인 노트 면적 대비 겹침 비율
+                    const overlapPercent = (overlapArea / draggedArea) * 100;
+
+                    if (overlapPercent > maxOverlapPercent) {
+                        maxOverlapPercent = overlapPercent;
+                        maxOverlapNote = noteEl;
+                    }
+                }
+            });
+
+            // 80% 이상 겹치면 하이라이트
+            if (maxOverlapPercent >= 80 && maxOverlapNote) {
+                maxOverlapNote.classList.add('overlap-target');
+                return maxOverlapNote;
+            }
+
+            return null;
         }
 
         function handleDragEnd(e) {
@@ -1894,11 +2029,25 @@
 
             draggedNote.classList.remove('dragging');
 
+            // 80% 이상 겹치는 노트 찾기
+            const overlappedNote = checkOverlapWithOtherNotes(draggedNote);
+
+            // 모든 overlap-target 클래스 제거
+            document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('overlap-target'));
+
             const noteId = draggedNote.dataset.id;
             const x = parseInt(draggedNote.style.left);
             const y = parseInt(draggedNote.style.top);
 
             updateNote(noteId, { position_x: x, position_y: y });
+
+            // 겹친 노트가 있으면 그룹 생성 제안
+            if (overlappedNote) {
+                const overlappedId = overlappedNote.dataset.id;
+                setTimeout(() => {
+                    suggestGroupCreation(noteId, overlappedId);
+                }, 100);
+            }
 
             draggedNote = null;
 
@@ -2124,23 +2273,10 @@
         // 그루핑 기능
         // ============================================
         let noteGroups = []; // { id, name, noteIds: [] }
-        let groupConnections = []; // { from: noteId, to: noteId, groupId }
-        let activePin = null;
-        let isDraggingPin = false;
-        let tempConnectionLine = null;
-        let connectionSvg = null;
-        let longPressTimer = null;
-        let longPressTarget = null;
 
         // 그룹 패널 초기화
         function initGrouping() {
             console.log('그루핑 기능 초기화');
-
-            // SVG 레이어 생성 (연결선 표시용)
-            connectionSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            connectionSvg.classList.add('group-connection-line');
-            connectionSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:500;';
-            notesContainer.appendChild(connectionSvg);
 
             // 그룹 패널 토글 버튼
             const groupToggleBtn = document.getElementById('groupsToggleBtn');
@@ -2173,229 +2309,56 @@
             loadGroupsFromStorage();
         }
 
-        // 노트에 핀 추가 (1초 롱 프레스)
-        function addPinToNote(noteEl) {
-            // 기존 핀 제거
-            const existingPin = noteEl.querySelector('.note-pin');
-            if (existingPin) return;
-
-            const pin = document.createElement('div');
-            pin.className = 'note-pin';
-            pin.innerHTML = '<img src="assets/pin.png" alt="핀">';
-
-            const notePaper = noteEl.querySelector('.note-paper');
-            notePaper.appendChild(pin);
-
-            // 핀 드래그 이벤트
-            pin.addEventListener('mousedown', (e) => handlePinDragStart(e, noteEl));
-            pin.addEventListener('touchstart', (e) => handlePinDragStart(e, noteEl), { passive: false });
-
-            noteEl.classList.add('show-pin');
-        }
-
-        // 핀 드래그 시작
-        function handlePinDragStart(e, noteEl) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            console.log('핀 드래그 시작:', noteEl.dataset.id);
-            isDraggingPin = true;
-            activePin = noteEl;
-            noteEl.classList.add('grouping');
-
-            document.addEventListener('mousemove', handlePinDrag);
-            document.addEventListener('mouseup', handlePinDragEnd);
-            document.addEventListener('touchmove', handlePinDrag, { passive: false });
-            document.addEventListener('touchend', handlePinDragEnd);
-        }
-
-        // 핀 드래그 중
-        function handlePinDrag(e) {
-            if (!isDraggingPin || !activePin) return;
-            e.preventDefault();
-
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-            // 임시 연결선 그리기
-            drawTempLine(activePin, clientX, clientY);
-
-            // 드래그 중인 위치의 노트 찾기
-            const targetNote = document.elementFromPoint(clientX, clientY)?.closest('.sticky-note');
-            document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('group-target'));
-            if (targetNote && targetNote !== activePin) {
-                targetNote.classList.add('group-target');
-            }
-        }
-
-        // 핀 드래그 종료
-        function handlePinDragEnd(e) {
-            if (!isDraggingPin) return;
-
-            const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-            const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-
-            // 놓은 위치의 노트 찾기
-            const targetNote = document.elementFromPoint(clientX, clientY)?.closest('.sticky-note');
-
-            if (targetNote && targetNote !== activePin) {
-                connectNotes(activePin.dataset.id, targetNote.dataset.id);
-            }
-
-            // 임시 선 제거
-            if (tempConnectionLine) {
-                tempConnectionLine.remove();
-                tempConnectionLine = null;
-            }
-
-            // 클래스 정리
-            document.querySelectorAll('.sticky-note').forEach(n => {
-                n.classList.remove('grouping', 'group-target');
-            });
-
-            isDraggingPin = false;
-            activePin = null;
-
-            document.removeEventListener('mousemove', handlePinDrag);
-            document.removeEventListener('mouseup', handlePinDragEnd);
-            document.removeEventListener('touchmove', handlePinDrag);
-            document.removeEventListener('touchend', handlePinDragEnd);
-        }
-
-        // 임시 연결선 그리기
-        function drawTempLine(fromNote, toX, toY) {
-            if (!connectionSvg) return;
-
-            const fromRect = fromNote.getBoundingClientRect();
-            const fromCenterX = fromRect.left + fromRect.width / 2;
-            const fromCenterY = fromRect.top + fromRect.height / 2;
-
-            if (!tempConnectionLine) {
-                tempConnectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                tempConnectionLine.setAttribute('class', 'connection-line temp');
-                tempConnectionLine.setAttribute('stroke', '#8b4a4a');
-                tempConnectionLine.setAttribute('stroke-width', '2');
-                tempConnectionLine.setAttribute('fill', 'none');
-                connectionSvg.appendChild(tempConnectionLine);
-            }
-
-            const d = `M ${fromCenterX} ${fromCenterY} L ${toX} ${toY}`;
-            tempConnectionLine.setAttribute('d', d);
-        }
-
-        // 두 노트 연결
-        function connectNotes(fromId, toId) {
-            const fromNote = document.querySelector(`.sticky-note[data-id="${fromId}"]`);
-            const toNote = document.querySelector(`.sticky-note[data-id="${toId}"]`);
-
-            if (!fromNote || !toNote) return;
-
-            console.log('노트 연결:', fromId, '->', toId);
-
-            // 이미 연결되어 있는지 확인
-            const existingConnection = groupConnections.find(c =>
-                (c.from === fromId && c.to === toId) || (c.from === toId && c.to === fromId)
+        // 그룹 생성 제안 (80% 이상 겹쳤을 때)
+        function suggestGroupCreation(fromId, toId) {
+            // 이미 같은 그룹에 속해있는지 확인
+            const existingGroup = noteGroups.find(g =>
+                g.noteIds.includes(fromId) && g.noteIds.includes(toId)
             );
 
-            if (existingConnection) {
-                showToast('이미 연결된 노트입니다');
+            if (existingGroup) {
+                showToast('이미 같은 그룹에 속해 있습니다');
                 return;
             }
 
-            // 자기 자신과 연결 방지
-            if (fromId === toId) {
-                showToast('같은 노트는 연결할 수 없습니다');
-                return;
-            }
+            // 두 노트 중 하나라도 기존 그룹에 속해있는지 확인
+            const fromGroup = noteGroups.find(g => g.noteIds.includes(fromId));
+            const toGroup = noteGroups.find(g => g.noteIds.includes(toId));
 
-            // 연결 추가
-            groupConnections.push({ from: fromId, to: toId, groupId: null });
-
-            // 연결선 그리기
-            drawConnection(fromNote, toNote);
-
-            // 그룹 생성 제안
-            suggestGroupCreation(fromId, toId);
-
-            saveGroupsToStorage();
-        }
-
-        // 연결선 그리기
-        function drawConnection(fromNote, toNote) {
-            if (!connectionSvg) return;
-
-            const fromRect = fromNote.getBoundingClientRect();
-            const toRect = toNote.getBoundingClientRect();
-
-            const fromX = fromRect.left + fromRect.width / 2;
-            const fromY = fromRect.top + fromRect.height / 2;
-            const toX = toRect.left + toRect.width / 2;
-            const toY = toRect.top + toRect.height / 2;
-
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('class', 'connection-line');
-            path.setAttribute('d', `M ${fromX} ${fromY} L ${toX} ${toY}`);
-            path.dataset.from = fromNote.dataset.id;
-            path.dataset.to = toNote.dataset.id;
-
-            connectionSvg.appendChild(path);
-        }
-
-        // 모든 연결선 다시 그리기
-        function redrawAllConnections() {
-            if (!connectionSvg) return;
-
-            // 기존 연결선 제거
-            connectionSvg.querySelectorAll('.connection-line').forEach(line => line.remove());
-
-            // 연결선 다시 그리기
-            groupConnections.forEach(conn => {
-                const fromNote = document.querySelector(`.sticky-note[data-id="${conn.from}"]`);
-                const toNote = document.querySelector(`.sticky-note[data-id="${conn.to}"]`);
-                if (fromNote && toNote) {
-                    drawConnection(fromNote, toNote);
+            if (fromGroup && toGroup && fromGroup.id !== toGroup.id) {
+                // 두 그룹 병합
+                if (confirm(`"${fromGroup.name}"과 "${toGroup.name}" 그룹을 병합하시겠습니까?`)) {
+                    fromGroup.noteIds.push(...toGroup.noteIds);
+                    noteGroups = noteGroups.filter(g => g.id !== toGroup.id);
+                    saveGroupsToStorage();
+                    renderGroupList();
+                    showToast('그룹이 병합되었습니다');
                 }
-            });
-        }
-
-        // 그룹 생성 제안
-        function suggestGroupCreation(fromId, toId) {
-            // 연결된 노트들 찾기
-            const connectedNotes = findConnectedNotes(fromId);
-
-            if (connectedNotes.length >= 2) {
-                const createGroup = confirm(`${connectedNotes.length}개의 노트가 연결되었습니다.\n그룹으로 만드시겠습니까?`);
-
-                if (createGroup) {
+            } else if (fromGroup) {
+                // fromGroup에 toId 추가
+                if (confirm(`"${toGroup.name}" 그룹에 메모를 추가하시겠습니까?`)) {
+                    fromGroup.noteIds.push(toId);
+                    saveGroupsToStorage();
+                    renderGroupList();
+                    showToast('메모가 그룹에 추가되었습니다');
+                }
+            } else if (toGroup) {
+                // toGroup에 fromId 추가
+                if (confirm(`"${toGroup.name}" 그룹에 메모를 추가하시겠습니까?`)) {
+                    toGroup.noteIds.push(fromId);
+                    saveGroupsToStorage();
+                    renderGroupList();
+                    showToast('메모가 그룹에 추가되었습니다');
+                }
+            } else {
+                // 새 그룹 생성
+                if (confirm('2개의 메모를 그룹으로 만드시겠습니까?')) {
                     const groupName = prompt('그룹 이름을 입력하세요:', '새 그룹');
                     if (groupName) {
-                        createGroupFromNotes(groupName, connectedNotes);
+                        createGroupFromNotes(groupName, [fromId, toId]);
                     }
                 }
             }
-        }
-
-        // 연결된 모든 노트 찾기 (BFS)
-        function findConnectedNotes(startId) {
-            const visited = new Set();
-            const queue = [startId];
-
-            while (queue.length > 0) {
-                const currentId = queue.shift();
-                visited.add(currentId);
-
-                // 이 노트와 연결된 다른 노트들 찾기
-                groupConnections.forEach(conn => {
-                    if (conn.from === currentId && !visited.has(conn.to)) {
-                        queue.push(conn.to);
-                    }
-                    if (conn.to === currentId && !visited.has(conn.from)) {
-                        queue.push(conn.from);
-                    }
-                });
-            }
-
-            return Array.from(visited);
         }
 
         // 노트들로 그룹 생성
@@ -2409,13 +2372,6 @@
             };
 
             noteGroups.push(newGroup);
-
-            // 연결들에 그룹 ID 할당
-            groupConnections.forEach(conn => {
-                if (noteIds.includes(conn.from) && noteIds.includes(conn.to)) {
-                    conn.groupId = groupId;
-                }
-            });
 
             console.log('그룹 생성됨:', newGroup);
             showToast(`"${name}" 그룹이 생성되었습니다`);
@@ -2518,7 +2474,6 @@
         // 로컬스토리지에 그룹 데이터 저장
         function saveGroupsToStorage() {
             localStorage.setItem('sticky_notes_groups', JSON.stringify(noteGroups));
-            localStorage.setItem('sticky_notes_connections', JSON.stringify(groupConnections));
         }
 
         // 로컬스토리지에서 그룹 데이터 로드
@@ -2527,7 +2482,6 @@
                 const savedGroups = localStorage.getItem('sticky_notes_groups');
                 const savedConnections = localStorage.getItem('sticky_notes_connections');
 
-                if (savedGroups) {
                     noteGroups = JSON.parse(savedGroups);
                 }
                 if (savedConnections) {
@@ -2545,23 +2499,225 @@
         // ============================================
         const profileBtn = document.getElementById('profileBtn');
         const helpBtn = document.getElementById('helpBtn');
+        const profileModal = document.getElementById('profileModal');
 
         if (profileBtn) {
             profileBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
-                alert('프로필 설정은 추후 업데이트 예정입니다.\n\n현재 사용자 정보:\n' +
-                      '이름: ' + (currentUser?.user_metadata?.display_name || '게스트') + '\n' +
-                      '소속: ' + (currentUser?.user_metadata?.organization || '-'));
+                profileModal.classList.add('show');
+
+                // 프로필 정보 표시
+                if (currentUser) {
+                    const displayName = currentUser.user_metadata?.display_name || '';
+                    const username = currentUser.user_metadata?.username || currentUser.email?.replace(EMAIL_DOMAIN, '') || '';
+                    const organization = currentUser.user_metadata?.organization || '';
+
+                    document.getElementById('profileAvatarLarge').textContent = (displayName || username).charAt(0).toUpperCase();
+                    document.getElementById('profileUsername').textContent = '@' + username;
+                    document.getElementById('profileNameInput').value = displayName;
+                    document.getElementById('profileOrgInput').value = organization;
+                }
             });
         }
+
+        // 프로필 탭 전환
+        document.querySelectorAll('.profile-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.profile-tab-content').forEach(c => c.style.display = 'none');
+                tab.classList.add('active');
+                const tabId = tab.dataset.tab === 'info' ? 'profileInfoTab' : 'profileSettingsTab';
+                document.getElementById(tabId).style.display = 'block';
+            });
+        });
+
+        // 프로필 모달 닫기
+        document.getElementById('profileModalClose').addEventListener('click', () => {
+            profileModal.classList.remove('show');
+        });
+
+        profileModal.addEventListener('click', (e) => {
+            if (e.target === profileModal) {
+                profileModal.classList.remove('show');
+            }
+        });
+
+        // 프로필 정보 저장
+        document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+            const newName = document.getElementById('profileNameInput').value.trim();
+            const newOrg = document.getElementById('profileOrgInput').value.trim();
+            const alertEl = document.getElementById('profileSaveAlert');
+
+            if (!newName) {
+                alertEl.textContent = '이름을 입력해주세요';
+                alertEl.classList.add('show');
+                return;
+            }
+
+            try {
+                const { error } = await supabase.auth.updateUser({
+                    data: {
+                        display_name: newName,
+                        organization: newOrg
+                    }
+                });
+
+                if (error) throw error;
+
+                // 현재 사용자 정보 업데이트
+                currentUser.user_metadata.display_name = newName;
+                currentUser.user_metadata.organization = newOrg;
+
+                // UI 업데이트
+                document.getElementById('profileAvatarLarge').textContent = newName.charAt(0).toUpperCase();
+                userName.textContent = newName;
+                userEmail.textContent = newOrg;
+
+                showToast('프로필이 업데이트되었습니다');
+                alertEl.classList.remove('show');
+            } catch (error) {
+                console.error('프로필 저장 에러:', error);
+                alertEl.textContent = '프로필 저장에 실패했습니다';
+                alertEl.classList.add('show');
+            }
+        });
+
+        // 비밀번호 변경
+        document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const alertEl = document.getElementById('passwordChangeAlert');
+
+            if (!newPassword || newPassword.length < 6) {
+                alertEl.textContent = '비밀번호는 6자 이상이어야 합니다';
+                alertEl.classList.add('show');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                alertEl.textContent = '비밀번호가 일치하지 않습니다';
+                alertEl.classList.add('show');
+                return;
+            }
+
+            try {
+                const { error } = await supabase.auth.updateUser({
+                    password: newPassword
+                });
+
+                if (error) throw error;
+
+                showToast('비밀번호가 변경되었습니다');
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+                alertEl.classList.remove('show');
+            } catch (error) {
+                console.error('비밀번호 변경 에러:', error);
+                alertEl.textContent = '비밀번호 변경에 실패했습니다';
+                alertEl.classList.add('show');
+            }
+        });
+
+        // 데이터 내보내기
+        document.getElementById('exportDataBtn').addEventListener('click', () => {
+            const exportData = {
+                notes: notes.map(n => ({
+                    content: n.content,
+                    color: n.color,
+                    position_x: n.position_x,
+                    position_y: n.position_y,
+                    width: n.width,
+                    height: n.height,
+                    created_at: n.created_at
+                })),
+                groups: noteGroups
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sticky_notes_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('데이터를 내보냈습니다');
+        });
+
+        // 데이터 불러오기
+        document.getElementById('importDataBtn').addEventListener('click', () => {
+            document.getElementById('importFileInput').click();
+        });
+
+        document.getElementById('importFileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+
+                if (confirm(`${data.notes?.length || 0}개의 메모를 불러오시겠습니까?\n(현재 메모에 추가됩니다)`)) {
+                    showLoading();
+
+                    // 메모 추가
+                    if (data.notes) {
+                        for (const noteData of data.notes) {
+                            if (isGuest) {
+                                noteData.id = Date.now().toString() + Math.random();
+                                notes.push(noteData);
+                            } else {
+                                const { data: inserted, error } = await supabase
+                                    .from('notes')
+                                    .insert({
+                                        user_id: currentUser.id,
+                                        content: noteData.content,
+                                        color: noteData.color,
+                                        position_x: noteData.position_x,
+                                        position_y: noteData.position_y,
+                                        width: noteData.width,
+                                        height: noteData.height
+                                    })
+                                    .select()
+                                    .single();
+
+                                if (!error && inserted) {
+                                    notes.push(inserted);
+                                }
+                            }
+                        }
+                    }
+
+                    // 그룹 데이터 추가
+                    if (data.groups) {
+                        noteGroups.push(...data.groups);
+                        saveGroupsToStorage();
+                    }
+
+
+                    if (isGuest) {
+                        saveGuestNotes();
+                    }
+
+                    renderNotes();
+                    hideLoading();
+                    showToast(`${data.notes?.length || 0}개의 메모를 불러왔습니다`);
+                }
+            } catch (error) {
+                console.error('불러오기 오류:', error);
+                alert('파일을 읽는 중 오류가 발생했습니다.');
+            }
+
+            e.target.value = '';
+        });
 
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
                 alert('스티키 노트 사용법\n\n' +
                       '1. + 버튼으로 새 메모 추가\n' +
-                      '2. 메모를 1초간 길게 눌러 핀 표시\n' +
-                      '3. 핀을 드래그하여 다른 메모와 연결\n' +
+                      '2. 메모를 드래그하여 이동\n' +
+                      '3. 메모를 다른 메모 위에 80% 이상 겹치면 그룹 생성\n' +
                       '4. 그룹 버튼(📁)으로 그룹 관리\n' +
                       '5. 메모를 드래그하여 이동\n' +
                       '6. 우측 하단 핸들로 크기 조절');
@@ -2573,4 +2729,4 @@
     </script>
 </body>
 </html>
-<!-- Cache bust: 1768302412 -->
+<!-- Cache bust: 1768293737 -->
