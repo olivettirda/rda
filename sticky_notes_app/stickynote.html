@@ -2173,7 +2173,18 @@
                 notes.unshift(newNote);
                 saveGuestNotes();
                 renderNotes();
-                focusNote(newNote.id);
+
+                // 새 메모를 맨 위로
+                setTimeout(() => {
+                    const noteEl = document.querySelector(`.sticky-note[data-id="${newNote.id}"]`);
+                    if (noteEl) {
+                        bringToFront(noteEl);
+                        const editor = noteEl.querySelector('.note-editor');
+                        if (editor) {
+                            editor.focus();
+                        }
+                    }
+                }, 100);
             } else {
                 setSyncStatus('syncing');
 
@@ -2200,7 +2211,19 @@
                     console.log('노트 생성 성공:', data);
                     notes.unshift(data);
                     renderNotes();
-                    focusNote(data.id);
+
+                    // 새 메모를 맨 위로
+                    setTimeout(() => {
+                        const noteEl = document.querySelector(`.sticky-note[data-id="${data.id}"]`);
+                        if (noteEl) {
+                            bringToFront(noteEl);
+                            const editor = noteEl.querySelector('.note-editor');
+                            if (editor) {
+                                editor.focus();
+                            }
+                        }
+                    }, 100);
+
                     setSyncStatus('synced');
                 } catch (error) {
                     console.error('노트 생성 실패:', error);
