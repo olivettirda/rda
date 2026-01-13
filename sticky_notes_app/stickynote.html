@@ -826,6 +826,137 @@
         .hidden {
             display: none !important;
         }
+
+        /* 그룹 패널 스타일 */
+        .groups-panel {
+            position: fixed;
+            top: 56px;
+            right: 16px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 0;
+            width: 280px;
+            z-index: 1001;
+        }
+
+        .groups-panel.show {
+            display: block !important;
+        }
+
+        .group-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 4px;
+        }
+
+        .group-item:hover {
+            background: rgba(1, 127, 151, 0.1);
+        }
+
+        .group-item.active {
+            background: rgba(1, 127, 151, 0.2);
+        }
+
+        .group-item img {
+            width: 18px;
+            height: 18px;
+            opacity: 0.7;
+        }
+
+        .group-item-name {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .group-item-count {
+            font-size: 12px;
+            color: #888;
+            background: rgba(0,0,0,0.1);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .group-item-delete {
+            opacity: 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #dc3545;
+            font-size: 14px;
+            padding: 2px 4px;
+        }
+
+        .group-item:hover .group-item-delete {
+            opacity: 1;
+        }
+
+        .add-group-btn:hover {
+            border-color: #017f97;
+            color: #017f97;
+        }
+
+        /* 핀 아이콘 */
+        .note-pin {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 24px;
+            height: 24px;
+            cursor: grab;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
+        }
+
+        .sticky-note.show-pin .note-pin {
+            opacity: 1;
+        }
+
+        .note-pin:active {
+            cursor: grabbing;
+        }
+
+        .note-pin img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* 그룹 연결선 */
+        .group-connection-line {
+            position: fixed;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .group-connection-line svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .group-connection-line path {
+            stroke: #8b4a4a;
+            stroke-width: 2px;
+            fill: none;
+            filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3));
+        }
+
+        /* 그룹화 중 표시 */
+        .sticky-note.grouping {
+            box-shadow: 0 0 0 3px #8b4a4a, 4px 4px 16px rgba(0,0,0,0.15);
+        }
+
+        .sticky-note.group-target {
+            box-shadow: 0 0 0 3px #4a8b5e, 4px 4px 16px rgba(0,0,0,0.15);
+        }
     </style>
 
     <!-- Google Fonts -->
@@ -872,6 +1003,14 @@
                     <label class="form-label">비밀번호 확인</label>
                     <input type="password" id="signupPasswordConfirm" class="form-input" placeholder="비밀번호 재입력" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">이름</label>
+                    <input type="text" id="signupName" class="form-input" placeholder="표시될 이름" minlength="2" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">소속</label>
+                    <input type="text" id="signupOrg" class="form-input" placeholder="소속 부서/기관" required>
+                </div>
                 <div id="signupError" class="form-error"></div>
                 <button type="submit" id="signupBtn" class="login-btn">회원가입</button>
                 <div class="form-switch">
@@ -898,6 +1037,9 @@
                 <span class="header-title">스티키 노트</span>
             </div>
             <div class="header-right">
+                <button id="groupsToggleBtn" class="groups-toggle-btn" title="그룹 목록" style="background: none; border: none; cursor: pointer; padding: 8px; border-radius: 8px; opacity: 0.8; transition: opacity 0.2s;">
+                    <img src="assets/folder.png" alt="그룹" style="width: 20px; height: 20px; display: block;">
+                </button>
                 <span id="syncStatus" class="sync-status">
                     <span class="sync-icon">●</span>
                     <span class="sync-text">저장됨</span>
@@ -912,13 +1054,36 @@
         <div id="userMenu" class="user-menu">
             <div class="user-menu-header">
                 <div id="userName" class="user-menu-name">사용자</div>
-                <div id="userEmail" class="user-menu-email">email@example.com</div>
+                <div id="userEmail" class="user-menu-email">소속</div>
             </div>
+            <button class="user-menu-item" id="profileBtn">
+                <span>👤</span> 프로필
+            </button>
+            <button class="user-menu-item" id="helpBtn">
+                <span>❓</span> 도움말
+            </button>
             <button class="user-menu-item" id="exportBtn">
                 <span>📥</span> 노트 내보내기
             </button>
             <button class="user-menu-item danger" id="logoutBtn">
                 <span>🚪</span> 로그아웃
+            </button>
+        </div>
+
+        <!-- 그룹 패널 -->
+        <div id="groupsPanel" class="groups-panel" style="display: none;">
+            <div class="groups-panel-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(1, 127, 151, 0.1); border-bottom: 1px solid rgba(0,0,0,0.1);">
+                <div class="groups-panel-title" style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #0c3026;">
+                    <img src="assets/folder.png" alt="그룹" style="width: 20px; height: 20px;">
+                    <span>그룹 목록</span>
+                </div>
+                <button class="groups-panel-close" id="groupsPanelClose" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #666;">×</button>
+            </div>
+            <div class="groups-list" id="groupsList" style="max-height: 300px; overflow-y: auto; padding: 8px;">
+                <!-- 그룹 목록이 여기에 렌더링됨 -->
+            </div>
+            <button class="add-group-btn" id="addGroupBtn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: white; border: 2px dashed #ddd; border-radius: 8px; cursor: pointer; color: #666; font-size: 13px; transition: all 0.2s;">
+                <span>+</span> 새 그룹 만들기
             </button>
         </div>
 
@@ -1027,6 +1192,9 @@
         // ============================================
         async function init() {
             console.log('앱 초기화 시작');
+
+            // 그루핑 기능 초기화
+            initGrouping();
 
             // PWA 설치 이벤트 감지
             window.addEventListener('beforeinstallprompt', (e) => {
@@ -1156,12 +1324,19 @@
             e.preventDefault();
             console.log('회원가입 시도:', signupUsername.value);
 
-            const username = signupUsername.value.trim();
-            const password = signupPassword.value;
-            const passwordConfirm = signupPasswordConfirm.value;
+            const username = document.getElementById('signupUsername').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
+            const displayName = document.getElementById('signupName').value.trim();
+            const organization = document.getElementById('signupOrg').value.trim();
 
             if (!username || !password) {
                 showFormError(signupError, '아이디와 비밀번호를 입력해주세요');
+                return;
+            }
+
+            if (!displayName || !organization) {
+                showFormError(signupError, '이름과 소속을 입력해주세요');
                 return;
             }
 
@@ -1199,7 +1374,8 @@
                     options: {
                         data: {
                             username: username,
-                            full_name: username
+                            display_name: displayName,
+                            organization: organization
                         }
                     }
                 });
@@ -1276,16 +1452,35 @@
             app.classList.remove('hidden');
 
             if (currentUser) {
-                userAvatarImg.src = currentUser.user_metadata?.avatar_url || '';
-                // username 표시 (이메일에서 도메인 제거)
-                const displayName = currentUser.user_metadata?.username ||
-                                   currentUser.email?.replace(EMAIL_DOMAIN, '') || '사용자';
-                userName.textContent = displayName;
-                userEmail.textContent = ''; // 아이디 방식이므로 이메일 숨김
+                console.log('사용자 메타데이터:', JSON.stringify(currentUser.user_metadata, null, 2));
+
+                // 프로필 이미지 설정
+                const avatarUrl = currentUser.user_metadata?.avatar_url;
+                if (avatarUrl) {
+                    userAvatarImg.src = avatarUrl;
+                } else {
+                    // 이름 또는 아이디의 첫 글자를 아바타로 사용
+                    const displayName = currentUser.user_metadata?.display_name ||
+                                      currentUser.user_metadata?.username ||
+                                      currentUser.email?.replace(EMAIL_DOMAIN, '') || '사용자';
+                    userAvatarImg.alt = displayName.charAt(0).toUpperCase();
+                    userAvatarImg.removeAttribute('src');
+                }
+
+                // 이름 표시 (display_name 우선, 없으면 username)
+                const name = currentUser.user_metadata?.display_name ||
+                           currentUser.user_metadata?.username ||
+                           currentUser.email?.replace(EMAIL_DOMAIN, '') || '사용자';
+                userName.textContent = name;
+
+                // 소속 표시
+                const organization = currentUser.user_metadata?.organization || '';
+                userEmail.textContent = organization;
             } else if (isGuest) {
-                userAvatarImg.src = '';
+                userAvatarImg.removeAttribute('src');
+                userAvatarImg.alt = 'G';
                 userName.textContent = '게스트';
-                userEmail.textContent = '로그인하면 동기화됩니다';
+                userEmail.textContent = '동기화 안됨';
             }
         }
 
@@ -1482,6 +1677,11 @@
                 const noteEl = createNoteElement(note);
                 notesContainer.appendChild(noteEl);
             });
+
+            // 연결선 다시 그리기
+            setTimeout(() => {
+                redrawAllConnections();
+            }, 100);
         }
 
         function createNoteElement(note) {
@@ -1563,6 +1763,57 @@
                 e.stopPropagation();
                 deleteNote(note.id);
             });
+
+            // 롱 프레스로 핀 표시 (1초)
+            let longPressTimer = null;
+            let startX = 0;
+            let startY = 0;
+
+            const startLongPress = (e) => {
+                // textarea나 버튼 클릭시 롱프레스 방지
+                if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' ||
+                    e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle')) {
+                    return;
+                }
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startX = clientX;
+                startY = clientY;
+
+                longPressTimer = setTimeout(() => {
+                    console.log('롱 프레스 감지 - 핀 표시');
+                    addPinToNote(el);
+                    showToast('핀을 드래그하여 다른 메모와 연결하세요');
+                }, 1000);
+            };
+
+            const cancelLongPress = (e) => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            };
+
+            const checkLongPressMove = (e) => {
+                if (!longPressTimer) return;
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                // 움직임이 크면 롱프레스 취소
+                const distance = Math.sqrt(Math.pow(clientX - startX, 2) + Math.pow(clientY - startY, 2));
+                if (distance > 10) {
+                    cancelLongPress();
+                }
+            };
+
+            el.addEventListener('mousedown', startLongPress);
+            el.addEventListener('touchstart', startLongPress);
+            el.addEventListener('mouseup', cancelLongPress);
+            el.addEventListener('touchend', cancelLongPress);
+            el.addEventListener('mousemove', checkLongPressMove);
+            el.addEventListener('touchmove', checkLongPressMove);
 
             // 드래그
             el.addEventListener('mousedown', handleDragStart);
@@ -1869,9 +2120,457 @@
             }
         });
 
+        // ============================================
+        // 그루핑 기능
+        // ============================================
+        let noteGroups = []; // { id, name, noteIds: [] }
+        let groupConnections = []; // { from: noteId, to: noteId, groupId }
+        let activePin = null;
+        let isDraggingPin = false;
+        let tempConnectionLine = null;
+        let connectionSvg = null;
+        let longPressTimer = null;
+        let longPressTarget = null;
+
+        // 그룹 패널 초기화
+        function initGrouping() {
+            console.log('그루핑 기능 초기화');
+
+            // SVG 레이어 생성 (연결선 표시용)
+            connectionSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            connectionSvg.classList.add('group-connection-line');
+            connectionSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:500;';
+            notesContainer.appendChild(connectionSvg);
+
+            // 그룹 패널 토글 버튼
+            const groupToggleBtn = document.getElementById('groupsToggleBtn');
+            const groupsPanel = document.getElementById('groupsPanel');
+            const groupsPanelClose = document.getElementById('groupsPanelClose');
+
+            if (groupToggleBtn) {
+                groupToggleBtn.addEventListener('click', () => {
+                    console.log('그룹 패널 토글');
+                    groupsPanel.classList.toggle('show');
+                    renderGroupList();
+                });
+            }
+
+            if (groupsPanelClose) {
+                groupsPanelClose.addEventListener('click', () => {
+                    groupsPanel.classList.remove('show');
+                });
+            }
+
+            // 새 그룹 만들기 버튼
+            const addGroupBtn = document.getElementById('addGroupBtn');
+            if (addGroupBtn) {
+                addGroupBtn.addEventListener('click', () => {
+                    createEmptyGroup();
+                });
+            }
+
+            // 로컬스토리지에서 그룹 데이터 로드
+            loadGroupsFromStorage();
+        }
+
+        // 노트에 핀 추가 (1초 롱 프레스)
+        function addPinToNote(noteEl) {
+            // 기존 핀 제거
+            const existingPin = noteEl.querySelector('.note-pin');
+            if (existingPin) return;
+
+            const pin = document.createElement('div');
+            pin.className = 'note-pin';
+            pin.innerHTML = '<img src="assets/pin.png" alt="핀">';
+
+            const notePaper = noteEl.querySelector('.note-paper');
+            notePaper.appendChild(pin);
+
+            // 핀 드래그 이벤트
+            pin.addEventListener('mousedown', (e) => handlePinDragStart(e, noteEl));
+            pin.addEventListener('touchstart', (e) => handlePinDragStart(e, noteEl), { passive: false });
+
+            noteEl.classList.add('show-pin');
+        }
+
+        // 핀 드래그 시작
+        function handlePinDragStart(e, noteEl) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            console.log('핀 드래그 시작:', noteEl.dataset.id);
+            isDraggingPin = true;
+            activePin = noteEl;
+            noteEl.classList.add('grouping');
+
+            document.addEventListener('mousemove', handlePinDrag);
+            document.addEventListener('mouseup', handlePinDragEnd);
+            document.addEventListener('touchmove', handlePinDrag, { passive: false });
+            document.addEventListener('touchend', handlePinDragEnd);
+        }
+
+        // 핀 드래그 중
+        function handlePinDrag(e) {
+            if (!isDraggingPin || !activePin) return;
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            // 임시 연결선 그리기
+            drawTempLine(activePin, clientX, clientY);
+
+            // 드래그 중인 위치의 노트 찾기
+            const targetNote = document.elementFromPoint(clientX, clientY)?.closest('.sticky-note');
+            document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('group-target'));
+            if (targetNote && targetNote !== activePin) {
+                targetNote.classList.add('group-target');
+            }
+        }
+
+        // 핀 드래그 종료
+        function handlePinDragEnd(e) {
+            if (!isDraggingPin) return;
+
+            const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+            const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+            // 놓은 위치의 노트 찾기
+            const targetNote = document.elementFromPoint(clientX, clientY)?.closest('.sticky-note');
+
+            if (targetNote && targetNote !== activePin) {
+                connectNotes(activePin.dataset.id, targetNote.dataset.id);
+            }
+
+            // 임시 선 제거
+            if (tempConnectionLine) {
+                tempConnectionLine.remove();
+                tempConnectionLine = null;
+            }
+
+            // 클래스 정리
+            document.querySelectorAll('.sticky-note').forEach(n => {
+                n.classList.remove('grouping', 'group-target');
+            });
+
+            isDraggingPin = false;
+            activePin = null;
+
+            document.removeEventListener('mousemove', handlePinDrag);
+            document.removeEventListener('mouseup', handlePinDragEnd);
+            document.removeEventListener('touchmove', handlePinDrag);
+            document.removeEventListener('touchend', handlePinDragEnd);
+        }
+
+        // 임시 연결선 그리기
+        function drawTempLine(fromNote, toX, toY) {
+            if (!connectionSvg) return;
+
+            const fromRect = fromNote.getBoundingClientRect();
+            const fromCenterX = fromRect.left + fromRect.width / 2;
+            const fromCenterY = fromRect.top + fromRect.height / 2;
+
+            if (!tempConnectionLine) {
+                tempConnectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                tempConnectionLine.setAttribute('class', 'connection-line temp');
+                tempConnectionLine.setAttribute('stroke', '#8b4a4a');
+                tempConnectionLine.setAttribute('stroke-width', '2');
+                tempConnectionLine.setAttribute('fill', 'none');
+                connectionSvg.appendChild(tempConnectionLine);
+            }
+
+            const d = `M ${fromCenterX} ${fromCenterY} L ${toX} ${toY}`;
+            tempConnectionLine.setAttribute('d', d);
+        }
+
+        // 두 노트 연결
+        function connectNotes(fromId, toId) {
+            const fromNote = document.querySelector(`.sticky-note[data-id="${fromId}"]`);
+            const toNote = document.querySelector(`.sticky-note[data-id="${toId}"]`);
+
+            if (!fromNote || !toNote) return;
+
+            console.log('노트 연결:', fromId, '->', toId);
+
+            // 이미 연결되어 있는지 확인
+            const existingConnection = groupConnections.find(c =>
+                (c.from === fromId && c.to === toId) || (c.from === toId && c.to === fromId)
+            );
+
+            if (existingConnection) {
+                showToast('이미 연결된 노트입니다');
+                return;
+            }
+
+            // 자기 자신과 연결 방지
+            if (fromId === toId) {
+                showToast('같은 노트는 연결할 수 없습니다');
+                return;
+            }
+
+            // 연결 추가
+            groupConnections.push({ from: fromId, to: toId, groupId: null });
+
+            // 연결선 그리기
+            drawConnection(fromNote, toNote);
+
+            // 그룹 생성 제안
+            suggestGroupCreation(fromId, toId);
+
+            saveGroupsToStorage();
+        }
+
+        // 연결선 그리기
+        function drawConnection(fromNote, toNote) {
+            if (!connectionSvg) return;
+
+            const fromRect = fromNote.getBoundingClientRect();
+            const toRect = toNote.getBoundingClientRect();
+
+            const fromX = fromRect.left + fromRect.width / 2;
+            const fromY = fromRect.top + fromRect.height / 2;
+            const toX = toRect.left + toRect.width / 2;
+            const toY = toRect.top + toRect.height / 2;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'connection-line');
+            path.setAttribute('d', `M ${fromX} ${fromY} L ${toX} ${toY}`);
+            path.dataset.from = fromNote.dataset.id;
+            path.dataset.to = toNote.dataset.id;
+
+            connectionSvg.appendChild(path);
+        }
+
+        // 모든 연결선 다시 그리기
+        function redrawAllConnections() {
+            if (!connectionSvg) return;
+
+            // 기존 연결선 제거
+            connectionSvg.querySelectorAll('.connection-line').forEach(line => line.remove());
+
+            // 연결선 다시 그리기
+            groupConnections.forEach(conn => {
+                const fromNote = document.querySelector(`.sticky-note[data-id="${conn.from}"]`);
+                const toNote = document.querySelector(`.sticky-note[data-id="${conn.to}"]`);
+                if (fromNote && toNote) {
+                    drawConnection(fromNote, toNote);
+                }
+            });
+        }
+
+        // 그룹 생성 제안
+        function suggestGroupCreation(fromId, toId) {
+            // 연결된 노트들 찾기
+            const connectedNotes = findConnectedNotes(fromId);
+
+            if (connectedNotes.length >= 2) {
+                const createGroup = confirm(`${connectedNotes.length}개의 노트가 연결되었습니다.\n그룹으로 만드시겠습니까?`);
+
+                if (createGroup) {
+                    const groupName = prompt('그룹 이름을 입력하세요:', '새 그룹');
+                    if (groupName) {
+                        createGroupFromNotes(groupName, connectedNotes);
+                    }
+                }
+            }
+        }
+
+        // 연결된 모든 노트 찾기 (BFS)
+        function findConnectedNotes(startId) {
+            const visited = new Set();
+            const queue = [startId];
+
+            while (queue.length > 0) {
+                const currentId = queue.shift();
+                visited.add(currentId);
+
+                // 이 노트와 연결된 다른 노트들 찾기
+                groupConnections.forEach(conn => {
+                    if (conn.from === currentId && !visited.has(conn.to)) {
+                        queue.push(conn.to);
+                    }
+                    if (conn.to === currentId && !visited.has(conn.from)) {
+                        queue.push(conn.from);
+                    }
+                });
+            }
+
+            return Array.from(visited);
+        }
+
+        // 노트들로 그룹 생성
+        function createGroupFromNotes(name, noteIds) {
+            const groupId = 'group_' + Date.now();
+            const newGroup = {
+                id: groupId,
+                name: name,
+                noteIds: noteIds,
+                collapsed: false
+            };
+
+            noteGroups.push(newGroup);
+
+            // 연결들에 그룹 ID 할당
+            groupConnections.forEach(conn => {
+                if (noteIds.includes(conn.from) && noteIds.includes(conn.to)) {
+                    conn.groupId = groupId;
+                }
+            });
+
+            console.log('그룹 생성됨:', newGroup);
+            showToast(`"${name}" 그룹이 생성되었습니다`);
+
+            saveGroupsToStorage();
+            renderGroupList();
+        }
+
+        // 빈 그룹 생성
+        function createEmptyGroup() {
+            const groupName = prompt('그룹 이름을 입력하세요:', '새 그룹');
+            if (!groupName) return;
+
+            const groupId = 'group_' + Date.now();
+            const newGroup = {
+                id: groupId,
+                name: groupName,
+                noteIds: [],
+                collapsed: false
+            };
+
+            noteGroups.push(newGroup);
+            console.log('빈 그룹 생성됨:', newGroup);
+            showToast(`"${groupName}" 그룹이 생성되었습니다`);
+
+            saveGroupsToStorage();
+            renderGroupList();
+        }
+
+        // 그룹 목록 렌더링
+        function renderGroupList() {
+            const groupsList = document.getElementById('groupsList');
+            if (!groupsList) return;
+
+            groupsList.innerHTML = '';
+
+            if (noteGroups.length === 0) {
+                groupsList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px; font-size: 13px;">생성된 그룹이 없습니다</p>';
+                return;
+            }
+
+            noteGroups.forEach(group => {
+                const groupItem = document.createElement('div');
+                groupItem.className = 'group-item';
+                groupItem.innerHTML = `
+                    <img src="assets/folder.png" alt="그룹">
+                    <span class="group-item-name">${group.name}</span>
+                    <span class="group-item-count">${group.noteIds.length}</span>
+                    <button class="group-item-delete" data-group-id="${group.id}">×</button>
+                `;
+
+                // 그룹 클릭 시 해당 노트들로 이동
+                groupItem.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('group-item-delete')) {
+                        focusGroupNotes(group.noteIds);
+                    }
+                });
+
+                // 삭제 버튼
+                const deleteBtn = groupItem.querySelector('.group-item-delete');
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteGroup(group.id);
+                });
+
+                groupsList.appendChild(groupItem);
+            });
+        }
+
+        // 그룹 노트들에 포커스
+        function focusGroupNotes(noteIds) {
+            if (noteIds.length === 0) return;
+
+            // 첫 번째 노트로 스크롤
+            const firstNote = document.querySelector(`.sticky-note[data-id="${noteIds[0]}"]`);
+            if (firstNote) {
+                firstNote.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // 그룹 삭제
+        function deleteGroup(groupId) {
+            if (!confirm('이 그룹을 삭제하시겠습니까?\n(노트는 삭제되지 않습니다)')) return;
+
+            // 그룹 제거
+            noteGroups = noteGroups.filter(g => g.id !== groupId);
+
+            // 연결들의 그룹 ID 제거
+            groupConnections.forEach(conn => {
+                if (conn.groupId === groupId) {
+                    conn.groupId = null;
+                }
+            });
+
+            saveGroupsToStorage();
+            renderGroupList();
+            showToast('그룹이 삭제되었습니다');
+        }
+
+        // 로컬스토리지에 그룹 데이터 저장
+        function saveGroupsToStorage() {
+            localStorage.setItem('sticky_notes_groups', JSON.stringify(noteGroups));
+            localStorage.setItem('sticky_notes_connections', JSON.stringify(groupConnections));
+        }
+
+        // 로컬스토리지에서 그룹 데이터 로드
+        function loadGroupsFromStorage() {
+            try {
+                const savedGroups = localStorage.getItem('sticky_notes_groups');
+                const savedConnections = localStorage.getItem('sticky_notes_connections');
+
+                if (savedGroups) {
+                    noteGroups = JSON.parse(savedGroups);
+                }
+                if (savedConnections) {
+                    groupConnections = JSON.parse(savedConnections);
+                }
+
+                console.log('그룹 데이터 로드됨:', noteGroups.length, '개 그룹,', groupConnections.length, '개 연결');
+            } catch (e) {
+                console.error('그룹 데이터 로드 실패:', e);
+            }
+        }
+
+        // ============================================
+        // 프로필 및 도움말 버튼
+        // ============================================
+        const profileBtn = document.getElementById('profileBtn');
+        const helpBtn = document.getElementById('helpBtn');
+
+        if (profileBtn) {
+            profileBtn.addEventListener('click', () => {
+                userMenu.classList.remove('show');
+                alert('프로필 설정은 추후 업데이트 예정입니다.\n\n현재 사용자 정보:\n' +
+                      '이름: ' + (currentUser?.user_metadata?.display_name || '게스트') + '\n' +
+                      '소속: ' + (currentUser?.user_metadata?.organization || '-'));
+            });
+        }
+
+        if (helpBtn) {
+            helpBtn.addEventListener('click', () => {
+                userMenu.classList.remove('show');
+                alert('스티키 노트 사용법\n\n' +
+                      '1. + 버튼으로 새 메모 추가\n' +
+                      '2. 메모를 1초간 길게 눌러 핀 표시\n' +
+                      '3. 핀을 드래그하여 다른 메모와 연결\n' +
+                      '4. 그룹 버튼(📁)으로 그룹 관리\n' +
+                      '5. 메모를 드래그하여 이동\n' +
+                      '6. 우측 하단 핸들로 크기 조절');
+            });
+        }
+
         // 초기화
         init();
     </script>
 </body>
 </html>
-<!-- Cache bust: 1768231903 -->
+<!-- Cache bust: 1768302412 -->
