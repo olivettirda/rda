@@ -1354,10 +1354,10 @@
                             user_id: currentUser.id,
                             content: newNote.content,
                             color: newNote.color,
-                            position_x: newNote.position_x,
-                            position_y: newNote.position_y,
-                            width: newNote.width,
-                            height: newNote.height
+                            position_x: Math.round(newNote.position_x),
+                            position_y: Math.round(newNote.position_y),
+                            width: Math.round(newNote.width),
+                            height: Math.round(newNote.height)
                         })
                         .select()
                         .single();
@@ -1393,10 +1393,17 @@
             } else {
                 setSyncStatus('syncing');
 
+                // 숫자 필드는 정수로 변환
+                const dbUpdates = { ...updates };
+                if (dbUpdates.position_x !== undefined) dbUpdates.position_x = Math.round(dbUpdates.position_x);
+                if (dbUpdates.position_y !== undefined) dbUpdates.position_y = Math.round(dbUpdates.position_y);
+                if (dbUpdates.width !== undefined) dbUpdates.width = Math.round(dbUpdates.width);
+                if (dbUpdates.height !== undefined) dbUpdates.height = Math.round(dbUpdates.height);
+
                 try {
                     const { error } = await supabaseClient
                         .from('notes')
-                        .update(updates)
+                        .update(dbUpdates)
                         .eq('id', noteId);
 
                     if (error) {

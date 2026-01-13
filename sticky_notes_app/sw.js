@@ -1,16 +1,16 @@
 // 스티키 노트 서비스 워커
 const CACHE_NAME = 'sticky-notes-v1';
 const urlsToCache = [
-  '/stickynote.html',
-  '/assets/icon.png',
-  '/assets/pencil.png',
-  '/assets/trashcan.png',
-  '/assets/palette.png',
-  '/assets/passed.png',
-  '/assets/share.png',
-  '/assets/folder.png',
-  '/assets/pin.png',
-  '/assets/manual.png'
+  './stickynote.html',
+  './assets/icon.png',
+  './assets/pencil.png',
+  './assets/trashcan.png',
+  './assets/palette.png',
+  './assets/passed.png',
+  './assets/share.png',
+  './assets/folder.png',
+  './assets/pin.png',
+  './assets/manual.png'
 ];
 
 // 설치 시 캐시
