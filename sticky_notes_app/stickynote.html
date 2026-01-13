@@ -12,9 +12,6 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/icon.png">
     <link rel="apple-touch-icon" href="assets/icon.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nanum+Barun+Gothic&display=swap" rel="stylesheet">
     <title>스티키 노트</title>
 
     <style>
@@ -410,15 +407,20 @@
         .note-header {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-end;
             padding: 8px 12px;
             min-height: 36px;
         }
 
         .note-date {
+            position: absolute;
+            bottom: 4px;
+            right: 24px;
             font-size: 10px;
             color: rgba(0,0,0,0.4);
             font-weight: 500;
+            z-index: 1;
+            pointer-events: none;
         }
 
         .note-actions {
@@ -826,11 +828,12 @@
             position: absolute;
             bottom: 0;
             right: 0;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             cursor: se-resize;
-            opacity: 0;
+            opacity: 0.6;
             transition: opacity 0.2s;
+            z-index: 10;
         }
 
         .sticky-note:hover .resize-handle {
@@ -842,10 +845,10 @@
             position: absolute;
             bottom: 4px;
             right: 4px;
-            width: 10px;
-            height: 10px;
-            border-right: 2px solid rgba(0,0,0,0.3);
-            border-bottom: 2px solid rgba(0,0,0,0.3);
+            width: 12px;
+            height: 12px;
+            border-right: 2px solid rgba(0,0,0,0.4);
+            border-bottom: 2px solid rgba(0,0,0,0.4);
         }
 
         /* 반응형 */
@@ -1000,6 +1003,30 @@
             opacity: 1;
         }
 
+        .group-color-picker {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+            outline: none;
+        }
+
+        .group-color-picker::-webkit-color-swatch-wrapper {
+            padding: 2px;
+        }
+
+        .group-color-picker::-webkit-color-swatch {
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 3px;
+        }
+
+        .group-item.drag-over {
+            background: rgba(1, 127, 151, 0.2);
+            box-shadow: 0 0 0 2px #017f97;
+        }
+
         .add-group-btn:hover {
             border-color: #017f97;
             color: #017f97;
@@ -1040,6 +1067,33 @@
 
         .note-editor[contenteditable="true"] {
             caret-color: var(--primary-main) !important;
+        }
+
+        /* 에디터 내부 리스트 스타일 */
+        .note-editor ul {
+            list-style-type: disc;
+            list-style-position: outside;
+            margin: 8px 0;
+            padding-left: 16px;
+        }
+
+        .note-editor ol {
+            list-style-type: decimal;
+            list-style-position: outside;
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .note-editor li {
+            margin: 4px 0;
+            padding-left: 3px;
+        }
+
+        /* 체크박스 스타일 */
+        .note-editor .note-checkbox {
+            cursor: pointer;
+            user-select: none;
+            font-size: 16px;
         }
 
         /* 전달 모달 사용자 목록 */
@@ -2044,13 +2098,19 @@
             el.style.top = `${note.position_y}px`;
             el.style.transform = `rotate(${(Math.random() - 0.5) * 4}deg)`;
 
+            // 그룹 테두리 스타일 적용
+            const group = noteGroups.find(g => g.noteIds.includes(note.id));
+            if (group) {
+                el.style.border = `3px solid ${group.color}`;
+                el.dataset.groupId = group.id;
+            }
+
             const date = new Date(note.created_at);
             const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
             el.innerHTML = `
                 <div class="note-paper ${note.color}">
                     <div class="note-header">
-                        <span class="note-date">${dateStr}</span>
                         <div class="note-actions">
                             <button class="note-action-btn edit-btn" title="편집"><img src="../files/icon/ssal/pencil.png" alt="편집"></button>
                             <button class="note-action-btn color-btn" title="색상 변경"><img src="../files/icon/ssal/palette.png" alt="색상"></button>
@@ -2069,6 +2129,7 @@
                     <div class="note-content">
                         <div class="note-editor" contenteditable="false" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto; caret-color: #017f97; cursor: text;">${note.content || ''}</div>
                     </div>
+                    <span class="note-date">${dateStr}</span>
                     <div class="resize-handle"></div>
                 </div>
             `;
@@ -2210,6 +2271,17 @@
             // 클릭시 맨 앞으로
             el.addEventListener('mousedown', () => {
                 bringToFront(el);
+            });
+
+            // 클릭시 같은 그룹 노트들 하이라이트
+            el.addEventListener('click', (e) => {
+                // 버튼 클릭이 아닐 때만
+                if (!e.target.closest('button') && !e.target.closest('.note-editor')) {
+                    const groupId = el.dataset.groupId;
+                    if (groupId) {
+                        highlightGroupNotes(groupId);
+                    }
+                }
             });
         }
 
@@ -2663,6 +2735,9 @@
             }
         }
 
+        // 그룹 색상 목록
+        const groupColors = ['#4a8b5e', '#e74c3c', '#3498db', '#f39c12', '#9b59b6', '#1abc9c'];
+
         // 노트들로 그룹 생성
         function createGroupFromNotes(name, noteIds) {
             const groupId = 'group_' + Date.now();
@@ -2670,7 +2745,8 @@
                 id: groupId,
                 name: name,
                 noteIds: noteIds,
-                collapsed: false
+                collapsed: false,
+                color: groupColors[noteGroups.length % groupColors.length]
             };
 
             noteGroups.push(newGroup);
@@ -2680,6 +2756,7 @@
 
             saveGroupsToStorage();
             renderGroupList();
+            renderNotes(); // 그룹 테두리 표시 업데이트
         }
 
         // 빈 그룹 생성
@@ -2692,7 +2769,8 @@
                 id: groupId,
                 name: groupName,
                 noteIds: [],
-                collapsed: false
+                collapsed: false,
+                color: groupColors[noteGroups.length % groupColors.length]
             };
 
             noteGroups.push(newGroup);
@@ -2718,18 +2796,33 @@
             noteGroups.forEach(group => {
                 const groupItem = document.createElement('div');
                 groupItem.className = 'group-item';
+                groupItem.dataset.groupId = group.id;
+                groupItem.style.borderLeft = `4px solid ${group.color || '#4a8b5e'}`;
                 groupItem.innerHTML = `
-                    <img src="assets/folder.png" alt="그룹">
+                    <img src="assets/folder.png" alt="그룹" style="filter: drop-shadow(0 0 2px ${group.color || '#4a8b5e'});">
                     <span class="group-item-name">${group.name}</span>
                     <span class="group-item-count">${group.noteIds.length}</span>
+                    <input type="color" class="group-color-picker" value="${group.color || '#4a8b5e'}" title="그룹 색상 변경" data-group-id="${group.id}">
                     <button class="group-item-delete" data-group-id="${group.id}">×</button>
                 `;
 
                 // 그룹 클릭 시 해당 노트들로 이동
                 groupItem.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('group-item-delete')) {
+                    if (!e.target.classList.contains('group-item-delete') &&
+                        !e.target.classList.contains('group-color-picker')) {
                         focusGroupNotes(group.noteIds);
+                        highlightGroupNotes(group.id);
                     }
+                });
+
+                // 색상 변경
+                const colorPicker = groupItem.querySelector('.group-color-picker');
+                colorPicker.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+                colorPicker.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                    changeGroupColor(group.id, e.target.value);
                 });
 
                 // 삭제 버튼
@@ -2737,6 +2830,26 @@
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     deleteGroup(group.id);
+                });
+
+                // 드롭 영역으로 만들기
+                groupItem.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    groupItem.classList.add('drag-over');
+                });
+
+                groupItem.addEventListener('dragleave', () => {
+                    groupItem.classList.remove('drag-over');
+                });
+
+                groupItem.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    groupItem.classList.remove('drag-over');
+                    // 드래그 중인 노트를 이 그룹에 추가
+                    if (draggedNote) {
+                        const noteId = draggedNote.dataset.id;
+                        addNoteToGroup(group.id, noteId);
+                    }
                 });
 
                 groupsList.appendChild(groupItem);
@@ -2754,6 +2867,81 @@
             }
         }
 
+        // 그룹 색상 변경
+        function changeGroupColor(groupId, color) {
+            const group = noteGroups.find(g => g.id === groupId);
+            if (group) {
+                group.color = color;
+                console.log('[그루핑] 그룹 색상 변경:', groupId, color);
+                saveGroupsToStorage();
+                renderGroupList();
+                renderNotes(); // 노트 테두리 업데이트
+            }
+        }
+
+        // 노트를 그룹에 추가
+        function addNoteToGroup(groupId, noteId) {
+            const group = noteGroups.find(g => g.id === groupId);
+            if (!group) {
+                console.error('[그루핑] 그룹을 찾을 수 없음:', groupId);
+                return;
+            }
+
+            // 이미 그룹에 속해있는지 확인
+            if (group.noteIds.includes(noteId)) {
+                showToast('이미 그룹에 속해 있습니다');
+                return;
+            }
+
+            // 다른 그룹에 속해있는지 확인
+            const existingGroup = noteGroups.find(g => g.noteIds.includes(noteId) && g.id !== groupId);
+            if (existingGroup) {
+                if (confirm(`이 메모는 "${existingGroup.name}" 그룹에 속해 있습니다.\n"${group.name}" 그룹으로 이동하시겠습니까?`)) {
+                    // 기존 그룹에서 제거
+                    existingGroup.noteIds = existingGroup.noteIds.filter(id => id !== noteId);
+                } else {
+                    return;
+                }
+            }
+
+            // 그룹에 추가
+            group.noteIds.push(noteId);
+            console.log('[그루핑] 노트가 그룹에 추가됨:', noteId, '→', groupId);
+            saveGroupsToStorage();
+            renderGroupList();
+            renderNotes(); // 노트 테두리 업데이트
+            showToast(`"${group.name}" 그룹에 추가되었습니다`);
+        }
+
+        // 그룹 노트들을 하이라이트
+        function highlightGroupNotes(groupId) {
+            const group = noteGroups.find(g => g.id === groupId);
+            if (!group) return;
+
+            // 모든 노트의 하이라이트 제거
+            document.querySelectorAll('.sticky-note').forEach(noteEl => {
+                noteEl.classList.remove('group-highlighted');
+                noteEl.style.outline = '';
+            });
+
+            // 그룹 노트들만 하이라이트
+            group.noteIds.forEach(noteId => {
+                const noteEl = document.querySelector(`.sticky-note[data-id="${noteId}"]`);
+                if (noteEl) {
+                    noteEl.classList.add('group-highlighted');
+                    noteEl.style.outline = `3px solid ${group.color}`;
+                }
+            });
+
+            // 3초 후 하이라이트 제거
+            setTimeout(() => {
+                document.querySelectorAll('.sticky-note').forEach(noteEl => {
+                    noteEl.classList.remove('group-highlighted');
+                    noteEl.style.outline = '';
+                });
+            }, 3000);
+        }
+
         // 그룹 삭제
         function deleteGroup(groupId) {
             console.log('[그루핑] 그룹 삭제 시도:', groupId);
@@ -2769,6 +2957,7 @@
 
             saveGroupsToStorage();
             renderGroupList();
+            renderNotes(); // 노트 테두리 업데이트
             showToast('그룹이 삭제되었습니다');
         }
 
@@ -3163,7 +3352,7 @@
             console.log('[전달] 사용자 목록 로드 시작');
 
             try {
-                const { data: profiles, error } = await supabase
+                const { data: profiles, error } = await supabaseClient
                     .from('profiles')
                     .select('id, username, display_name, organization')
                     .neq('id', currentUser.id);
@@ -3172,12 +3361,12 @@
 
                 if (error) {
                     console.error('[전달] 에러:', JSON.stringify(error, null, 2));
-                    container.innerHTML = '<div class="no-users-message">사용자 목록을 불러올 수 없습니다.</div>';
+                    container.innerHTML = '<div class="no-users-message">전달받을 사용자가 없습니다.</div>';
                     return;
                 }
 
                 if (!profiles || profiles.length === 0) {
-                    container.innerHTML = '<div class="no-users-message">다른 사용자가 없습니다.</div>';
+                    container.innerHTML = '<div class="no-users-message">전달받을 사용자가 없습니다.</div>';
                     return;
                 }
 
@@ -3240,7 +3429,7 @@
             console.log('[전달] 시작:', { noteId: transferNoteData.id, targetUserId: selectedUserId });
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('notes')
                     .insert({
                         user_id: selectedUserId,
