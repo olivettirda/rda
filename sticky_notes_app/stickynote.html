@@ -851,6 +851,111 @@
             border-bottom: 2px solid rgba(0,0,0,0.4);
         }
 
+        /* 모바일 썸네일 뷰 */
+        .notes-container.thumbnail-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 16px;
+            padding: 72px 16px 16px 16px;
+            position: static;
+        }
+
+        .notes-container.thumbnail-view .sticky-note {
+            position: static !important;
+            width: 100% !important;
+            min-height: 160px !important;
+            transform: none !important;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .notes-container.thumbnail-view .sticky-note:hover {
+            transform: translateY(-4px) !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-paper {
+            min-height: 160px !important;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-editor {
+            font-size: 12px !important;
+            line-height: 1.4 !important;
+            max-height: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-date {
+            font-size: 9px !important;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .resize-handle {
+            display: none;
+        }
+
+        .notes-container.thumbnail-view .sticky-note .note-actions {
+            opacity: 1 !important;
+        }
+
+        /* 확대된 메모 (모바일) */
+        .sticky-note.expanded {
+            position: fixed !important;
+            top: 56px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            height: calc(100vh - 56px) !important;
+            z-index: 9999 !important;
+            transform: none !important;
+            margin: 0 !important;
+        }
+
+        .sticky-note.expanded .note-paper {
+            width: 100%;
+            height: 100%;
+            min-height: 100% !important;
+            border-radius: 0;
+        }
+
+        .sticky-note.expanded .note-editor {
+            min-height: calc(100vh - 200px) !important;
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+            max-height: none !important;
+            overflow-y: auto !important;
+            pointer-events: auto !important;
+        }
+
+        .sticky-note.expanded .resize-handle {
+            display: none;
+        }
+
+        /* 뒤로가기 버튼 (확대 모드) */
+        .back-btn {
+            display: none;
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .back-btn.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         /* 반응형 */
         @media (max-width: 768px) {
             .sticky-note {
@@ -1324,6 +1429,9 @@
             </button>
         </div>
 
+        <!-- 뒤로가기 버튼 (모바일 확대 모드) -->
+        <button id="backBtn" class="back-btn">←</button>
+
         <!-- 노트 보드 -->
         <div class="board">
             <div id="notesContainer" class="notes-container">
@@ -1513,6 +1621,8 @@
         let dragOffsetX = 0;
         let dragOffsetY = 0;
         let currentFont = localStorage.getItem('sticky_notes_font') || 'KoPub Dotum, Malgun Gothic, sans-serif';
+        let isMobileThumbnailView = false; // 모바일 썸네일 뷰 상태
+        let expandedNote = null; // 현재 확대된 메모
 
         // ============================================
         // DOM 요소
@@ -1540,6 +1650,7 @@
         const notesContainer = document.getElementById('notesContainer');
         const emptyState = document.getElementById('emptyState');
         const fabAdd = document.getElementById('fabAdd');
+        const backBtn = document.getElementById('backBtn');
         const userAvatar = document.getElementById('userAvatar');
         const userMenu = document.getElementById('userMenu');
         const autoLoginCheckbox = document.getElementById('autoLoginCheckbox');
@@ -2119,14 +2230,37 @@
             // 빈 상태 표시
             if (notes.length === 0) {
                 emptyState.classList.remove('hidden');
+                notesContainer.classList.remove('thumbnail-view');
+                isMobileThumbnailView = false;
             } else {
                 emptyState.classList.add('hidden');
+
+                // 모바일 환경에서는 썸네일 뷰로 표시 (확대 모드가 아닐 때만)
+                const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+                if (isMobile && !expandedNote) {
+                    notesContainer.classList.add('thumbnail-view');
+                    isMobileThumbnailView = true;
+                    console.log('[모바일] 썸네일 뷰 활성화');
+                } else {
+                    notesContainer.classList.remove('thumbnail-view');
+                    isMobileThumbnailView = false;
+                }
             }
 
             // 노트 렌더링
             notes.forEach(note => {
                 const noteEl = createNoteElement(note);
                 notesContainer.appendChild(noteEl);
+
+                // 썸네일 뷰에서 메모 클릭 시 확대
+                if (isMobileThumbnailView) {
+                    noteEl.addEventListener('click', (e) => {
+                        // 버튼 클릭이 아닐 때만
+                        if (!e.target.closest('button') && !e.target.closest('.color-picker')) {
+                            expandNote(noteEl, note);
+                        }
+                    });
+                }
             });
         }
 
@@ -3641,6 +3775,68 @@
                 }
             });
         })();
+
+        // ============================================
+        // 모바일 썸네일 뷰 - 메모 확대/축소
+        // ============================================
+        function expandNote(noteEl, note) {
+            console.log('[모바일] 메모 확대:', note.id);
+
+            // 다른 확대된 메모가 있으면 축소
+            if (expandedNote) {
+                expandedNote.classList.remove('expanded');
+            }
+
+            // 현재 메모 확대
+            noteEl.classList.add('expanded');
+            expandedNote = noteEl;
+
+            // 썸네일 뷰 비활성화
+            notesContainer.classList.remove('thumbnail-view');
+            isMobileThumbnailView = false;
+
+            // 뒤로가기 버튼 표시
+            backBtn.classList.add('show');
+
+            // 확대 모드에서는 편집 모드 자동 활성화
+            const editor = noteEl.querySelector('.note-editor');
+            if (editor && !noteEl.classList.contains('editing')) {
+                editor.contentEditable = 'true';
+                noteEl.classList.add('editing');
+                setTimeout(() => {
+                    editor.focus();
+                }, 100);
+            }
+        }
+
+        function collapseNote() {
+            console.log('[모바일] 썸네일 뷰로 복귀');
+
+            if (expandedNote) {
+                // 편집 모드 비활성화
+                expandedNote.classList.remove('editing');
+                const editor = expandedNote.querySelector('.note-editor');
+                if (editor) {
+                    editor.contentEditable = 'false';
+                    editor.blur();
+                }
+
+                // 확대 클래스 제거
+                expandedNote.classList.remove('expanded');
+                expandedNote = null;
+            }
+
+            // 뒤로가기 버튼 숨김
+            backBtn.classList.remove('show');
+
+            // 썸네일 뷰로 다시 렌더링
+            renderNotes();
+        }
+
+        // 뒤로가기 버튼 이벤트
+        if (backBtn) {
+            backBtn.addEventListener('click', collapseNote);
+        }
 
         // 초기화
         init();
