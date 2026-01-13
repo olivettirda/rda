@@ -427,22 +427,26 @@
             width: 24px;
             height: 24px;
             border: none;
-            background: rgba(0,0,0,0.1);
+            background: transparent;
             border-radius: 4px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 12px;
-            transition: background 0.2s;
+            padding: 0;
+            transition: opacity 0.2s;
         }
 
-        .note-action-btn:hover {
-            background: rgba(0,0,0,0.2);
+        .note-action-btn img {
+            width: 18px;
+            height: 18px;
+            opacity: 0.4;
+            transition: opacity 0.2s;
         }
 
-        .note-action-btn.delete:hover {
-            background: rgba(220, 53, 69, 0.3);
+        .note-action-btn:hover img {
+            opacity: 0.6;
         }
 
         /* 노트 내용 */
@@ -703,6 +707,60 @@
             to { opacity: 1; }
         }
 
+        /* 플로팅 서식 도구모음 */
+        .floating-format-toolbar {
+            position: fixed;
+            display: none;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 8px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 10000;
+            align-items: center;
+        }
+
+        .floating-format-toolbar.show {
+            display: flex;
+        }
+
+        .floating-format-toolbar .format-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+        }
+
+        .floating-format-toolbar .format-btn:hover {
+            background: var(--primary-light);
+        }
+
+        .floating-format-toolbar .format-btn.active {
+            background: var(--primary-main);
+            color: white;
+        }
+
+        .floating-format-toolbar .bold-btn {
+            font-weight: bold;
+        }
+
+        .floating-format-toolbar .italic-btn {
+            font-style: italic;
+        }
+
+        .floating-format-toolbar .underline-btn {
+            text-decoration: underline;
+        }
+
         /* 빈 상태 */
         .empty-state {
             position: absolute;
@@ -938,9 +996,20 @@
             color: #017f97;
         }
 
-        /* 그룹화 중 표시 (80% 이상 겹침) */
+        /* 그룹화 중 표시 (50% 이상 겹침) */
         .sticky-note.overlap-target {
-            box-shadow: 0 0 0 3px #4a8b5e, 4px 4px 16px rgba(0,0,0,0.15);
+            box-shadow: 0 0 0 4px #4a8b5e, 0 12px 32px rgba(0,0,0,0.3);
+            transform: translateY(-8px) scale(1.02);
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        /* 드래그 중인 노트도 위로 떠오르게 */
+        .sticky-note.dragging {
+            box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+            transform: translateY(-8px) scale(1.02);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            z-index: 1002;
         }
     </style>
 
@@ -1106,6 +1175,15 @@
     <!-- 토스트 -->
     <div class="toast-container">
         <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- 플로팅 서식 도구모음 (드래그 선택 시 표시) -->
+    <div id="floatingFormatToolbar" class="floating-format-toolbar">
+        <button class="format-btn bold-btn" title="굵게 (Ctrl+B)">B</button>
+        <button class="format-btn italic-btn" title="기울임 (Ctrl+I)">I</button>
+        <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)">U</button>
+        <button class="format-btn bullet-btn" title="말머리 기호">•</button>
+        <button class="format-btn checkbox-btn" title="체크박스">☐</button>
     </div>
 
     <!-- 프로필 모달 -->
@@ -1796,8 +1874,8 @@
                     <div class="note-header">
                         <span class="note-date">${dateStr}</span>
                         <div class="note-actions">
-                            <button class="note-action-btn color-btn" title="색상 변경">🎨</button>
-                            <button class="note-action-btn delete" title="삭제">🗑️</button>
+                            <button class="note-action-btn color-btn" title="색상 변경"><img src="../files/icon/ssal/palette.png" alt="색상"></button>
+                            <button class="note-action-btn delete" title="삭제"><img src="../files/icon/ssal/trashcan.png" alt="삭제"></button>
                         </div>
                         <div class="color-picker">
                             <div class="color-option yellow" data-color="yellow"></div>
@@ -1808,15 +1886,8 @@
                             <div class="color-option purple" data-color="purple"></div>
                         </div>
                     </div>
-                    <div class="note-toolbar" style="padding: 4px 8px; display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid rgba(0,0,0,0.1);">
-                        <button class="format-btn bold-btn" title="굵게 (Ctrl+B)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">B</button>
-                        <button class="format-btn italic-btn" title="기울임 (Ctrl+I)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-style: italic; font-size: 12px;">I</button>
-                        <button class="format-btn underline-btn" title="밑줄 (Ctrl+U)" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; text-decoration: underline; font-size: 12px;">U</button>
-                        <button class="format-btn bullet-btn" title="말머리 기호" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 16px;">•</button>
-                        <button class="format-btn checkbox-btn" title="체크박스" style="width: 28px; height: 28px; border: none; background: rgba(0,0,0,0.05); border-radius: 4px; cursor: pointer; font-size: 14px;">☐</button>
-                    </div>
                     <div class="note-content">
-                        <div class="note-editor" contenteditable="true" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto;">${note.content || ''}</div>
+                        <div class="note-editor" contenteditable="true" style="width: 100%; min-height: 140px; padding: 8px 12px; background: transparent; border: none; outline: none; font-family: 'KoPub Dotum', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; line-height: 1.6; color: #333; overflow-y: auto; caret-color: #333; cursor: text;">${note.content || ''}</div>
                     </div>
                     <div class="resize-handle"></div>
                 </div>
@@ -1835,11 +1906,6 @@
             const deleteBtn = el.querySelector('.delete');
             const notePaper = el.querySelector('.note-paper');
             const resizeHandle = el.querySelector('.resize-handle');
-            const boldBtn = el.querySelector('.bold-btn');
-            const italicBtn = el.querySelector('.italic-btn');
-            const underlineBtn = el.querySelector('.underline-btn');
-            const bulletBtn = el.querySelector('.bullet-btn');
-            const checkboxBtn = el.querySelector('.checkbox-btn');
 
             // 내용 변경
             let saveTimeout;
@@ -1848,57 +1914,6 @@
                 saveTimeout = setTimeout(() => {
                     updateNote(note.id, { content: editor.innerHTML });
                 }, 500);
-            });
-
-            // 서식 버튼들
-            boldBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.execCommand('bold', false, null);
-                editor.focus();
-            });
-
-            italicBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.execCommand('italic', false, null);
-                editor.focus();
-            });
-
-            underlineBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.execCommand('underline', false, null);
-                editor.focus();
-            });
-
-            bulletBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.execCommand('insertUnorderedList', false, null);
-                editor.focus();
-            });
-
-            checkboxBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const checkbox = document.createElement('span');
-                checkbox.className = 'note-checkbox';
-                checkbox.textContent = '☐ ';
-                checkbox.style.cursor = 'pointer';
-                checkbox.onclick = function() {
-                    this.textContent = this.textContent.startsWith('☐') ? '☑ ' : '☐ ';
-                    updateNote(note.id, { content: editor.innerHTML });
-                };
-
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                    const range = selection.getRangeAt(0);
-                    range.insertNode(checkbox);
-                    range.collapse(false);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                } else {
-                    editor.appendChild(checkbox);
-                }
-
-                updateNote(note.id, { content: editor.innerHTML });
-                editor.focus();
             });
 
             // 키보드 단축키
@@ -2017,7 +2032,7 @@
             checkOverlapWithOtherNotes(draggedNote);
         }
 
-        // 80% 이상 겹침 체크
+        // 50% 이상 겹침 체크
         function checkOverlapWithOtherNotes(draggedEl) {
             const draggedRect = draggedEl.getBoundingClientRect();
             const draggedArea = draggedRect.width * draggedRect.height;
@@ -2055,8 +2070,9 @@
                 }
             });
 
-            // 80% 이상 겹치면 하이라이트
-            if (maxOverlapPercent >= 80 && maxOverlapNote) {
+            // 50% 이상 겹치면 하이라이트
+            console.log('[그루핑] 최대 겹침 비율:', maxOverlapPercent.toFixed(1) + '%');
+            if (maxOverlapPercent >= 50 && maxOverlapNote) {
                 maxOverlapNote.classList.add('overlap-target');
                 return maxOverlapNote;
             }
@@ -2069,7 +2085,7 @@
 
             draggedNote.classList.remove('dragging');
 
-            // 80% 이상 겹치는 노트 찾기
+            // 50% 이상 겹치는 노트 찾기
             const overlappedNote = checkOverlapWithOtherNotes(draggedNote);
 
             // 모든 overlap-target 클래스 제거
@@ -2084,6 +2100,7 @@
             // 겹친 노트가 있으면 그룹 생성 제안
             if (overlappedNote) {
                 const overlappedId = overlappedNote.dataset.id;
+                console.log('[그루핑] 그룹 생성 제안:', noteId, overlappedId);
                 setTimeout(() => {
                     suggestGroupCreation(noteId, overlappedId);
                 }, 100);
@@ -2494,17 +2511,16 @@
 
         // 그룹 삭제
         function deleteGroup(groupId) {
-            if (!confirm('이 그룹을 삭제하시겠습니까?\n(노트는 삭제되지 않습니다)')) return;
+            console.log('[그루핑] 그룹 삭제 시도:', groupId);
+
+            if (!confirm('이 그룹을 삭제하시겠습니까?\n(노트는 삭제되지 않습니다)')) {
+                console.log('[그루핑] 그룹 삭제 취소');
+                return;
+            }
 
             // 그룹 제거
             noteGroups = noteGroups.filter(g => g.id !== groupId);
-
-            // 연결들의 그룹 ID 제거
-            groupConnections.forEach(conn => {
-                if (conn.groupId === groupId) {
-                    conn.groupId = null;
-                }
-            });
+            console.log('[그루핑] 그룹 삭제 완료, 남은 그룹:', noteGroups.length);
 
             saveGroupsToStorage();
             renderGroupList();
@@ -2754,12 +2770,98 @@
                 alert('스티키 노트 사용법\n\n' +
                       '1. + 버튼으로 새 메모 추가\n' +
                       '2. 메모를 드래그하여 이동\n' +
-                      '3. 메모를 다른 메모 위에 80% 이상 겹치면 그룹 생성\n' +
+                      '3. 메모를 다른 메모 위에 50% 이상 겹치면 그룹 생성\n' +
                       '4. 그룹 버튼(📁)으로 그룹 관리\n' +
-                      '5. 메모를 드래그하여 이동\n' +
-                      '6. 우측 하단 핸들로 크기 조절');
+                      '5. 텍스트 선택 후 우클릭으로 서식 변경\n' +
+                      '6. 우측 하단 핸들로 크기 조절\n' +
+                      '7. Ctrl+B(굵게), Ctrl+I(기울임), Ctrl+U(밑줄)');
             });
         }
+
+        // ============================================
+        // 플로팅 서식 도구모음
+        // ============================================
+        const floatingToolbar = document.getElementById('floatingFormatToolbar');
+        const floatingBoldBtn = floatingToolbar.querySelector('.bold-btn');
+        const floatingItalicBtn = floatingToolbar.querySelector('.italic-btn');
+        const floatingUnderlineBtn = floatingToolbar.querySelector('.underline-btn');
+        const floatingBulletBtn = floatingToolbar.querySelector('.bullet-btn');
+        const floatingCheckboxBtn = floatingToolbar.querySelector('.checkbox-btn');
+
+        // 우클릭 시 플로팅 도구모음 표시
+        document.addEventListener('contextmenu', (e) => {
+            const editor = e.target.closest('.note-editor');
+            if (editor) {
+                const selection = window.getSelection();
+                if (selection && selection.toString().trim().length > 0) {
+                    e.preventDefault();
+                    console.log('[플로팅 툴바] 텍스트 선택됨, 툴바 표시');
+
+                    // 위치 설정
+                    const x = Math.min(e.clientX, window.innerWidth - 200);
+                    const y = Math.min(e.clientY + 10, window.innerHeight - 60);
+                    floatingToolbar.style.left = x + 'px';
+                    floatingToolbar.style.top = y + 'px';
+                    floatingToolbar.classList.add('show');
+                } else {
+                    floatingToolbar.classList.remove('show');
+                }
+            } else {
+                floatingToolbar.classList.remove('show');
+            }
+        });
+
+        // 다른 곳 클릭 시 도구모음 숨기기
+        document.addEventListener('mousedown', (e) => {
+            if (!floatingToolbar.contains(e.target) && !e.target.closest('.note-editor')) {
+                floatingToolbar.classList.remove('show');
+            }
+        });
+
+        // 플로팅 툴바 버튼 이벤트
+        floatingBoldBtn.addEventListener('click', () => {
+            console.log('[플로팅 툴바] 굵게 실행');
+            document.execCommand('bold', false, null);
+        });
+
+        floatingItalicBtn.addEventListener('click', () => {
+            console.log('[플로팅 툴바] 기울임 실행');
+            document.execCommand('italic', false, null);
+        });
+
+        floatingUnderlineBtn.addEventListener('click', () => {
+            console.log('[플로팅 툴바] 밑줄 실행');
+            document.execCommand('underline', false, null);
+        });
+
+        floatingBulletBtn.addEventListener('click', () => {
+            console.log('[플로팅 툴바] 말머리 기호 실행');
+            document.execCommand('insertUnorderedList', false, null);
+        });
+
+        floatingCheckboxBtn.addEventListener('click', () => {
+            console.log('[플로팅 툴바] 체크박스 삽입');
+            const checkbox = document.createElement('span');
+            checkbox.className = 'note-checkbox';
+            checkbox.textContent = '☐ ';
+            checkbox.style.cursor = 'pointer';
+
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.insertNode(checkbox);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                // 체크박스 클릭 이벤트
+                checkbox.onclick = function() {
+                    this.textContent = this.textContent.startsWith('☐') ? '☑ ' : '☐ ';
+                };
+            }
+
+            floatingToolbar.classList.remove('show');
+        });
 
         // 초기화
         init();
