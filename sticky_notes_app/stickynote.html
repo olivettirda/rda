@@ -1363,9 +1363,10 @@
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <button class="login-btn" id="exportDataBtn" style="flex: 1; min-width: 100px;">📥 내보내기</button>
                             <button class="login-btn" id="importDataBtn" style="flex: 1; min-width: 100px;">📤 불러오기</button>
+                            <button class="login-btn" id="exportExcelBtn" style="flex: 1; min-width: 100px;">📊 엑셀</button>
                             <input type="file" id="importFileInput" accept=".json" style="display: none;">
                         </div>
-                        <p style="font-size: 12px; color: #999; margin-top: 8px;">JSON 형식으로 모든 메모를 저장하고 불러올 수 있습니다</p>
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">JSON 백업/복원 또는 엑셀(CSV)로 내보내기</p>
                     </div>
 
                     <div style="margin-bottom: 24px;">
@@ -3008,18 +3009,83 @@
             e.target.value = '';
         });
 
+        // 엑셀 내보내기 (CSV)
+        document.getElementById('exportExcelBtn').addEventListener('click', () => {
+            console.log('[엑셀] 내보내기 시작, 메모 개수:', notes.length);
+
+            // CSV 헤더
+            const headers = ['번호', '내용', '색상', '작성일시', '수정일시'];
+            const rows = [headers];
+
+            // 데이터 행 추가
+            notes.forEach((note, index) => {
+                // HTML 태그 제거하고 텍스트만 추출
+                const content = (note.content || '')
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/<[^>]*>/g, '')
+                    .replace(/"/g, '""'); // CSV에서 따옴표 이스케이프
+
+                const colorNames = {
+                    yellow: '노랑',
+                    pink: '분홍',
+                    green: '초록',
+                    orange: '주황',
+                    purple: '보라',
+                    blue: '파랑'
+                };
+
+                const createdAt = note.created_at ?
+                    new Date(note.created_at).toLocaleString('ko-KR') : '';
+                const updatedAt = note.updated_at ?
+                    new Date(note.updated_at).toLocaleString('ko-KR') : '';
+
+                rows.push([
+                    index + 1,
+                    `"${content}"`,
+                    colorNames[note.color] || note.color,
+                    createdAt,
+                    updatedAt
+                ]);
+            });
+
+            // CSV 문자열 생성 (UTF-8 BOM 추가로 한글 깨짐 방지)
+            const csvContent = '\uFEFF' + rows.map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sticky_notes_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            console.log('[엑셀] 내보내기 완료');
+            showToast('엑셀 파일이 다운로드되었습니다');
+        });
+
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
-                alert('스티키 노트 사용법\n\n' +
-                      '1. + 버튼으로 새 메모 추가\n' +
-                      '2. 연필 아이콘으로 편집 모드 활성화\n' +
-                      '3. 편집 모드에서 텍스트 선택하면 서식 도구 자동 표시\n' +
-                      '4. 메모를 드래그하여 이동\n' +
-                      '5. 메모를 다른 메모 위에 50% 이상 겹치면 그룹 생성\n' +
-                      '6. 그룹 버튼(📁)으로 그룹 관리\n' +
-                      '7. 전달 아이콘으로 다른 사용자에게 메모 전달\n' +
-                      '8. 우측 하단 핸들로 크기 조절');
+                alert('📱 스티키 노트 모바일 사용법\n\n' +
+                      '【기본 사용】\n' +
+                      '• + 버튼: 새 메모 추가\n' +
+                      '• 연필 아이콘: 편집 모드 전환\n' +
+                      '• 색상 아이콘: 메모 색상 변경\n' +
+                      '• 전달 아이콘: 다른 사용자에게 메모 전달\n' +
+                      '• 휴지통 아이콘: 메모 삭제\n\n' +
+                      '【편집 기능】\n' +
+                      '• 연필 아이콘을 누르면 편집 모드 활성화\n' +
+                      '• 텍스트를 드래그하면 서식 도구가 자동으로 나타남\n' +
+                      '• B(굵게), I(기울임), U(밑줄), •(말머리), ☐(체크박스)\n' +
+                      '• 단축키: Ctrl+B(굵게), Ctrl+I(기울임), Ctrl+U(밑줄)\n\n' +
+                      '【이동/크기 조절】\n' +
+                      '• 메모를 드래그하여 이동\n' +
+                      '• 우측 하단 핸들로 크기 조절\n\n' +
+                      '【그룹 기능】\n' +
+                      '• 메모를 다른 메모에 50% 이상 겹치면 그룹 생성 제안\n' +
+                      '• 그룹 버튼(📁)으로 그룹 관리\n\n' +
+                      '【데이터 백업】\n' +
+                      '• 프로필 → 설정 → 데이터 백업\n' +
+                      '• JSON 형식 또는 엑셀(CSV)로 내보내기');
             });
         }
 
