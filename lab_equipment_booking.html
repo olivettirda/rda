@@ -2069,7 +2069,7 @@
                     <form id="loginForm">
                         <div class="form-group">
                             <label class="form-label">아이디 <span class="required">*</span></label>
-                            <input type="text" class="form-input" id="loginEmail" placeholder="rda123@korea.kr 혹은 admin" required>
+                            <input type="text" class="form-input" id="loginEmail" placeholder="이메일 혹은 admin" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label">비밀번호 <span class="required">*</span></label>
@@ -2202,7 +2202,7 @@
                                 <h4 style="color: var(--primary-main); margin-bottom: 8px;">2단계: 실험실 선택</h4>
                                 <p>드롭다운 메뉴에서 실험실을 선택합니다.</p>
                                 <ul style="margin-left: 20px; margin-top: 8px; line-height: 1.8;">
-                                    <li>분자육종실험실, 가공적성실험실, 품질분석실험실, 생공 중 선택</li>
+                                    <li>등록된 장비의 연구실 목록이 자동으로 표시됩니다</li>
                                     <li>실험실 선택 후 예약을 진행합니다</li>
                                 </ul>
                             </div>
@@ -2440,10 +2440,8 @@
                                     <div class="form-group mb-3">
                                         <label class="form-label">실험실 <span style="color: var(--error);">*</span></label>
                                         <select class="form-select" id="experimentLocation">
-                                            <option value="">-- 위치 선택 --</option>
-                                            <option value="분자육종실험실">분자육종실험실</option>
-                                            <option value="가공적성실험실">가공적성실험실</option>
-                                            <option value="생공">생공</option>
+                                            <option value="">-- 실험실 선택 --</option>
+                                            <!-- 장비의 연구실 목록이 동적으로 로드됩니다 -->
                                         </select>
                                     </div>
                                     <div class="form-group mb-3">
@@ -2713,8 +2711,8 @@
                                 <table class="table">
                                     <thead>
                                         <tr>
-                                            <th>자산취득번호</th>
                                             <th>장비명</th>
+                                            <th>연구실</th>
                                             <th>위치</th>
                                             <th>상태</th>
                                             <th>승인방식</th>
@@ -2916,22 +2914,20 @@
                 <form id="equipmentForm">
                     <input type="hidden" id="equipmentId">
                     <div class="form-group">
-                        <label class="form-label">자산취득번호 (선택)</label>
-                        <input type="text" class="form-input" id="equipmentAssetNo" placeholder="예: 029150400050993846">
-                        <p class="form-hint">자산취득번호가 있는 장비는 반드시 입력하세요. 중복 등록을 방지합니다.</p>
-                    </div>
-                    <div class="form-group">
                         <label class="form-label">장비명 <span class="required">*</span></label>
                         <input type="text" class="form-input" id="equipmentName" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">위치 <span class="required">*</span></label>
-                        <select class="form-select" id="equipmentLocation" required>
-                            <option value="">-- 위치 선택 --</option>
-                            <option value="분자육종실험실">분자육종실험실</option>
-                            <option value="가공적성실험실">가공적성실험실</option>
-                            <option value="생공">생공</option>
-                        </select>
+                        <label class="form-label">연구실 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="equipmentLabRoom" placeholder="예: 분자육종실험실" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">위치</label>
+                        <input type="text" class="form-input" id="equipmentLocation" placeholder="예: 209호">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">자산취득번호 (선택)</label>
+                        <input type="text" class="form-input" id="equipmentAssetNo" placeholder="예: 029150400050993846">
                     </div>
                     <div class="form-group">
                         <label class="form-label">설명</label>
@@ -2991,11 +2987,6 @@
             </div>
             <div class="modal-body">
                 <form id="equipmentRequestForm">
-                    <div class="form-group">
-                        <label class="form-label">자산취득번호 (선택)</label>
-                        <input type="text" class="form-input" id="requestEquipmentAssetNo" placeholder="예: 029150400050993846">
-                        <p class="form-hint">자산취득번호가 있는 장비는 반드시 입력하세요. 중복 등록을 방지합니다.</p>
-                    </div>
                     <div class="form-group">
                         <label class="form-label">장비명 <span class="required">*</span></label>
                         <input type="text" class="form-input" id="requestEquipmentName" placeholder="예: 원심분리기" required>
@@ -3139,13 +3130,8 @@
         let equipmentList = [];
         let currentApprovalReservation = null;
 
-        // 공유 위치 목록 (실험실)
-        const SHARED_LOCATIONS = [
-            '분자육종실험실',
-            '가공적성실험실',
-            '품질분석실험실',
-            '생공'
-        ];
+        // 공유 위치 목록 (실험실) - 장비 데이터에서 자동으로 추출됨
+        let SHARED_LOCATIONS = [];
 
         // =============================================
         // 한국 공휴일 시스템 (한국천문연구원 API + 폴백)
@@ -3651,6 +3637,18 @@
             }
 
             equipmentList = data;
+
+            // 장비 데이터에서 lab_room 목록을 추출하여 SHARED_LOCATIONS 업데이트
+            const labRooms = [...new Set(equipmentList
+                .map(eq => eq.lab_room)
+                .filter(room => room && room.trim() !== '')
+            )];
+            SHARED_LOCATIONS = labRooms;
+            console.log('실험실 목록 업데이트:', JSON.stringify(SHARED_LOCATIONS));
+
+            // 예약 폼의 실험실 드롭다운도 업데이트
+            populateExperimentLocationDropdown();
+
             renderEquipmentGrid();
         }
 
@@ -3903,15 +3901,37 @@
         // 실험실 드롭다운을 equipment 테이블에서 동적으로 채우기
         function populateExperimentLocationDropdown() {
             const select = document.getElementById('experimentLocation');
-            if (!select || !equipmentList) return;
+            if (!select) {
+                console.warn('experimentLocation 셀렉트 박스를 찾을 수 없음');
+                return;
+            }
 
-            // 고유한 위치 목록 추출
-            const locations = [...new Set(equipmentList.map(eq => eq.location).filter(loc => loc))];
-            console.log('사용 가능한 실험실:', locations);
+            console.log('=== 실험실 드롭다운 업데이트 ===');
+            console.log('SHARED_LOCATIONS:', JSON.stringify(SHARED_LOCATIONS));
+            console.log('equipmentList 개수:', equipmentList ? equipmentList.length : 0);
+
+            // SHARED_LOCATIONS가 비어있으면 equipmentList에서 직접 추출
+            let locations = SHARED_LOCATIONS;
+            if (!locations || locations.length === 0) {
+                console.warn('SHARED_LOCATIONS가 비어있음, equipmentList에서 직접 추출');
+                if (equipmentList && equipmentList.length > 0) {
+                    locations = [...new Set(equipmentList
+                        .map(eq => eq.lab_room)
+                        .filter(room => room && room.trim() !== '')
+                    )];
+                    console.log('직접 추출한 연구실 목록:', JSON.stringify(locations));
+                }
+            }
 
             // 드롭다운 옵션 생성
-            select.innerHTML = '<option value="">-- 위치 선택 --</option>' +
-                locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+            if (locations && locations.length > 0) {
+                select.innerHTML = '<option value="">-- 실험실 선택 --</option>' +
+                    locations.map(loc => `<option value="${loc}">${loc}</option>`).join('');
+                console.log('실험실 드롭다운 생성 완료:', locations.length + '개');
+            } else {
+                select.innerHTML = '<option value="">-- 실험실 없음 (장비를 먼저 등록하세요) --</option>';
+                console.warn('실험실 목록이 비어있음');
+            }
         }
 
         async function loadAdminData() {
@@ -4206,7 +4226,7 @@
                         const reservationId = parseInt(eventEl.getAttribute('data-reservation-id'));
                         const isMine = eventEl.getAttribute('data-is-mine') === 'true';
 
-                        console.log('이벤트 리스너 등록:', { reservationId, isMine });
+                        console.log('이벤트 리스너 등록:', JSON.stringify({ reservationId, isMine }));
 
                         // 호버링 이벤트
                         eventEl.addEventListener('mouseenter', (e) => {
@@ -5439,9 +5459,9 @@
                 }
                 return `
                     <tr>
-                        <td><code>${eq.asset_no || '-'}</code></td>
-                        <td><strong>${eq.name}</strong></td>
-                        <td>${eq.location}</td>
+                        <td><strong title="${eq.asset_no ? '자산취득번호: ' + eq.asset_no : '자산취득번호 없음'}" style="cursor: help;">${eq.name}</strong></td>
+                        <td>${eq.lab_room || '-'}</td>
+                        <td>${eq.location || '-'}</td>
                         <td><span class="equipment-status ${eq.status}">${getStatusText(eq.status)}</span></td>
                         <td>${eq.approval_mode === 'auto' ? '자동' : '수동'}</td>
                         <td>${actionBtns}</td>
@@ -5655,9 +5675,10 @@
         function openEquipmentModal(eq = null) {
             document.getElementById('equipmentModalTitle').textContent = eq ? '장비 수정' : '장비 추가';
             document.getElementById('equipmentId').value = eq?.id || '';
-            document.getElementById('equipmentAssetNo').value = eq?.asset_no || '';
             document.getElementById('equipmentName').value = eq?.name || '';
+            document.getElementById('equipmentLabRoom').value = eq?.lab_room || '';
             document.getElementById('equipmentLocation').value = eq?.location || '';
+            document.getElementById('equipmentAssetNo').value = eq?.asset_no || '';
             document.getElementById('equipmentDescription').value = eq?.description || '';
             document.getElementById('equipmentStatus').value = eq?.status || 'available';
             document.getElementById('equipmentApprovalMode').value = eq?.approval_mode || 'manual';
@@ -5672,28 +5693,12 @@
 
         async function saveEquipment() {
             const id = document.getElementById('equipmentId').value;
-            const assetNo = document.getElementById('equipmentAssetNo').value.trim();
-
-            // 자산취득번호가 입력된 경우에만 중복 체크
-            if (assetNo) {
-                const { data: existing } = await supabaseClient
-                    .from('equipment')
-                    .select('id')
-                    .eq('asset_no', assetNo);
-
-                if (existing && existing.length > 0) {
-                    // 수정 시에는 자기 자신 제외
-                    if (!id || existing.some(e => e.id !== id)) {
-                        showToast('이미 등록된 자산취득번호입니다.', 'error');
-                        return;
-                    }
-                }
-            }
 
             const data = {
-                asset_no: assetNo || null,
                 name: document.getElementById('equipmentName').value,
-                location: document.getElementById('equipmentLocation').value,
+                lab_room: document.getElementById('equipmentLabRoom').value,
+                location: document.getElementById('equipmentLocation').value || null,
+                asset_no: document.getElementById('equipmentAssetNo').value || null,
                 description: document.getElementById('equipmentDescription').value,
                 status: document.getElementById('equipmentStatus').value,
                 approval_mode: document.getElementById('equipmentApprovalMode').value,
@@ -5743,7 +5748,6 @@
         }
 
         async function submitEquipmentRequest() {
-            const assetNo = document.getElementById('requestEquipmentAssetNo').value.trim();
             const name = document.getElementById('requestEquipmentName').value.trim();
             const location = document.getElementById('requestEquipmentLocation').value.trim();
             const description = document.getElementById('requestEquipmentDescription').value.trim();
@@ -5753,22 +5757,8 @@
                 return;
             }
 
-            // 자산취득번호가 입력된 경우에만 중복 체크
-            if (assetNo) {
-                const { data: existing } = await supabaseClient
-                    .from('equipment')
-                    .select('id')
-                    .eq('asset_no', assetNo);
-
-                if (existing && existing.length > 0) {
-                    showToast('이미 등록된 자산취득번호입니다.', 'error');
-                    return;
-                }
-            }
-
             try {
                 const { error } = await supabaseClient.from('equipment').insert([{
-                    asset_no: assetNo || null,
                     name: name,
                     location: location || '',
                     description: description ? `[${currentUser.name} 신청] ${description}` : `[${currentUser.name} 신청]`,
@@ -5910,20 +5900,29 @@
         // Utility Functions
         // =============================================
 
-        // 위치명으로 equipment_id 찾기
+        // 연구실/위치명으로 equipment_id 찾기
         function getEquipmentIdByLocation(locationName) {
             if (!equipmentList || equipmentList.length === 0) {
                 console.log('장비 목록이 비어있음');
                 return null;
             }
-            // 위치명과 일치하는 장비 찾기
-            const equipment = equipmentList.find(eq => eq.location === locationName);
+
+            // 1순위: 연구실(lab_room)과 일치하는 장비 찾기
+            let equipment = equipmentList.find(eq => eq.lab_room === locationName);
+            if (equipment) {
+                console.log('연구실 매칭 장비 찾음:', equipment.id, equipment.name, '(', equipment.lab_room, ')');
+                return equipment.id;
+            }
+
+            // 2순위: 위치(location)와 일치하는 장비 찾기 (하위 호환성)
+            equipment = equipmentList.find(eq => eq.location === locationName);
             if (equipment) {
                 console.log('위치 매칭 장비 찾음:', equipment.id, equipment.name);
                 return equipment.id;
             }
+
             // 일치하는 장비가 없으면 첫 번째 장비 사용 (fallback)
-            console.log('위치 매칭 실패, 첫 번째 장비 사용:', equipmentList[0].id);
+            console.log('매칭 실패, 첫 번째 장비 사용:', equipmentList[0].id);
             return equipmentList[0].id;
         }
 
@@ -6113,10 +6112,10 @@
                 {
                     '장비명': '예시: PCR 기기',
                     '표시명(선택)': '예시: 1층 PCR',
-                    '위치': '예시: 1동 101호',
+                    '연구실': '분자생물학 연구실',
+                    '위치(선택)': '예시: 1동 101호',
                     '자산취득번호(선택)': '029150400050993846',
                     '부서(선택)': '생명과학부',
-                    '연구실(선택)': '분자생물학 연구실',
                     '취득연도(선택)': '2023',
                     '최대예약시간': '4',
                     '승인방식(auto/manual)': 'manual',
@@ -6158,15 +6157,17 @@
 
                 let successCount = 0;
                 let errorCount = 0;
+                const successList = [];
+                const errorList = [];
 
                 for (const row of jsonData) {
                     const equipmentData = {
                         name: row['장비명'],
                         display_name: row['표시명(선택)'] || row['장비명'],
-                        location: row['위치'] || '',
+                        lab_room: row['연구실'],
+                        location: row['위치(선택)'] || null,
                         asset_no: row['자산취득번호(선택)'] || null,
                         lab_department: row['부서(선택)'] || null,
-                        lab_room: row['연구실(선택)'] || null,
                         acquisition_year: row['취득연도(선택)'] ? parseInt(row['취득연도(선택)']) : null,
                         max_duration_hours: parseInt(row['최대예약시간']) || 4,
                         approval_mode: row['승인방식(auto/manual)'] === 'auto' ? 'auto' : 'manual',
@@ -6176,24 +6177,61 @@
 
                     if (!equipmentData.name) {
                         errorCount++;
+                        errorList.push({ name: '(이름 없음)', reason: '장비명 누락' });
                         continue;
                     }
+
+                    if (!equipmentData.lab_room) {
+                        errorCount++;
+                        errorList.push({ name: equipmentData.name, reason: '연구실 누락' });
+                        continue;
+                    }
+
+                    // 중복 체크: 같은 이름 + 같은 연구실
+                    const { data: duplicates } = await supabaseClient
+                        .from('equipment')
+                        .select('id')
+                        .eq('name', equipmentData.name)
+                        .eq('lab_room', equipmentData.lab_room);
+
+                    if (duplicates && duplicates.length > 0) {
+                        console.log('중복 장비 건너뜀:', equipmentData.name, '(', equipmentData.lab_room, ')');
+                        errorCount++;
+                        errorList.push({ name: equipmentData.name, reason: `중복 장비 (연구실: ${equipmentData.lab_room})` });
+                        continue;
+                    }
+
+                    console.log('장비 추가 시도:', JSON.stringify(equipmentData, null, 2));
 
                     const { error } = await supabaseClient
                         .from('equipment')
                         .insert([equipmentData]);
 
                     if (error) {
-                        console.error('장비 추가 오류:', error);
+                        console.error('장비 추가 오류:', JSON.stringify(error, null, 2));
                         errorCount++;
+                        errorList.push({ name: equipmentData.name, reason: error.message });
                     } else {
                         successCount++;
+                        successList.push(equipmentData.name);
+                        console.log('✓ 성공:', equipmentData.name);
                     }
                 }
 
                 event.target.value = '';
                 loadEquipmentTable();
                 await loadEquipment();
+
+                // 결과 상세 로그
+                console.log('=== Excel 업로드 완료 ===');
+                console.log(`총 ${jsonData.length}개 항목 중 ${successCount}개 성공, ${errorCount}개 실패`);
+                if (successList.length > 0) {
+                    console.log('성공한 장비:', JSON.stringify(successList, null, 2));
+                }
+                if (errorList.length > 0) {
+                    console.log('실패한 장비:', JSON.stringify(errorList, null, 2));
+                }
+
                 showToast(`업로드 완료: ${successCount}개 성공, ${errorCount}개 실패`, successCount > 0 ? 'success' : 'warning');
             } catch (err) {
                 showToast('엑셀 파일 처리 중 오류가 발생했습니다: ' + err.message, 'error');
@@ -6212,16 +6250,16 @@
 
                 const exportData = data.map(eq => ({
                     '장비명': eq.name,
-                    '표시명': eq.display_name || eq.name,
-                    '위치': eq.location,
-                    '자산취득번호': eq.asset_no || '',
-                    '부서': eq.lab_department || '',
+                    '표시명(선택)': eq.display_name || eq.name,
                     '연구실': eq.lab_room || '',
-                    '취득연도': eq.acquisition_year || '',
+                    '위치(선택)': eq.location || '',
+                    '자산취득번호(선택)': eq.asset_no || '',
+                    '부서(선택)': eq.lab_department || '',
+                    '취득연도(선택)': eq.acquisition_year || '',
                     '최대예약시간': eq.max_duration_hours,
-                    '승인방식': eq.approval_mode,
-                    '상태': eq.status,
-                    '설명': eq.description || ''
+                    '승인방식(auto/manual)': eq.approval_mode,
+                    '상태(available/maintenance)': eq.status,
+                    '설명(선택)': eq.description || ''
                 }));
 
                 const ws = XLSX.utils.json_to_sheet(exportData);
