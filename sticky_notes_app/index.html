@@ -47,7 +47,7 @@
             --space-8: 2rem;
 
             /* 폰트 */
-            --font-primary: 'KoPub Dotum', 'Malgun Gothic', sans-serif;
+            --font-primary: 'Nanum Barun Gothic', 'Malgun Gothic', sans-serif;
             --font-note: 'Nanum Pen Script', cursive;
 
             /* 스티키 노트 색상 - 파스텔톤 */
@@ -943,6 +943,15 @@
         .sticky-note.orange { background: var(--note-orange); }
         .sticky-note.purple { background: var(--note-purple); }
         .sticky-note.blue { background: var(--note-blue); }
+
+        .note-date {
+            position: absolute;
+            bottom: 4px;
+            right: 8px;
+            font-size: 10px;
+            color: rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+        }
 
         .note-header {
             display: flex;
@@ -2036,7 +2045,7 @@
         }
     </style>
 
-    <link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Nanum+Barun+Gothic&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-wrapper">
@@ -2938,6 +2947,10 @@
             const plainText = (note.content || '').replace(/<[^>]*>/g, '').trim();
             el.dataset.preview = plainText.substring(0, 50) || '빈 메모';
 
+            // 날짜/시간 포맷
+            const date = note.created_at ? new Date(note.created_at) : new Date();
+            const dateStr = `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
             // 전달받은/보낸 메모 표시
             let noteIndicator = '';
             if (note.from_user_id) {
@@ -2959,6 +2972,7 @@
                     <div class="drag-corner drag-corner-br"></div>
                 </div>
                 ${noteIndicator}
+                <div class="note-date">${dateStr}</div>
                 <div class="note-header">
                     <button class="note-btn edit-btn" title="편집 모드"><img src="assets/pencil.png" alt="편집"></button>
                     <button class="note-btn color-btn" title="색상 변경"><img src="assets/palette.png" alt="색상"></button>
