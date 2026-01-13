@@ -2074,18 +2074,88 @@
             }
         }
 
+        // 현재 화면(viewport) 내에서 빈 공간 찾기
+        function findEmptySpaceInViewport() {
+            // 현재 viewport 영역 계산
+            const viewportX = window.scrollX || window.pageXOffset || 0;
+            const viewportY = window.scrollY || window.pageYOffset || 0;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            const noteWidth = 220;
+            const noteHeight = 220;
+            const gridSize = 50; // 50px 간격으로 그리드 체크
+            const padding = 20; // 화면 가장자리 여백
+
+            console.log('[빈 공간 찾기] viewport:', { viewportX, viewportY, viewportWidth, viewportHeight });
+
+            // viewport 내에서 가능한 모든 위치 생성
+            const candidates = [];
+            for (let x = viewportX + padding; x < viewportX + viewportWidth - noteWidth - padding; x += gridSize) {
+                for (let y = viewportY + 64; y < viewportY + viewportHeight - noteHeight - padding; y += gridSize) {
+                    candidates.push({ x: Math.round(x), y: Math.round(y) });
+                }
+            }
+
+            // 기존 메모들과 겹치지 않는 위치 찾기
+            let bestPosition = null;
+            let minOverlap = Infinity;
+
+            for (const candidate of candidates) {
+                let overlapCount = 0;
+
+                // 각 기존 메모와 겹침 여부 확인
+                for (const note of notes) {
+                    const noteX = note.position_x;
+                    const noteY = note.position_y;
+                    const noteW = note.width || 220;
+                    const noteH = note.height || 220;
+
+                    // AABB 충돌 감지
+                    const overlapX = candidate.x < noteX + noteW && candidate.x + noteWidth > noteX;
+                    const overlapY = candidate.y < noteY + noteH && candidate.y + noteHeight > noteY;
+
+                    if (overlapX && overlapY) {
+                        overlapCount++;
+                    }
+                }
+
+                // 겹침이 없는 첫 번째 위치 발견
+                if (overlapCount === 0) {
+                    console.log('[빈 공간 찾기] 완전히 빈 공간 발견:', candidate);
+                    return candidate;
+                }
+
+                // 가장 적게 겹치는 위치 기억
+                if (overlapCount < minOverlap) {
+                    minOverlap = overlapCount;
+                    bestPosition = candidate;
+                }
+            }
+
+            // 완전히 빈 공간이 없으면 가장 적게 겹치는 위치 반환
+            if (bestPosition) {
+                console.log('[빈 공간 찾기] 가장 적게 겹치는 위치:', bestPosition, '겹침 개수:', minOverlap);
+                return bestPosition;
+            }
+
+            // 후보가 없으면 viewport 왼쪽 위 (기본값)
+            console.log('[빈 공간 찾기] 후보 없음, 기본 위치 사용');
+            return { x: viewportX + padding, y: viewportY + 64 };
+        }
+
         async function createNote() {
             console.log('새 노트 생성');
 
             // 모바일 환경 감지
             const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
 
-            // 모바일에서는 왼쪽 위에 생성 (연속 생성시 약간씩 오프셋), PC에서는 랜덤 위치
-            const offset = (notes.length % 5) * 30; // 5개마다 패턴 반복
-            const position_x = isMobile ? 20 + offset : Math.random() * (window.innerWidth - 250) + 20;
-            const position_y = isMobile ? 64 + offset : Math.random() * (window.innerHeight - 300) + 64;
+            // 빈 공간 찾기 (viewport 내에서)
+            const emptySpace = findEmptySpaceInViewport();
+            const position_x = emptySpace.x;
+            const position_y = emptySpace.y;
 
-            console.log('[메모 생성] 위치:', { isMobile, position_x, position_y, offset });
+            console.log('[메모 생성] 위치:', { isMobile, position_x, position_y });
 
             const newNote = {
                 id: isGuest ? Date.now().toString() : undefined,
