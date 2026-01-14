@@ -2540,20 +2540,73 @@
                 }
             });
 
-            // 색상 변경
+            // 색상 변경 - 터치와 클릭 모두 지원
             colorBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
+
+                // 다른 열린 색상 팔레트 모두 닫기
+                document.querySelectorAll('.color-picker.show').forEach(cp => {
+                    if (cp !== colorPicker) {
+                        cp.classList.remove('show');
+                    }
+                });
+
                 colorPicker.classList.toggle('show');
+                console.log('[색상] 팔레트 토글:', colorPicker.classList.contains('show'));
+            });
+
+            colorBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // 다른 열린 색상 팔레트 모두 닫기
+                document.querySelectorAll('.color-picker.show').forEach(cp => {
+                    if (cp !== colorPicker) {
+                        cp.classList.remove('show');
+                    }
+                });
+
+                colorPicker.classList.toggle('show');
+                console.log('[색상] 팔레트 토글 (터치):', colorPicker.classList.contains('show'));
             });
 
             colorPicker.querySelectorAll('.color-option').forEach(option => {
                 option.addEventListener('click', (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     const newColor = option.dataset.color;
                     notePaper.className = `note-paper ${newColor}`;
                     colorPicker.classList.remove('show');
                     updateNote(note.id, { color: newColor });
+                    console.log('[색상] 변경됨:', newColor);
                 });
+
+                option.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const newColor = option.dataset.color;
+                    notePaper.className = `note-paper ${newColor}`;
+                    colorPicker.classList.remove('show');
+                    updateNote(note.id, { color: newColor });
+                    console.log('[색상] 변경됨 (터치):', newColor);
+                });
+            });
+
+            // 편집 버튼 - 터치 지원
+            editBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const isEditing = el.classList.contains('editing');
+                setEditMode(!isEditing);
+            });
+
+            // 전달 버튼 - 터치 지원
+            transferBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[전달] 버튼 터치, 노트 ID:', note.id);
+                openTransferModal(note);
             });
 
             // 전달 버튼
@@ -2561,6 +2614,13 @@
                 e.stopPropagation();
                 console.log('[전달] 버튼 클릭, 노트 ID:', note.id);
                 openTransferModal(note);
+            });
+
+            // 삭제 - 터치 지원
+            deleteBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                deleteNote(note.id);
             });
 
             // 삭제
@@ -2614,23 +2674,30 @@
         // ============================================
         // 드래그 & 드롭
         // ============================================
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let isDragging = false;
+        const DRAG_THRESHOLD = 10; // 10px 이상 움직여야 드래그로 인식
+
         function handleDragStart(e) {
             // editor, 버튼, 입력 요소 클릭시 드래그 방지
             if (e.target.closest('.note-editor') || e.target.tagName === 'BUTTON' ||
                 e.target.classList.contains('color-option') || e.target.classList.contains('resize-handle') ||
-                e.target.classList.contains('format-btn') || e.target.closest('.note-toolbar')) {
+                e.target.classList.contains('format-btn') || e.target.closest('.note-toolbar') ||
+                e.target.closest('.color-picker')) {
                 return;
             }
 
-            e.preventDefault();
-
-            draggedNote = e.currentTarget;
-            draggedNote.classList.add('dragging');
-
-            const rect = draggedNote.getBoundingClientRect();
+            // 초기 위치 저장
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            dragStartX = clientX;
+            dragStartY = clientY;
+            isDragging = false;
 
+            draggedNote = e.currentTarget;
+
+            const rect = draggedNote.getBoundingClientRect();
             dragOffsetX = clientX - rect.left;
             dragOffsetY = clientY - rect.top;
 
@@ -2643,10 +2710,28 @@
         function handleDragMove(e) {
             if (!draggedNote) return;
 
-            e.preventDefault();
-
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            // 드래그 임계값 체크
+            if (!isDragging) {
+                const distance = Math.sqrt(
+                    Math.pow(clientX - dragStartX, 2) +
+                    Math.pow(clientY - dragStartY, 2)
+                );
+
+                if (distance < DRAG_THRESHOLD) {
+                    // 아직 임계값 미만이면 스크롤 허용 (드래그 시작 안함)
+                    return;
+                }
+
+                // 임계값 이상이면 드래그 시작
+                isDragging = true;
+                draggedNote.classList.add('dragging');
+                console.log('[드래그] 시작:', draggedNote.dataset.id);
+            }
+
+            e.preventDefault();
 
             const x = clientX - dragOffsetX;
             const y = clientY - dragOffsetY - 56; // 헤더 높이 보정
@@ -2709,30 +2794,39 @@
         function handleDragEnd(e) {
             if (!draggedNote) return;
 
-            draggedNote.classList.remove('dragging');
+            // 실제로 드래그가 발생했을 때만 처리
+            if (isDragging) {
+                draggedNote.classList.remove('dragging');
 
-            // 50% 이상 겹치는 노트 찾기
-            const overlappedNote = checkOverlapWithOtherNotes(draggedNote);
+                // 50% 이상 겹치는 노트 찾기
+                const overlappedNote = checkOverlapWithOtherNotes(draggedNote);
 
-            // 모든 overlap-target 클래스 제거
-            document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('overlap-target'));
+                // 모든 overlap-target 클래스 제거
+                document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('overlap-target'));
 
-            const noteId = draggedNote.dataset.id;
-            const x = parseInt(draggedNote.style.left);
-            const y = parseInt(draggedNote.style.top);
+                const noteId = draggedNote.dataset.id;
+                const x = parseInt(draggedNote.style.left);
+                const y = parseInt(draggedNote.style.top);
 
-            updateNote(noteId, { position_x: x, position_y: y });
+                updateNote(noteId, { position_x: x, position_y: y });
 
-            // 겹친 노트가 있으면 그룹 생성 제안
-            if (overlappedNote) {
-                const overlappedId = overlappedNote.dataset.id;
-                console.log('[그루핑] 그룹 생성 제안:', noteId, overlappedId);
-                setTimeout(() => {
-                    suggestGroupCreation(noteId, overlappedId);
-                }, 100);
+                // 겹친 노트가 있으면 그룹 생성 제안
+                if (overlappedNote) {
+                    const overlappedId = overlappedNote.dataset.id;
+                    console.log('[그루핑] 그룹 생성 제안:', noteId, overlappedId);
+                    setTimeout(() => {
+                        suggestGroupCreation(noteId, overlappedId);
+                    }, 100);
+                }
+
+                console.log('[드래그] 종료');
+            } else {
+                console.log('[드래그] 임계값 미만으로 취소됨 (스크롤 허용)');
             }
 
+            // 상태 초기화
             draggedNote = null;
+            isDragging = false;
 
             document.removeEventListener('mousemove', handleDragMove);
             document.removeEventListener('mouseup', handleDragEnd);
@@ -2907,6 +3001,16 @@
             }
         });
 
+        // 터치로 색상 선택기 닫기
+        document.addEventListener('touchstart', (e) => {
+            // 색상 선택기 닫기
+            if (!e.target.closest('.color-btn') && !e.target.closest('.color-picker')) {
+                document.querySelectorAll('.color-picker.show').forEach(cp => {
+                    cp.classList.remove('show');
+                });
+            }
+        }, { passive: true });
+
         // PWA 설치
         installBtn.addEventListener('click', async () => {
             if (deferredPrompt) {
@@ -2970,6 +3074,13 @@
                 groupToggleBtn.addEventListener('click', () => {
                     console.log('그룹 패널 토글');
                     groupsPanel.classList.toggle('show');
+
+                    // 프로필 모달이 열려있으면 닫기
+                    const profileModal = document.getElementById('profileModal');
+                    if (profileModal) {
+                        profileModal.classList.remove('show');
+                    }
+
                     renderGroupList();
                 });
             }
@@ -3301,6 +3412,12 @@
             profileBtn.addEventListener('click', () => {
                 userMenu.classList.remove('show');
                 profileModal.classList.add('show');
+
+                // 그룹 패널이 열려있으면 닫기
+                const groupsPanel = document.getElementById('groupsPanel');
+                if (groupsPanel) {
+                    groupsPanel.classList.remove('show');
+                }
 
                 // 프로필 정보 표시
                 if (currentUser) {
