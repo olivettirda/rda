@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Timeline } from './components/Timeline';
 import { PopulationTracker } from './components/PopulationTracker';
 import { Login } from './components/Login';
+import { Settings } from './components/Settings';
 import { useExperiments } from './hooks/useExperiments';
 import { exportToJSON, importFromJSON } from './utils/storage';
 import { getCurrentUser, logout } from './lib/auth';
@@ -73,6 +74,7 @@ function App() {
 
   const [toastMessage, setToastMessage] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // 토스트 메시지 표시
   const showToast = (message, type = 'success') => {
@@ -128,6 +130,7 @@ function App() {
         onExport={handleExport}
         onImport={handleImport}
         onReset={handleReset}
+        onSettings={() => setShowSettings(true)}
         onLogout={handleLogout}
       />
 
@@ -210,6 +213,17 @@ function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 설정 모달 */}
+      {showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+          onSuccess={(message) => {
+            showToast(message, 'success');
+            setShowSettings(false);
+          }}
+        />
       )}
     </div>
   );

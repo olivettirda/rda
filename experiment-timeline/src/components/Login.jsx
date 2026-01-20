@@ -7,18 +7,20 @@ import { login } from '../lib/auth';
 export function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    console.log('로그인 폼 제출:', { username });
+    console.log('로그인 폼 제출:', { username, rememberMe });
 
     try {
-      const { user } = await login(username, password);
+      const { user } = await login(username, password, rememberMe);
       console.log('로그인 성공, 사용자:', user);
 
       if (onLoginSuccess) {
@@ -93,6 +95,26 @@ export function Login({ onLoginSuccess }) {
             />
           </div>
 
+          {/* 자동 로그인 & 비밀번호 찾기 */}
+          <div className="flex items-center justify-between">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 text-dmrt-primary-main border-gray-300 rounded focus:ring-dmrt-primary-main focus:ring-2"
+              />
+              <span className="ml-2 text-sm text-gray-700">자동 로그인</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowForgotPassword(true)}
+              className="text-sm text-dmrt-primary-main hover:underline"
+            >
+              계정 찾기
+            </button>
+          </div>
+
           {/* 로그인 버튼 */}
           <button
             type="submit"
@@ -113,14 +135,31 @@ export function Login({ onLoginSuccess }) {
           </button>
         </form>
 
-        {/* 테스트 계정 안내 */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-600 mb-2 font-medium">테스트 계정:</p>
-          <div className="space-y-1 text-xs text-gray-500">
-            <p>• 관리자: <span className="font-mono">admin</span> / <span className="font-mono">1234</span></p>
-            <p>• 일반: <span className="font-mono">olivetti90</span> / <span className="font-mono">juicy90</span></p>
+        {/* 계정 찾기 안내 */}
+        {showForgotPassword && (
+          <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-500 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-800 mb-1">계정을 찾으시나요?</p>
+                <p className="text-xs text-blue-700 mb-2">
+                  계정 정보는 관리자만 확인 및 재설정할 수 있습니다.
+                </p>
+                <p className="text-xs text-blue-600">
+                  관리자에게 문의하시거나, 등록하신 이메일을 확인해주세요.
+                </p>
+                <button
+                  onClick={() => setShowForgotPassword(false)}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
