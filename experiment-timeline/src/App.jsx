@@ -1,14 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Timeline } from './components/Timeline';
 import { PopulationTracker } from './components/PopulationTracker';
+import { Login } from './components/Login';
 import { useExperiments } from './hooks/useExperiments';
 import { exportToJSON, importFromJSON } from './utils/storage';
+import { getCurrentUser, logout } from './lib/auth';
 
 /**
  * 메인 애플리케이션 컴포넌트
  */
 function App() {
+  console.log('App 컴포넌트 렌더링');
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 세션 확인
+  useEffect(() => {
+    console.log('세션 확인 중');
+    const user = getCurrentUser();
+    setCurrentUser(user);
+    setIsLoading(false);
+    console.log('세션 확인 완료:', user ? `사용자 ${user.username}` : '미로그인');
+  }, []);
+
+  // 로그인 성공 핸들러
+  const handleLoginSuccess = (user) => {
+    console.log('로그인 성공, 사용자 설정:', user);
+    setCurrentUser(user);
+  };
+
+  // 로그아웃 핸들러
+  const handleLogout = () => {
+    console.log('로그아웃 처리');
+    logout();
+  };
+
+  // 로딩 중
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-bg-page flex items-center justify-center">
+        <div className="text-center">
+          <svg className="animate-spin h-12 w-12 text-dmrt-primary-main mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 미로그인 상태: 로그인 화면 표시
+  if (!currentUser) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // 로그인 상태: 메인 화면 표시
   console.log('App 컴포넌트 렌더링');
 
   const {
@@ -74,9 +123,11 @@ function App() {
       {/* 헤더 */}
       <Header
         project={project}
+        currentUser={currentUser}
         onExport={handleExport}
         onImport={handleImport}
         onReset={handleReset}
+        onLogout={handleLogout}
       />
 
       {/* 메인 컨텐츠 */}

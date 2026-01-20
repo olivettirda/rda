@@ -4,7 +4,7 @@ import { calculateStatistics } from '../utils/helpers';
 /**
  * 헤더 컴포넌트
  */
-export function Header({ project, onExport, onImport, onReset }) {
+export function Header({ project, currentUser, onExport, onImport, onReset, onLogout }) {
   const stats = calculateStatistics(project);
 
   const handleFileImport = async (event) => {
@@ -51,8 +51,20 @@ export function Header({ project, onExport, onImport, onReset }) {
             </div>
           </div>
 
-          {/* 우측: 액션 버튼 */}
+          {/* 우측: 사용자 정보 및 액션 버튼 */}
           <div className="flex items-center gap-3">
+            {/* 사용자 정보 */}
+            {currentUser && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-md text-sm">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span>{currentUser.username}</span>
+                {currentUser.role === 'admin' && (
+                  <span className="ml-1 px-2 py-0.5 bg-yellow-400 text-yellow-900 text-xs rounded font-medium">관리자</span>
+                )}
+              </div>
+            )}
             {/* Export 버튼 */}
             <button
               onClick={onExport}
@@ -91,6 +103,20 @@ export function Header({ project, onExport, onImport, onReset }) {
               </svg>
               Reset
             </button>
+
+            {/* 로그아웃 버튼 */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="btn btn-ghost text-white/70 hover:text-white hover:bg-white/10 min-h-[36px] text-sm"
+                title="로그아웃"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                로그아웃
+              </button>
+            )}
           </div>
         </div>
       </div>
