@@ -79,6 +79,10 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON timeline_users(username);
 -- =============================================
 -- Row Level Security (RLS) Policies
 -- =============================================
+-- Note: RLS is disabled for this application as we use custom authentication
+-- instead of Supabase Auth. Access control is handled at the application level.
+-- All tables allow full access with anon key, and the application layer
+-- ensures users only access their own data through API functions.
 
 -- Enable RLS on all tables
 ALTER TABLE timeline_users ENABLE ROW LEVEL SECURITY;
@@ -87,118 +91,31 @@ ALTER TABLE timeline_periods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timeline_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timeline_populations ENABLE ROW LEVEL SECURITY;
 
--- Users: Only admins can see all users, regular users can only see themselves
-CREATE POLICY "Users can view own profile"
-  ON timeline_users FOR SELECT
-  USING (auth.uid()::text = id::text OR EXISTS (
-    SELECT 1 FROM timeline_users WHERE id = auth.uid()::uuid AND role = 'admin'
-  ));
+-- Allow all operations for authenticated anon key (application handles authorization)
+CREATE POLICY "Allow all for anon key"
+  ON timeline_users FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Admins can insert users"
-  ON timeline_users FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM timeline_users WHERE id = auth.uid()::uuid AND role = 'admin'
-  ));
+CREATE POLICY "Allow all for anon key"
+  ON timeline_projects FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
--- Projects: Users can only access their own projects
-CREATE POLICY "Users can view own projects"
-  ON timeline_projects FOR SELECT
-  USING (user_id = auth.uid()::uuid);
+CREATE POLICY "Allow all for anon key"
+  ON timeline_periods FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can insert own projects"
-  ON timeline_projects FOR INSERT
-  WITH CHECK (user_id = auth.uid()::uuid);
+CREATE POLICY "Allow all for anon key"
+  ON timeline_items FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can update own projects"
-  ON timeline_projects FOR UPDATE
-  USING (user_id = auth.uid()::uuid);
-
-CREATE POLICY "Users can delete own projects"
-  ON timeline_projects FOR DELETE
-  USING (user_id = auth.uid()::uuid);
-
--- Periods: Users can access periods of their projects
-CREATE POLICY "Users can view own periods"
-  ON timeline_periods FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can insert own periods"
-  ON timeline_periods FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can update own periods"
-  ON timeline_periods FOR UPDATE
-  USING (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can delete own periods"
-  ON timeline_periods FOR DELETE
-  USING (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
--- Items: Users can access items of their projects
-CREATE POLICY "Users can view own items"
-  ON timeline_items FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM timeline_periods p
-    JOIN timeline_projects pr ON p.project_id = pr.id
-    WHERE p.id = period_id AND pr.user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can insert own items"
-  ON timeline_items FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM timeline_periods p
-    JOIN timeline_projects pr ON p.project_id = pr.id
-    WHERE p.id = period_id AND pr.user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can update own items"
-  ON timeline_items FOR UPDATE
-  USING (EXISTS (
-    SELECT 1 FROM timeline_periods p
-    JOIN timeline_projects pr ON p.project_id = pr.id
-    WHERE p.id = period_id AND pr.user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can delete own items"
-  ON timeline_items FOR DELETE
-  USING (EXISTS (
-    SELECT 1 FROM timeline_periods p
-    JOIN timeline_projects pr ON p.project_id = pr.id
-    WHERE p.id = period_id AND pr.user_id = auth.uid()::uuid
-  ));
-
--- Populations: Users can access populations of their projects
-CREATE POLICY "Users can view own populations"
-  ON timeline_populations FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can insert own populations"
-  ON timeline_populations FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can update own populations"
-  ON timeline_populations FOR UPDATE
-  USING (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
-
-CREATE POLICY "Users can delete own populations"
-  ON timeline_populations FOR DELETE
-  USING (EXISTS (
-    SELECT 1 FROM timeline_projects WHERE id = project_id AND user_id = auth.uid()::uuid
-  ));
+CREATE POLICY "Allow all for anon key"
+  ON timeline_populations FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 -- =============================================
 -- Functions
