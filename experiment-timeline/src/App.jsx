@@ -72,6 +72,7 @@ function App() {
   } = useExperiments();
 
   const [toastMessage, setToastMessage] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // 토스트 메시지 표시
   const showToast = (message, type = 'success') => {
@@ -131,17 +132,51 @@ function App() {
       />
 
       {/* 메인 컨텐츠 */}
-      <div className="flex">
+      <div className="relative flex">
+        {/* 모바일 사이드바 토글 버튼 */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="lg:hidden fixed bottom-6 right-6 z-50 bg-dmrt-primary-dark text-white w-14 h-14 rounded-full shadow-lg hover:bg-dmrt-primary-main transition-all duration-200 flex items-center justify-center"
+          aria-label="집단 정보 토글"
+        >
+          {isSidebarOpen ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
+        </button>
+
+        {/* 모바일 오버레이 */}
+        {isSidebarOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-black/50 z-30"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* 사이드바 */}
-        <PopulationTracker
-          populations={project.populations}
-          settings={project.settings}
-          onSettingsChange={updateSettings}
-        />
+        <aside
+          className={`
+            fixed lg:sticky top-0 left-0 h-screen z-40
+            transform transition-transform duration-300 ease-in-out
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          `}
+        >
+          <PopulationTracker
+            populations={project.populations}
+            settings={project.settings}
+            onSettingsChange={updateSettings}
+          />
+        </aside>
 
         {/* 타임라인 */}
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto max-w-6xl py-6">
+        <main className="flex-1 overflow-y-auto w-full">
+          <div className="container mx-auto max-w-6xl py-6 px-4 lg:px-6">
             <Timeline
               periods={project.periods}
               settings={project.settings}
