@@ -1,6 +1,9 @@
 // 데이터베이스 초기화 스크립트
 // Node.js로 실행: node init-database.js
 
+// 기관 네트워크 SSL 인증서 문제 해결 (개발 환경용)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { INITIAL_PROJECT } from './src/data/initialData.js';
