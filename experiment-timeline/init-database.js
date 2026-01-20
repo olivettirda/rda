@@ -5,8 +5,9 @@ import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { INITIAL_PROJECT } from './src/data/initialData.js';
 
-const SUPABASE_URL = 'https://jfabgawkxahqcsrwjdgf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYWJnYXdreGFocWNzcndqZGdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4MzkwNDUsImV4cCI6MjA4MzQxNTA0NX0.KfT1iAjap3J1sEtovH2N1hD2a0cBbHcYqMLrT2rtfDg';
+// Supabase 설정 (personal 프로젝트)
+const SUPABASE_URL = 'https://lbfvshavniomfykvqnwm.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZnZzaGF2bmlvbWZ5a3ZxbndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNTMzMjMsImV4cCI6MjA4MzcyOTMyM30.HfZudwH6vKbsukg_K3wZGxQ1oEiEvJ1kGoxPnp1-2FA';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
