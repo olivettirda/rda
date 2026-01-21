@@ -2945,8 +2945,33 @@
 
             e.preventDefault();
 
-            const x = clientX - dragOffsetX;
-            const y = clientY - dragOffsetY - 56; // 헤더 높이 보정
+            let x = clientX - dragOffsetX;
+            let y = clientY - dragOffsetY - 56; // 헤더 높이 보정
+
+            // 스냅 기능: 화면 가장자리에 가까우면 자석처럼 붙이기
+            const SNAP_THRESHOLD = 30; // 30px 이내면 스냅
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const rect = draggedNote.getBoundingClientRect();
+            const noteWidth = rect.width;
+            const noteHeight = rect.height;
+
+            // 왼쪽 가장자리 스냅
+            if (x < SNAP_THRESHOLD && x > -SNAP_THRESHOLD) {
+                x = 0;
+            }
+            // 오른쪽 가장자리 스냅
+            if (x + noteWidth > viewportWidth - SNAP_THRESHOLD && x + noteWidth < viewportWidth + SNAP_THRESHOLD) {
+                x = viewportWidth - noteWidth;
+            }
+            // 위쪽 가장자리 스냅
+            if (y < SNAP_THRESHOLD && y > -SNAP_THRESHOLD) {
+                y = 0;
+            }
+            // 아래쪽 가장자리 스냅
+            if (y + noteHeight > viewportHeight - SNAP_THRESHOLD && y + noteHeight < viewportHeight + SNAP_THRESHOLD) {
+                y = viewportHeight - noteHeight;
+            }
 
             draggedNote.style.left = `${Math.max(0, x)}px`;
             draggedNote.style.top = `${Math.max(0, y)}px`;
