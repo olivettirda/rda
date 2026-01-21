@@ -2490,66 +2490,103 @@
             const gapX = 15; // 가로 간격
             const gapY = 15; // 세로 간격
             const rightMargin = 20; // 오른쪽 여백
-            const defaultNoteWidth = 220; // 기본 노트 너비
+            const defaultNoteWidth = 220; // 기본 노트 너비 (초기 열 계산용)
 
-            // 화면 너비 기준으로 열 개수와 X 위치 계산
+            // 화면 너비 기준으로 초기 열 개수 추정
             const availableWidth = viewportWidth - startX - rightMargin;
-            const maxColumns = Math.max(2, Math.floor((availableWidth + gapX) / (defaultNoteWidth + gapX)));
+            const estimatedColumns = Math.max(2, Math.floor((availableWidth + gapX) / (defaultNoteWidth + gapX)));
 
             console.log('[정렬 파라미터]', {
                 viewportWidth,
                 availableWidth,
-                maxColumns,
+                estimatedColumns,
                 startX,
                 startY
             });
 
-            // 각 열의 현재 Y 위치 추적
-            const columnHeights = new Array(maxColumns).fill(startY);
+            // 각 열의 상태 추적: X 위치, 현재 높이, 최대 너비
+            const columns = Array.from({ length: estimatedColumns }, (_, i) => ({
+                x: 0, // 나중에 계산
+                height: startY, // 현재 높이
+                maxWidth: 0, // 이 열의 최대 노트 너비
+                notes: [] // 이 열에 속한 노트들 (Y 위치와 함께 저장)
+            }));
 
-            // Masonry 레이아웃: 각 노트를 가장 낮은 열에 배치
+            // 1단계: 각 노트를 어느 열에 배치할지 결정하고 최대 너비 추적
             allNotes.forEach((noteEl, index) => {
                 const rect = noteEl.getBoundingClientRect();
                 const noteWidth = rect.width;
                 const noteHeight = rect.height;
 
+                console.log(`[1단계] 노트 ${index}: width=${noteWidth}px, height=${noteHeight}px`);
+
                 // 가장 낮은 열 찾기 (높이가 가장 작은 열)
                 let minColumnIndex = 0;
-                let minHeight = columnHeights[0];
+                let minHeight = columns[0].height;
 
-                for (let i = 1; i < maxColumns; i++) {
-                    if (columnHeights[i] < minHeight) {
-                        minHeight = columnHeights[i];
+                for (let i = 1; i < columns.length; i++) {
+                    if (columns[i].height < minHeight) {
+                        minHeight = columns[i].height;
                         minColumnIndex = i;
                     }
                 }
 
-                // 해당 열에 노트 배치
-                const posX = startX + minColumnIndex * (defaultNoteWidth + gapX);
-                const posY = columnHeights[minColumnIndex];
+                const selectedColumn = columns[minColumnIndex];
 
-                // 노트가 오른쪽 끝을 넘어가는지 체크
-                const noteRight = posX + noteWidth;
-                const maxRight = viewportWidth - rightMargin;
+                // 이 노트를 열에 추가
+                const posY = selectedColumn.height;
+                selectedColumn.notes.push({ noteEl, noteWidth, noteHeight, posY });
 
-                if (noteRight > maxRight) {
-                    console.log(`[경고] 노트 ${index}가 화면을 벗어남: ${noteRight} > ${maxRight}`);
-                    // 노트 너비가 너무 크면 왼쪽에 배치하되 위치 조정
-                    const adjustedX = Math.max(startX, maxRight - noteWidth);
-                    noteEl.style.left = `${adjustedX}px`;
-                } else {
-                    noteEl.style.left = `${posX}px`;
+                // 열의 최대 너비 업데이트
+                if (noteWidth > selectedColumn.maxWidth) {
+                    selectedColumn.maxWidth = noteWidth;
                 }
 
-                noteEl.style.top = `${posY}px`;
+                // 열의 높이 업데이트
+                selectedColumn.height += noteHeight + gapY;
 
-                console.log(`[재정렬] 노트 ${index}: 열 ${minColumnIndex}, (${posX}, ${posY}) - width: ${noteWidth}, height: ${noteHeight}`);
-
-                // 해당 열의 높이 업데이트
-                columnHeights[minColumnIndex] += noteHeight + gapY;
+                console.log(`[1단계] 노트 ${index} → 열 ${minColumnIndex}, Y=${posY}`);
             });
 
-            console.log('[정렬 완료] 최종 열 높이:', columnHeights);
+            // 2단계: 각 열의 X 위치 계산 (최대 너비 기반)
+            let currentX = startX;
+            for (let i = 0; i < columns.length; i++) {
+                columns[i].x = currentX;
+                const columnWidth = columns[i].maxWidth > 0 ? columns[i].maxWidth : defaultNoteWidth;
+                currentX += columnWidth + gapX;
+            }
+
+            console.log('[2단계] 최종 열 위치:', columns.map((col, i) => ({
+                column: i,
+                x: col.x,
+                maxWidth: col.maxWidth,
+                noteCount: col.notes.length
+            })));
+
+            // 3단계: 계산된 위치에 노트 배치
+            columns.forEach((column, columnIndex) => {
+                const posX = column.x;
+                const maxRight = viewportWidth - rightMargin;
+
+                column.notes.forEach(({ noteEl, noteWidth, noteHeight, posY }, noteIndex) => {
+                    const noteRight = posX + noteWidth;
+
+                    if (noteRight > maxRight) {
+                        console.log(`[경고] 열 ${columnIndex} 노트 ${noteIndex}가 화면을 벗어남: ${noteRight} > ${maxRight}`);
+                        // 노트 너비가 너무 크면 왼쪽에 배치하되 위치 조정
+                        const adjustedX = Math.max(startX, maxRight - noteWidth);
+                        noteEl.style.left = `${adjustedX}px`;
+                    } else {
+                        noteEl.style.left = `${posX}px`;
+                    }
+
+                    noteEl.style.top = `${posY}px`;
+
+                    console.log(`[3단계] 열 ${columnIndex} 노트 ${noteIndex}: (${posX}, ${posY})`);
+                });
+            });
+
+            console.log('[정렬 완료] 총', allNotes.length, '개 노트 배치');
         }
 
         function createNoteElement(note) {
