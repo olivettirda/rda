@@ -43,7 +43,7 @@
 
         body {
             font-family: 'Nanum Barun Gothic', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 100%);
+            background: var(--primary-main);
             min-height: 100vh;
             overflow: hidden;
         }
@@ -317,10 +317,7 @@
             right: 0;
             bottom: 0;
             overflow: auto;
-            background:
-                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                linear-gradient(135deg, var(--primary-main) 0%, var(--primary-dark) 100%);
+            background: var(--primary-main);
         }
 
         .notes-container {
@@ -597,16 +594,42 @@
             height: 64px;
             border: none;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-main) 0%, var(--primary-dark) 100%);
+            background: #4FC3DC;
             color: white;
             font-size: 32px;
             cursor: pointer;
-            box-shadow: 0 4px 16px rgba(1, 127, 151, 0.4);
+            box-shadow: 0 4px 16px rgba(79, 195, 220, 0.4);
             transition: all 0.3s;
             z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        /* 정렬 버튼 */
+        .fab-arrange {
+            position: fixed;
+            bottom: 24px;
+            right: 104px;
+            width: 64px;
+            height: 64px;
+            border: none;
+            border-radius: 50%;
+            background: #5AD3EC;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(90, 211, 236, 0.4);
+            transition: all 0.3s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .fab-arrange:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(90, 211, 236, 0.5);
         }
 
         .fab-add:hover {
@@ -1508,6 +1531,9 @@
                 </div>
             </div>
         </div>
+
+        <!-- 메모 정렬 버튼 -->
+        <button id="fabArrange" class="fab-arrange" title="메모 정렬">⊞</button>
 
         <!-- 새 노트 추가 버튼 -->
         <button id="fabAdd" class="fab-add">+</button>
@@ -2447,6 +2473,7 @@
             const startY = headerHeight + 20;
             const gapX = 15; // 가로 간격
             const gapY = 15; // 세로 간격
+            const minVisibleHeader = 52; // 최소한 보여야 할 헤더 높이
 
             let currentX = startX;
             let currentY = startY;
@@ -2462,6 +2489,16 @@
                     currentX = startX;
                     currentY += rowMaxHeight + gapY;
                     rowMaxHeight = 0;
+                }
+
+                // 세로 공간 부족: 겹치기 시작 (최소 52px는 보이게)
+                if (currentY + noteHeight > viewportHeight) {
+                    // 가로로도 부족한 경우: 52px x 52px는 보이게
+                    if (currentX + minVisibleHeader > viewportWidth - 20) {
+                        currentX = Math.max(startX, viewportWidth - minVisibleHeader - 20);
+                    }
+                    // 세로 겹침: 최소 52px 헤더는 보이게
+                    currentY = Math.max(startY, viewportHeight - minVisibleHeader);
                 }
 
                 // 위치 적용
@@ -3158,6 +3195,16 @@
         // 이벤트 리스너
         // ============================================
         fabAdd.addEventListener('click', createNote);
+
+        // 메모 정렬 버튼
+        const fabArrange = document.getElementById('fabArrange');
+        if (fabArrange) {
+            fabArrange.addEventListener('click', () => {
+                console.log('[정렬] 메모 재정렬 시작');
+                repositionNotesInViewport();
+                showToast('메모를 정렬했습니다');
+            });
+        }
 
         userAvatar.addEventListener('click', () => {
             userMenu.classList.toggle('show');
