@@ -355,7 +355,7 @@
 
         /* 접힌 상태 */
         .sticky-note.collapsed {
-            width: 210px !important;
+            width: 273px !important;
             min-height: 56px !important;
         }
 
@@ -407,13 +407,9 @@
 
         /* 접기 버튼 스타일 */
         .collapse-btn {
-            opacity: 0.4;
+            opacity: 0.4 !important;
             line-height: 1;
             color: #000 !important;
-        }
-
-        .collapse-btn:hover {
-            opacity: 0.6;
         }
 
         .note-paper {
@@ -2423,6 +2419,60 @@
                         }
                     });
                 }
+            });
+
+            // 데스크톱 환경에서 viewport 내 재정렬
+            const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+            if (!isMobile && !isMobileThumbnailView) {
+                repositionNotesInViewport();
+            }
+        }
+
+        // viewport 내에서 메모 재정렬
+        function repositionNotesInViewport() {
+            const allNotes = document.querySelectorAll('.sticky-note');
+            if (allNotes.length === 0) return;
+
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const headerHeight = 56;
+            const startX = 20;
+            const startY = headerHeight + 20;
+            const gapX = 10;
+            const gapY = 10;
+            const minVisibleHeader = 52; // 최소한 보여야 할 헤더 높이
+
+            let currentX = startX;
+            let currentY = startY;
+            let rowMaxHeight = 0;
+
+            allNotes.forEach((noteEl, index) => {
+                const rect = noteEl.getBoundingClientRect();
+                const noteWidth = rect.width;
+                const noteHeight = rect.height;
+
+                // 가로 공간 부족: 다음 줄로
+                if (currentX + noteWidth > viewportWidth - 20) {
+                    currentX = startX;
+                    currentY += rowMaxHeight + gapY;
+                    rowMaxHeight = 0;
+                }
+
+                // 세로로 겹칠 경우, 최소 헤더는 보이도록 조정
+                if (currentY + noteHeight > viewportHeight) {
+                    // 이전 노트들과 겹치되 최소 52px는 보이게
+                    currentY = Math.max(startY, viewportHeight - minVisibleHeader);
+                }
+
+                // 위치 적용
+                noteEl.style.left = `${currentX}px`;
+                noteEl.style.top = `${currentY}px`;
+
+                console.log(`[재정렬] 노트 ${index}: (${currentX}, ${currentY})`);
+
+                // 다음 위치 계산
+                currentX += noteWidth + gapX;
+                rowMaxHeight = Math.max(rowMaxHeight, noteHeight);
             });
         }
 
