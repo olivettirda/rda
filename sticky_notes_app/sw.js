@@ -21,12 +21,26 @@ self.addEventListener('install', (event) => {
 
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
+      .then(async (cache) => {
         console.log('[SW] 캐시 열림');
-        return cache.addAll(urlsToCache);
+        // 각 리소스를 개별적으로 캐시 (404 에러가 있어도 다른 리소스는 캐시됨)
+        const cachePromises = urlsToCache.map(async (url) => {
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              await cache.put(url, response);
+              console.log('[SW] 캐시 성공:', url);
+            } else {
+              console.log('[SW] 캐시 건너뜀 (404):', url);
+            }
+          } catch (err) {
+            console.log('[SW] 캐시 실패:', url, err);
+          }
+        });
+        return Promise.all(cachePromises);
       })
       .catch((err) => {
-        console.log('[SW] 캐시 실패:', err);
+        console.log('[SW] 캐시 오픈 실패:', err);
       })
   );
 });
