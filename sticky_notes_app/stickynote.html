@@ -1233,6 +1233,12 @@
             z-index: 1001;
         }
 
+        /* 그루핑 후보 (근처에 있음) */
+        .sticky-note.group-candidate {
+            box-shadow: 0 0 0 3px #5AD3EC, 0 8px 24px rgba(90,211,236,0.3);
+            transition: all 0.2s ease;
+        }
+
         /* 드래그 중인 노트도 위로 떠오르게 */
         .sticky-note.dragging {
             box-shadow: 0 12px 32px rgba(0,0,0,0.3);
@@ -2948,33 +2954,88 @@
             let x = clientX - dragOffsetX;
             let y = clientY - dragOffsetY - 56; // 헤더 높이 보정
 
-            // 스냅 기능: 화면 가장자리에 가까우면 자석처럼 붙이기
-            const SNAP_THRESHOLD = 30; // 30px 이내면 스냅
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
             const rect = draggedNote.getBoundingClientRect();
             const noteWidth = rect.width;
             const noteHeight = rect.height;
 
-            // 왼쪽 가장자리 스냅
-            if (x < SNAP_THRESHOLD && x > -SNAP_THRESHOLD) {
-                x = 0;
-            }
-            // 오른쪽 가장자리 스냅
-            if (x + noteWidth > viewportWidth - SNAP_THRESHOLD && x + noteWidth < viewportWidth + SNAP_THRESHOLD) {
-                x = viewportWidth - noteWidth;
-            }
-            // 위쪽 가장자리 스냅
-            if (y < SNAP_THRESHOLD && y > -SNAP_THRESHOLD) {
-                y = 0;
-            }
-            // 아래쪽 가장자리 스냅
-            if (y + noteHeight > viewportHeight - SNAP_THRESHOLD && y + noteHeight < viewportHeight + SNAP_THRESHOLD) {
-                y = viewportHeight - noteHeight;
+            // 1단계: 메모끼리 스냅 (20px)
+            const NOTE_SNAP_THRESHOLD = 20;
+            const GROUP_THRESHOLD = 10; // 그루핑 거리
+            let snappedToNote = false;
+            let nearbyNoteForGrouping = null;
+
+            document.querySelectorAll('.sticky-note').forEach(otherNote => {
+                if (otherNote === draggedNote) return;
+
+                const otherRect = otherNote.getBoundingClientRect();
+                const otherX = parseInt(otherNote.style.left) || 0;
+                const otherY = parseInt(otherNote.style.top) || 0;
+
+                // 왼쪽-오른쪽 스냅
+                if (Math.abs((x + noteWidth) - otherX) < NOTE_SNAP_THRESHOLD) {
+                    x = otherX - noteWidth;
+                    snappedToNote = true;
+                }
+                // 오른쪽-왼쪽 스냅
+                if (Math.abs(x - (otherX + otherRect.width)) < NOTE_SNAP_THRESHOLD) {
+                    x = otherX + otherRect.width;
+                    snappedToNote = true;
+                }
+                // 위-아래 스냅
+                if (Math.abs((y + noteHeight) - otherY) < NOTE_SNAP_THRESHOLD) {
+                    y = otherY - noteHeight;
+                    snappedToNote = true;
+                }
+                // 아래-위 스냅
+                if (Math.abs(y - (otherY + otherRect.height)) < NOTE_SNAP_THRESHOLD) {
+                    y = otherY + otherRect.height;
+                    snappedToNote = true;
+                }
+
+                // 그루핑 거리 체크 (중심점 기준)
+                const centerX = x + noteWidth / 2;
+                const centerY = y + noteHeight / 2;
+                const otherCenterX = otherX + otherRect.width / 2;
+                const otherCenterY = otherY + otherRect.height / 2;
+                const distance = Math.sqrt(
+                    Math.pow(centerX - otherCenterX, 2) +
+                    Math.pow(centerY - otherCenterY, 2)
+                );
+
+                if (distance < GROUP_THRESHOLD * 10) { // 100px 이내면 그루핑 후보
+                    nearbyNoteForGrouping = otherNote;
+                    otherNote.classList.add('group-candidate');
+                } else {
+                    otherNote.classList.remove('group-candidate');
+                }
+            });
+
+            // 2단계: 화면 가장자리 스냅 (메모끼리 스냅 안 된 경우만)
+            if (!snappedToNote) {
+                const EDGE_SNAP_THRESHOLD = 30;
+                // 왼쪽 가장자리
+                if (x < EDGE_SNAP_THRESHOLD && x > -EDGE_SNAP_THRESHOLD) {
+                    x = 0;
+                }
+                // 오른쪽 가장자리
+                if (x + noteWidth > viewportWidth - EDGE_SNAP_THRESHOLD && x + noteWidth < viewportWidth + EDGE_SNAP_THRESHOLD) {
+                    x = viewportWidth - noteWidth;
+                }
+                // 위쪽 가장자리
+                if (y < EDGE_SNAP_THRESHOLD && y > -EDGE_SNAP_THRESHOLD) {
+                    y = 0;
+                }
+                // 아래쪽 가장자리
+                if (y + noteHeight > viewportHeight - EDGE_SNAP_THRESHOLD && y + noteHeight < viewportHeight + EDGE_SNAP_THRESHOLD) {
+                    y = viewportHeight - noteHeight;
+                }
             }
 
             draggedNote.style.left = `${Math.max(0, x)}px`;
             draggedNote.style.top = `${Math.max(0, y)}px`;
+            draggedNote.dataset.nearbyNote = nearbyNoteForGrouping ? nearbyNoteForGrouping.dataset.id : '';
 
             // 다른 노트들과 겹침 체크
             checkOverlapWithOtherNotes(draggedNote);
@@ -3038,8 +3099,11 @@
                 // 50% 이상 겹치는 노트 찾기
                 const overlappedNote = checkOverlapWithOtherNotes(draggedNote);
 
-                // 모든 overlap-target 클래스 제거
-                document.querySelectorAll('.sticky-note').forEach(n => n.classList.remove('overlap-target'));
+                // 모든 overlap-target, group-candidate 클래스 제거
+                document.querySelectorAll('.sticky-note').forEach(n => {
+                    n.classList.remove('overlap-target');
+                    n.classList.remove('group-candidate');
+                });
 
                 const noteId = draggedNote.dataset.id;
                 const x = parseInt(draggedNote.style.left);
@@ -3047,14 +3111,25 @@
 
                 updateNote(noteId, { position_x: x, position_y: y });
 
+                // 근처 노트 체크 (스냅된 메모 그루핑)
+                const nearbyNoteId = draggedNote.dataset.nearbyNote;
+                if (nearbyNoteId) {
+                    console.log('[그루핑] 근처 메모로 그룹 생성 제안:', noteId, nearbyNoteId);
+                    setTimeout(() => {
+                        suggestGroupCreation(noteId, nearbyNoteId);
+                    }, 100);
+                }
                 // 겹친 노트가 있으면 그룹 생성 제안
-                if (overlappedNote) {
+                else if (overlappedNote) {
                     const overlappedId = overlappedNote.dataset.id;
-                    console.log('[그루핑] 그룹 생성 제안:', noteId, overlappedId);
+                    console.log('[그루핑] 겹침으로 그룹 생성 제안:', noteId, overlappedId);
                     setTimeout(() => {
                         suggestGroupCreation(noteId, overlappedId);
                     }, 100);
                 }
+
+                // nearbyNote 데이터 제거
+                delete draggedNote.dataset.nearbyNote;
 
                 console.log('[드래그] 종료');
             } else {
