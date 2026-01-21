@@ -1,5 +1,5 @@
 // 스티키 노트 서비스 워커
-const CACHE_NAME = 'sticky-notes-v4';
+const CACHE_NAME = 'sticky-notes-v7';
 const urlsToCache = [
   '/sticky_notes_app/stickynote.html',
   '/sticky_notes_app/assets/icon.png',
