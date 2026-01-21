@@ -2156,10 +2156,21 @@
             // 모바일 환경 감지
             const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
 
-            // 빈 공간 찾기 (viewport 내에서)
-            const emptySpace = findEmptySpaceInViewport();
-            const position_x = emptySpace.x;
-            const position_y = emptySpace.y;
+            let position_x, position_y;
+
+            if (isMobile) {
+                // 모바일: 빈 공간 찾기 (자동정렬)
+                const emptySpace = findEmptySpaceInViewport();
+                position_x = emptySpace.x;
+                position_y = emptySpace.y;
+                console.log('[모바일] 빈 공간에 메모 배치:', { position_x, position_y });
+            } else {
+                // 데스크톱: 순차 배치 (자동정렬 비활성화)
+                const offset = (notes.length % 10) * 30; // 10개마다 반복
+                position_x = 100 + offset;
+                position_y = 80 + offset;
+                console.log('[데스크톱] 순차 배치:', { position_x, position_y, noteCount: notes.length });
+            }
 
             console.log('[메모 생성] 위치:', { isMobile, position_x, position_y });
 
