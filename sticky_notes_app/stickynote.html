@@ -2430,17 +2430,23 @@
 
         // viewport 내에서 메모 재정렬
         function repositionNotesInViewport() {
-            const allNotes = document.querySelectorAll('.sticky-note');
+            const allNotes = Array.from(document.querySelectorAll('.sticky-note'));
             if (allNotes.length === 0) return;
+
+            // 원래 위치(position_x) 기준으로 정렬 - 왼쪽에 있던 메모 우선
+            allNotes.sort((a, b) => {
+                const aX = parseInt(a.style.left) || 0;
+                const bX = parseInt(b.style.left) || 0;
+                return aX - bX;
+            });
 
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
             const headerHeight = 56;
             const startX = 20;
             const startY = headerHeight + 20;
-            const gapX = 10;
-            const gapY = 10;
-            const minVisibleHeader = 52; // 최소한 보여야 할 헤더 높이
+            const gapX = 15; // 가로 간격
+            const gapY = 15; // 세로 간격
 
             let currentX = startX;
             let currentY = startY;
@@ -2458,17 +2464,11 @@
                     rowMaxHeight = 0;
                 }
 
-                // 세로로 겹칠 경우, 최소 헤더는 보이도록 조정
-                if (currentY + noteHeight > viewportHeight) {
-                    // 이전 노트들과 겹치되 최소 52px는 보이게
-                    currentY = Math.max(startY, viewportHeight - minVisibleHeader);
-                }
-
                 // 위치 적용
                 noteEl.style.left = `${currentX}px`;
                 noteEl.style.top = `${currentY}px`;
 
-                console.log(`[재정렬] 노트 ${index}: (${currentX}, ${currentY})`);
+                console.log(`[재정렬] 노트 ${index}: (${currentX}, ${currentY}) - width: ${noteWidth}, height: ${noteHeight}`);
 
                 // 다음 위치 계산
                 currentX += noteWidth + gapX;
@@ -2510,9 +2510,10 @@
 
             // 메모 내용의 첫 줄 추출 (HTML 태그 제거 후)
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = note.content || '';
+            tempDiv.innerHTML = (note.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<\/p>/gi, '\n');
             const textContent = tempDiv.textContent || tempDiv.innerText || '';
-            const firstLine = textContent.split('\n')[0].trim() || '빈 메모';
+            const lines = textContent.split('\n').filter(line => line.trim() !== '');
+            const firstLine = (lines[0] || '').trim() || '빈 메모';
 
             el.innerHTML = `
                 <div class="note-paper ${note.color}">
@@ -2687,7 +2688,8 @@
                 const collapsedPreview = el.querySelector('.collapsed-preview');
                 if (collapsedPreview) {
                     const textContent = editor.textContent || editor.innerText || '';
-                    const firstLine = textContent.split('\n')[0].trim() || '빈 메모';
+                    const lines = textContent.split('\n').filter(line => line.trim() !== '');
+                    const firstLine = (lines[0] || '').trim() || '빈 메모';
                     collapsedPreview.textContent = firstLine;
                 }
 
