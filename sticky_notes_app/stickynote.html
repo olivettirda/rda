@@ -1640,6 +1640,7 @@
                         <h3 style="font-size: 16px; margin-bottom: 12px;">📝 폰트 설정</h3>
                         <label style="display: block; font-size: 13px; font-weight: 600; color: #333; margin-bottom: 6px;">기본 폰트</label>
                         <select id="fontSelect" class="form-input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                            <option value="system-ui, -apple-system, BlinkMacSystemFont, sans-serif">시스템 폰트</option>
                             <option value="KoPub Dotum, Malgun Gothic, sans-serif">KoPub Dotum (기본)</option>
                             <option value="Nanum Gothic, sans-serif">나눔고딕</option>
                             <option value="Nanum Barun Gothic, sans-serif">나눔바른고딕</option>
@@ -2483,39 +2484,28 @@
             });
 
             const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
             const headerHeight = 56;
             const startX = 20;
             const startY = headerHeight + 20;
             const gapX = 15; // 가로 간격
             const gapY = 15; // 세로 간격
+            const rightMargin = 20; // 오른쪽 여백
+            const defaultNoteWidth = 220; // 기본 노트 너비
 
-            // 노트의 기본 너비를 기준으로 열 개수 계산
-            const defaultNoteWidth = 220; // CSS에서 정의한 기본 노트 너비
-            const maxColumns = Math.floor((viewportWidth - startX * 2 + gapX) / (defaultNoteWidth + gapX));
-            const columnCount = Math.max(2, Math.min(maxColumns, 5)); // 최소 2열, 최대 5열
+            // 화면 너비 기준으로 열 개수와 X 위치 계산
+            const availableWidth = viewportWidth - startX - rightMargin;
+            const maxColumns = Math.max(2, Math.floor((availableWidth + gapX) / (defaultNoteWidth + gapX)));
 
             console.log('[정렬 파라미터]', {
                 viewportWidth,
-                defaultNoteWidth,
-                columnCount,
+                availableWidth,
+                maxColumns,
                 startX,
                 startY
             });
 
-            // 각 열의 현재 높이를 추적하는 배열
-            const columnHeights = new Array(columnCount).fill(startY);
-            const columnXPositions = [];
-
-            // 각 열의 X 위치 계산
-            for (let i = 0; i < columnCount; i++) {
-                columnXPositions[i] = startX + i * (defaultNoteWidth + gapX);
-            }
-
-            console.log('[열 정보]', {
-                columnHeights: [...columnHeights],
-                columnXPositions: [...columnXPositions]
-            });
+            // 각 열의 현재 Y 위치 추적
+            const columnHeights = new Array(maxColumns).fill(startY);
 
             // Masonry 레이아웃: 각 노트를 가장 낮은 열에 배치
             allNotes.forEach((noteEl, index) => {
@@ -2527,7 +2517,7 @@
                 let minColumnIndex = 0;
                 let minHeight = columnHeights[0];
 
-                for (let i = 1; i < columnCount; i++) {
+                for (let i = 1; i < maxColumns; i++) {
                     if (columnHeights[i] < minHeight) {
                         minHeight = columnHeights[i];
                         minColumnIndex = i;
@@ -2535,10 +2525,22 @@
                 }
 
                 // 해당 열에 노트 배치
-                const posX = columnXPositions[minColumnIndex];
+                const posX = startX + minColumnIndex * (defaultNoteWidth + gapX);
                 const posY = columnHeights[minColumnIndex];
 
-                noteEl.style.left = `${posX}px`;
+                // 노트가 오른쪽 끝을 넘어가는지 체크
+                const noteRight = posX + noteWidth;
+                const maxRight = viewportWidth - rightMargin;
+
+                if (noteRight > maxRight) {
+                    console.log(`[경고] 노트 ${index}가 화면을 벗어남: ${noteRight} > ${maxRight}`);
+                    // 노트 너비가 너무 크면 왼쪽에 배치하되 위치 조정
+                    const adjustedX = Math.max(startX, maxRight - noteWidth);
+                    noteEl.style.left = `${adjustedX}px`;
+                } else {
+                    noteEl.style.left = `${posX}px`;
+                }
+
                 noteEl.style.top = `${posY}px`;
 
                 console.log(`[재정렬] 노트 ${index}: 열 ${minColumnIndex}, (${posX}, ${posY}) - width: ${noteWidth}, height: ${noteHeight}`);
@@ -4033,9 +4035,9 @@
         // ============================================
         // 폰트 설정
         // ============================================
-        // 앱 시작 시 저장된 폰트 적용
-        function applyFont(fontFamily) {
-            console.log('[폰트] 적용:', fontFamily);
+        // 폰트 적용 함수
+        function applyFont(fontFamily, showMessage = false) {
+            console.log('[폰트] 적용:', fontFamily, '메시지 표시:', showMessage);
             currentFont = fontFamily;
             localStorage.setItem('sticky_notes_font', fontFamily);
 
@@ -4044,7 +4046,10 @@
                 editor.style.fontFamily = fontFamily;
             });
 
-            showToast('폰트가 적용되었습니다');
+            // 사용자가 직접 변경한 경우에만 메시지 표시
+            if (showMessage) {
+                showToast('폰트가 적용되었습니다');
+            }
         }
 
         // 폰트 선택 드롭다운
@@ -4056,7 +4061,7 @@
             fontSelect.addEventListener('change', (e) => {
                 const selectedFont = e.target.value;
                 console.log('[폰트] 드롭다운 선택:', selectedFont);
-                applyFont(selectedFont);
+                applyFont(selectedFont, true); // 사용자 변경 시 메시지 표시
             });
         }
 
@@ -4073,7 +4078,7 @@
 
                 console.log('[폰트] 사용자 지정:', customFont);
                 const fontFamily = `${customFont}, sans-serif`;
-                applyFont(fontFamily);
+                applyFont(fontFamily, true); // 사용자 변경 시 메시지 표시
 
                 // 드롭다운에 사용자 지정 옵션이 없으면 추가
                 if (![...fontSelect.options].some(opt => opt.value === fontFamily)) {
@@ -4087,9 +4092,9 @@
             });
         }
 
-        // 앱 시작 시 저장된 폰트 적용
+        // 앱 시작 시 저장된 폰트 적용 (메시지 표시 안 함)
         setTimeout(() => {
-            applyFont(currentFont);
+            applyFont(currentFont, false);
         }, 500);
 
         if (helpBtn) {
