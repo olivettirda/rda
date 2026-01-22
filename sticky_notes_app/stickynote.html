@@ -2470,18 +2470,19 @@
 
             console.log('[정렬 시작] 총 노트 수:', allNotes.length);
 
-            // 위쪽부터, 같은 높이면 왼쪽부터 정렬 (y, x 순서)
+            // 노트를 ID 순서로 정렬 (일관된 정렬 순서 보장)
             allNotes.sort((a, b) => {
-                const aY = parseInt(a.style.top) || 0;
-                const bY = parseInt(b.style.top) || 0;
-                const aX = parseInt(a.style.left) || 0;
-                const bX = parseInt(b.style.left) || 0;
-
-                if (aY !== bY) {
-                    return aY - bY; // 위쪽 우선
-                }
-                return aX - bX; // 같은 높이면 왼쪽 우선
+                const aId = a.dataset.id || '';
+                const bId = b.dataset.id || '';
+                return aId.localeCompare(bId);
             });
+
+            console.log('[정렬 순서]', allNotes.map((n, i) => ({
+                index: i,
+                id: n.dataset.id,
+                collapsed: n.classList.contains('collapsed'),
+                currentPos: { x: parseInt(n.style.left) || 0, y: parseInt(n.style.top) || 0 }
+            })));
 
             const viewportWidth = window.innerWidth;
             const headerHeight = 56;
@@ -2517,8 +2518,13 @@
                 const rect = noteEl.getBoundingClientRect();
                 const noteWidth = rect.width;
                 const noteHeight = rect.height;
+                const isCollapsed = noteEl.classList.contains('collapsed');
 
-                console.log(`[1단계] 노트 ${index}: width=${noteWidth}px, height=${noteHeight}px`);
+                console.log(`[1단계] 노트 ${index} (ID: ${noteEl.dataset.id}):`, {
+                    width: noteWidth,
+                    height: noteHeight,
+                    collapsed: isCollapsed
+                });
 
                 // 가장 낮은 열 찾기 (높이가 가장 작은 열)
                 let minColumnIndex = 0;
@@ -2681,6 +2687,12 @@
 
                 console.log('[접기] 상태 변경:', note.id, newCollapsed);
                 updateNote(note.id, { collapsed: newCollapsed });
+
+                // CSS 변경이 DOM에 반영된 후 레이아웃 재정렬
+                requestAnimationFrame(() => {
+                    console.log('[접기 후 재정렬] 노트:', note.id);
+                    repositionNotesInViewport();
+                });
             }
 
             // 접기 버튼 클릭
