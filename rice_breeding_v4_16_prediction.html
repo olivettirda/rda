@@ -1237,6 +1237,940 @@ let modelTrainedWithOptionA = false;  // Option A로 학습했는지 여부
 let confusionMatrixData = {};  // 혼동행렬 데이터
 let bestParamsData = {};  // GridSearch 최적 파라미터
 
+// ============================================================================
+// BDSS Core - Breeding Decision Support System (Inline Integration)
+// ============================================================================
+
+/**
+ * BDSS Core Models - 벼 육종 시뮬레이터 핵심 도메인 모델
+ *
+ * CMS(세포질 웅성불임) 시스템, Rf 유전자, 모계 효과 유전자 모델링
+ */
+
+// Enumerations
+const CMSType = Object.freeze({
+    WA: 'WA',      // Wild Abortive - 가장 일반적
+    BT: 'BT',      // Boro II type
+    HL: 'HL',      // Honglian
+    CW: 'CW',      // CW type
+    NORMAL: 'N'   // 정상 세포질
+});
+
+const CytoplasmType = Object.freeze({
+    STERILE: 'S',    // 불임 세포질 (CMS)
+    FERTILE: 'F'     // 가임 세포질 (정상)
+});
+
+const FertilityStatus = Object.freeze({
+    FERTILE: 'fertile',           // 가임
+    STERILE: 'sterile',           // 불임
+    PARTIAL: 'partial_fertile'    // 부분 가임
+});
+
+const BreedingMethod = Object.freeze({
+    PEDIGREE: 'pedigree',
+    SSD: 'ssd',          // Single Seed Descent
+    BULK: 'bulk',
+    DH: 'dh',            // Doubled Haploid
+    MABC: 'mabc',        // Marker-Assisted Backcross
+    MARS: 'mars'         // Marker-Assisted Recurrent Selection
+});
+
+const TraitType = Object.freeze({
+    QUALITATIVE: 'qualitative',      // 질적 형질 (주동 유전자)
+    QUANTITATIVE: 'quantitative',    // 양적 형질 (다인자)
+    OLIGOGENIC: 'oligogenic'         // 과소 유전자 형질
+});
+
+const LineRole = Object.freeze({
+    A_LINE: 'A',  // CMS 불임계 (종자 생산)
+    B_LINE: 'B',  // 유지계 (A계통 유지)
+    R_LINE: 'R'   // 회복계 (임성 회복)
+});
+
+/**
+ * Rf(Restorer of Fertility) 유전자 클래스
+ */
+class RfGene {
+    constructor(name, allele1, allele2, targetCMS = [], restorationPower = 1.0) {
+        this.name = name;
+        this.allele1 = allele1.toUpperCase() === 'R' ? 'R' : 'r';
+        this.allele2 = allele2.toUpperCase() === 'R' ? 'R' : 'r';
+        this.targetCMS = targetCMS;
+        this.restorationPower = Math.max(0, Math.min(1, restorationPower));
+        console.log(`[RfGene] 생성: ${name} ${this.allele1}${this.allele2}, 회복력: ${this.restorationPower}`);
+    }
+
+    get genotype() { return `${this.allele1}${this.allele2}`; }
+    get isHomozygousDominant() { return this.allele1 === 'R' && this.allele2 === 'R'; }
+    get isHeterozygous() { return (this.allele1 === 'R' && this.allele2 === 'r') || (this.allele1 === 'r' && this.allele2 === 'R'); }
+    get isHomozygousRecessive() { return this.allele1 === 'r' && this.allele2 === 'r'; }
+
+    calculateRestorationEffect(temperature = 25) {
+        let baseEffect = 0;
+        if (this.isHomozygousDominant) { baseEffect = 1.0; }
+        else if (this.isHeterozygous) {
+            if (temperature > 35) { baseEffect = 0.4; }
+            else if (temperature < 20) { baseEffect = 0.6; }
+            else { baseEffect = 0.75; }
+        }
+        return baseEffect * this.restorationPower;
+    }
+
+    canRestore(cmsType) { return this.targetCMS.includes(cmsType) && !this.isHomozygousRecessive; }
+    produceGamete() {
+        if (this.isHomozygousDominant) return 'R';
+        if (this.isHomozygousRecessive) return 'r';
+        return Math.random() < 0.5 ? 'R' : 'r';
+    }
+}
+
+/**
+ * 모계 효과 유전자 클래스
+ */
+class MaternalEffectGene {
+    constructor(name, allele1, allele2, trait, effectStrength = 1.0) {
+        this.name = name;
+        this.allele1 = allele1;
+        this.allele2 = allele2;
+        this.trait = trait;
+        this.effectStrength = Math.max(0, Math.min(1, effectStrength));
+    }
+
+    get genotype() { return `${this.allele1}${this.allele2}`; }
+
+    calculateMaternalPhenotype() {
+        const isDominantPresent = this.allele1.toUpperCase() === this.allele1 || this.allele2.toUpperCase() === this.allele2;
+        let phenotype = {};
+        switch (this.name) {
+            case 'OsPHO1;2':
+                phenotype = { value: isDominantPresent ? 'normal_P' : 'low_P', description: isDominantPresent ? '정상 인 축적' : '저인 종자', effectStrength: this.effectStrength };
+                break;
+            case 'Rc':
+                phenotype = { value: isDominantPresent ? 'red' : 'white', description: isDominantPresent ? '적색 종피 (적미)' : '백색 종피 (백미)', effectStrength: this.effectStrength };
+                break;
+            case 'wx':
+                phenotype = { value: isDominantPresent ? 'non_waxy' : 'waxy', description: isDominantPresent ? '멥쌀 (아밀로스 정상)' : '찹쌀 (아밀로스 결핍)', effectStrength: this.effectStrength };
+                break;
+            default:
+                phenotype = { value: isDominantPresent ? 'dominant' : 'recessive', description: `${this.name} 모계 효과`, effectStrength: this.effectStrength };
+        }
+        return phenotype;
+    }
+}
+
+/**
+ * 유전자형 클래스
+ */
+class Genotype {
+    constructor(markerData = {}, rfGenes = [], maternalGenes = []) {
+        this.markers = { ...markerData };
+        this.rfGenes = rfGenes;
+        this.maternalGenes = maternalGenes;
+    }
+
+    getMarker(markerName) { return this.markers[markerName] || '-'; }
+    setMarker(markerName, value) { this.markers[markerName] = value; }
+
+    get aFrequency() {
+        const values = Object.values(this.markers).filter(v => v !== '-');
+        if (values.length === 0) return 0;
+        return values.filter(v => v === 'A').length / values.length;
+    }
+
+    get bFrequency() {
+        const values = Object.values(this.markers).filter(v => v !== '-');
+        if (values.length === 0) return 0;
+        return values.filter(v => v === 'B').length / values.length;
+    }
+
+    get heterozygosity() {
+        const values = Object.values(this.markers).filter(v => v !== '-');
+        if (values.length === 0) return 0;
+        return values.filter(v => v === 'H').length / values.length;
+    }
+
+    get missingRate() {
+        const values = Object.values(this.markers);
+        if (values.length === 0) return 1;
+        return values.filter(v => v === '-' || v === '' || v === null).length / values.length;
+    }
+
+    calculateTotalRestorationPower(cmsType, temperature = 25) {
+        let totalPower = 0;
+        for (const rf of this.rfGenes) {
+            if (rf.canRestore(cmsType)) { totalPower += rf.calculateRestorationEffect(temperature); }
+        }
+        return Math.min(1, totalPower);
+    }
+
+    clone() {
+        return new Genotype(
+            { ...this.markers },
+            this.rfGenes.map(rf => new RfGene(rf.name, rf.allele1, rf.allele2, rf.targetCMS, rf.restorationPower)),
+            this.maternalGenes.map(mg => new MaternalEffectGene(mg.name, mg.allele1, mg.allele2, mg.trait, mg.effectStrength))
+        );
+    }
+}
+
+/**
+ * 표현형 클래스
+ */
+class Phenotype {
+    constructor(traitValues = {}) { this.traits = { ...traitValues }; }
+    getTrait(traitName) { return this.traits[traitName]; }
+    setTrait(traitName, value) { this.traits[traitName] = value; }
+    get traitNames() { return Object.keys(this.traits); }
+    clone() { return new Phenotype({ ...this.traits }); }
+}
+
+/**
+ * 벼 품종 클래스
+ */
+class RicePlant {
+    constructor(config = {}) {
+        this.id = config.id || `RICE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.name = config.name || 'Unknown';
+        this.genotype = config.genotype || new Genotype();
+        this.phenotype = config.phenotype || new Phenotype();
+        this.cytoplasm = config.cytoplasm || CytoplasmType.FERTILE;
+        this.cmsType = config.cmsType || CMSType.NORMAL;
+        this.lineRole = config.lineRole || null;
+        this.origin = config.origin || '';
+        this.pedigree = config.pedigree || [];
+        this.generation = config.generation || 'P';
+        console.log(`[RicePlant] 생성: ${this.name} (${this.id}), 세포질: ${this.cytoplasm}, CMS: ${this.cmsType}`);
+    }
+
+    get hasSterileCytoplasm() { return this.cytoplasm === CytoplasmType.STERILE; }
+    get isCMSLine() { return this.hasSterileCytoplasm && this.cmsType !== CMSType.NORMAL; }
+
+    determineFertility(temperature = 25) {
+        if (!this.hasSterileCytoplasm) { return FertilityStatus.FERTILE; }
+        const restorationPower = this.genotype.calculateTotalRestorationPower(this.cmsType, temperature);
+        if (restorationPower >= 0.9) { return FertilityStatus.FERTILE; }
+        else if (restorationPower >= 0.5) { return FertilityStatus.PARTIAL; }
+        else { return FertilityStatus.STERILE; }
+    }
+
+    canBePollenParent(temperature = 25) { return this.determineFertility(temperature) !== FertilityStatus.STERILE; }
+    canBeSeedParent() { return true; }
+
+    determineLineRole() {
+        if (!this.hasSterileCytoplasm) {
+            const hasRfAllele = this.genotype.rfGenes.some(rf => !rf.isHomozygousRecessive);
+            this.lineRole = hasRfAllele ? LineRole.R_LINE : LineRole.B_LINE;
+        } else {
+            const restorationPower = this.genotype.calculateTotalRestorationPower(this.cmsType);
+            this.lineRole = restorationPower < 0.5 ? LineRole.A_LINE : LineRole.R_LINE;
+        }
+        return this.lineRole;
+    }
+
+    calculateSeedTraits() {
+        const seedTraits = {};
+        for (const gene of this.genotype.maternalGenes) {
+            seedTraits[gene.trait] = gene.calculateMaternalPhenotype();
+        }
+        return seedTraits;
+    }
+
+    clone() {
+        return new RicePlant({
+            id: `${this.id}_clone`, name: `${this.name}_clone`,
+            genotype: this.genotype.clone(), phenotype: this.phenotype.clone(),
+            cytoplasm: this.cytoplasm, cmsType: this.cmsType, lineRole: this.lineRole,
+            origin: this.origin, pedigree: [...this.pedigree], generation: this.generation
+        });
+    }
+
+    getSummary() {
+        return {
+            id: this.id, name: this.name, cytoplasm: this.cytoplasm, cmsType: this.cmsType,
+            lineRole: this.lineRole, fertility: this.determineFertility(),
+            heterozygosity: (this.genotype.heterozygosity * 100).toFixed(1) + '%',
+            markerCount: Object.keys(this.genotype.markers).length, generation: this.generation
+        };
+    }
+}
+
+/**
+ * 육종 프로그램 설정
+ */
+class BreedingProgramConfig {
+    constructor(config = {}) {
+        this.programId = config.programId || `PROG_${Date.now()}`;
+        this.programName = config.programName || '육종 프로그램';
+        this.targetTraits = config.targetTraits || [];
+        this.budgetLimit = config.budgetLimit || 100000000;
+        this.timeLimitYears = config.timeLimitYears || 10;
+        this.hasSpeedBreeding = config.hasSpeedBreeding || false;
+        this.hasDHFacility = config.hasDHFacility || false;
+        this.fieldCapacity = config.fieldCapacity || 5000;
+    }
+    canAfford(estimatedCost) { return estimatedCost <= this.budgetLimit; }
+    canCompleteInTime(estimatedYears) { return estimatedYears <= this.timeLimitYears; }
+}
+
+// ============================================================================
+// BDSS Crossing Engine - 교배 엔진
+// ============================================================================
+
+const BREEDING_COSTS = {
+    pedigree: { costPerYear: 15000000, yearsToRelease: 8, laborIntensity: 0.9, fieldRequirement: 1.0 },
+    ssd: { costPerYear: 10000000, yearsToRelease: 6, yearsWithoutSB: 10, laborIntensity: 0.3, fieldRequirement: 0.5 },
+    bulk: { costPerYear: 8000000, yearsToRelease: 10, laborIntensity: 0.2, fieldRequirement: 1.5 },
+    dh: { costPerYear: 50000000, yearsToRelease: 4, laborIntensity: 0.6, fieldRequirement: 0.3 },
+    mabc: { costPerYear: 40000000, yearsToRelease: 5, laborIntensity: 0.7, fieldRequirement: 0.4, markerCostPerSample: 5000 },
+    mars: { costPerYear: 60000000, yearsToRelease: 6, laborIntensity: 0.8, fieldRequirement: 0.6 }
+};
+
+/**
+ * 교배 엔진 클래스 - CMS Dead-End 감지, F2 분리왜곡, 모계 효과 처리
+ */
+class CrossingEngine {
+    constructor(config = {}) {
+        this.segregationDistortionCoeff = config.segregationDistortionCoeff || 0.1;
+        this.recombinationRate = config.recombinationRate || 0.5;
+        this.crossHistory = [];
+        console.log('[CrossingEngine] 초기화 완료, 분리왜곡 계수:', this.segregationDistortionCoeff);
+    }
+
+    performCross(mother, father, options = {}) {
+        console.log(`[CrossingEngine] 교배 시작: ${mother.name} × ${father.name}`);
+        const validation = this.validateCross(mother, father, options.temperature || 25);
+        if (!validation.isValid) {
+            console.warn(`[CrossingEngine] 교배 불가: ${validation.reason}`);
+            return { success: false, reason: validation.reason, warnings: validation.warnings, deadEndType: validation.deadEndType };
+        }
+        const f1Offspring = this._generateF1Offspring(mother, father, options);
+        const seedTraits = mother.calculateSeedTraits();
+        const crossRecord = {
+            crossId: `CROSS_${Date.now()}`, mother: mother.getSummary(), father: father.getSummary(),
+            offspring: f1Offspring.getSummary(), seedTraits: seedTraits, timestamp: new Date().toISOString(), warnings: validation.warnings
+        };
+        this.crossHistory.push(crossRecord);
+        console.log(`[CrossingEngine] 교배 성공: ${f1Offspring.name}`);
+        return { success: true, offspring: f1Offspring, seedTraits: seedTraits, crossId: crossRecord.crossId, warnings: validation.warnings };
+    }
+
+    validateCross(mother, father, temperature = 25) {
+        const warnings = [];
+        if (!father.canBePollenParent(temperature)) {
+            return { isValid: false, reason: `화분친(${father.name})이 불임 상태입니다.`, deadEndType: 'POLLEN_STERILITY', warnings: warnings };
+        }
+        const cmsDeadEnd = this._checkCMSDeadEnd(mother, father, temperature);
+        if (cmsDeadEnd.isDeadEnd) {
+            return { isValid: false, reason: cmsDeadEnd.reason, deadEndType: cmsDeadEnd.type, warnings: warnings };
+        }
+        if (mother.isCMSLine && father.lineRole !== 'R') { warnings.push('CMS 계통과 비회복계 교배: 후대가 불임일 수 있습니다.'); }
+        const fatherRfHeterozygous = father.genotype.rfGenes.some(rf => rf.isHeterozygous);
+        if (fatherRfHeterozygous && mother.hasSterileCytoplasm) { warnings.push('회복계(Rf/rf)가 이형접합입니다. F2에서 분리왜곡이 예상됩니다.'); }
+        if (temperature > 35 && fatherRfHeterozygous) { warnings.push(`고온(${temperature}°C) 조건: Rf/rf 이형접합체의 회복력이 감소할 수 있습니다.`); }
+        return { isValid: true, reason: null, deadEndType: null, warnings: warnings };
+    }
+
+    _checkCMSDeadEnd(mother, father, temperature) {
+        if (mother.hasSterileCytoplasm && father.hasSterileCytoplasm) {
+            const fatherFertility = father.determineFertility(temperature);
+            if (fatherFertility === FertilityStatus.STERILE) {
+                return { isDeadEnd: true, type: 'A_LINE_CROSS', reason: 'A계통(불임계) × A계통: 양쪽 모두 불임 세포질을 가지며, 후대가 불임이 됩니다.' };
+            }
+        }
+        if (mother.hasSterileCytoplasm) {
+            const fatherRfGenes = father.genotype.rfGenes;
+            const relevantRf = fatherRfGenes.filter(rf => rf.canRestore(mother.cmsType));
+            if (relevantRf.length === 0) {
+                return { isDeadEnd: true, type: 'NO_RESTORER', reason: `모본(${mother.name})의 ${mother.cmsType} CMS에 대한 회복 유전자가 부본(${father.name})에 없습니다.` };
+            }
+            const allRfRecessive = relevantRf.every(rf => rf.isHomozygousRecessive);
+            if (allRfRecessive) {
+                return { isDeadEnd: true, type: 'RF_RECESSIVE', reason: `부본(${father.name})의 모든 회복 유전자가 열성 동형접합(rf/rf)입니다.` };
+            }
+        }
+        return { isDeadEnd: false };
+    }
+
+    _generateF1Offspring(mother, father, options = {}) {
+        const offspringId = options.offspringId || `F1_${Date.now()}`;
+        const offspringName = options.offspringName || `${mother.name}×${father.name}_F1`;
+        const offspringCytoplasm = mother.cytoplasm;
+        const offspringCMSType = mother.cmsType;
+        const offspringGenotype = this._combineGenotypes(mother.genotype, father.genotype);
+        const offspringRfGenes = this._combineRfGenes(mother.genotype.rfGenes, father.genotype.rfGenes);
+        offspringGenotype.rfGenes = offspringRfGenes;
+        const offspringPhenotype = this._predictF1Phenotype(mother.phenotype, father.phenotype, offspringGenotype);
+        const offspring = new RicePlant({
+            id: offspringId, name: offspringName, genotype: offspringGenotype, phenotype: offspringPhenotype,
+            cytoplasm: offspringCytoplasm, cmsType: offspringCMSType,
+            origin: `${mother.name} × ${father.name}`, pedigree: [mother.id, father.id], generation: 'F1'
+        });
+        return offspring;
+    }
+
+    _combineGenotypes(motherGenotype, fatherGenotype) {
+        const combinedMarkers = {};
+        const allMarkers = new Set([...Object.keys(motherGenotype.markers), ...Object.keys(fatherGenotype.markers)]);
+        for (const marker of allMarkers) {
+            const motherAllele = motherGenotype.getMarker(marker);
+            const fatherAllele = fatherGenotype.getMarker(marker);
+            combinedMarkers[marker] = this._combineAlleles(motherAllele, fatherAllele);
+        }
+        return new Genotype(combinedMarkers);
+    }
+
+    _combineAlleles(motherAllele, fatherAllele) {
+        if (motherAllele === '-' || fatherAllele === '-') { return motherAllele === '-' ? fatherAllele : motherAllele; }
+        if (motherAllele === fatherAllele) { return motherAllele; }
+        if ((motherAllele === 'A' && fatherAllele === 'B') || (motherAllele === 'B' && fatherAllele === 'A')) { return 'H'; }
+        if (motherAllele === 'H' || fatherAllele === 'H') {
+            const alleles = [];
+            alleles.push(motherAllele === 'H' ? (Math.random() < 0.5 ? 'A' : 'B') : motherAllele);
+            alleles.push(fatherAllele === 'H' ? (Math.random() < 0.5 ? 'A' : 'B') : fatherAllele);
+            return alleles[0] === alleles[1] ? alleles[0] : 'H';
+        }
+        return 'H';
+    }
+
+    _combineRfGenes(motherRfGenes, fatherRfGenes) {
+        const combinedRf = [];
+        const allRfNames = new Set([...motherRfGenes.map(rf => rf.name), ...fatherRfGenes.map(rf => rf.name)]);
+        for (const rfName of allRfNames) {
+            const motherRf = motherRfGenes.find(rf => rf.name === rfName);
+            const fatherRf = fatherRfGenes.find(rf => rf.name === rfName);
+            const motherGamete = motherRf ? motherRf.produceGamete() : 'r';
+            const fatherGamete = fatherRf ? fatherRf.produceGamete() : 'r';
+            const targetCMS = [...(motherRf?.targetCMS || []), ...(fatherRf?.targetCMS || [])].filter((v, i, a) => a.indexOf(v) === i);
+            const restorationPower = Math.max(motherRf?.restorationPower || 0, fatherRf?.restorationPower || 0);
+            combinedRf.push(new RfGene(rfName, motherGamete, fatherGamete, targetCMS, restorationPower));
+        }
+        return combinedRf;
+    }
+
+    _predictF1Phenotype(motherPhenotype, fatherPhenotype, offspringGenotype) {
+        const predictedTraits = {};
+        const allTraits = new Set([...motherPhenotype.traitNames, ...fatherPhenotype.traitNames]);
+        for (const trait of allTraits) {
+            const motherValue = motherPhenotype.getTrait(trait);
+            const fatherValue = fatherPhenotype.getTrait(trait);
+            if (typeof motherValue === 'number' && typeof fatherValue === 'number') {
+                const midValue = (motherValue + fatherValue) / 2;
+                const heterosis = midValue * 0.05 * offspringGenotype.heterozygosity;
+                predictedTraits[trait] = midValue + heterosis;
+            } else {
+                predictedTraits[trait] = motherValue || fatherValue;
+            }
+        }
+        return new Phenotype(predictedTraits);
+    }
+
+    generateF2Population(f1, populationSize = 100, options = {}) {
+        console.log(`[CrossingEngine] F2 집단 생성 시작: ${f1.name}, 크기: ${populationSize}`);
+        const f2Population = [];
+        const temperature = options.temperature || 25;
+        const applyDistortion = options.applyDistortion !== false;
+        for (let i = 0; i < populationSize; i++) {
+            const f2 = this._selfPollinate(f1, i, temperature, applyDistortion);
+            f2Population.push(f2);
+        }
+        console.log(`[CrossingEngine] F2 집단 생성 완료: ${f2Population.length}개체`);
+        return f2Population;
+    }
+
+    _selfPollinate(f1, index, temperature, applyDistortion) {
+        let distortionCoeff = 0;
+        if (applyDistortion && f1.hasSterileCytoplasm) { distortionCoeff = this.segregationDistortionCoeff; }
+        const f2Markers = {};
+        for (const [marker, allele] of Object.entries(f1.genotype.markers)) {
+            f2Markers[marker] = this._segregateAllele(allele, distortionCoeff);
+        }
+        const f2RfGenes = this._segregateRfGenes(f1.genotype.rfGenes, f1.hasSterileCytoplasm, distortionCoeff);
+        const f2Genotype = new Genotype(f2Markers, f2RfGenes);
+        const f2Phenotype = this._predictF2Phenotype(f1.phenotype, f2Genotype);
+        return new RicePlant({
+            id: `F2_${f1.id}_${index}`, name: `${f1.name}_F2_${index + 1}`,
+            genotype: f2Genotype, phenotype: f2Phenotype,
+            cytoplasm: f1.cytoplasm, cmsType: f1.cmsType,
+            origin: `Self(${f1.name})`, pedigree: [f1.id], generation: 'F2'
+        });
+    }
+
+    _segregateAllele(allele, distortionCoeff = 0) {
+        if (allele === 'A' || allele === 'B' || allele === '-') { return allele; }
+        const rand = Math.random();
+        const totalWeight = (1 + distortionCoeff) + 2 + (1 - distortionCoeff);
+        const threshold1 = (1 + distortionCoeff) / totalWeight;
+        const threshold2 = threshold1 + 2 / totalWeight;
+        if (rand < threshold1) { return 'A'; }
+        else if (rand < threshold2) { return 'H'; }
+        else { return 'B'; }
+    }
+
+    _segregateRfGenes(parentRfGenes, hasSterileCytoplasm, distortionCoeff) {
+        const segregatedRf = [];
+        for (const parentRf of parentRfGenes) {
+            const applyDistortion = hasSterileCytoplasm && parentRf.isHeterozygous;
+            const coeff = applyDistortion ? distortionCoeff : 0;
+            const gamete1 = this._produceDistortedGamete(parentRf, coeff);
+            const gamete2 = this._produceDistortedGamete(parentRf, coeff);
+            segregatedRf.push(new RfGene(parentRf.name, gamete1, gamete2, parentRf.targetCMS, parentRf.restorationPower));
+        }
+        return segregatedRf;
+    }
+
+    _produceDistortedGamete(rfGene, distortionCoeff) {
+        if (rfGene.isHomozygousDominant) return 'R';
+        if (rfGene.isHomozygousRecessive) return 'r';
+        const rProbability = 0.5 + (distortionCoeff * 0.5);
+        return Math.random() < rProbability ? 'R' : 'r';
+    }
+
+    _predictF2Phenotype(parentPhenotype, f2Genotype) {
+        const predictedTraits = {};
+        for (const trait of parentPhenotype.traitNames) {
+            const parentValue = parentPhenotype.getTrait(trait);
+            if (typeof parentValue === 'number') {
+                const variance = parentValue * 0.1;
+                const randomEffect = (Math.random() - 0.5) * 2 * variance;
+                predictedTraits[trait] = parentValue + randomEffect;
+            } else {
+                predictedTraits[trait] = parentValue;
+            }
+        }
+        return new Phenotype(predictedTraits);
+    }
+
+    recommendCrossDirection(plant1, plant2) {
+        const directions = [
+            { mother: plant1, father: plant2, label: `${plant1.name} ♀ × ${plant2.name} ♂` },
+            { mother: plant2, father: plant1, label: `${plant2.name} ♀ × ${plant1.name} ♂` }
+        ];
+        const evaluations = directions.map(dir => {
+            const validation = this.validateCross(dir.mother, dir.father);
+            let score = 100;
+            if (!validation.isValid) { score = 0; }
+            else {
+                score -= validation.warnings.length * 10;
+                if (dir.mother.genotype.maternalGenes.length > 0) { score += 15; }
+                if (dir.mother.isCMSLine) { score += 10; }
+            }
+            return { ...dir, isValid: validation.isValid, reason: validation.reason, warnings: validation.warnings, deadEndType: validation.deadEndType, score: Math.max(0, score) };
+        });
+        evaluations.sort((a, b) => b.score - a.score);
+        return { recommended: evaluations[0], alternative: evaluations[1], reasoning: [] };
+    }
+
+    getCrossHistory() { return [...this.crossHistory]; }
+    clearHistory() { this.crossHistory = []; }
+}
+
+// ============================================================================
+// BDSS Breeding Method Recommender - 육종 방법 추천 엔진
+// ============================================================================
+
+class BreedingMethodRecommender {
+    constructor(config = {}) {
+        this.defaultYieldWeight = config.yieldWeight || 0.6;
+        this.defaultStabilityWeight = config.stabilityWeight || 0.4;
+        this.costs = { ...BREEDING_COSTS, ...(config.costs || {}) };
+        console.log('[BreedingMethodRecommender] 초기화 완료');
+    }
+
+    recommend(programConfig, heritabilities, traitTypes) {
+        console.log(`[BreedingMethodRecommender] 추천 시작: ${programConfig.programName}`);
+        const decisionPath = [];
+        const scores = {};
+        const costAnalysis = {};
+        const methods = ['pedigree', 'ssd', 'bulk', 'dh', 'mabc', 'mars'];
+        for (const method of methods) {
+            const evaluation = this._evaluateMethod(method, programConfig, heritabilities, traitTypes);
+            scores[method] = evaluation.score;
+            costAnalysis[method] = evaluation.costAnalysis;
+        }
+        this._recordDecisionPath(decisionPath, programConfig, heritabilities, traitTypes);
+        const sortedMethods = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+        const recommendedMethod = sortedMethods[0][0];
+        const confidenceScore = this._calculateConfidence(sortedMethods);
+        const reasoning = this._generateReasoning(recommendedMethod, programConfig, heritabilities, traitTypes, costAnalysis[recommendedMethod]);
+        return {
+            recommended_method: recommendedMethod, confidence_score: confidenceScore, scores: scores,
+            alternative_methods: sortedMethods.slice(1, 4).map(([m, s]) => m), decision_path: decisionPath,
+            reasoning: reasoning, cost_analysis: costAnalysis
+        };
+    }
+
+    _evaluateMethod(method, programConfig, heritabilities, traitTypes) {
+        const methodCost = this.costs[method];
+        let score = 50;
+        const avgHeritability = this._calculateAverageHeritability(heritabilities);
+        score += this._getHeritabilityScore(method, avgHeritability);
+        const dominantTraitType = this._getDominantTraitType(traitTypes);
+        score += this._getTraitTypeScore(method, dominantTraitType);
+        const totalCost = this._estimateTotalCost(method, programConfig);
+        if (totalCost > programConfig.budgetLimit) { score -= 30; }
+        else { score += (1 - (totalCost / programConfig.budgetLimit)) * 15; }
+        const estimatedYears = this._estimateYears(method, programConfig);
+        if (estimatedYears > programConfig.timeLimitYears) { score -= 25; }
+        else { score += (1 - (estimatedYears / programConfig.timeLimitYears)) * 10; }
+        score += this._getFacilityScore(method, programConfig);
+        const costAnalysis = {
+            total_cost: totalCost, total_years: estimatedYears,
+            expected_genetic_gain: this._estimateGeneticGain(method, avgHeritability),
+            genetic_gain_per_cost: 0, genetic_gain_per_year: 0
+        };
+        if (totalCost > 0) { costAnalysis.genetic_gain_per_cost = costAnalysis.expected_genetic_gain / (totalCost / 100000000); }
+        if (estimatedYears > 0) { costAnalysis.genetic_gain_per_year = costAnalysis.expected_genetic_gain / estimatedYears; }
+        return { score: Math.max(0, Math.min(100, score)), costAnalysis: costAnalysis };
+    }
+
+    _calculateAverageHeritability(heritabilities) {
+        const values = Object.values(heritabilities);
+        if (values.length === 0) return 0.5;
+        return values.reduce((a, b) => a + b, 0) / values.length;
+    }
+
+    _getDominantTraitType(traitTypes) {
+        const types = Object.values(traitTypes);
+        if (types.length === 0) return TraitType.QUANTITATIVE;
+        const qualCount = types.filter(t => t === TraitType.QUALITATIVE || t === 'qualitative').length;
+        const quantCount = types.filter(t => t === TraitType.QUANTITATIVE || t === 'quantitative').length;
+        return qualCount >= quantCount ? TraitType.QUALITATIVE : TraitType.QUANTITATIVE;
+    }
+
+    _getHeritabilityScore(method, avgHeritability) {
+        const scores = {
+            pedigree: avgHeritability > 0.7 ? 15 : avgHeritability > 0.4 ? 5 : -10,
+            ssd: avgHeritability < 0.4 ? 15 : avgHeritability < 0.6 ? 10 : 0,
+            bulk: avgHeritability < 0.5 ? 10 : 0,
+            dh: avgHeritability > 0.3 ? 10 : 5,
+            mabc: avgHeritability > 0.6 ? 15 : avgHeritability > 0.3 ? 5 : -5,
+            mars: avgHeritability > 0.4 && avgHeritability < 0.8 ? 15 : 5
+        };
+        return scores[method] || 0;
+    }
+
+    _getTraitTypeScore(method, dominantTraitType) {
+        const isQualitative = dominantTraitType === TraitType.QUALITATIVE || dominantTraitType === 'qualitative';
+        const scores = {
+            pedigree: isQualitative ? 15 : 5, ssd: isQualitative ? 5 : 15,
+            bulk: isQualitative ? 0 : 10, dh: 10, mabc: isQualitative ? 20 : 0, mars: isQualitative ? 5 : 15
+        };
+        return scores[method] || 0;
+    }
+
+    _getFacilityScore(method, programConfig) {
+        let score = 0;
+        if (method === 'ssd' && programConfig.hasSpeedBreeding) { score += 20; }
+        if (method === 'dh') { score += programConfig.hasDHFacility ? 15 : -25; }
+        return score;
+    }
+
+    _estimateTotalCost(method, programConfig) {
+        return this.costs[method].costPerYear * this._estimateYears(method, programConfig);
+    }
+
+    _estimateYears(method, programConfig) {
+        const methodCost = this.costs[method];
+        if (method === 'ssd') { return programConfig.hasSpeedBreeding ? methodCost.yearsToRelease : methodCost.yearsWithoutSB; }
+        return methodCost.yearsToRelease;
+    }
+
+    _estimateGeneticGain(method, avgHeritability) {
+        const i = this._getSelectionIntensity(method);
+        const L = this.costs[method].yearsToRelease;
+        const sigmaP = 1.0;
+        const methodBonus = { pedigree: 1.0, ssd: 0.9, bulk: 0.7, dh: 1.2, mabc: 1.3, mars: 1.1 };
+        return Math.max(0, (i * avgHeritability * sigmaP / L) * (methodBonus[method] || 1.0));
+    }
+
+    _getSelectionIntensity(method) {
+        const intensities = { pedigree: 1.76, ssd: 1.40, bulk: 1.16, dh: 2.06, mabc: 1.76, mars: 1.76 };
+        return intensities[method] || 1.40;
+    }
+
+    _calculateConfidence(sortedMethods) {
+        if (sortedMethods.length < 2) return 1.0;
+        const scoreDiff = sortedMethods[0][1] - sortedMethods[1][1];
+        return Math.min(1.0, 0.5 + (scoreDiff / 100));
+    }
+
+    _recordDecisionPath(decisionPath, programConfig, heritabilities, traitTypes) {
+        const dominantType = this._getDominantTraitType(traitTypes);
+        const isQualitative = dominantType === TraitType.QUALITATIVE || dominantType === 'qualitative';
+        decisionPath.push(`Node 1: 형질 유형 분류 → ${isQualitative ? '질적 형질' : '양적 형질'}`);
+        const avgHeritability = this._calculateAverageHeritability(heritabilities);
+        let heritabilityLevel = '저유전력';
+        if (avgHeritability > 0.7) heritabilityLevel = '고유전력';
+        else if (avgHeritability > 0.4) heritabilityLevel = '중유전력';
+        decisionPath.push(`Node 2: 유전력 수준 → ${heritabilityLevel} (h² = ${avgHeritability.toFixed(2)})`);
+        decisionPath.push(`Node 3: 시간 제약 → ${programConfig.timeLimitYears <= 5 ? '긴급' : '일반'}`);
+        const facilities = [];
+        if (programConfig.hasSpeedBreeding) facilities.push('Speed Breeding');
+        if (programConfig.hasDHFacility) facilities.push('DH 시설');
+        decisionPath.push(`Node 4: 시설 현황 → ${facilities.length > 0 ? facilities.join(', ') : '기본 시설만'}`);
+    }
+
+    _generateReasoning(method, programConfig, heritabilities, traitTypes, costAnalysis) {
+        const reasoning = [];
+        const avgHeritability = this._calculateAverageHeritability(heritabilities);
+        const dominantType = this._getDominantTraitType(traitTypes);
+        const isQualitative = dominantType === TraitType.QUALITATIVE || dominantType === 'qualitative';
+        switch (method) {
+            case 'pedigree':
+                reasoning.push('Pedigree 방법은 초기 세대부터 개체 선발이 가능합니다.');
+                if (avgHeritability > 0.6) { reasoning.push(`높은 유전력(h²=${avgHeritability.toFixed(2)})으로 초기 선발 효과가 큽니다.`); }
+                if (isQualitative) { reasoning.push('질적 형질 개량에 효과적입니다.'); }
+                break;
+            case 'ssd':
+                reasoning.push('SSD 방법은 빠른 세대 진전이 가능합니다.');
+                if (programConfig.hasSpeedBreeding) { reasoning.push('Speed Breeding 시설로 연간 3-4세대 진전이 가능합니다.'); }
+                break;
+            case 'dh':
+                reasoning.push('DH(반수체 배가)는 1세대 만에 완전 동형접합체를 얻습니다.');
+                if (programConfig.hasDHFacility) { reasoning.push('DH 시설 보유로 신속한 품종 개발이 가능합니다.'); }
+                break;
+            case 'mabc':
+                reasoning.push('MABC는 특정 유전자 도입에 최적화되어 있습니다.');
+                if (isQualitative) { reasoning.push('질적 형질(주동 유전자)의 정확한 도입이 가능합니다.'); }
+                break;
+            default:
+                reasoning.push(`${method.toUpperCase()} 방법이 추천됩니다.`);
+        }
+        if (costAnalysis.total_cost <= programConfig.budgetLimit) {
+            reasoning.push(`예산 내 수행 가능 (예상 비용: ${(costAnalysis.total_cost / 100000000).toFixed(1)}억 원)`);
+        }
+        return reasoning;
+    }
+}
+
+// ============================================================================
+// BDSS MAS Marker Selector - MAS 마커 선택 엔진
+// ============================================================================
+
+class MASMarkerSelector {
+    constructor(config = {}) {
+        this.confidenceLevel = config.confidenceLevel || 0.95;
+        this.linkageDragDistances = config.linkageDragDistances || [5, 10, 20];
+        this.selectionHistory = [];
+        console.log('[MASMarkerSelector] 초기화 완료, 신뢰 수준:', this.confidenceLevel);
+    }
+
+    selectMinimumMarkerSet(targetGenes, availableMarkers, options = {}) {
+        console.log(`[MASMarkerSelector] 최소 마커 세트 선택 시작`);
+        const maxMarkers = options.maxMarkers || 20;
+        const minCoverage = options.minCoverage || 1.0;
+        const linkageMatrix = this._buildLinkageMatrix(targetGenes, availableMarkers);
+        const selectedMarkers = this._greedySetCover(targetGenes, availableMarkers, linkageMatrix, maxMarkers, minCoverage);
+        const linkageDragAnalysis = this._analyzeLinkageDrag(selectedMarkers, targetGenes);
+        const populationSize = this._calculatePopulationSize(selectedMarkers);
+        return {
+            selectedMarkers: selectedMarkers, coverage: this._calculateCoverage(selectedMarkers, targetGenes),
+            totalMarkers: selectedMarkers.length, targetGenesCovered: this._getCoveredGenes(selectedMarkers, targetGenes),
+            linkageDragAnalysis: linkageDragAnalysis, recommendedPopulationSize: populationSize,
+            efficiency: { markersPerGene: selectedMarkers.length / Math.max(1, targetGenes.length), coveragePerMarker: this._calculateCoverage(selectedMarkers, targetGenes) / Math.max(1, selectedMarkers.length) }
+        };
+    }
+
+    _buildLinkageMatrix(targetGenes, availableMarkers) {
+        const matrix = {};
+        for (const marker of availableMarkers) {
+            matrix[marker.name] = {};
+            for (const gene of targetGenes) {
+                if (marker.chromosome !== gene.chromosome) { matrix[marker.name][gene.name] = { linked: false, distance: Infinity }; continue; }
+                const distance = Math.abs(marker.position - gene.position);
+                const linked = distance <= 20;
+                matrix[marker.name][gene.name] = { linked: linked, distance: distance, linkageStrength: linked ? this._calculateLinkageStrength(distance) : 0 };
+            }
+        }
+        return matrix;
+    }
+
+    _calculateLinkageStrength(distanceCM) {
+        const recombRate = 0.5 * (1 - Math.exp(-2 * distanceCM / 100));
+        return 1 - 2 * recombRate;
+    }
+
+    _greedySetCover(targetGenes, availableMarkers, linkageMatrix, maxMarkers, minCoverage) {
+        const selected = [];
+        const uncoveredGenes = new Set(targetGenes.map(g => g.name));
+        const targetCount = targetGenes.length;
+        while (selected.length < maxMarkers && uncoveredGenes.size > 0) {
+            const currentCoverage = 1 - (uncoveredGenes.size / targetCount);
+            if (currentCoverage >= minCoverage) { break; }
+            let bestMarker = null;
+            let bestScore = -Infinity;
+            let bestCoveredGenes = [];
+            for (const marker of availableMarkers) {
+                if (selected.some(m => m.name === marker.name)) continue;
+                const coveredGenes = [];
+                let totalLinkageStrength = 0;
+                for (const geneName of uncoveredGenes) {
+                    const linkage = linkageMatrix[marker.name][geneName];
+                    if (linkage && linkage.linked) { coveredGenes.push(geneName); totalLinkageStrength += linkage.linkageStrength; }
+                }
+                const score = coveredGenes.length + (totalLinkageStrength * 0.1);
+                if (score > bestScore) { bestScore = score; bestMarker = marker; bestCoveredGenes = coveredGenes; }
+            }
+            if (!bestMarker || bestCoveredGenes.length === 0) { break; }
+            selected.push({ ...bestMarker, coveredGenes: bestCoveredGenes, selectionOrder: selected.length + 1 });
+            for (const gene of bestCoveredGenes) { uncoveredGenes.delete(gene); }
+        }
+        return selected;
+    }
+
+    _calculateCoverage(selectedMarkers, targetGenes) {
+        const coveredGenes = new Set();
+        for (const marker of selectedMarkers) { if (marker.coveredGenes) { for (const gene of marker.coveredGenes) { coveredGenes.add(gene); } } }
+        return coveredGenes.size / Math.max(1, targetGenes.length);
+    }
+
+    _getCoveredGenes(selectedMarkers, targetGenes) {
+        const coveredGenes = new Set();
+        for (const marker of selectedMarkers) { if (marker.coveredGenes) { for (const gene of marker.coveredGenes) { coveredGenes.add(gene); } } }
+        return Array.from(coveredGenes);
+    }
+
+    _analyzeLinkageDrag(selectedMarkers, targetGenes) {
+        const analysis = {};
+        for (const marker of selectedMarkers) {
+            const dragAnalysis = { targetGene: marker.coveredGenes?.[0] || 'unknown', markerPosition: marker.position, chromosome: marker.chromosome, dragZones: {} };
+            for (const distance of this.linkageDragDistances) {
+                const leftBound = marker.position - distance;
+                const rightBound = marker.position + distance;
+                const genesInRange = targetGenes.filter(g => g.chromosome === marker.chromosome && g.position >= leftBound && g.position <= rightBound && g.name !== marker.coveredGenes?.[0]);
+                dragAnalysis.dragZones[`${distance}cM`] = { range: { left: leftBound, right: rightBound }, genesInRange: genesInRange.map(g => g.name), potentialDrag: genesInRange.length > 0 };
+            }
+            analysis[marker.name] = dragAnalysis;
+        }
+        return analysis;
+    }
+
+    _calculatePopulationSize(selectedMarkers) {
+        if (selectedMarkers.length === 0) return 0;
+        const P = this.confidenceLevel;
+        const probPerMarker = 0.25;
+        const totalMarkers = selectedMarkers.length;
+        const p = Math.pow(probPerMarker, totalMarkers);
+        const N = Math.ceil(Math.log(1 - P) / Math.log(1 - p));
+        return Math.min(N, 100000);
+    }
+
+    selectBackgroundMarkers(targetChromosome, targetPosition, allMarkers, desiredRecovery = 0.95) {
+        const chromosomeGroups = {};
+        for (const marker of allMarkers) {
+            const chr = marker.chromosome;
+            if (!chromosomeGroups[chr]) { chromosomeGroups[chr] = []; }
+            chromosomeGroups[chr].push(marker);
+        }
+        const backgroundMarkers = [];
+        for (const [chr, markers] of Object.entries(chromosomeGroups)) {
+            markers.sort((a, b) => a.position - b.position);
+            if (chr === targetChromosome.toString()) {
+                const leftMarkers = markers.filter(m => m.position < targetPosition - 5);
+                const rightMarkers = markers.filter(m => m.position > targetPosition + 5);
+                if (leftMarkers.length > 0) { backgroundMarkers.push({ ...leftMarkers[leftMarkers.length - 1], purpose: 'linkage_drag_left', distanceFromTarget: targetPosition - leftMarkers[leftMarkers.length - 1].position }); }
+                if (rightMarkers.length > 0) { backgroundMarkers.push({ ...rightMarkers[0], purpose: 'linkage_drag_right', distanceFromTarget: rightMarkers[0].position - targetPosition }); }
+            } else {
+                const numMarkers = Math.min(3, markers.length);
+                const interval = Math.floor(markers.length / numMarkers);
+                for (let i = 0; i < numMarkers; i++) {
+                    const idx = Math.min(i * interval, markers.length - 1);
+                    backgroundMarkers.push({ ...markers[idx], purpose: 'background_recovery', distanceFromTarget: null });
+                }
+            }
+        }
+        const backgroundCoverage = backgroundMarkers.filter(m => m.purpose === 'background_recovery').length;
+        const recoveryPerGeneration = 0.5 + (0.5 * (backgroundCoverage / (backgroundCoverage + 10)));
+        const generationsNeeded = Math.ceil(Math.log(1 - desiredRecovery) / Math.log(1 - recoveryPerGeneration));
+        return { markers: backgroundMarkers, estimatedGenerations: generationsNeeded, expectedRecovery: desiredRecovery };
+    }
+
+    getMABCSelectionStrategy(generation, foregroundMarkers, backgroundMarkers) {
+        const strategy = {
+            generation: `BC${generation}`, foreground: { markers: foregroundMarkers, selectionCriteria: 'heterozygous', priority: 'mandatory' },
+            background: { markers: [], selectionCriteria: 'recurrent_parent', priority: 'high' },
+            linkageDrag: { markers: [], selectionCriteria: 'recurrent_parent', priority: 'medium' },
+            populationSize: 0, expectedRecovery: 0
+        };
+        switch (generation) {
+            case 1: strategy.background.markers = backgroundMarkers.slice(0, 5); strategy.populationSize = 200; strategy.expectedRecovery = 0.75; break;
+            case 2: strategy.background.markers = backgroundMarkers.slice(0, 10); strategy.linkageDrag.markers = backgroundMarkers.filter(m => m.purpose === 'linkage_drag_left' || m.purpose === 'linkage_drag_right'); strategy.populationSize = 300; strategy.expectedRecovery = 0.875; break;
+            case 3: strategy.background.markers = backgroundMarkers; strategy.linkageDrag.markers = backgroundMarkers.filter(m => m.distanceFromTarget !== null); strategy.populationSize = 400; strategy.expectedRecovery = 0.9375; break;
+            default: strategy.background.markers = backgroundMarkers; strategy.linkageDrag.markers = backgroundMarkers.filter(m => m.distanceFromTarget !== null); strategy.linkageDrag.priority = 'high'; strategy.populationSize = 500; strategy.expectedRecovery = Math.min(0.99, 1 - Math.pow(0.5, generation + 1));
+        }
+        return strategy;
+    }
+
+    getSelectionHistory() { return [...this.selectionHistory]; }
+}
+
+// ============================================================================
+// BDSS Index - 모듈 진입점
+// ============================================================================
+
+const BDSS_VERSION = '1.0.0';
+const BDSS_BUILD_DATE = '2026-01-26';
+
+function initBDSS() {
+    console.log('='.repeat(50));
+    console.log('BDSS Core 초기화');
+    console.log(`버전: ${BDSS_VERSION}`);
+    console.log(`빌드: ${BDSS_BUILD_DATE}`);
+    console.log('='.repeat(50));
+    const requiredModules = ['CMSType', 'CytoplasmType', 'RicePlant', 'CrossingEngine', 'BreedingMethodRecommender', 'MASMarkerSelector'];
+    const missingModules = [];
+    const bdss = window.BDSS || {};
+    for (const module of requiredModules) { if (!bdss[module]) { missingModules.push(module); } }
+    if (missingModules.length > 0) { console.warn('[BDSS] 누락된 모듈:', missingModules.join(', ')); }
+    else { console.log('[BDSS] 모든 모듈 로드 완료'); }
+    bdss.VERSION = BDSS_VERSION;
+    bdss.BUILD_DATE = BDSS_BUILD_DATE;
+    return bdss;
+}
+
+function runBDSSQuickTest() {
+    console.log('\n[BDSS Quick Test] 시작...\n');
+    const bdss = window.BDSS;
+    let passed = 0, failed = 0;
+    try { new bdss.RicePlant({ name: 'TestVariety', cytoplasm: bdss.CytoplasmType.FERTILE }); console.log('✓ Test 1: RicePlant 생성 성공'); passed++; } catch (e) { console.error('✗ Test 1: RicePlant 생성 실패', e); failed++; }
+    try { new bdss.CrossingEngine(); console.log('✓ Test 2: CrossingEngine 초기화 성공'); passed++; } catch (e) { console.error('✗ Test 2: CrossingEngine 초기화 실패', e); failed++; }
+    try { new bdss.BreedingMethodRecommender(); console.log('✓ Test 3: BreedingMethodRecommender 초기화 성공'); passed++; } catch (e) { console.error('✗ Test 3: BreedingMethodRecommender 초기화 실패', e); failed++; }
+    try { new bdss.MASMarkerSelector(); console.log('✓ Test 4: MASMarkerSelector 초기화 성공'); passed++; } catch (e) { console.error('✗ Test 4: MASMarkerSelector 초기화 실패', e); failed++; }
+    console.log('\n' + '='.repeat(50));
+    console.log(`[BDSS Quick Test] 완료: ${passed} 성공, ${failed} 실패`);
+    console.log('='.repeat(50) + '\n');
+    return { passed, failed };
+}
+
+// BDSS Global Registration
+window.BDSS = window.BDSS || {};
+window.BDSS.CMSType = CMSType;
+window.BDSS.CytoplasmType = CytoplasmType;
+window.BDSS.FertilityStatus = FertilityStatus;
+window.BDSS.BreedingMethod = BreedingMethod;
+window.BDSS.TraitType = TraitType;
+window.BDSS.LineRole = LineRole;
+window.BDSS.RfGene = RfGene;
+window.BDSS.MaternalEffectGene = MaternalEffectGene;
+window.BDSS.Genotype = Genotype;
+window.BDSS.Phenotype = Phenotype;
+window.BDSS.RicePlant = RicePlant;
+window.BDSS.BreedingProgramConfig = BreedingProgramConfig;
+window.BDSS.CrossingEngine = CrossingEngine;
+window.BDSS.BreedingMethodRecommender = BreedingMethodRecommender;
+window.BDSS.MASMarkerSelector = MASMarkerSelector;
+window.BDSS.BREEDING_COSTS = BREEDING_COSTS;
+window.BDSS.init = initBDSS;
+window.BDSS.quickTest = runBDSSQuickTest;
+window.BDSS.VERSION = BDSS_VERSION;
+window.BDSS.BUILD_DATE = BDSS_BUILD_DATE;
+
+console.log(`[BDSS] 인라인 모듈 로드 완료 (v${BDSS_VERSION})`);
+
+// ============================================================================
+// End of BDSS Core Inline Integration
+// ============================================================================
+
 // === 전역 에러 핸들링 시스템 (v5.1) ===
 const ErrorHandler = {
     // 에러 로그 저장소
@@ -3032,19 +3966,22 @@ function createParentHaplotypes(genoArray) {
     return [hap1, hap2];
 }
 
-// F1 생성
+// ============================================================================
+// Legacy Crossing Functions (Replaced by BDSS CrossingEngine)
+// For advanced CMS/Rf simulations, use window.BDSS.CrossingEngine instead.
+// ============================================================================
+
+// F1 생성 (Legacy - BDSS CrossingEngine.performCross() 사용 권장)
 function createF1(p1Haps, p2Haps) {
     const fromP1 = Math.random() < 0.5 ? p1Haps[0] : p1Haps[1];
     const fromP2 = Math.random() < 0.5 ? p2Haps[0] : p2Haps[1];
     return [fromP1.slice(), fromP2.slice()];
 }
 
-// 감수분열 (연관 + 재조합)
+// 감수분열 (연관 + 재조합) - Legacy
 function meiosis(haplotypes) {
     const [hap1, hap2] = haplotypes;
     const gamete = new Array(hap1.length);
-    
-    // 염색체별 그룹화
     const chrGroups = {};
     markerInfo.forEach(m => {
         if (m.chr) {
@@ -3052,53 +3989,39 @@ function meiosis(haplotypes) {
             chrGroups[m.chr].push(m);
         }
     });
-    
-    // 연관된 마커: 염색체별로 재조합 시뮬레이션
     for (const [chrNum, markers] of Object.entries(chrGroups)) {
         const chr = parseInt(chrNum);
         const chrInfo = chromosomeInfo[chr];
         markers.sort((a, b) => (a.position_cM || 0) - (b.position_cM || 0));
-        
         let currentHap = Math.random() < 0.5 ? 0 : 1;
         gamete[markers[0].idx] = currentHap === 0 ? hap1[markers[0].idx] : hap2[markers[0].idx];
-        
         for (let i = 1; i < markers.length; i++) {
             const prev = markers[i - 1], curr = markers[i];
             const distance_cM = Math.abs((curr.position_cM || 0) - (prev.position_cM || 0));
-            
-            // Kosambi
             let recombRate = 0.5 * Math.tanh(2 * distance_cM / 100);
-            
-            // 동원체 통과 확인
             if (chrInfo) {
                 const crosses = (prev.position_bp < chrInfo.centromere_start && curr.position_bp > chrInfo.centromere_end) ||
                                (curr.position_bp < chrInfo.centromere_start && prev.position_bp > chrInfo.centromere_end);
                 if (crosses) recombRate *= 0.5;
             }
-            
             if (Math.random() < recombRate) currentHap = 1 - currentHap;
             gamete[curr.idx] = currentHap === 0 ? hap1[curr.idx] : hap2[curr.idx];
         }
     }
-    
-    // 연관 정보 없는 마커: 독립 분리
     markerInfo.forEach(m => {
         if (gamete[m.idx] === undefined) {
             gamete[m.idx] = Math.random() < 0.5 ? hap1[m.idx] : hap2[m.idx];
         }
     });
-    
     return gamete;
 }
 
-// 자가수정
+// 자가수정 (Legacy - BDSS CrossingEngine.generateF2Population() 사용 권장)
 function selfFertilize(haplotypes) {
     return [meiosis(haplotypes), meiosis(haplotypes)];
 }
 
-// 여교배 (Backcross): 잡종 × 반복친
-// hybrid: 잡종 개체의 haplotypes [hap1, hap2]
-// recurrentHaps: 반복친의 haplotypes [hap1, hap2]
+// 여교배 (Legacy)
 function backcross(hybridHaps, recurrentHaps) {
     const gameteFromHybrid = meiosis(hybridHaps);
     const gameteFromRecurrent = meiosis(recurrentHaps);
@@ -4906,6 +5829,193 @@ async function initPyodide() {
         });
         await pyodide.loadPackage(['numpy', 'scikit-learn']);
         log('✅ Pyodide 초기화 완료 (numpy, scikit-learn 로드됨)', 'success');
+
+        // BDSS Statistical Engine 로드 (인라인)
+        log('⚙️ BDSS 통계 엔진 로드 중...', 'info');
+        await pyodide.runPythonAsync(`
+"""
+BDSS Statistical Engine - 통계 분석 엔진 (Pyodide용)
+BLUP, WAASB, WAASBY, MTSI 분석을 위한 Python 모듈
+"""
+
+import numpy as np
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Tuple
+import json
+
+@dataclass
+class BLUPResult:
+    genotype_id: str
+    breeding_value: float
+    gca: float
+    reliability: float
+    rank: int = 0
+
+@dataclass
+class WAASBResult:
+    genotype_id: str
+    waasb: float
+    mean_yield: float
+    waasb_rank: int = 0
+    yield_rank: int = 0
+
+@dataclass
+class WAASBYResult:
+    genotype_id: str
+    waasby: float
+    yield_rank_score: float
+    waasb_rank_score: float
+    waasby_rank: int = 0
+
+@dataclass
+class MTSIResult:
+    genotype_id: str
+    mtsi: float
+    mtsi_rank: int = 0
+    selected: bool = False
+    factor_scores: List[float] = field(default_factory=list)
+
+class StatisticalEngine:
+    def __init__(self, yield_weight: float = 0.6, stability_weight: float = 0.4):
+        self.yield_weight = yield_weight
+        self.stability_weight = stability_weight
+        print(f"[StatisticalEngine] 초기화: 수량 가중치={yield_weight}, 안정성 가중치={stability_weight}")
+
+    def calculate_blup(self, phenotype_data, design_matrix_fixed, design_matrix_random, pedigree_matrix=None, variance_ratio=1.0, genotype_names=None):
+        y = np.array(phenotype_data).flatten()
+        X = np.array(design_matrix_fixed)
+        Z = np.array(design_matrix_random)
+        n_random = Z.shape[1]
+        A_inv = np.eye(n_random) if pedigree_matrix is None else np.linalg.inv(np.array(pedigree_matrix))
+        XtX, XtZ, ZtX, ZtZ = X.T @ X, X.T @ Z, Z.T @ X, Z.T @ Z
+        Xty, Zty = X.T @ y, Z.T @ y
+        n_fixed = X.shape[1]
+        lhs = np.zeros((n_fixed + n_random, n_fixed + n_random))
+        lhs[:n_fixed, :n_fixed], lhs[:n_fixed, n_fixed:], lhs[n_fixed:, :n_fixed], lhs[n_fixed:, n_fixed:] = XtX, XtZ, ZtX, ZtZ + variance_ratio * A_inv
+        rhs = np.concatenate([Xty, Zty])
+        try: solution = np.linalg.solve(lhs, rhs)
+        except: solution = np.linalg.lstsq(lhs, rhs, rcond=None)[0]
+        u_hat = solution[n_fixed:]
+        results = [BLUPResult(genotype_id=genotype_names[i] if genotype_names and i < len(genotype_names) else f"G{i+1}", breeding_value=float(u_hat[i]), gca=float(u_hat[i]/2), reliability=0.7) for i in range(n_random)]
+        results.sort(key=lambda x: x.breeding_value, reverse=True)
+        for i, r in enumerate(results): r.rank = i + 1
+        return results
+
+    def calculate_waasb(self, yield_matrix, genotype_names=None, n_components=2):
+        Y = np.array(yield_matrix)
+        n_genotypes, n_envs = Y.shape
+        grand_mean = np.mean(Y)
+        genotype_means = np.mean(Y, axis=1)
+        env_means = np.mean(Y, axis=0)
+        GE = Y - genotype_means.reshape(-1, 1) - env_means.reshape(1, -1) + grand_mean
+        try: U, S, Vt = np.linalg.svd(GE, full_matrices=False)
+        except: U, S = np.zeros((n_genotypes, min(n_genotypes, n_envs))), np.zeros(min(n_genotypes, n_envs))
+        total_ss = np.sum(S ** 2)
+        explained_proportion = (S ** 2) / total_ss if total_ss > 0 else np.zeros(len(S))
+        n_comp = min(n_components, len(S))
+        waasb_values = np.zeros(n_genotypes)
+        for g in range(n_genotypes):
+            weighted_sum, weight_sum = 0, 0
+            for k in range(n_comp):
+                if k < len(explained_proportion):
+                    weight = explained_proportion[k]
+                    score = abs(U[g, k] * S[k]) if k < len(S) else 0
+                    weighted_sum += score * weight
+                    weight_sum += weight
+            waasb_values[g] = weighted_sum / weight_sum if weight_sum > 0 else 0
+        results = [WAASBResult(genotype_id=genotype_names[i] if genotype_names and i < len(genotype_names) else f"G{i+1}", waasb=float(waasb_values[i]), mean_yield=float(genotype_means[i])) for i in range(n_genotypes)]
+        results.sort(key=lambda x: x.waasb)
+        for i, r in enumerate(results): r.waasb_rank = i + 1
+        results.sort(key=lambda x: x.mean_yield, reverse=True)
+        for i, r in enumerate(results): r.yield_rank = i + 1
+        return results
+
+    def calculate_waasby(self, waasb_results, yield_weight=None, stability_weight=None):
+        wY = yield_weight if yield_weight is not None else self.yield_weight
+        wS = stability_weight if stability_weight is not None else self.stability_weight
+        n = len(waasb_results)
+        results = []
+        for r in waasb_results:
+            yield_rank_score = 100 * (n - r.yield_rank + 1) / n
+            waasb_rank_score = 100 * (n - r.waasb_rank + 1) / n
+            waasby = (yield_rank_score * wY + waasb_rank_score * wS) / (wY + wS)
+            results.append(WAASBYResult(genotype_id=r.genotype_id, waasby=float(waasby), yield_rank_score=float(yield_rank_score), waasb_rank_score=float(waasb_rank_score)))
+        results.sort(key=lambda x: x.waasby, reverse=True)
+        for i, r in enumerate(results): r.waasby_rank = i + 1
+        return results
+
+    def calculate_mtsi(self, trait_matrix, genotype_names=None, selection_intensity=0.2, trait_weights=None):
+        X = np.array(trait_matrix)
+        n_genotypes, n_traits = X.shape
+        X_std = (X - np.mean(X, axis=0)) / (np.std(X, axis=0) + 1e-10)
+        if trait_weights is not None:
+            weights = np.array(trait_weights)
+            weights = weights / np.sum(weights)
+            X_std = X_std * weights
+        try: U, S, Vt = np.linalg.svd(X_std, full_matrices=False); n_factors = min(3, len(S)); factor_scores = U[:, :n_factors] * S[:n_factors]
+        except: factor_scores = X_std[:, :min(3, n_traits)]; n_factors = factor_scores.shape[1]
+        ideotype = np.max(factor_scores, axis=0)
+        mtsi_values = np.sqrt(np.sum((factor_scores - ideotype) ** 2, axis=1) / n_factors)
+        results = [MTSIResult(genotype_id=genotype_names[i] if genotype_names and i < len(genotype_names) else f"G{i+1}", mtsi=float(mtsi_values[i]), factor_scores=factor_scores[i].tolist() if i < len(factor_scores) else []) for i in range(n_genotypes)]
+        results.sort(key=lambda x: x.mtsi)
+        for i, r in enumerate(results): r.mtsi_rank = i + 1
+        n_selected = max(1, int(n_genotypes * selection_intensity))
+        for i in range(n_selected): results[i].selected = True
+        return results
+
+    def identify_elite_parents(self, yield_matrix, genotype_names=None, trait_matrix=None, selection_method="waasby", top_n=10):
+        def get_rec(rank, total):
+            ratio = rank / total
+            if ratio <= 0.1: return "Core Elite"
+            elif ratio <= 0.3: return "Elite"
+            elif ratio <= 0.6: return "Candidate"
+            else: return "Reserve"
+
+        if selection_method == "waasb":
+            waasb_results = self.calculate_waasb(yield_matrix, genotype_names)
+            waasb_results.sort(key=lambda x: x.waasb)
+            return [{"rank": i+1, "genotype_id": r.genotype_id, "waasb": r.waasb, "mean_yield": r.mean_yield, "recommendation": get_rec(i+1, top_n)} for i, r in enumerate(waasb_results[:top_n])]
+        elif selection_method == "waasby":
+            waasb_results = self.calculate_waasb(yield_matrix, genotype_names)
+            waasby_results = self.calculate_waasby(waasb_results)
+            waasby_results.sort(key=lambda x: x.waasby, reverse=True)
+            return [{"rank": i+1, "genotype_id": r.genotype_id, "waasby": r.waasby, "yield_rank_score": r.yield_rank_score, "stability_rank_score": r.waasb_rank_score, "recommendation": get_rec(i+1, top_n)} for i, r in enumerate(waasby_results[:top_n])]
+        elif selection_method == "mtsi":
+            if trait_matrix is None: trait_matrix = yield_matrix
+            mtsi_results = self.calculate_mtsi(trait_matrix, genotype_names)
+            mtsi_results.sort(key=lambda x: x.mtsi)
+            return [{"rank": i+1, "genotype_id": r.genotype_id, "mtsi": r.mtsi, "factor_scores": r.factor_scores, "recommendation": get_rec(i+1, top_n)} for i, r in enumerate(mtsi_results[:top_n])]
+        else:
+            raise ValueError(f"Unknown selection method: {selection_method}")
+
+# JavaScript Interface Functions
+def create_engine(yield_weight=0.6, stability_weight=0.4):
+    return StatisticalEngine(yield_weight, stability_weight)
+
+def calculate_blup_from_js(engine, y, X, Z, genotype_names=None):
+    results = engine.calculate_blup(np.array(y), np.array(X), np.array(Z), genotype_names=genotype_names)
+    return [{"genotype_id": r.genotype_id, "breeding_value": r.breeding_value, "gca": r.gca, "reliability": r.reliability, "rank": r.rank} for r in results]
+
+def calculate_waasb_from_js(engine, yield_matrix, genotype_names=None):
+    results = engine.calculate_waasb(np.array(yield_matrix), genotype_names)
+    return [{"genotype_id": r.genotype_id, "waasb": r.waasb, "mean_yield": r.mean_yield, "waasb_rank": r.waasb_rank, "yield_rank": r.yield_rank} for r in results]
+
+def calculate_waasby_from_js(engine, waasb_results, yield_weight=None, stability_weight=None):
+    waasb_objs = [WAASBResult(genotype_id=r["genotype_id"], waasb=r["waasb"], mean_yield=r["mean_yield"], waasb_rank=r["waasb_rank"], yield_rank=r["yield_rank"]) for r in waasb_results]
+    results = engine.calculate_waasby(waasb_objs, yield_weight, stability_weight)
+    return [{"genotype_id": r.genotype_id, "waasby": r.waasby, "yield_rank_score": r.yield_rank_score, "waasb_rank_score": r.waasb_rank_score, "waasby_rank": r.waasby_rank} for r in results]
+
+def calculate_mtsi_from_js(engine, trait_matrix, genotype_names=None, selection_intensity=0.2):
+    results = engine.calculate_mtsi(np.array(trait_matrix), genotype_names, selection_intensity)
+    return [{"genotype_id": r.genotype_id, "mtsi": r.mtsi, "mtsi_rank": r.mtsi_rank, "selected": r.selected, "factor_scores": r.factor_scores} for r in results]
+
+def identify_elite_from_js(engine, yield_matrix, genotype_names=None, trait_matrix=None, selection_method="waasby", top_n=10):
+    return engine.identify_elite_parents(np.array(yield_matrix), genotype_names, np.array(trait_matrix) if trait_matrix is not None else None, selection_method, top_n)
+
+print("[BDSS statistical_engine.py] 인라인 모듈 로드 완료")
+`);
+        log('✅ BDSS 통계 엔진 로드 완료', 'success');
+
         return pyodide;
     } catch (error) {
         log('❌ Pyodide 초기화 실패: ' + error.message, 'error');
@@ -11198,6 +12308,12 @@ function clearSimulatorSessionData() {
 
 // ==================== 초기화 ====================
 window.onload = function() {
+    // BDSS 초기화
+    if (window.BDSS && window.BDSS.init) {
+        window.BDSS.init();
+        log('🧬 BDSS Core 초기화 완료 (v' + window.BDSS.VERSION + ')', 'success');
+    }
+
     initChromosomeViz();
     initGenerationTimeline();
     updateInteractionTab();
@@ -11212,7 +12328,7 @@ window.onload = function() {
 
     checkPhenotypeData(); // 표현형 데이터 확인
     updateDataClearButtons(); // 삭제 버튼 상태 업데이트
-    log('🌾 벼 디지털육종 v4.16 로드 완료', 'success');
+    log('🌾 벼 디지털육종 v4.16 + BDSS 로드 완료', 'success');
 };
 </script>
 
