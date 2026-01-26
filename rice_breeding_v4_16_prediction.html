@@ -1232,6 +1232,49 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// === 공통 유효성 검사 헬퍼 함수 (v5.1 리팩토링) ===
+function requireDataLoaded(message = '데이터를 먼저 업로드하세요.') {
+    if (!dataLoaded) {
+        alert(message);
+        console.log('검증 실패: 데이터 미로드');
+        return false;
+    }
+    return true;
+}
+
+function requireElement(elementId, warnIfMissing = false) {
+    const el = document.getElementById(elementId);
+    if (!el && warnIfMissing) {
+        console.warn(`요소를 찾을 수 없음: #${elementId}`);
+    }
+    return el;
+}
+
+function requireSelection(value, message) {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+        alert(message);
+        console.log('검증 실패:', message);
+        return false;
+    }
+    return true;
+}
+
+// 숫자 포맷팅 (천단위 콤마, 소수점 제한)
+function formatNumber(num, decimals = 2) {
+    if (num === null || num === undefined || isNaN(num)) return '-';
+    if (Number.isInteger(num)) return num.toLocaleString();
+    return Number(num).toLocaleString(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+}
+
+// 퍼센트 포맷팅
+function formatPercent(value, decimals = 1) {
+    if (value === null || value === undefined || isNaN(value)) return '-';
+    return (value * 100).toFixed(decimals) + '%';
+}
+
 // === Web Worker를 이용한 XLSX 파싱 (메인 스레드 블로킹 방지) ===
 let xlsxWorker = null;
 const XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -4553,7 +4596,7 @@ function displayInteractionResults(results, trait) {
 
 // ==================== 기존 기능 ====================
 function runQuickModelTest() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     document.getElementById('quickTestLoading').classList.add('active');
     setTimeout(() => {
         document.getElementById('quickTestLoading').classList.remove('active');
@@ -4562,7 +4605,7 @@ function runQuickModelTest() {
 }
 
 function performImputation() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     
     log('🔮 결측치 예측 시작...', 'info');
     document.getElementById('imputeLoading').classList.add('active');
@@ -4663,7 +4706,7 @@ function getSelectedGenotypeData(radioName) {
 }
 
 function generateHeatmap() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     const data = getSelectedGenotypeData('heatmapData');
     const matrix = data.map(r => geneNames.map(g => {
         const v = r[g];
@@ -4687,7 +4730,7 @@ function generateHeatmap() {
 }
 
 function runGeneticAlgorithm() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     
     const selectedObjectives = Array.from(
         document.querySelectorAll('#objectiveCheckboxes input:checked')
