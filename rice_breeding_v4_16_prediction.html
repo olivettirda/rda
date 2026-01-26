@@ -1537,11 +1537,11 @@ function createTraitRecommendationPanel(traitName) {
 
     return `
         <div class="result-card" style="background: #e3f2fd; border-left: 4px solid var(--dmrt-secondary);">
-            <h4>🎯 ${traitName} - 추천 유전자</h4>
-            <p style="color: #666; margin-bottom: 12px;">${rec.description}</p>
+            <h4>🎯 ${escapeHtml(traitName)} - 추천 유전자</h4>
+            <p style="color: #666; margin-bottom: 12px;">${escapeHtml(rec.description)}</p>
             <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
                 ${rec.genes.map(g => `
-                    <span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${g.name}')">${g.name}</span>
+                    <span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${escapeHtml(g.name)}')">${escapeHtml(g.name)}</span>
                 `).join('')}
             </div>
             ${rec.synergies.length > 0 ? `
@@ -3457,7 +3457,7 @@ function displayChrDetail(chr) {
     if (markers.length) {
         html += `<table class="data-table"><thead><tr><th>마커</th><th>위치(bp)</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
         markers.forEach(m => {
-            html += `<tr><td><strong>${m.name}</strong></td><td>${m.position_bp?.toLocaleString() || '-'}</td>
+            html += `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>${m.position_bp?.toLocaleString() || '-'}</td>
                 <td><span class="quality-badge quality-high">${m.position_cM?.toFixed(2) || '-'}</span></td>
                 <td><span class="quality-badge ${getSuppClass(m.suppression)}">${m.suppression?.toFixed(1) || '1.0'}</span></td></tr>`;
         });
@@ -3476,7 +3476,7 @@ function displayMarkerTable() {
         html += `<h4 style="color:#00b894;margin:15px 0;">✅ 연관 매핑 완료 (${linked.length}개)</h4>
             <table class="data-table"><thead><tr><th>마커</th><th>염색체</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
         linked.sort((a,b) => a.chr - b.chr || (a.position_cM || 0) - (b.position_cM || 0)).forEach(m => {
-            html += `<tr><td><strong>${m.name}</strong></td><td>Chr ${m.chr}</td>
+            html += `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>Chr ${m.chr}</td>
                 <td>${m.position_cM?.toFixed(2) || '-'}</td>
                 <td><span class="quality-badge ${getSuppClass(m.suppression)}">${m.suppression?.toFixed(1)}</span></td></tr>`;
         });
@@ -3485,7 +3485,7 @@ function displayMarkerTable() {
     if (unlinked.length) {
         html += `<h4 style="color:#e17055;margin:15px 0;">⚠️ 위치 미정 - 독립 분리 적용 (${unlinked.length}개)</h4>
             <div style="display:flex;flex-wrap:wrap;gap:5px;">`;
-        unlinked.forEach(m => { html += `<span class="gene-chip">${m.name}</span>`; });
+        unlinked.forEach(m => { html += `<span class="gene-chip">${escapeHtml(m.name)}</span>`; });
         html += '</div>';
     }
     html += '</div>';
@@ -3755,7 +3755,7 @@ function displayInteractionResults(results, trait) {
 
     let html = `
     <div class="result-card">
-        <h3>📊 ${trait} 형질 - 유전자 상호작용 분석 결과</h3>
+        <h3>📊 ${escapeHtml(trait)} 형질 - 유전자 상호작용 분석 결과</h3>
         <p style="color: #666;">분석된 상호작용: <strong>${interactions.length}개</strong> | 유의미한 상호작용 (p<0.05): <strong>${interactions.filter(i => i.p_value < 0.05).length}개</strong></p>
     </div>
 
@@ -3842,9 +3842,9 @@ function displayInteractionResults(results, trait) {
             // 상세 해석 생성
             let interpretation = '';
             if (int.epistasis_type === 'synergy') {
-                interpretation = `두 유전자가 함께 있을 때 ${trait} 효과가 ${(int.epsilon * 100).toFixed(1)}% 증가`;
+                interpretation = `두 유전자가 함께 있을 때 ${escapeHtml(trait)} 효과가 ${(int.epsilon * 100).toFixed(1)}% 증가`;
             } else if (int.epistasis_type === 'antagonism') {
-                interpretation = `두 유전자가 함께 있을 때 ${trait} 효과가 ${(Math.abs(int.epsilon) * 100).toFixed(1)}% 감소`;
+                interpretation = `두 유전자가 함께 있을 때 ${escapeHtml(trait)} 효과가 ${(Math.abs(int.epsilon) * 100).toFixed(1)}% 감소`;
             } else if (int.epistasis_type === 'masking') {
                 interpretation = `한 유전자가 다른 유전자의 효과를 가림`;
             } else if (int.epistasis_type === 'suppression') {
@@ -3857,8 +3857,8 @@ function displayInteractionResults(results, trait) {
 
             html += `
                 <tr>
-                    <td><strong>${int.gene1}</strong>${int.isKnown ? ' ★' : ''}</td>
-                    <td><strong>${int.gene2}</strong></td>
+                    <td><strong>${escapeHtml(int.gene1)}</strong>${int.isKnown ? ' ★' : ''}</td>
+                    <td><strong>${escapeHtml(int.gene2)}</strong></td>
                     <td><span style="color: ${typeColor}; font-weight: bold;">${typeKorean}</span></td>
                     <td><span class="quality-badge ${epsilonBadge}">${int.epsilon >= 0 ? '+' : ''}${int.epsilon.toFixed(3)}</span></td>
                     <td>${int.synergy_index.toFixed(2)}</td>
@@ -3914,19 +3914,19 @@ function displayInteractionResults(results, trait) {
         html += `
         <div class="result-card" style="background: #e8f5e9; border-left: 4px solid #00b894;">
             <h4>🌱 육종 추천: 우선 도입 시너지 조합</h4>
-            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합을 함께 도입하면 ${trait} 형질에서 상승 효과를 기대할 수 있습니다.</p>
+            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합을 함께 도입하면 ${escapeHtml(trait)} 형질에서 상승 효과를 기대할 수 있습니다.</p>
             <table class="data-table" style="margin-top: 10px;">
                 <thead><tr><th>순위</th><th>유전자 조합</th><th>시너지 효과</th><th>신뢰도</th><th>육종 전략</th></tr></thead>
                 <tbody>`;
 
         topSynergy.forEach((int, idx) => {
             const confidence = int.p_value < 0.01 ? '매우 높음' : int.p_value < 0.05 ? '높음' : '보통';
-            const strategy = `${int.gene1}과 ${int.gene2}를 함께 가진 품종 선발 또는 교배 조합 구성`;
+            const strategy = `${escapeHtml(int.gene1)}과 ${escapeHtml(int.gene2)}를 함께 가진 품종 선발 또는 교배 조합 구성`;
 
             html += `
                 <tr>
                     <td><strong>#${idx + 1}</strong></td>
-                    <td><span class="gene-chip synergy">${int.gene1} + ${int.gene2}</span></td>
+                    <td><span class="gene-chip synergy">${escapeHtml(int.gene1)} + ${escapeHtml(int.gene2)}</span></td>
                     <td>+${(int.epsilon * 100).toFixed(1)}% (SI: ${int.synergy_index.toFixed(2)})</td>
                     <td>${confidence}</td>
                     <td style="font-size: 0.85em;">${strategy}</td>
@@ -3942,7 +3942,7 @@ function displayInteractionResults(results, trait) {
         html += `
         <div class="result-card" style="background: #fce4ec; border-left: 4px solid #e74c3c;">
             <h4>⚠️ 주의: 길항 조합 (피해야 할 조합)</h4>
-            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합은 함께 존재할 때 ${trait} 형질에서 효과가 감소합니다.</p>
+            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합은 함께 존재할 때 ${escapeHtml(trait)} 형질에서 효과가 감소합니다.</p>
             <table class="data-table" style="margin-top: 10px;">
                 <thead><tr><th>유전자 조합</th><th>효과 감소</th><th>권장 사항</th></tr></thead>
                 <tbody>`;
@@ -3950,7 +3950,7 @@ function displayInteractionResults(results, trait) {
         topAntagonism.forEach(int => {
             html += `
                 <tr>
-                    <td><span class="gene-chip antagonism">${int.gene1} + ${int.gene2}</span></td>
+                    <td><span class="gene-chip antagonism">${escapeHtml(int.gene1)} + ${escapeHtml(int.gene2)}</span></td>
                     <td>${(int.epsilon * 100).toFixed(1)}%</td>
                     <td style="font-size: 0.85em;">두 유전자 중 효과가 큰 것 하나만 선택 권장</td>
                 </tr>`;
@@ -5025,8 +5025,8 @@ function displayCrossoverOnlyResults(results, indices) {
             const simBadge = combo.similarity >= 0.9 ? 'quality-high' : combo.similarity >= 0.8 ? 'quality-medium' : 'quality-low';
             html += `<tr>
                 <td>#${idx + 1}</td>
-                <td>${combo.parent1}</td><td>${combo.parent1Type}</td>
-                <td>${combo.parent2}</td><td>${combo.parent2Type}</td>
+                <td>${escapeHtml(combo.parent1)}</td><td>${escapeHtml(combo.parent1Type)}</td>
+                <td>${escapeHtml(combo.parent2)}</td><td>${escapeHtml(combo.parent2Type)}</td>
                 <td><span class="quality-badge ${simBadge}">${(combo.similarity * 100).toFixed(1)}%</span></td>
             </tr>`;
         });
@@ -6346,17 +6346,17 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
             const isTarget = targetPhenoNames.includes(p);
             const bgColor = isTarget ? '#ff9800' : '#00b894';
             const prefix = isTarget ? '⭐ ' : '';
-            html += `<th style="background: ${bgColor}; color: white;">${prefix}${p}</th>`;
+            html += `<th style="background: ${bgColor}; color: white;">${prefix}${escapeHtml(p)}</th>`;
         });
 
         // 유전자 헤더 (DMRT 청록색 배경)
-        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${gene}</th>`);
+        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${escapeHtml(gene)}</th>`);
         if (geneNames.length > displayGeneCount) html += `<th style="background: #017f97; color: white;">...</th>`;
 
         html += '</tr></thead><tbody>';
 
         preds.forEach(pred => {
-            html += `<tr><td>${pred.parent1}</td><td>${pred.parent1Type}</td><td>${pred.parent2}</td><td>${pred.parent2Type}</td>
+            html += `<tr><td>${escapeHtml(pred.parent1)}</td><td>${escapeHtml(pred.parent1Type)}</td><td>${escapeHtml(pred.parent2)}</td><td>${escapeHtml(pred.parent2Type)}</td>
                 <td>${(pred.similarity * 100).toFixed(1)}%</td>`;
 
             // 목표 형질 예측값 (없으면 '-' 표시)
@@ -6906,11 +6906,11 @@ function displayBatchPredictionResults(predictions) {
             <table class="data-table"><thead><tr><th>부모1</th><th>재배형</th><th>부모2</th><th>재배형</th><th>유사도</th>`;
         
         const phenoList = preds[0]?.predictions ? Object.keys(preds[0].predictions) : [];
-        phenoList.forEach(p => html += `<th>${p}</th>`);
+        phenoList.forEach(p => html += `<th>${escapeHtml(p)}</th>`);
         html += '</tr></thead><tbody>';
         
         preds.forEach(pred => {
-            html += `<tr><td>${pred.parent1}</td><td>${pred.parent1Type}</td><td>${pred.parent2}</td><td>${pred.parent2Type}</td>
+            html += `<tr><td>${escapeHtml(pred.parent1)}</td><td>${escapeHtml(pred.parent1Type)}</td><td>${escapeHtml(pred.parent2)}</td><td>${escapeHtml(pred.parent2Type)}</td>
                 <td>${(pred.similarity * 100).toFixed(1)}%</td>`;
             phenoList.forEach(p => {
                 const val = pred.predictions[p]?.mean || pred.predictions[p] || 0;
@@ -6950,11 +6950,11 @@ function displayBatchResults(batchResults, targetName) {
         <table class="data-table"><thead><tr>
             <th>조합</th><th>부모1</th><th>부모2</th><th>유사도</th>`;
     
-    phenoList.forEach(pheno => html += `<th>${pheno}</th>`);
-    
+    phenoList.forEach(pheno => html += `<th>${escapeHtml(pheno)}</th>`);
+
     if (method === 'deterministic') {
         const displayGenes = geneNames.slice(0, 15);
-        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${gene}</th>`);
+        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${escapeHtml(gene)}</th>`);
         if (geneNames.length > 15) html += `<th style="background: #017f97; color: white;">...</th>`;
     }
     
@@ -6964,8 +6964,8 @@ function displayBatchResults(batchResults, targetName) {
         const rowColor = idx % 2 === 0 ? '#f8f9fa' : 'white';
         html += `<tr style="background: ${rowColor};">
             <td><strong>#${result.index}</strong></td>
-            <td>${result.parent1}</td>
-            <td>${result.parent2}</td>
+            <td>${escapeHtml(result.parent1)}</td>
+            <td>${escapeHtml(result.parent2)}</td>
             <td>${(result.similarity * 100).toFixed(1)}%</td>`;
         
         phenoList.forEach(pheno => {
