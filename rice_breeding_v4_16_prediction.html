@@ -1180,6 +1180,14 @@ let modelTrainedWithOptionA = false;  // Option A로 학습했는지 여부
 let confusionMatrixData = {};  // 혼동행렬 데이터
 let bestParamsData = {};  // GridSearch 최적 파라미터
 
+// === XSS 방지용 HTML 이스케이프 함수 ===
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
 // === 형질-유전자 매핑 (Option A용) ===
 const traitGeneMapping = {
     '아밀로스': ['Wx', 'SSIIa', 'SBE3', 'ISA'],
@@ -1490,10 +1498,10 @@ function createGeneInfoPopup(geneName) {
     return `
         <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${geneName}</h4>
+                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${escapeHtml(geneName)}</h4>
                 <button onclick="closeGenePopup()" style="background: none; border: none; font-size: 1.2em; cursor: pointer;">✕</button>
             </div>
-            ${detail ? `<p style="color: var(--dmrt-secondary); font-weight: 500; margin-bottom: 8px;">${detail.fullName}</p>` : ''}
+            ${detail ? `<p style="color: var(--dmrt-secondary); font-weight: 500; margin-bottom: 8px;">${escapeHtml(detail.fullName)}</p>` : ''}
             ${pos ? `
                 <div style="background: var(--dmrt-bg-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
                     <strong>📍 위치:</strong> Chr${pos.chr}:${pos.start_bp.toLocaleString()} - ${pos.end_bp.toLocaleString()} bp
@@ -1501,21 +1509,21 @@ function createGeneInfoPopup(geneName) {
             ` : ''}
             ${detail ? `
                 <div style="margin-bottom: 10px;">
-                    <strong>🎯 기능:</strong> ${detail.function}<br>
-                    <strong>⚙️ 기작:</strong> ${detail.mechanism}
+                    <strong>🎯 기능:</strong> ${escapeHtml(detail.function)}<br>
+                    <strong>⚙️ 기작:</strong> ${escapeHtml(detail.mechanism)}
                 </div>
             ` : ''}
             ${relatedTraits.length > 0 ? `
                 <div style="margin-bottom: 10px;">
                     <strong>📊 관련 형질:</strong>
                     <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
-                        ${relatedTraits.map(t => `<span class="gene-chip">${t}</span>`).join('')}
+                        ${relatedTraits.map(t => `<span class="gene-chip">${escapeHtml(t)}</span>`).join('')}
                     </div>
                 </div>
             ` : ''}
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
                 ${pos ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=Os${String(pos.chr).padStart(2,'0')}g${String(Math.floor(pos.start_bp/10000)).padStart(7,'0')}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
-                <a href="https://funricegenes.github.io/genes/${geneName}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
+                <a href="https://funricegenes.github.io/genes/${encodeURIComponent(geneName)}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
                 <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(geneName + ' rice')}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration: none;">📚 논문</a>
             </div>
         </div>
@@ -1529,11 +1537,11 @@ function createTraitRecommendationPanel(traitName) {
 
     return `
         <div class="result-card" style="background: #e3f2fd; border-left: 4px solid var(--dmrt-secondary);">
-            <h4>🎯 ${traitName} - 추천 유전자</h4>
-            <p style="color: #666; margin-bottom: 12px;">${rec.description}</p>
+            <h4>🎯 ${escapeHtml(traitName)} - 추천 유전자</h4>
+            <p style="color: #666; margin-bottom: 12px;">${escapeHtml(rec.description)}</p>
             <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
                 ${rec.genes.map(g => `
-                    <span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${g.name}')">${g.name}</span>
+                    <span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${escapeHtml(g.name)}')">${escapeHtml(g.name)}</span>
                 `).join('')}
             </div>
             ${rec.synergies.length > 0 ? `
@@ -1630,10 +1638,10 @@ function searchByKeyword() {
     for (const r of results) {
         html += `
             <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 8px;">
-                <strong style="color: var(--dmrt-primary);">${r.trait}</strong>
-                <span style="color: #666; font-size: 0.9em;"> - ${r.description}</span>
+                <strong style="color: var(--dmrt-primary);">${escapeHtml(r.trait)}</strong>
+                <span style="color: #666; font-size: 0.9em;"> - ${escapeHtml(r.description)}</span>
                 <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">
-                    ${r.genes.map(g => `<span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${g}')">${g}</span>`).join('')}
+                    ${r.genes.map(g => `<span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${escapeHtml(g)}')">${escapeHtml(g)}</span>`).join('')}
                 </div>
             </div>
         `;
@@ -1729,9 +1737,9 @@ function analyzeCrossGeneInteractions(parent1, parent2) {
         const icon = int.type === 'synergy' ? '🚀' : '⚠️';
         html += `
             <div style="background: ${color}; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;">
-                ${icon} <strong>${int.trait}:</strong> ${int.genes.join(' + ')}
+                ${icon} <strong>${escapeHtml(int.trait)}:</strong> ${int.genes.map(g => escapeHtml(g)).join(' + ')}
                 → 효과 ${int.effect}배
-                ${int.reference ? `<small style="color: #666;">(${int.reference})</small>` : ''}
+                ${int.reference ? `<small style="color: #666;">(${escapeHtml(int.reference)})</small>` : ''}
             </div>
         `;
     }
@@ -2082,7 +2090,7 @@ async function handleFile(e) {
     const fileSize = (file.size / 1024).toFixed(1);
     uploadArea.innerHTML = `
         <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
-        <h2 style="color: #017f97;">✅ ${file.name}</h2>
+        <h2 style="color: #017f97;">✅ ${escapeHtml(file.name)}</h2>
         <p style="color: #666;">${fileSize} KB 업로드됨</p>
         <button class="btn" onclick="event.stopPropagation(); clearMainFile();" style="background: #d32f2f; color: white; margin-top: 10px;">🗑️ 파일 삭제</button>
     `;
@@ -2565,7 +2573,7 @@ async function runLinkageSimulation() {
         '<span style="color: #0c3026;">📊 원본 데이터 사용</span>';
     if (enableBackcross) {
         const recurrentName = recurrentParentChoice === 'mother' ? p1Name : p2Name;
-        statusHtml += ` | <span style="color: #1976d2;">🔄 여교배 BC${bcGenerations} (반복친: ${recurrentName})</span>`;
+        statusHtml += ` | <span style="color: #1976d2;">🔄 여교배 BC${bcGenerations} (반복친: ${escapeHtml(recurrentName)})</span>`;
     }
     document.getElementById('simDataStatus').innerHTML = statusHtml;
 
@@ -2859,7 +2867,7 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
         backcrossInfoHtml = `
         <div class="result-card" style="background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%); color: white; margin-bottom: 15px;">
             <h3 style="color: white;">🔄 여교배(Backcross) 정보</h3>
-            <p><strong>반복친:</strong> ${recurrentName} | <strong>공여친:</strong> ${donorName} | <strong>여교배 세대:</strong> BC${bcGenerations}</p>
+            <p><strong>반복친:</strong> ${escapeHtml(recurrentName)} | <strong>공여친:</strong> ${escapeHtml(donorName)} | <strong>여교배 세대:</strong> BC${bcGenerations}</p>
             <div class="stats-grid" style="margin-top: 15px;">
                 <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #1976d2;">
                     <div>게놈 회복률</div><div class="stat-value">${(finalGenomeRecovery * 100).toFixed(1)}%</div>
@@ -2881,7 +2889,7 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
         ${backcrossInfoHtml}
         <div class="result-card" style="background: linear-gradient(135deg, #0c3026 0%, #017f97 100%); color: white;">
             <h3 style="color: white;">📊 시뮬레이션 결과 요약</h3>
-            <p><strong>교배:</strong> ${p1} × ${p2} | <strong>목표 형질:</strong> ${traits.join(', ')}${enableBackcross ? ` | <strong>방식:</strong> 여교배 BC${bcGenerations}` : ''}</p>
+            <p><strong>교배:</strong> ${escapeHtml(p1)} × ${escapeHtml(p2)} | <strong>목표 형질:</strong> ${traits.map(t => escapeHtml(t)).join(', ')}${enableBackcross ? ` | <strong>방식:</strong> 여교배 BC${bcGenerations}` : ''}</p>
             <div class="stats-grid" style="margin-top: 15px;">
                 <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #017f97;">
                     <div>최종 표현형</div><div class="stat-value">${(finalMean * 100).toFixed(1)}%</div>
@@ -2905,14 +2913,14 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
                     <td style="padding: 12px; width: 140px; font-weight: bold; color: #1976d2;">🔄 게놈 회복률</td>
                     <td style="padding: 12px;">
                         <strong>${(finalGenomeRecovery * 100).toFixed(1)}%</strong> - ${bcInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">반복친(${recurrentName}) 유전체가 회복된 비율. BC${bcGenerations} 이론값은 ${((1 - Math.pow(0.5, bcGenerations + 1)) * 100).toFixed(1)}%입니다. 여교배는 우수한 농업 형질을 가진 반복친의 유전적 배경을 유지하면서 공여친의 특정 형질(저항성 등)만 도입하는 방법입니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">반복친(${escapeHtml(recurrentName)}) 유전체가 회복된 비율. BC${bcGenerations} 이론값은 ${((1 - Math.pow(0.5, bcGenerations + 1)) * 100).toFixed(1)}%입니다. 여교배는 우수한 농업 형질을 가진 반복친의 유전적 배경을 유지하면서 공여친의 특정 형질(저항성 등)만 도입하는 방법입니다.</span>
                     </td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ddd; background: #fff3e0;">
                     <td style="padding: 12px; font-weight: bold; color: #ff9800;">🎯 형질 유지율</td>
                     <td style="padding: 12px;">
                         <strong>${(finalDonorRetention * 100).toFixed(1)}%</strong> - ${donorInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">공여친(${donorName})에서 온 목표 형질 유전자가 유지된 비율. 여교배 중 MAS(Marker-Assisted Selection)로 목표 유전자를 보유한 개체를 선발해야 유지율이 높습니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">공여친(${escapeHtml(donorName)})에서 온 목표 형질 유전자가 유지된 비율. 여교배 중 MAS(Marker-Assisted Selection)로 목표 유전자를 보유한 개체를 선발해야 유지율이 높습니다.</span>
                     </td>
                 </tr>
                 ` : ''}
@@ -2920,7 +2928,7 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
                     <td style="padding: 12px; width: 140px; font-weight: bold; color: #017f97;">최종 표현형</td>
                     <td style="padding: 12px;">
                         <strong>${(finalMean * 100).toFixed(1)}%</strong> - ${phenoInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">${finalGenLabel} 세대에서 목표 형질(${traits.join(', ')})이 발현된 개체 비율. 선발한 형질에 해당하는 유전자가 우성(R)으로 고정된 정도를 나타냅니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">${finalGenLabel} 세대에서 목표 형질(${traits.map(t => escapeHtml(t)).join(', ')})이 발현된 개체 비율. 선발한 형질에 해당하는 유전자가 우성(R)으로 고정된 정도를 나타냅니다.</span>
                     </td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ddd;">
@@ -2956,11 +2964,11 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
                 </tr>
                 <tr style="border-bottom: 1px solid #ffe0b2;">
                     <td style="padding: 10px; font-weight: bold;">반복친</td>
-                    <td style="padding: 10px;"><strong>${recurrentName}</strong> - 우수한 농업 형질을 가진 품종. 여교배를 반복하여 이 품종의 유전체를 최대한 회복</td>
+                    <td style="padding: 10px;"><strong>${escapeHtml(recurrentName)}</strong> - 우수한 농업 형질을 가진 품종. 여교배를 반복하여 이 품종의 유전체를 최대한 회복</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ffe0b2;">
                     <td style="padding: 10px; font-weight: bold;">공여친</td>
-                    <td style="padding: 10px;"><strong>${donorName}</strong> - 도입하려는 목표 형질(${traits.join(', ')})을 가진 품종</td>
+                    <td style="padding: 10px;"><strong>${escapeHtml(donorName)}</strong> - 도입하려는 목표 형질(${traits.map(t => escapeHtml(t)).join(', ')})을 가진 품종</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ffe0b2;">
                     <td style="padding: 10px; font-weight: bold;">게놈 회복</td>
@@ -2995,17 +3003,17 @@ function displayDataStatus() {
 
 function updateAllSelects() {
     // 모델 테스트
-    document.getElementById('quickTestTrait').innerHTML = '<option value="">-- 선택 --</option>' + 
-        phenotypeNames.map(t => `<option value="${t}">${t}</option>`).join('');
-    
+    document.getElementById('quickTestTrait').innerHTML = '<option value="">-- 선택 --</option>' +
+        phenotypeNames.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
     // 유전 알고리즘
-    document.getElementById('objectiveCheckboxes').innerHTML = phenotypeNames.map((p, i) => 
-        `<label style="display:block;margin:5px 0;"><input type="checkbox" value="${i}" checked> ${p}</label>`).join('');
-    
+    document.getElementById('objectiveCheckboxes').innerHTML = phenotypeNames.map((p, i) =>
+        `<label style="display:block;margin:5px 0;"><input type="checkbox" value="${i}" checked> ${escapeHtml(p)}</label>`).join('');
+
     // 상호작용
-    document.getElementById('interactionTrait').innerHTML = '<option value="">-- 선택 --</option>' + 
-        phenotypeNames.map(t => `<option value="${t}">${t}</option>`).join('');
-    
+    document.getElementById('interactionTrait').innerHTML = '<option value="">-- 선택 --</option>' +
+        phenotypeNames.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
     // 시뮬레이션
     updateSimulationTab();
 }
@@ -3047,7 +3055,7 @@ function updateSimulationTab() {
         crossSelect.innerHTML = '<option value="">-- 선택 --</option>';
         for (let i = 0; i < Math.min(6, varietyNames.length); i++) {
             for (let j = i + 1; j < Math.min(7, varietyNames.length); j++) {
-                crossSelect.innerHTML += `<option value="m_${i}_${j}">${varietyNames[i]} × ${varietyNames[j]}</option>`;
+                crossSelect.innerHTML += `<option value="m_${i}_${j}">${escapeHtml(varietyNames[i])} × ${escapeHtml(varietyNames[j])}</option>`;
             }
         }
     }
@@ -3056,7 +3064,7 @@ function updateSimulationTab() {
     const traitDiv = document.getElementById('simTargetTraits');
     if (traitDiv) {
         traitDiv.innerHTML = phenotypeNames.map(t =>
-            `<label style="margin: 5px 10px;"><input type="checkbox" name="simTrait" value="${t}" onchange="onSimTraitChange()"> ${t}</label>`).join('');
+            `<label style="margin: 5px 10px;"><input type="checkbox" name="simTrait" value="${escapeHtml(t)}" onchange="onSimTraitChange()"> ${escapeHtml(t)}</label>`).join('');
     }
 
     initGenerationTimeline();
@@ -3082,13 +3090,13 @@ function updateSimCrossComboByOptimal() {
     if (filteredCombos.length > 0) {
         filteredCombos.forEach((combo, i) => {
             const simPct = combo.similarity ? `(유사도: ${(combo.similarity * 100).toFixed(1)}%)` : '';
-            crossSelect.innerHTML += `<option value="pred_${selectedOptimal}_${i}">${combo.parent1} × ${combo.parent2} ${simPct}</option>`;
+            crossSelect.innerHTML += `<option value="pred_${selectedOptimal}_${i}">${escapeHtml(combo.parent1)} × ${escapeHtml(combo.parent2)} ${simPct}</option>`;
         });
     } else {
         // offspringPredictions에 데이터가 없으면 기존 currentCrossResults 사용
         if (currentCrossResults.length) {
             currentCrossResults.forEach((c, i) => {
-                crossSelect.innerHTML += `<option value="${i}">${c.parent1} × ${c.parent2}</option>`;
+                crossSelect.innerHTML += `<option value="${i}">${escapeHtml(c.parent1)} × ${escapeHtml(c.parent2)}</option>`;
             });
         } else {
             crossSelect.innerHTML = '<option value="">-- 해당 최적해의 교배조합 없음 --</option>';
@@ -3202,28 +3210,28 @@ function analyzeBreedingRecommendation(p1Name, p2Name) {
         if (p1TargetR > p2TargetR) {
             // P1이 목표 형질 유전자를 더 많이 가짐 → P1이 공여친, P2가 반복친
             recommendRecurrent = 'father';
-            recommendReason = `<strong>${p1Name}</strong>이 목표 형질(${targetTraits.join(', ')}) 유전자를 더 많이 보유 (${p1TargetR}개 vs ${p2TargetR}개)`;
+            recommendReason = `<strong>${escapeHtml(p1Name)}</strong>이 목표 형질(${targetTraits.map(t => escapeHtml(t)).join(', ')}) 유전자를 더 많이 보유 (${p1TargetR}개 vs ${p2TargetR}개)`;
         } else if (p2TargetR > p1TargetR) {
             recommendRecurrent = 'mother';
-            recommendReason = `<strong>${p2Name}</strong>이 목표 형질(${targetTraits.join(', ')}) 유전자를 더 많이 보유 (${p2TargetR}개 vs ${p1TargetR}개)`;
+            recommendReason = `<strong>${escapeHtml(p2Name)}</strong>이 목표 형질(${targetTraits.map(t => escapeHtml(t)).join(', ')}) 유전자를 더 많이 보유 (${p2TargetR}개 vs ${p1TargetR}개)`;
         } else {
             // 목표 형질 유전자 수가 같으면 전체 R 유전자 수로 판단
             if (p1TotalR >= p2TotalR) {
                 recommendRecurrent = 'mother';
-                recommendReason = `목표 형질 유전자 수 동일. <strong>${p1Name}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
+                recommendReason = `목표 형질 유전자 수 동일. <strong>${escapeHtml(p1Name)}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
             } else {
                 recommendRecurrent = 'father';
-                recommendReason = `목표 형질 유전자 수 동일. <strong>${p2Name}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
+                recommendReason = `목표 형질 유전자 수 동일. <strong>${escapeHtml(p2Name)}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
             }
         }
     } else {
         // 목표 형질 미선택 시 전체 R 유전자 수로 판단
         if (p1TotalR >= p2TotalR) {
             recommendRecurrent = 'mother';
-            recommendReason = `<strong>${p1Name}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
+            recommendReason = `<strong>${escapeHtml(p1Name)}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p1TotalR}개)`;
         } else {
             recommendRecurrent = 'father';
-            recommendReason = `<strong>${p2Name}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
+            recommendReason = `<strong>${escapeHtml(p2Name)}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
         }
     }
 
@@ -3449,7 +3457,7 @@ function displayChrDetail(chr) {
     if (markers.length) {
         html += `<table class="data-table"><thead><tr><th>마커</th><th>위치(bp)</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
         markers.forEach(m => {
-            html += `<tr><td><strong>${m.name}</strong></td><td>${m.position_bp?.toLocaleString() || '-'}</td>
+            html += `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>${m.position_bp?.toLocaleString() || '-'}</td>
                 <td><span class="quality-badge quality-high">${m.position_cM?.toFixed(2) || '-'}</span></td>
                 <td><span class="quality-badge ${getSuppClass(m.suppression)}">${m.suppression?.toFixed(1) || '1.0'}</span></td></tr>`;
         });
@@ -3468,7 +3476,7 @@ function displayMarkerTable() {
         html += `<h4 style="color:#00b894;margin:15px 0;">✅ 연관 매핑 완료 (${linked.length}개)</h4>
             <table class="data-table"><thead><tr><th>마커</th><th>염색체</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
         linked.sort((a,b) => a.chr - b.chr || (a.position_cM || 0) - (b.position_cM || 0)).forEach(m => {
-            html += `<tr><td><strong>${m.name}</strong></td><td>Chr ${m.chr}</td>
+            html += `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>Chr ${m.chr}</td>
                 <td>${m.position_cM?.toFixed(2) || '-'}</td>
                 <td><span class="quality-badge ${getSuppClass(m.suppression)}">${m.suppression?.toFixed(1)}</span></td></tr>`;
         });
@@ -3477,7 +3485,7 @@ function displayMarkerTable() {
     if (unlinked.length) {
         html += `<h4 style="color:#e17055;margin:15px 0;">⚠️ 위치 미정 - 독립 분리 적용 (${unlinked.length}개)</h4>
             <div style="display:flex;flex-wrap:wrap;gap:5px;">`;
-        unlinked.forEach(m => { html += `<span class="gene-chip">${m.name}</span>`; });
+        unlinked.forEach(m => { html += `<span class="gene-chip">${escapeHtml(m.name)}</span>`; });
         html += '</div>';
     }
     html += '</div>';
@@ -3747,7 +3755,7 @@ function displayInteractionResults(results, trait) {
 
     let html = `
     <div class="result-card">
-        <h3>📊 ${trait} 형질 - 유전자 상호작용 분석 결과</h3>
+        <h3>📊 ${escapeHtml(trait)} 형질 - 유전자 상호작용 분석 결과</h3>
         <p style="color: #666;">분석된 상호작용: <strong>${interactions.length}개</strong> | 유의미한 상호작용 (p<0.05): <strong>${interactions.filter(i => i.p_value < 0.05).length}개</strong></p>
     </div>
 
@@ -3834,9 +3842,9 @@ function displayInteractionResults(results, trait) {
             // 상세 해석 생성
             let interpretation = '';
             if (int.epistasis_type === 'synergy') {
-                interpretation = `두 유전자가 함께 있을 때 ${trait} 효과가 ${(int.epsilon * 100).toFixed(1)}% 증가`;
+                interpretation = `두 유전자가 함께 있을 때 ${escapeHtml(trait)} 효과가 ${(int.epsilon * 100).toFixed(1)}% 증가`;
             } else if (int.epistasis_type === 'antagonism') {
-                interpretation = `두 유전자가 함께 있을 때 ${trait} 효과가 ${(Math.abs(int.epsilon) * 100).toFixed(1)}% 감소`;
+                interpretation = `두 유전자가 함께 있을 때 ${escapeHtml(trait)} 효과가 ${(Math.abs(int.epsilon) * 100).toFixed(1)}% 감소`;
             } else if (int.epistasis_type === 'masking') {
                 interpretation = `한 유전자가 다른 유전자의 효과를 가림`;
             } else if (int.epistasis_type === 'suppression') {
@@ -3849,8 +3857,8 @@ function displayInteractionResults(results, trait) {
 
             html += `
                 <tr>
-                    <td><strong>${int.gene1}</strong>${int.isKnown ? ' ★' : ''}</td>
-                    <td><strong>${int.gene2}</strong></td>
+                    <td><strong>${escapeHtml(int.gene1)}</strong>${int.isKnown ? ' ★' : ''}</td>
+                    <td><strong>${escapeHtml(int.gene2)}</strong></td>
                     <td><span style="color: ${typeColor}; font-weight: bold;">${typeKorean}</span></td>
                     <td><span class="quality-badge ${epsilonBadge}">${int.epsilon >= 0 ? '+' : ''}${int.epsilon.toFixed(3)}</span></td>
                     <td>${int.synergy_index.toFixed(2)}</td>
@@ -3906,19 +3914,19 @@ function displayInteractionResults(results, trait) {
         html += `
         <div class="result-card" style="background: #e8f5e9; border-left: 4px solid #00b894;">
             <h4>🌱 육종 추천: 우선 도입 시너지 조합</h4>
-            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합을 함께 도입하면 ${trait} 형질에서 상승 효과를 기대할 수 있습니다.</p>
+            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합을 함께 도입하면 ${escapeHtml(trait)} 형질에서 상승 효과를 기대할 수 있습니다.</p>
             <table class="data-table" style="margin-top: 10px;">
                 <thead><tr><th>순위</th><th>유전자 조합</th><th>시너지 효과</th><th>신뢰도</th><th>육종 전략</th></tr></thead>
                 <tbody>`;
 
         topSynergy.forEach((int, idx) => {
             const confidence = int.p_value < 0.01 ? '매우 높음' : int.p_value < 0.05 ? '높음' : '보통';
-            const strategy = `${int.gene1}과 ${int.gene2}를 함께 가진 품종 선발 또는 교배 조합 구성`;
+            const strategy = `${escapeHtml(int.gene1)}과 ${escapeHtml(int.gene2)}를 함께 가진 품종 선발 또는 교배 조합 구성`;
 
             html += `
                 <tr>
                     <td><strong>#${idx + 1}</strong></td>
-                    <td><span class="gene-chip synergy">${int.gene1} + ${int.gene2}</span></td>
+                    <td><span class="gene-chip synergy">${escapeHtml(int.gene1)} + ${escapeHtml(int.gene2)}</span></td>
                     <td>+${(int.epsilon * 100).toFixed(1)}% (SI: ${int.synergy_index.toFixed(2)})</td>
                     <td>${confidence}</td>
                     <td style="font-size: 0.85em;">${strategy}</td>
@@ -3934,7 +3942,7 @@ function displayInteractionResults(results, trait) {
         html += `
         <div class="result-card" style="background: #fce4ec; border-left: 4px solid #e74c3c;">
             <h4>⚠️ 주의: 길항 조합 (피해야 할 조합)</h4>
-            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합은 함께 존재할 때 ${trait} 형질에서 효과가 감소합니다.</p>
+            <p style="color: #666; font-size: 0.9em;">아래 유전자 조합은 함께 존재할 때 ${escapeHtml(trait)} 형질에서 효과가 감소합니다.</p>
             <table class="data-table" style="margin-top: 10px;">
                 <thead><tr><th>유전자 조합</th><th>효과 감소</th><th>권장 사항</th></tr></thead>
                 <tbody>`;
@@ -3942,7 +3950,7 @@ function displayInteractionResults(results, trait) {
         topAntagonism.forEach(int => {
             html += `
                 <tr>
-                    <td><span class="gene-chip antagonism">${int.gene1} + ${int.gene2}</span></td>
+                    <td><span class="gene-chip antagonism">${escapeHtml(int.gene1)} + ${escapeHtml(int.gene2)}</span></td>
                     <td>${(int.epsilon * 100).toFixed(1)}%</td>
                     <td style="font-size: 0.85em;">두 유전자 중 효과가 큰 것 하나만 선택 권장</td>
                 </tr>`;
@@ -4532,7 +4540,7 @@ function displayGAResults(solutions, history, fitnessMode = '상관계수 기반
     ).map(cb => parseInt(cb.value));
     
     selectedObjectives.forEach(idx => {
-        html += `<th>${phenotypeNames[idx]}</th>`;
+        html += `<th>${escapeHtml(phenotypeNames[idx])}</th>`;
     });
     html += '</tr></thead><tbody>';
     
@@ -5017,8 +5025,8 @@ function displayCrossoverOnlyResults(results, indices) {
             const simBadge = combo.similarity >= 0.9 ? 'quality-high' : combo.similarity >= 0.8 ? 'quality-medium' : 'quality-low';
             html += `<tr>
                 <td>#${idx + 1}</td>
-                <td>${combo.parent1}</td><td>${combo.parent1Type}</td>
-                <td>${combo.parent2}</td><td>${combo.parent2Type}</td>
+                <td>${escapeHtml(combo.parent1)}</td><td>${escapeHtml(combo.parent1Type)}</td>
+                <td>${escapeHtml(combo.parent2)}</td><td>${escapeHtml(combo.parent2Type)}</td>
                 <td><span class="quality-badge ${simBadge}">${(combo.similarity * 100).toFixed(1)}%</span></td>
             </tr>`;
         });
@@ -5323,8 +5331,8 @@ function displayCrossoverResults(results, dataType) {
     // 목표 형질 정보 표시
     const targetInfo = targetPhenoNames.length > 0
         ? `<div style="background: #e3f2fd; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3;">
-            <strong>🎯 GA 목표 형질:</strong> ${targetPhenoNames.join(', ')}
-            ${selectedSolution.fitness ? `<br><strong>📊 GA 적합도:</strong> ${selectedSolution.fitness.map((f, i) => `${targetPhenoNames[i]}: ${(f*100).toFixed(1)}%`).join(', ')}` : ''}
+            <strong>🎯 GA 목표 형질:</strong> ${targetPhenoNames.map(t => escapeHtml(t)).join(', ')}
+            ${selectedSolution.fitness ? `<br><strong>📊 GA 적합도:</strong> ${selectedSolution.fitness.map((f, i) => `${escapeHtml(targetPhenoNames[i])}: ${(f*100).toFixed(1)}%`).join(', ')}` : ''}
            </div>`
         : '';
 
@@ -5341,7 +5349,7 @@ function displayCrossoverResults(results, dataType) {
         japonicaCombos.forEach((c, i) => {
             const sim = (c.similarity * 100).toFixed(1);
             const badge = sim >= 90 ? 'quality-high' : sim >= 80 ? 'quality-medium' : 'quality-low';
-            html += `<tr><td>#${i+1}</td><td>${varietyNames[c.parent1_idx]}</td><td>${varietyNames[c.parent2_idx]}</td><td><span class="quality-badge ${badge}">${sim}%</span></td></tr>`;
+            html += `<tr><td>#${i+1}</td><td>${escapeHtml(varietyNames[c.parent1_idx])}</td><td>${escapeHtml(varietyNames[c.parent2_idx])}</td><td><span class="quality-badge ${badge}">${sim}%</span></td></tr>`;
         });
         html += '</tbody></table></div>';
     }
@@ -5353,7 +5361,7 @@ function displayCrossoverResults(results, dataType) {
         tongilCombos.forEach((c, i) => {
             const sim = (c.similarity * 100).toFixed(1);
             const badge = sim >= 90 ? 'quality-high' : sim >= 80 ? 'quality-medium' : 'quality-low';
-            html += `<tr><td>#${i+1}</td><td>${varietyNames[c.parent1_idx]}</td><td>${c.type1}</td><td>${varietyNames[c.parent2_idx]}</td><td>${c.type2}</td><td><span class="quality-badge ${badge}">${sim}%</span></td></tr>`;
+            html += `<tr><td>#${i+1}</td><td>${escapeHtml(varietyNames[c.parent1_idx])}</td><td>${escapeHtml(c.type1)}</td><td>${escapeHtml(varietyNames[c.parent2_idx])}</td><td>${escapeHtml(c.type2)}</td><td><span class="quality-badge ${badge}">${sim}%</span></td></tr>`;
         });
         html += '</tbody></table></div>';
     }
@@ -5365,7 +5373,7 @@ function displayCrossoverResults(results, dataType) {
         indicaCombos.forEach((c, i) => {
             const sim = (c.similarity * 100).toFixed(1);
             const badge = sim >= 90 ? 'quality-high' : sim >= 80 ? 'quality-medium' : 'quality-low';
-            html += `<tr><td>#${i+1}</td><td>${varietyNames[c.parent1_idx]}</td><td>${c.type1}</td><td>${varietyNames[c.parent2_idx]}</td><td>${c.type2}</td><td><span class="quality-badge ${badge}">${sim}%</span></td></tr>`;
+            html += `<tr><td>#${i+1}</td><td>${escapeHtml(varietyNames[c.parent1_idx])}</td><td>${escapeHtml(c.type1)}</td><td>${escapeHtml(varietyNames[c.parent2_idx])}</td><td>${escapeHtml(c.type2)}</td><td><span class="quality-badge ${badge}">${sim}%</span></td></tr>`;
         });
         html += '</tbody></table></div>';
     }
@@ -5374,8 +5382,8 @@ function displayCrossoverResults(results, dataType) {
     
     // Tab 6 드롭다운 업데이트
     const select = document.getElementById('crossComboSelect');
-    select.innerHTML = currentCrossResults.map((c, i) => 
-        `<option value="${i}">#${i+1}: ${c.parent1} (${c.type1}) × ${c.parent2} (${c.type2}) [${(c.similarity*100).toFixed(1)}%]</option>`
+    select.innerHTML = currentCrossResults.map((c, i) =>
+        `<option value="${i}">#${i+1}: ${escapeHtml(c.parent1)} (${escapeHtml(c.type1)}) × ${escapeHtml(c.parent2)} (${escapeHtml(c.type2)}) [${(c.similarity*100).toFixed(1)}%]</option>`
     ).join('');
     
     updateSimulationTab();
@@ -6338,17 +6346,17 @@ function displaySelectedBatchResults(predictions, selectedIndices) {
             const isTarget = targetPhenoNames.includes(p);
             const bgColor = isTarget ? '#ff9800' : '#00b894';
             const prefix = isTarget ? '⭐ ' : '';
-            html += `<th style="background: ${bgColor}; color: white;">${prefix}${p}</th>`;
+            html += `<th style="background: ${bgColor}; color: white;">${prefix}${escapeHtml(p)}</th>`;
         });
 
         // 유전자 헤더 (DMRT 청록색 배경)
-        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${gene}</th>`);
+        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${escapeHtml(gene)}</th>`);
         if (geneNames.length > displayGeneCount) html += `<th style="background: #017f97; color: white;">...</th>`;
 
         html += '</tr></thead><tbody>';
 
         preds.forEach(pred => {
-            html += `<tr><td>${pred.parent1}</td><td>${pred.parent1Type}</td><td>${pred.parent2}</td><td>${pred.parent2Type}</td>
+            html += `<tr><td>${escapeHtml(pred.parent1)}</td><td>${escapeHtml(pred.parent1Type)}</td><td>${escapeHtml(pred.parent2)}</td><td>${escapeHtml(pred.parent2Type)}</td>
                 <td>${(pred.similarity * 100).toFixed(1)}%</td>`;
 
             // 목표 형질 예측값 (없으면 '-' 표시)
@@ -6898,11 +6906,11 @@ function displayBatchPredictionResults(predictions) {
             <table class="data-table"><thead><tr><th>부모1</th><th>재배형</th><th>부모2</th><th>재배형</th><th>유사도</th>`;
         
         const phenoList = preds[0]?.predictions ? Object.keys(preds[0].predictions) : [];
-        phenoList.forEach(p => html += `<th>${p}</th>`);
+        phenoList.forEach(p => html += `<th>${escapeHtml(p)}</th>`);
         html += '</tr></thead><tbody>';
         
         preds.forEach(pred => {
-            html += `<tr><td>${pred.parent1}</td><td>${pred.parent1Type}</td><td>${pred.parent2}</td><td>${pred.parent2Type}</td>
+            html += `<tr><td>${escapeHtml(pred.parent1)}</td><td>${escapeHtml(pred.parent1Type)}</td><td>${escapeHtml(pred.parent2)}</td><td>${escapeHtml(pred.parent2Type)}</td>
                 <td>${(pred.similarity * 100).toFixed(1)}%</td>`;
             phenoList.forEach(p => {
                 const val = pred.predictions[p]?.mean || pred.predictions[p] || 0;
@@ -6942,11 +6950,11 @@ function displayBatchResults(batchResults, targetName) {
         <table class="data-table"><thead><tr>
             <th>조합</th><th>부모1</th><th>부모2</th><th>유사도</th>`;
     
-    phenoList.forEach(pheno => html += `<th>${pheno}</th>`);
-    
+    phenoList.forEach(pheno => html += `<th>${escapeHtml(pheno)}</th>`);
+
     if (method === 'deterministic') {
         const displayGenes = geneNames.slice(0, 15);
-        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${gene}</th>`);
+        displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${escapeHtml(gene)}</th>`);
         if (geneNames.length > 15) html += `<th style="background: #017f97; color: white;">...</th>`;
     }
     
@@ -6956,8 +6964,8 @@ function displayBatchResults(batchResults, targetName) {
         const rowColor = idx % 2 === 0 ? '#f8f9fa' : 'white';
         html += `<tr style="background: ${rowColor};">
             <td><strong>#${result.index}</strong></td>
-            <td>${result.parent1}</td>
-            <td>${result.parent2}</td>
+            <td>${escapeHtml(result.parent1)}</td>
+            <td>${escapeHtml(result.parent2)}</td>
             <td>${(result.similarity * 100).toFixed(1)}%</td>`;
         
         phenoList.forEach(pheno => {
@@ -9990,7 +9998,7 @@ function handleDirectPhenotypeUpload(event) {
             saveSimulatorDataToSession();
 
             if (statusEl) {
-                statusEl.innerHTML = `✅ <strong>${file.name}</strong> 로드 완료 - ${varieties.length}개 품종, ${traitKeys.length}개 형질`;
+                statusEl.innerHTML = `✅ <strong>${escapeHtml(file.name)}</strong> 로드 완료 - ${varieties.length}개 품종, ${traitKeys.length}개 형질`;
                 statusEl.style.color = '#2e7d32';
             }
 
@@ -10180,7 +10188,7 @@ function handleDirectGenotypeUpload(event) {
             saveSimulatorDataToSession();
 
             if (statusEl) {
-                statusEl.innerHTML = `✅ <strong>${file.name}</strong> 로드 완료 - ${varieties.length}개 품종, ${geneKeys.length}개 마커`;
+                statusEl.innerHTML = `✅ <strong>${escapeHtml(file.name)}</strong> 로드 완료 - ${varieties.length}개 품종, ${geneKeys.length}개 마커`;
                 statusEl.style.color = '#017f97';
             }
 
