@@ -125,6 +125,19 @@
         .sim-progress-bar-text { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9em; color: #333; text-shadow: 0 0 4px rgba(255,255,255,0.8); }
         .sim-progress-stats { display: flex; justify-content: space-between; font-size: 0.85em; color: #555; }
         .sim-progress-stats span { background: white; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--dmrt-border); }
+        /* 에러 토스트 알림 스타일 (v5.1) */
+        .error-toast { position: fixed; bottom: 20px; right: 20px; z-index: 10000; animation: slideIn 0.3s ease; max-width: 400px; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .error-toast-fade { animation: fadeOut 0.3s ease forwards; }
+        @keyframes fadeOut { to { transform: translateX(100%); opacity: 0; } }
+        .error-toast-content { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .error-toast-error .error-toast-content { background: linear-gradient(135deg, #d63031, #e17055); color: white; }
+        .error-toast-warning .error-toast-content { background: linear-gradient(135deg, #fdcb6e, #f39c12); color: #2d3436; }
+        .error-toast-info .error-toast-content { background: linear-gradient(135deg, #0984e3, #74b9ff); color: white; }
+        .error-toast-icon { font-size: 1.3em; }
+        .error-toast-message { flex: 1; font-size: 0.95em; line-height: 1.4; }
+        .error-toast-close { background: none; border: none; color: inherit; font-size: 1.1em; cursor: pointer; opacity: 0.8; padding: 0 4px; }
+        .error-toast-close:hover { opacity: 1; }
         input[type="number"], select { padding: 10px 12px; border: 1px solid var(--dmrt-border); border-radius: 6px; font-size: 0.95em; margin: 4px; background: white; font-family: inherit; transition: border-color 0.2s; }
         input[type="number"]:focus, select:focus { outline: none; border-color: var(--dmrt-secondary); }
         .gene-chip { display: inline-block; background: white; padding: 5px 10px; border-radius: 12px; border: 1px solid var(--dmrt-secondary); margin: 3px; font-size: 0.8em; color: var(--dmrt-primary); font-weight: 500; }
@@ -1224,12 +1237,165 @@ let modelTrainedWithOptionA = false;  // Option A로 학습했는지 여부
 let confusionMatrixData = {};  // 혼동행렬 데이터
 let bestParamsData = {};  // GridSearch 최적 파라미터
 
+// === 전역 에러 핸들링 시스템 (v5.1) ===
+const ErrorHandler = {
+    // 에러 로그 저장소
+    errorLog: [],
+    maxLogSize: 50,
+
+    // 에러 타입별 사용자 친화적 메시지
+    errorMessages: {
+        'NetworkError': '네트워크 연결을 확인해주세요.',
+        'TypeError': '데이터 형식이 올바르지 않습니다.',
+        'RangeError': '데이터 범위가 올바르지 않습니다.',
+        'SyntaxError': '파일 형식이 올바르지 않습니다.',
+        'QuotaExceededError': '저장 공간이 부족합니다. 브라우저 캐시를 정리해주세요.',
+        'OutOfMemoryError': '메모리 부족. 더 작은 데이터셋을 사용하거나 페이지를 새로고침하세요.'
+    },
+
+    // 에러 처리 및 로깅
+    handle(error, context = '', showAlert = true) {
+        const timestamp = new Date().toISOString();
+        const errorInfo = {
+            timestamp,
+            context,
+            name: error.name || 'Error',
+            message: error.message || String(error),
+            stack: error.stack || ''
+        };
+
+        // 로그 저장
+        this.errorLog.push(errorInfo);
+        if (this.errorLog.length > this.maxLogSize) {
+            this.errorLog.shift();
+        }
+
+        // 콘솔 출력
+        console.error(`[${context}] 에러 발생:`, error);
+
+        // 사용자에게 알림
+        if (showAlert) {
+            const userMessage = this.getUserMessage(error, context);
+            this.showToast(userMessage, 'error');
+        }
+
+        return errorInfo;
+    },
+
+    // 사용자 친화적 메시지 생성
+    getUserMessage(error, context) {
+        const errorType = error.name || 'Error';
+        const baseMessage = this.errorMessages[errorType] || error.message || '알 수 없는 오류가 발생했습니다.';
+
+        if (context) {
+            return `${context}: ${baseMessage}`;
+        }
+        return baseMessage;
+    },
+
+    // 토스트 알림 표시
+    showToast(message, type = 'error') {
+        // 기존 토스트 제거
+        const existingToast = document.getElementById('errorToast');
+        if (existingToast) existingToast.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'errorToast';
+        toast.className = `error-toast error-toast-${type}`;
+        toast.innerHTML = `
+            <div class="error-toast-content">
+                <span class="error-toast-icon">${type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+                <span class="error-toast-message">${escapeHtml(message)}</span>
+                <button class="error-toast-close" onclick="this.parentElement.parentElement.remove()">✕</button>
+            </div>
+        `;
+        document.body.appendChild(toast);
+
+        // 자동 제거 (5초 후)
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.classList.add('error-toast-fade');
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 5000);
+    },
+
+    // 에러 로그 다운로드 (디버깅용)
+    downloadErrorLog() {
+        if (this.errorLog.length === 0) {
+            alert('저장된 에러 로그가 없습니다.');
+            return;
+        }
+
+        const blob = new Blob([JSON.stringify(this.errorLog, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `error_log_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+};
+
+// 전역 에러 이벤트 리스너
+window.addEventListener('error', (event) => {
+    ErrorHandler.handle(event.error || new Error(event.message), '전역 오류', false);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    ErrorHandler.handle(event.reason, 'Promise 처리 실패', true);
+    event.preventDefault(); // 기본 콘솔 출력 방지
+});
+
 // === XSS 방지용 HTML 이스케이프 함수 ===
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML;
+}
+
+// === 공통 유효성 검사 헬퍼 함수 (v5.1 리팩토링) ===
+function requireDataLoaded(message = '데이터를 먼저 업로드하세요.') {
+    if (!dataLoaded) {
+        alert(message);
+        console.log('검증 실패: 데이터 미로드');
+        return false;
+    }
+    return true;
+}
+
+function requireElement(elementId, warnIfMissing = false) {
+    const el = document.getElementById(elementId);
+    if (!el && warnIfMissing) {
+        console.warn(`요소를 찾을 수 없음: #${elementId}`);
+    }
+    return el;
+}
+
+function requireSelection(value, message) {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+        alert(message);
+        console.log('검증 실패:', message);
+        return false;
+    }
+    return true;
+}
+
+// 숫자 포맷팅 (천단위 콤마, 소수점 제한)
+function formatNumber(num, decimals = 2) {
+    if (num === null || num === undefined || isNaN(num)) return '-';
+    if (Number.isInteger(num)) return num.toLocaleString();
+    return Number(num).toLocaleString(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+    });
+}
+
+// 퍼센트 포맷팅
+function formatPercent(value, decimals = 1) {
+    if (value === null || value === undefined || isNaN(value)) return '-';
+    return (value * 100).toFixed(decimals) + '%';
 }
 
 // === Web Worker를 이용한 XLSX 파싱 (메인 스레드 블로킹 방지) ===
@@ -1563,6 +1729,140 @@ const geneDetailDatabase = {
     'SKC1': { fullName: 'Shoot K+ concentration 1', chr: 1, function: '내염성', mechanism: 'HKT-type transporter' }
 };
 
+// ==================== 유전자 동의어 데이터베이스 (v5.1) ====================
+// 키: 정식 명칭, 값: 동의어/별칭 배열
+const geneSynonymDatabase = {
+    // 도열병 저항성 유전자
+    'Pi-ta': ['Pita', 'Pi-ta2', 'Ptr', 'LOC_Os12g18360'],
+    'Pib': ['Pi-b', 'LOC_Os02g57310'],
+    'Pi9': ['Pi-9', 'Piz-t', 'Pi2', 'Pi-z', 'LOC_Os06g17900'],
+    'Pikm': ['Pi-km', 'Pik-m', 'Pik', 'Pi-k', 'LOC_Os11g46200'],
+    'Pi54': ['Pi-54', 'Pikh', 'Pi-kh', 'LOC_Os11g42010'],
+    'Pi5': ['Pi-5', 'LOC_Os09g15840'],
+    'Pi21': ['Pi-21', 'pi21', 'LOC_Os04g32850'],
+
+    // 흰잎마름병 저항성 유전자
+    'Xa21': ['XA21', 'xa21', 'Xa-21', 'LOC_Os11g36180'],
+    'Xa4': ['XA4', 'xa4', 'Xa-4'],
+    'Xa7': ['XA7', 'xa7', 'Xa-7'],
+    'xa5': ['Xa5', 'XA5', 'xa-5', 'TFIIAgamma', 'LOC_Os05g01710'],
+    'xa13': ['Xa13', 'XA13', 'xa-13', 'OsSWEET11', 'LOC_Os08g42350'],
+    'Xa23': ['XA23', 'xa23', 'Xa-23', 'executor', 'LOC_Os11g37570'],
+    'Xa26': ['XA26', 'xa26', 'Xa-26', 'LOC_Os11g47210'],
+
+    // 출수기/개화기 유전자
+    'Hd1': ['HD1', 'hd1', 'Se1', 'LOC_Os06g16370'],
+    'Hd3a': ['HD3A', 'hd3a', 'FT', 'RFT1', 'LOC_Os06g06320'],
+    'Ghd7': ['GHD7', 'ghd7', 'Hd4', 'LOC_Os07g15770'],
+    'DTH8': ['DTH8', 'Ghd8', 'GHD8', 'Hd5', 'LOC_Os08g07740'],
+    'Ehd1': ['EHD1', 'ehd1', 'LOC_Os10g32600'],
+    'Hd6': ['HD6', 'hd6', 'CKA2', 'LOC_Os03g55389'],
+    'RFT1': ['rft1', 'FT-L', 'LOC_Os06g06300'],
+    'Ghd8': ['ghd8', 'DTH8', 'Hd5', 'LOC_Os08g07740'],
+
+    // 종실 크기 유전자
+    'GS3': ['gs3', 'Mi', 'LOC_Os03g29380'],
+    'GW2': ['gw2', 'LOC_Os02g14720'],
+    'GW5': ['gw5', 'qSW5', 'SW5', 'LOC_Os05g09520'],
+    'qSW5': ['qsw5', 'GW5', 'SW5', 'LOC_Os05g09520'],
+    'TGW6': ['tgw6', 'LOC_Os06g41850'],
+    'GS5': ['gs5', 'LOC_Os05g06660'],
+    'GW8': ['gw8', 'OsSPL16', 'SPL16', 'LOC_Os08g41940'],
+    'GLW7': ['glw7', 'OsSPL13', 'SPL13', 'LOC_Os07g32170'],
+
+    // 초장/반왜성 유전자
+    'sd1': ['SD1', 'Sd1', 'SD-1', 'OsGA20ox2', 'LOC_Os01g66100'],
+    'DEP1': ['dep1', 'DN1', 'qPE9-1', 'LOC_Os09g26999'],
+    'D2': ['d2', 'CYP90D2', 'LOC_Os01g10040'],
+    'D11': ['d11', 'CYP724B1', 'LOC_Os04g39430'],
+    'SLR1': ['slr1', 'DELLA', 'LOC_Os03g49990'],
+
+    // 품질 유전자
+    'Wx': ['wx', 'waxy', 'GBSS', 'GBSSI', 'LOC_Os06g04200'],
+    'ALK': ['alk', 'SSIIa', 'SSII-3', 'LOC_Os06g12450'],
+    'SSIIa': ['ssIIa', 'SSII-a', 'ALK', 'LOC_Os06g12450'],
+    'Chalk5': ['chalk5', 'LOC_Os05g06480'],
+    'fgr': ['FGR', 'BADH2', 'badh2', 'LOC_Os08g32870'],
+    'BADH2': ['badh2', 'fgr', 'FGR', 'LOC_Os08g32870'],
+    'GS9': ['gs9', 'LOC_Os09g27590'],
+
+    // 수량 관련 유전자
+    'Gn1a': ['gn1a', 'OsCKX2', 'CKX2', 'LOC_Os01g10110'],
+    'IPA1': ['ipa1', 'OsSPL14', 'SPL14', 'WFP', 'LOC_Os08g39890'],
+    'NAL1': ['nal1', 'LSCHL4', 'GPS', 'SPIKE', 'LOC_Os04g52479'],
+    'WFP': ['wfp', 'IPA1', 'OsSPL14', 'LOC_Os08g39890'],
+    'SPIKE': ['spike', 'NAL1', 'GPS', 'LOC_Os04g52479'],
+
+    // 내냉성 유전자
+    'COLD1': ['cold1', 'LOC_Os04g51180'],
+    'CTB1': ['ctb1', 'LOC_Os04g01590'],
+    'qLTG3-1': ['qltg3-1', 'LTG', 'LOC_Os03g01320'],
+    'LTG1': ['ltg1', 'LOC_Os02g40710'],
+    'bZIP73': ['bzip73', 'OsbZIP73', 'LOC_Os09g29820'],
+
+    // 내염성 유전자
+    'SKC1': ['skc1', 'OsHKT1;5', 'HKT1;5', 'OsHKT8', 'LOC_Os01g20160'],
+    'OsHKT1;5': ['OsHKT1-5', 'HKT1;5', 'SKC1', 'LOC_Os01g20160'],
+    'OsSOS1': ['SOS1', 'sos1', 'OsNHA1', 'LOC_Os12g44360'],
+    'OsNHX1': ['NHX1', 'nhx1', 'LOC_Os07g47100'],
+
+    // 침수 저항성 유전자
+    'Sub1A': ['sub1a', 'Sub1', 'SUB1A', 'LOC_Os09g11460'],
+    'SK1': ['sk1', 'SNORKEL1', 'LOC_Os12g40950'],
+    'SK2': ['sk2', 'SNORKEL2', 'LOC_Os12g40960'],
+    'SNORKEL': ['snorkel', 'SK', 'SK1/SK2']
+};
+
+// 동의어로 정식 유전자명 찾기
+function findCanonicalGeneName(query) {
+    const queryLower = query.toLowerCase().trim();
+    console.log('유전자 동의어 검색:', query);
+
+    // 정확히 일치하는 정식명 확인
+    for (const canonical of Object.keys(geneSynonymDatabase)) {
+        if (canonical.toLowerCase() === queryLower) {
+            console.log('정식명 일치:', canonical);
+            return canonical;
+        }
+    }
+
+    // 동의어에서 검색
+    for (const [canonical, synonyms] of Object.entries(geneSynonymDatabase)) {
+        for (const syn of synonyms) {
+            if (syn.toLowerCase() === queryLower) {
+                console.log('동의어 일치:', query, '→', canonical);
+                return canonical;
+            }
+        }
+    }
+
+    // 부분 일치 검색 (LOC_ 접두사 등)
+    for (const [canonical, synonyms] of Object.entries(geneSynonymDatabase)) {
+        for (const syn of synonyms) {
+            if (syn.toLowerCase().includes(queryLower) || queryLower.includes(syn.toLowerCase())) {
+                console.log('부분 일치:', query, '→', canonical);
+                return canonical;
+            }
+        }
+    }
+
+    return null; // 일치하는 유전자 없음
+}
+
+// 정식 유전자명의 모든 동의어 가져오기
+function getGeneSynonyms(geneName) {
+    const canonical = findCanonicalGeneName(geneName) || geneName;
+    return geneSynonymDatabase[canonical] || [];
+}
+
+// 유전자명 정규화 (대소문자 통일, 특수문자 정리)
+function normalizeGeneName(name) {
+    if (!name) return '';
+    // 하이픈/언더스코어 정리, 공백 제거
+    return name.trim().replace(/[\s_]+/g, '-');
+}
+
+
 // ==================== 유전자 예측 및 제안 함수 ====================
 
 // 형질에서 유전자 추천
@@ -1606,23 +1906,66 @@ function findGenesNearPosition(chr, position, windowBp = 100000) {
     return results.sort((a, b) => a.distance - b.distance);
 }
 
-// 키워드로 관련 유전자 검색
+// 키워드로 관련 유전자 검색 (동의어 지원 v5.1)
 function searchGenesByKeyword(keyword) {
     const results = [];
-    const keywordLower = keyword.toLowerCase();
+    const keywordLower = keyword.toLowerCase().trim();
+    console.log('유전자 키워드 검색:', keyword);
 
+    // 1. 동의어 데이터베이스에서 유전자 직접 검색
+    const canonicalGene = findCanonicalGeneName(keyword);
+    if (canonicalGene) {
+        console.log('동의어로 유전자 발견:', canonicalGene);
+        // 해당 유전자가 속한 형질 찾기
+        for (const [trait, data] of Object.entries(traitGeneDatabase)) {
+            if (data.genes.some(g => g.toLowerCase() === canonicalGene.toLowerCase() ||
+                findCanonicalGeneName(g)?.toLowerCase() === canonicalGene.toLowerCase())) {
+                results.push({
+                    trait,
+                    description: data.description,
+                    genes: data.genes,
+                    matchedKeywords: [`유전자: ${canonicalGene}`],
+                    matchType: 'gene_synonym'
+                });
+            }
+        }
+    }
+
+    // 2. 형질 키워드 검색
     for (const [trait, data] of Object.entries(traitGeneDatabase)) {
+        // 이미 동의어 검색으로 추가된 형질은 건너뛰기
+        if (results.some(r => r.trait === trait)) continue;
+
         const matchedKeywords = data.keywords.filter(k => k.toLowerCase().includes(keywordLower));
-        if (matchedKeywords.length > 0 || trait.toLowerCase().includes(keywordLower)) {
+        const traitMatch = trait.toLowerCase().includes(keywordLower);
+
+        // 3. 유전자명 직접 검색 (동의어 포함)
+        const geneMatches = data.genes.filter(gene => {
+            const geneLower = gene.toLowerCase();
+            if (geneLower.includes(keywordLower)) return true;
+
+            // 동의어에서도 검색
+            const synonyms = getGeneSynonyms(gene);
+            return synonyms.some(syn => syn.toLowerCase().includes(keywordLower));
+        });
+
+        if (matchedKeywords.length > 0 || traitMatch || geneMatches.length > 0) {
+            const allMatches = [...matchedKeywords];
+            if (geneMatches.length > 0) {
+                allMatches.push(...geneMatches.map(g => `유전자: ${g}`));
+            }
+
             results.push({
                 trait,
                 description: data.description,
                 genes: data.genes,
-                matchedKeywords
+                matchedKeywords: allMatches,
+                matchType: geneMatches.length > 0 ? 'gene_match' : 'keyword_match'
             });
         }
     }
 
+    console.log('검색 결과:', results.length, '개 형질 발견');
     return results;
 }
 
@@ -1671,28 +2014,48 @@ function analyzeGeneInteractions(parent1Genes, parent2Genes) {
     return interactions;
 }
 
-// 유전자 정보 팝업 HTML 생성
+// 유전자 정보 팝업 HTML 생성 (동의어 표시 v5.1)
 function createGeneInfoPopup(geneName) {
     const pos = defaultMarkerPositions[geneName];
     const detail = geneDetailDatabase[geneName];
 
-    if (!pos && !detail) return `<div class="gene-popup">유전자 정보를 찾을 수 없습니다.</div>`;
+    // 동의어로 정식명 찾기 시도
+    const canonicalName = findCanonicalGeneName(geneName) || geneName;
+    const synonyms = getGeneSynonyms(canonicalName);
+
+    if (!pos && !detail && synonyms.length === 0) {
+        return `<div class="gene-popup">유전자 정보를 찾을 수 없습니다.</div>`;
+    }
 
     // 관련 형질 찾기
     const relatedTraits = [];
     for (const [trait, data] of Object.entries(traitGeneDatabase)) {
-        if (data.genes.includes(geneName)) {
+        if (data.genes.includes(geneName) || data.genes.includes(canonicalName)) {
             relatedTraits.push(trait);
         }
     }
 
+    // 동의어 중 LOC_ ID 분리
+    const locIds = synonyms.filter(s => s.startsWith('LOC_'));
+    const otherSynonyms = synonyms.filter(s => !s.startsWith('LOC_'));
+
     return `
-        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 420px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${escapeHtml(geneName)}</h4>
+                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${escapeHtml(canonicalName)}</h4>
                 <button onclick="closeGenePopup()" style="background: none; border: none; font-size: 1.2em; cursor: pointer;">✕</button>
             </div>
             ${detail ? `<p style="color: var(--dmrt-secondary); font-weight: 500; margin-bottom: 8px;">${escapeHtml(detail.fullName)}</p>` : ''}
+            ${otherSynonyms.length > 0 ? `
+                <div style="background: #f0f7ff; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.9em;">
+                    <strong>🏷️ 별칭:</strong> ${otherSynonyms.map(s => escapeHtml(s)).join(', ')}
+                </div>
+            ` : ''}
+            ${locIds.length > 0 ? `
+                <div style="background: #f5f5f5; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.85em; font-family: monospace;">
+                    <strong>🔗 Locus ID:</strong> ${locIds.map(id => escapeHtml(id)).join(', ')}
+                </div>
+            ` : ''}
             ${pos ? `
                 <div style="background: var(--dmrt-bg-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
                     <strong>📍 위치:</strong> Chr${pos.chr}:${pos.start_bp.toLocaleString()} - ${pos.end_bp.toLocaleString()} bp
@@ -1714,8 +2077,9 @@ function createGeneInfoPopup(geneName) {
             ` : ''}
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
                 ${pos ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=Os${String(pos.chr).padStart(2,'0')}g${String(Math.floor(pos.start_bp/10000)).padStart(7,'0')}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
-                <a href="https://funricegenes.github.io/genes/${encodeURIComponent(geneName)}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
-                <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(geneName + ' rice')}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration: none;">📚 논문</a>
+                ${locIds.length > 0 ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=${encodeURIComponent(locIds[0])}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
+                <a href="https://funricegenes.github.io/genes/${encodeURIComponent(canonicalName)}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
+                <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(canonicalName + ' rice')}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration: none;">📚 논문</a>
             </div>
         </div>
     `;
@@ -4355,7 +4719,7 @@ function displayInteractionResults(results, trait) {
 
 // ==================== 기존 기능 ====================
 function runQuickModelTest() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     document.getElementById('quickTestLoading').classList.add('active');
     setTimeout(() => {
         document.getElementById('quickTestLoading').classList.remove('active');
@@ -4364,7 +4728,7 @@ function runQuickModelTest() {
 }
 
 function performImputation() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     
     log('🔮 결측치 예측 시작...', 'info');
     document.getElementById('imputeLoading').classList.add('active');
@@ -4465,7 +4829,7 @@ function getSelectedGenotypeData(radioName) {
 }
 
 function generateHeatmap() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     const data = getSelectedGenotypeData('heatmapData');
     const matrix = data.map(r => geneNames.map(g => {
         const v = r[g];
@@ -4489,7 +4853,7 @@ function generateHeatmap() {
 }
 
 function runGeneticAlgorithm() {
-    if (!dataLoaded) { alert('데이터를 먼저 업로드하세요.'); return; }
+    if (!requireDataLoaded()) return;
     
     const selectedObjectives = Array.from(
         document.querySelectorAll('#objectiveCheckboxes input:checked')
@@ -4900,8 +5264,8 @@ pareto_front.sort(key=lambda x: sum(x['fitness']), reverse=True)
         updateOptimalSolutionSelect();
         
     } catch (error) {
+        ErrorHandler.handle(error, '유전 알고리즘');
         log('❌ 유전 알고리즘 실패: ' + error.message, 'error');
-        console.error('유전 알고리즘 실패:', error);
         throw error;
     } finally {
         document.getElementById('gaLoading').classList.remove('active');
@@ -5669,8 +6033,7 @@ selected_combos
             displayCrossoverResults(combinations, dataType);
         } catch (error) {
             document.getElementById('crossoverLoading').classList.remove('active');
-            console.error('교배 조합 탐색 실패:', error);
-            alert('오류: ' + error.message);
+            ErrorHandler.handle(error, '교배 조합 탐색');
         }
     });
 }
@@ -6176,7 +6539,7 @@ models = {pheno_name: best_models[pheno_name]['model'] for pheno_name in best_mo
         console.log(`GridSearch 최적 파라미터: ${Object.keys(bestParamsData).length}개`);
         return true;
     } catch (error) {
-        console.error('모델 학습 실패:', error);
+        ErrorHandler.handle(error, 'ML 모델 학습');
         addLog('모델 학습 실패: ' + error.message, 'error');
         throw error;
     }
@@ -6302,8 +6665,7 @@ for pheno_name in phenotype_names:
         
     } catch (error) {
         document.getElementById('offspringLoading').classList.remove('active');
-        console.error('후대 예측 실패:', error);
-        alert('오류: ' + error.message);
+        ErrorHandler.handle(error, '후대 예측');
     }
 }
 
