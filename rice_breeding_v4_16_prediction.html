@@ -113,6 +113,18 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .progress-container { background: var(--dmrt-border); border-radius: 8px; overflow: hidden; margin: 12px 0; height: 24px; }
         .progress-bar { height: 100%; background: var(--dmrt-gradient); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.8em; }
+        /* 개선된 시뮬레이션 진행 표시기 스타일 */
+        .sim-progress-panel { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 20px; margin: 20px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .sim-progress-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .sim-progress-info { flex: 1; }
+        .sim-progress-title { font-size: 1.2em; font-weight: 700; color: var(--dmrt-primary); margin-bottom: 4px; }
+        .sim-progress-detail { font-size: 0.95em; color: #666; }
+        .sim-progress-bar-container { position: relative; background: #e0e0e0; border-radius: 10px; height: 28px; overflow: hidden; margin-bottom: 12px; }
+        .sim-progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--dmrt-primary), var(--dmrt-secondary), #00b894); background-size: 200% 100%; animation: progressGradient 2s linear infinite; transition: width 0.3s ease; border-radius: 10px; }
+        @keyframes progressGradient { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        .sim-progress-bar-text { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9em; color: #333; text-shadow: 0 0 4px rgba(255,255,255,0.8); }
+        .sim-progress-stats { display: flex; justify-content: space-between; font-size: 0.85em; color: #555; }
+        .sim-progress-stats span { background: white; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--dmrt-border); }
         input[type="number"], select { padding: 10px 12px; border: 1px solid var(--dmrt-border); border-radius: 6px; font-size: 0.95em; margin: 4px; background: white; font-family: inherit; transition: border-color 0.2s; }
         input[type="number"]:focus, select:focus { outline: none; border-color: var(--dmrt-secondary); }
         .gene-chip { display: inline-block; background: white; padding: 5px 10px; border-radius: 12px; border: 1px solid var(--dmrt-secondary); margin: 3px; font-size: 0.8em; color: var(--dmrt-primary); font-weight: 500; }
@@ -918,8 +930,26 @@
 
             <button class="btn btn-success" onclick="runLinkageSimulation()" style="font-size: 1.1em; padding: 15px 40px;">🚀 연관 시뮬레이션 실행</button>
         </div>
-        <div class="loading" id="simLoading"><div class="spinner"></div><p>시뮬레이션 중... (연관 기반 분리 계산)</p></div>
-        <div class="progress-container" id="simProgress" style="display: none;"><div class="progress-bar" id="simProgressBar">0%</div></div>
+        <!-- 개선된 진행 표시기 -->
+        <div class="sim-progress-panel" id="simProgressPanel" style="display: none;">
+            <div class="sim-progress-header">
+                <div class="loading-spinner"></div>
+                <div class="sim-progress-info">
+                    <div class="sim-progress-title">시뮬레이션 진행 중</div>
+                    <div class="sim-progress-detail" id="simProgressDetail">초기화 중...</div>
+                </div>
+            </div>
+            <div class="sim-progress-bar-container">
+                <div class="sim-progress-bar-fill" id="simProgressBarFill"></div>
+                <div class="sim-progress-bar-text" id="simProgressBarText">0%</div>
+            </div>
+            <div class="sim-progress-stats">
+                <span id="simProgressGen">세대: -</span>
+                <span id="simProgressTime">예상 남은 시간: 계산 중...</span>
+            </div>
+        </div>
+        <!-- 기존 로딩 표시 (호환성 유지) -->
+        <div class="loading" id="simLoading" style="display:none;"></div>
         <div class="result-card"><h3>📊 세대별 표현형</h3><div id="phenotypePlot" style="height: 400px;"></div></div>
         <div class="result-card"><h3>🎯 형질 고정률</h3><div id="fixationPlot" style="height: 350px;"></div></div>
         <div class="result-card"><h3>🔗 연관 블록 유지율</h3><div id="linkagePlot" style="height: 350px;"></div></div>
@@ -2837,8 +2867,8 @@ async function runLinkageSimulation() {
         });
     });
 
-    document.getElementById('simLoading').classList.add('active');
-    document.getElementById('simProgress').style.display = 'block';
+    // 개선된 진행 표시기 시작
+    showSimProgress();
 
     // 데이터 상태 표시 (여교배 포함)
     let statusHtml = dataType === 'imputed' ?
@@ -2900,7 +2930,7 @@ async function runLinkageSimulation() {
     genCounter++;
     results.generations.push('F1');
     recordGenerationStats(results, population, targetGeneIdx, enableBackcross ? recurrentGeno : null, enableBackcross ? donorGeno : null);
-    updateProgress(genCounter, totalGenerations);
+    updateProgress(genCounter, totalGenerations, 'F1');
     await new Promise(r => setTimeout(r, 10));
 
     // === 여교배 세대 (BC1, BC2, ...) ===
@@ -2929,7 +2959,7 @@ async function runLinkageSimulation() {
             }
 
             recordGenerationStats(results, population, targetGeneIdx, recurrentGeno, donorGeno);
-            updateProgress(genCounter, totalGenerations);
+            updateProgress(genCounter, totalGenerations, `BC${bc}`);
             await new Promise(r => setTimeout(r, 10));
         }
     }
@@ -2961,12 +2991,12 @@ async function runLinkageSimulation() {
         }
 
         recordGenerationStats(results, population, targetGeneIdx, enableBackcross ? recurrentGeno : null, enableBackcross ? donorGeno : null);
-        updateProgress(genCounter, totalGenerations);
+        updateProgress(genCounter, totalGenerations, genLabel);
         await new Promise(r => setTimeout(r, 10));
     }
 
-    document.getElementById('simLoading').classList.remove('active');
-    document.getElementById('simProgress').style.display = 'none';
+    // 개선된 진행 표시기 종료
+    hideSimProgress();
 
     // 여교배 정보 포함하여 결과 표시
     const simConfig = {
@@ -2978,11 +3008,75 @@ async function runLinkageSimulation() {
     displaySimResults(results, p1Name, p2Name, targetTraits, simConfig);
 }
 
-// 진행률 업데이트
-function updateProgress(current, total) {
+// 진행률 업데이트 (개선된 버전)
+let simStartTime = null;
+
+function updateProgress(current, total, genName = '', phase = '') {
     const progress = Math.round((current / total) * 100);
-    document.getElementById('simProgressBar').style.width = progress + '%';
-    document.getElementById('simProgressBar').textContent = progress + '%';
+    console.log('진행률 업데이트:', { current, total, progress, genName, phase });
+
+    // 진행 바 업데이트
+    const fillEl = document.getElementById('simProgressBarFill');
+    const textEl = document.getElementById('simProgressBarText');
+    if (fillEl) fillEl.style.width = progress + '%';
+    if (textEl) textEl.textContent = progress + '%';
+
+    // 세대 정보 업데이트
+    const genEl = document.getElementById('simProgressGen');
+    if (genEl && genName) {
+        genEl.textContent = `세대: ${genName} (${current}/${total})`;
+    }
+
+    // 상세 정보 업데이트
+    const detailEl = document.getElementById('simProgressDetail');
+    if (detailEl) {
+        let phaseText = '';
+        if (genName === 'F1') {
+            phaseText = '🧬 F1 잡종 세대 생성 중...';
+        } else if (genName.startsWith('BC') && !genName.includes('F')) {
+            phaseText = `🔄 여교배 ${genName} - 반복친과 교배 중...`;
+        } else if (genName.includes('F')) {
+            phaseText = `🌱 자가수정 ${genName} - 형질 고정 진행 중...`;
+        } else {
+            phaseText = phase || '시뮬레이션 진행 중...';
+        }
+        detailEl.textContent = phaseText;
+    }
+
+    // 예상 남은 시간 계산
+    const timeEl = document.getElementById('simProgressTime');
+    if (timeEl && simStartTime && current > 1) {
+        const elapsed = (Date.now() - simStartTime) / 1000;
+        const avgTimePerGen = elapsed / (current - 1);
+        const remaining = avgTimePerGen * (total - current);
+
+        if (remaining < 1) {
+            timeEl.textContent = '예상 남은 시간: 거의 완료';
+        } else if (remaining < 60) {
+            timeEl.textContent = `예상 남은 시간: ${Math.ceil(remaining)}초`;
+        } else {
+            timeEl.textContent = `예상 남은 시간: ${Math.ceil(remaining / 60)}분 ${Math.ceil(remaining % 60)}초`;
+        }
+    } else if (timeEl) {
+        timeEl.textContent = '예상 남은 시간: 계산 중...';
+    }
+}
+
+function showSimProgress() {
+    simStartTime = Date.now();
+    document.getElementById('simProgressPanel').style.display = 'block';
+    document.getElementById('simProgressBarFill').style.width = '0%';
+    document.getElementById('simProgressBarText').textContent = '0%';
+    document.getElementById('simProgressDetail').textContent = '초기화 중...';
+    document.getElementById('simProgressGen').textContent = '세대: 준비 중';
+    document.getElementById('simProgressTime').textContent = '예상 남은 시간: 계산 중...';
+    console.log('시뮬레이션 진행 표시기 시작');
+}
+
+function hideSimProgress() {
+    document.getElementById('simProgressPanel').style.display = 'none';
+    simStartTime = null;
+    console.log('시뮬레이션 진행 표시기 종료');
 }
 
 // 세대 통계 기록
