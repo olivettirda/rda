@@ -31,6 +31,20 @@
             --dmrt-gradient: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
             --dmrt-gradient-accent: linear-gradient(135deg, #017f97 0%, #00a1b8 100%);
         }
+
+        /* === 로딩 스피너 === */
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--dmrt-border);
+            border-top-color: var(--dmrt-secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', 'Segoe UI', sans-serif; background: var(--dmrt-bg); min-height: 100vh; padding: 20px; }
         .container { max-width: 1600px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(12, 48, 38, 0.15); overflow: hidden; border: 1px solid var(--dmrt-border); }
@@ -1188,6 +1202,150 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// === Web Worker를 이용한 XLSX 파싱 (메인 스레드 블로킹 방지) ===
+let xlsxWorker = null;
+const XLSX_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+
+function createXlsxWorker() {
+    const workerCode = `
+        let XLSX = null;
+
+        self.onmessage = async function(e) {
+            const { type, data, sheetNames } = e.data;
+
+            if (type === 'init') {
+                try {
+                    importScripts('${XLSX_CDN}');
+                    XLSX = self.XLSX;
+                    self.postMessage({ type: 'ready' });
+                } catch (err) {
+                    self.postMessage({ type: 'error', error: 'XLSX 라이브러리 로드 실패: ' + err.message });
+                }
+                return;
+            }
+
+            if (type === 'parse') {
+                try {
+                    if (!XLSX) {
+                        self.postMessage({ type: 'error', error: 'XLSX 라이브러리가 초기화되지 않았습니다.' });
+                        return;
+                    }
+
+                    self.postMessage({ type: 'progress', message: '엑셀 파일 읽는 중...' });
+                    const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
+
+                    self.postMessage({ type: 'progress', message: '시트 파싱 중...' });
+                    const result = {
+                        sheetNames: wb.SheetNames,
+                        sheets: {}
+                    };
+
+                    // 각 시트를 JSON으로 변환
+                    for (const name of wb.SheetNames) {
+                        result.sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name]);
+                        self.postMessage({ type: 'progress', message: '시트 파싱 중: ' + name });
+                    }
+
+                    self.postMessage({ type: 'complete', result });
+                } catch (err) {
+                    self.postMessage({ type: 'error', error: '파싱 오류: ' + err.message });
+                }
+            }
+        };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+    return worker;
+}
+
+function initXlsxWorker() {
+    return new Promise((resolve, reject) => {
+        if (xlsxWorker) {
+            resolve(xlsxWorker);
+            return;
+        }
+
+        xlsxWorker = createXlsxWorker();
+
+        xlsxWorker.onmessage = function(e) {
+            if (e.data.type === 'ready') {
+                console.log('✅ XLSX Worker 초기화 완료');
+                resolve(xlsxWorker);
+            } else if (e.data.type === 'error') {
+                reject(new Error(e.data.error));
+            }
+        };
+
+        xlsxWorker.postMessage({ type: 'init' });
+    });
+}
+
+function parseExcelWithWorker(arrayBuffer) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await initXlsxWorker();
+
+            xlsxWorker.onmessage = function(e) {
+                const { type, result, error, message } = e.data;
+
+                if (type === 'progress') {
+                    log(`⏳ ${message}`, 'info');
+                } else if (type === 'complete') {
+                    resolve(result);
+                } else if (type === 'error') {
+                    reject(new Error(error));
+                }
+            };
+
+            xlsxWorker.postMessage({ type: 'parse', data: arrayBuffer });
+        } catch (err) {
+            reject(err);
+        }
+    });
+}
+
+// Worker 사용 가능 여부 확인 (Worker 지원 안 되면 기존 방식 사용)
+const useWorker = typeof Worker !== 'undefined';
+
+// === 페이징 설정 ===
+const PAGINATION_CONFIG = {
+    markerTable: { pageSize: 50, currentPage: 1 },
+    predictionTable: { pageSize: 20, currentPage: 1 }
+};
+
+function createPaginationControls(containerId, totalItems, config, renderCallback) {
+    const totalPages = Math.ceil(totalItems / config.pageSize);
+    if (totalPages <= 1) return '';
+
+    const currentPage = config.currentPage;
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+
+    let html = `<div class="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin: 15px 0; flex-wrap: wrap;">
+        <span style="color: #666; font-size: 0.9em;">총 ${totalItems}개 (${totalPages}페이지)</span>
+        <button class="btn btn-sm" onclick="${renderCallback}(1)" ${currentPage === 1 ? 'disabled' : ''} style="padding: 5px 10px;">◀◀</button>
+        <button class="btn btn-sm" onclick="${renderCallback}(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="padding: 5px 10px;">◀</button>`;
+
+    for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === currentPage;
+        html += `<button class="btn btn-sm" onclick="${renderCallback}(${i})"
+            style="padding: 5px 12px; ${isActive ? 'background: var(--dmrt-primary); color: white;' : ''}">${i}</button>`;
+    }
+
+    html += `<button class="btn btn-sm" onclick="${renderCallback}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="padding: 5px 10px;">▶</button>
+        <button class="btn btn-sm" onclick="${renderCallback}(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} style="padding: 5px 10px;">▶▶</button>
+        <select onchange="${renderCallback}(1); PAGINATION_CONFIG.${containerId}.pageSize = parseInt(this.value);" style="padding: 5px; border-radius: 4px; border: 1px solid var(--dmrt-border);">
+            <option value="20" ${config.pageSize === 20 ? 'selected' : ''}>20개씩</option>
+            <option value="50" ${config.pageSize === 50 ? 'selected' : ''}>50개씩</option>
+            <option value="100" ${config.pageSize === 100 ? 'selected' : ''}>100개씩</option>
+            <option value="500" ${config.pageSize === 500 ? 'selected' : ''}>500개씩</option>
+        </select>
+    </div>`;
+
+    return html;
+}
+
 // === 형질-유전자 매핑 (Option A용) ===
 const traitGeneMapping = {
     '아밀로스': ['Wx', 'SSIIa', 'SBE3', 'ISA'],
@@ -2065,9 +2223,24 @@ function initGlobalDropZone() {
                 log(`📂 드래그앤드롭 파일 로드: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
 
                 const reader = new FileReader();
-                reader.onload = function(ev) {
-                    const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
-                    processWorkbook(wb, file.name);
+                reader.onload = async function(ev) {
+                    const arrayBuffer = ev.target.result;
+
+                    // Web Worker 사용 가능 시 비동기 파싱
+                    if (useWorker) {
+                        try {
+                            log(`🔄 Web Worker로 엑셀 파싱 시작...`, 'info');
+                            const result = await parseExcelWithWorker(arrayBuffer);
+                            processWorkbookFromWorker(result, file.name);
+                        } catch (err) {
+                            log(`⚠️ Worker 파싱 실패, 기존 방식으로 전환: ${err.message}`, 'warning');
+                            const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                            processWorkbook(wb, file.name);
+                        }
+                    } else {
+                        const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                        processWorkbook(wb, file.name);
+                    }
                 };
                 reader.readAsArrayBuffer(file);
             } else {
@@ -2090,21 +2263,118 @@ async function handleFile(e) {
     const fileSize = (file.size / 1024).toFixed(1);
     uploadArea.innerHTML = `
         <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
-        <h2 style="color: #017f97;">✅ ${escapeHtml(file.name)}</h2>
-        <p style="color: #666;">${fileSize} KB 업로드됨</p>
-        <button class="btn" onclick="event.stopPropagation(); clearMainFile();" style="background: #d32f2f; color: white; margin-top: 10px;">🗑️ 파일 삭제</button>
+        <h2 style="color: #017f97;">⏳ ${escapeHtml(file.name)}</h2>
+        <p style="color: #666;">${fileSize} KB 파싱 중... (UI가 멈추지 않습니다)</p>
+        <div class="loading-spinner" style="margin: 10px auto;"></div>
     `;
     document.getElementById('fileInput').onchange = handleFile;
 
     const reader = new FileReader();
-    reader.onload = function(ev) {
-        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
-        processWorkbook(wb, file.name);
+    reader.onload = async function(ev) {
+        const arrayBuffer = ev.target.result;
+
+        // Web Worker 사용 가능 시 비동기 파싱
+        if (useWorker) {
+            try {
+                log(`🔄 Web Worker로 엑셀 파싱 시작...`, 'info');
+                const result = await parseExcelWithWorker(arrayBuffer);
+                processWorkbookFromWorker(result, file.name);
+
+                // 완료 표시 업데이트
+                uploadArea.innerHTML = `
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+                    <h2 style="color: #017f97;">✅ ${escapeHtml(file.name)}</h2>
+                    <p style="color: #666;">${fileSize} KB 업로드됨</p>
+                    <button class="btn" onclick="event.stopPropagation(); clearMainFile();" style="background: #d32f2f; color: white; margin-top: 10px;">🗑️ 파일 삭제</button>
+                `;
+                document.getElementById('fileInput').onchange = handleFile;
+            } catch (err) {
+                log(`⚠️ Worker 파싱 실패, 기존 방식으로 전환: ${err.message}`, 'warning');
+                // Fallback: 기존 방식
+                const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                processWorkbook(wb, file.name);
+
+                uploadArea.innerHTML = `
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+                    <h2 style="color: #017f97;">✅ ${escapeHtml(file.name)}</h2>
+                    <p style="color: #666;">${fileSize} KB 업로드됨</p>
+                    <button class="btn" onclick="event.stopPropagation(); clearMainFile();" style="background: #d32f2f; color: white; margin-top: 10px;">🗑️ 파일 삭제</button>
+                `;
+                document.getElementById('fileInput').onchange = handleFile;
+            }
+        } else {
+            // Worker 미지원 시 기존 방식
+            const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+            processWorkbook(wb, file.name);
+
+            uploadArea.innerHTML = `
+                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+                <h2 style="color: #017f97;">✅ ${escapeHtml(file.name)}</h2>
+                <p style="color: #666;">${fileSize} KB 업로드됨</p>
+                <button class="btn" onclick="event.stopPropagation(); clearMainFile();" style="background: #d32f2f; color: white; margin-top: 10px;">🗑️ 파일 삭제</button>
+            `;
+            document.getElementById('fileInput').onchange = handleFile;
+        }
     };
     reader.readAsArrayBuffer(file);
 }
 
-// 엑셀 워크북 처리 함수 (handleFile과 드래그앤드롭 공통 사용)
+// Worker 결과를 처리하는 함수 (시트가 이미 JSON으로 변환됨)
+function processWorkbookFromWorker(result, fileName) {
+    const { sheetNames, sheets } = result;
+    log(`📑 시트 감지: ${sheetNames.join(', ')}`, 'info');
+
+    // 유전자형
+    genotypeData = sheets['Genotype'] || sheets['유전자형'] || sheets[sheetNames[1]] || [];
+
+    // 표현형
+    let phenoData = sheets['Phenotype'] || sheets['표현형'];
+    if (!phenoData) {
+        for (let n of sheetNames) {
+            if (n.includes('표현형')) {
+                phenoData = sheets[n];
+                break;
+            }
+        }
+    }
+    phenotypeData = phenoData || [];
+
+    // 품종정보
+    varietyInfoData = sheets['품종정보'] || sheets[sheetNames[0]] || [];
+
+    // 마커위치
+    linkageData = sheets['마커위치'] || sheets['Linkage'] || null;
+
+    // ★ 표현형별 유전자 목록 시트 읽기
+    const traitGeneList = sheets['표현형별 유전자 목록'] || sheets['형질별 유전자'] || sheets['TraitGeneMapping'];
+    if (traitGeneList && traitGeneList.length > 0) {
+        let addedCount = 0;
+        traitGeneList.forEach(row => {
+            const trait = row['형질'] || row['Trait'] || '';
+            const gene = row['유전자'] || row['Gene'] || '';
+            if (trait && gene) {
+                if (!traitGeneMapping[trait]) {
+                    traitGeneMapping[trait] = [];
+                }
+                if (!traitGeneMapping[trait].includes(gene)) {
+                    traitGeneMapping[trait].push(gene);
+                    addedCount++;
+                }
+            }
+        });
+        log(`📋 표현형별 유전자 목록 로드: ${traitGeneList.length}행, 신규 ${addedCount}개 매핑 추가`, 'success');
+
+        const loadedTraits = [...new Set(traitGeneList.map(r => r['형질'] || r['Trait']))].filter(Boolean);
+        log(`  → 로드된 형질: ${loadedTraits.join(', ')}`, 'info');
+    } else {
+        log(`⚠️ "표현형별 유전자 목록" 시트 없음 - 기본 매핑만 사용`, 'warning');
+    }
+
+    processData();
+    log(`✅ Web Worker로 엑셀 파싱 완료!`, 'success');
+}
+
+// 엑셀 워크북 처리 함수 (handleFile과 드래그앤드롭 공통 사용) - 기존 방식 (fallback)
 function processWorkbook(wb, fileName) {
     log(`📑 시트 감지: ${wb.SheetNames.join(', ')}`, 'info');
 
@@ -3467,27 +3737,50 @@ function displayChrDetail(chr) {
     document.getElementById('markerTable').innerHTML = html;
 }
 
-function displayMarkerTable() {
-    const linked = markerInfo.filter(m => m.chr);
+function displayMarkerTable(page = 1) {
+    const config = PAGINATION_CONFIG.markerTable;
+    config.currentPage = page;
+
+    const linked = markerInfo.filter(m => m.chr).sort((a,b) => a.chr - b.chr || (a.position_cM || 0) - (b.position_cM || 0));
     const unlinked = markerInfo.filter(m => !m.chr);
-    
+
+    // 페이징 적용 (연관 마커에만)
+    const totalLinked = linked.length;
+    const startIdx = (page - 1) * config.pageSize;
+    const endIdx = Math.min(startIdx + config.pageSize, totalLinked);
+    const pagedLinked = linked.slice(startIdx, endIdx);
+
     let html = `<div class="result-card"><h3>📋 전체 마커 정보 (${markerInfo.length}개)</h3>`;
+
     if (linked.length) {
-        html += `<h4 style="color:#00b894;margin:15px 0;">✅ 연관 매핑 완료 (${linked.length}개)</h4>
-            <table class="data-table"><thead><tr><th>마커</th><th>염색체</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
-        linked.sort((a,b) => a.chr - b.chr || (a.position_cM || 0) - (b.position_cM || 0)).forEach(m => {
+        html += `<h4 style="color:#00b894;margin:15px 0;">✅ 연관 매핑 완료 (${linked.length}개)</h4>`;
+
+        // 페이징 컨트롤 (상단)
+        if (totalLinked > config.pageSize) {
+            html += createPaginationControls('markerTable', totalLinked, config, 'displayMarkerTable');
+        }
+
+        html += `<table class="data-table"><thead><tr><th>마커</th><th>염색체</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
+        pagedLinked.forEach(m => {
             html += `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>Chr ${m.chr}</td>
                 <td>${m.position_cM?.toFixed(2) || '-'}</td>
                 <td><span class="quality-badge ${getSuppClass(m.suppression)}">${m.suppression?.toFixed(1)}</span></td></tr>`;
         });
         html += '</tbody></table>';
+
+        // 페이징 컨트롤 (하단)
+        if (totalLinked > config.pageSize) {
+            html += createPaginationControls('markerTable', totalLinked, config, 'displayMarkerTable');
+        }
     }
+
     if (unlinked.length) {
         html += `<h4 style="color:#e17055;margin:15px 0;">⚠️ 위치 미정 - 독립 분리 적용 (${unlinked.length}개)</h4>
             <div style="display:flex;flex-wrap:wrap;gap:5px;">`;
         unlinked.forEach(m => { html += `<span class="gene-chip">${escapeHtml(m.name)}</span>`; });
         html += '</div>';
     }
+
     html += '</div>';
     document.getElementById('markerTable').innerHTML = html;
 }
