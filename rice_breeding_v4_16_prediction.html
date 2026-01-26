@@ -1498,10 +1498,10 @@ function createGeneInfoPopup(geneName) {
     return `
         <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${geneName}</h4>
+                <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${escapeHtml(geneName)}</h4>
                 <button onclick="closeGenePopup()" style="background: none; border: none; font-size: 1.2em; cursor: pointer;">✕</button>
             </div>
-            ${detail ? `<p style="color: var(--dmrt-secondary); font-weight: 500; margin-bottom: 8px;">${detail.fullName}</p>` : ''}
+            ${detail ? `<p style="color: var(--dmrt-secondary); font-weight: 500; margin-bottom: 8px;">${escapeHtml(detail.fullName)}</p>` : ''}
             ${pos ? `
                 <div style="background: var(--dmrt-bg-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
                     <strong>📍 위치:</strong> Chr${pos.chr}:${pos.start_bp.toLocaleString()} - ${pos.end_bp.toLocaleString()} bp
@@ -1509,21 +1509,21 @@ function createGeneInfoPopup(geneName) {
             ` : ''}
             ${detail ? `
                 <div style="margin-bottom: 10px;">
-                    <strong>🎯 기능:</strong> ${detail.function}<br>
-                    <strong>⚙️ 기작:</strong> ${detail.mechanism}
+                    <strong>🎯 기능:</strong> ${escapeHtml(detail.function)}<br>
+                    <strong>⚙️ 기작:</strong> ${escapeHtml(detail.mechanism)}
                 </div>
             ` : ''}
             ${relatedTraits.length > 0 ? `
                 <div style="margin-bottom: 10px;">
                     <strong>📊 관련 형질:</strong>
                     <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
-                        ${relatedTraits.map(t => `<span class="gene-chip">${t}</span>`).join('')}
+                        ${relatedTraits.map(t => `<span class="gene-chip">${escapeHtml(t)}</span>`).join('')}
                     </div>
                 </div>
             ` : ''}
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
                 ${pos ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=Os${String(pos.chr).padStart(2,'0')}g${String(Math.floor(pos.start_bp/10000)).padStart(7,'0')}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
-                <a href="https://funricegenes.github.io/genes/${geneName}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
+                <a href="https://funricegenes.github.io/genes/${encodeURIComponent(geneName)}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
                 <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(geneName + ' rice')}" target="_blank" class="btn btn-sm btn-secondary" style="text-decoration: none;">📚 논문</a>
             </div>
         </div>
@@ -1638,10 +1638,10 @@ function searchByKeyword() {
     for (const r of results) {
         html += `
             <div style="margin-top: 12px; padding: 10px; background: white; border-radius: 8px;">
-                <strong style="color: var(--dmrt-primary);">${r.trait}</strong>
-                <span style="color: #666; font-size: 0.9em;"> - ${r.description}</span>
+                <strong style="color: var(--dmrt-primary);">${escapeHtml(r.trait)}</strong>
+                <span style="color: #666; font-size: 0.9em;"> - ${escapeHtml(r.description)}</span>
                 <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;">
-                    ${r.genes.map(g => `<span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${g}')">${g}</span>`).join('')}
+                    ${r.genes.map(g => `<span class="gene-chip" style="cursor: pointer;" onclick="showGeneInfoPopup('${escapeHtml(g)}')">${escapeHtml(g)}</span>`).join('')}
                 </div>
             </div>
         `;
@@ -1737,9 +1737,9 @@ function analyzeCrossGeneInteractions(parent1, parent2) {
         const icon = int.type === 'synergy' ? '🚀' : '⚠️';
         html += `
             <div style="background: ${color}; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;">
-                ${icon} <strong>${int.trait}:</strong> ${int.genes.join(' + ')}
+                ${icon} <strong>${escapeHtml(int.trait)}:</strong> ${int.genes.map(g => escapeHtml(g)).join(' + ')}
                 → 효과 ${int.effect}배
-                ${int.reference ? `<small style="color: #666;">(${int.reference})</small>` : ''}
+                ${int.reference ? `<small style="color: #666;">(${escapeHtml(int.reference)})</small>` : ''}
             </div>
         `;
     }
@@ -2573,7 +2573,7 @@ async function runLinkageSimulation() {
         '<span style="color: #0c3026;">📊 원본 데이터 사용</span>';
     if (enableBackcross) {
         const recurrentName = recurrentParentChoice === 'mother' ? p1Name : p2Name;
-        statusHtml += ` | <span style="color: #1976d2;">🔄 여교배 BC${bcGenerations} (반복친: ${recurrentName})</span>`;
+        statusHtml += ` | <span style="color: #1976d2;">🔄 여교배 BC${bcGenerations} (반복친: ${escapeHtml(recurrentName)})</span>`;
     }
     document.getElementById('simDataStatus').innerHTML = statusHtml;
 
@@ -2867,7 +2867,7 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
         backcrossInfoHtml = `
         <div class="result-card" style="background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%); color: white; margin-bottom: 15px;">
             <h3 style="color: white;">🔄 여교배(Backcross) 정보</h3>
-            <p><strong>반복친:</strong> ${recurrentName} | <strong>공여친:</strong> ${donorName} | <strong>여교배 세대:</strong> BC${bcGenerations}</p>
+            <p><strong>반복친:</strong> ${escapeHtml(recurrentName)} | <strong>공여친:</strong> ${escapeHtml(donorName)} | <strong>여교배 세대:</strong> BC${bcGenerations}</p>
             <div class="stats-grid" style="margin-top: 15px;">
                 <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #1976d2;">
                     <div>게놈 회복률</div><div class="stat-value">${(finalGenomeRecovery * 100).toFixed(1)}%</div>
@@ -2889,7 +2889,7 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
         ${backcrossInfoHtml}
         <div class="result-card" style="background: linear-gradient(135deg, #0c3026 0%, #017f97 100%); color: white;">
             <h3 style="color: white;">📊 시뮬레이션 결과 요약</h3>
-            <p><strong>교배:</strong> ${p1} × ${p2} | <strong>목표 형질:</strong> ${traits.join(', ')}${enableBackcross ? ` | <strong>방식:</strong> 여교배 BC${bcGenerations}` : ''}</p>
+            <p><strong>교배:</strong> ${escapeHtml(p1)} × ${escapeHtml(p2)} | <strong>목표 형질:</strong> ${traits.map(t => escapeHtml(t)).join(', ')}${enableBackcross ? ` | <strong>방식:</strong> 여교배 BC${bcGenerations}` : ''}</p>
             <div class="stats-grid" style="margin-top: 15px;">
                 <div class="stat-box" style="background: rgba(255,255,255,0.9); color: #017f97;">
                     <div>최종 표현형</div><div class="stat-value">${(finalMean * 100).toFixed(1)}%</div>
@@ -2913,14 +2913,14 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
                     <td style="padding: 12px; width: 140px; font-weight: bold; color: #1976d2;">🔄 게놈 회복률</td>
                     <td style="padding: 12px;">
                         <strong>${(finalGenomeRecovery * 100).toFixed(1)}%</strong> - ${bcInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">반복친(${recurrentName}) 유전체가 회복된 비율. BC${bcGenerations} 이론값은 ${((1 - Math.pow(0.5, bcGenerations + 1)) * 100).toFixed(1)}%입니다. 여교배는 우수한 농업 형질을 가진 반복친의 유전적 배경을 유지하면서 공여친의 특정 형질(저항성 등)만 도입하는 방법입니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">반복친(${escapeHtml(recurrentName)}) 유전체가 회복된 비율. BC${bcGenerations} 이론값은 ${((1 - Math.pow(0.5, bcGenerations + 1)) * 100).toFixed(1)}%입니다. 여교배는 우수한 농업 형질을 가진 반복친의 유전적 배경을 유지하면서 공여친의 특정 형질(저항성 등)만 도입하는 방법입니다.</span>
                     </td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ddd; background: #fff3e0;">
                     <td style="padding: 12px; font-weight: bold; color: #ff9800;">🎯 형질 유지율</td>
                     <td style="padding: 12px;">
                         <strong>${(finalDonorRetention * 100).toFixed(1)}%</strong> - ${donorInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">공여친(${donorName})에서 온 목표 형질 유전자가 유지된 비율. 여교배 중 MAS(Marker-Assisted Selection)로 목표 유전자를 보유한 개체를 선발해야 유지율이 높습니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">공여친(${escapeHtml(donorName)})에서 온 목표 형질 유전자가 유지된 비율. 여교배 중 MAS(Marker-Assisted Selection)로 목표 유전자를 보유한 개체를 선발해야 유지율이 높습니다.</span>
                     </td>
                 </tr>
                 ` : ''}
@@ -2928,7 +2928,7 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
                     <td style="padding: 12px; width: 140px; font-weight: bold; color: #017f97;">최종 표현형</td>
                     <td style="padding: 12px;">
                         <strong>${(finalMean * 100).toFixed(1)}%</strong> - ${phenoInterpret}<br>
-                        <span style="font-size: 0.85em; color: #666;">${finalGenLabel} 세대에서 목표 형질(${traits.join(', ')})이 발현된 개체 비율. 선발한 형질에 해당하는 유전자가 우성(R)으로 고정된 정도를 나타냅니다.</span>
+                        <span style="font-size: 0.85em; color: #666;">${finalGenLabel} 세대에서 목표 형질(${traits.map(t => escapeHtml(t)).join(', ')})이 발현된 개체 비율. 선발한 형질에 해당하는 유전자가 우성(R)으로 고정된 정도를 나타냅니다.</span>
                     </td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ddd;">
@@ -2964,11 +2964,11 @@ function displaySimResults(results, p1, p2, traits, simConfig = {}) {
                 </tr>
                 <tr style="border-bottom: 1px solid #ffe0b2;">
                     <td style="padding: 10px; font-weight: bold;">반복친</td>
-                    <td style="padding: 10px;"><strong>${recurrentName}</strong> - 우수한 농업 형질을 가진 품종. 여교배를 반복하여 이 품종의 유전체를 최대한 회복</td>
+                    <td style="padding: 10px;"><strong>${escapeHtml(recurrentName)}</strong> - 우수한 농업 형질을 가진 품종. 여교배를 반복하여 이 품종의 유전체를 최대한 회복</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ffe0b2;">
                     <td style="padding: 10px; font-weight: bold;">공여친</td>
-                    <td style="padding: 10px;"><strong>${donorName}</strong> - 도입하려는 목표 형질(${traits.join(', ')})을 가진 품종</td>
+                    <td style="padding: 10px;"><strong>${escapeHtml(donorName)}</strong> - 도입하려는 목표 형질(${traits.map(t => escapeHtml(t)).join(', ')})을 가진 품종</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #ffe0b2;">
                     <td style="padding: 10px; font-weight: bold;">게놈 회복</td>
@@ -3210,28 +3210,28 @@ function analyzeBreedingRecommendation(p1Name, p2Name) {
         if (p1TargetR > p2TargetR) {
             // P1이 목표 형질 유전자를 더 많이 가짐 → P1이 공여친, P2가 반복친
             recommendRecurrent = 'father';
-            recommendReason = `<strong>${p1Name}</strong>이 목표 형질(${targetTraits.join(', ')}) 유전자를 더 많이 보유 (${p1TargetR}개 vs ${p2TargetR}개)`;
+            recommendReason = `<strong>${escapeHtml(p1Name)}</strong>이 목표 형질(${targetTraits.map(t => escapeHtml(t)).join(', ')}) 유전자를 더 많이 보유 (${p1TargetR}개 vs ${p2TargetR}개)`;
         } else if (p2TargetR > p1TargetR) {
             recommendRecurrent = 'mother';
-            recommendReason = `<strong>${p2Name}</strong>이 목표 형질(${targetTraits.join(', ')}) 유전자를 더 많이 보유 (${p2TargetR}개 vs ${p1TargetR}개)`;
+            recommendReason = `<strong>${escapeHtml(p2Name)}</strong>이 목표 형질(${targetTraits.map(t => escapeHtml(t)).join(', ')}) 유전자를 더 많이 보유 (${p2TargetR}개 vs ${p1TargetR}개)`;
         } else {
             // 목표 형질 유전자 수가 같으면 전체 R 유전자 수로 판단
             if (p1TotalR >= p2TotalR) {
                 recommendRecurrent = 'mother';
-                recommendReason = `목표 형질 유전자 수 동일. <strong>${p1Name}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
+                recommendReason = `목표 형질 유전자 수 동일. <strong>${escapeHtml(p1Name)}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
             } else {
                 recommendRecurrent = 'father';
-                recommendReason = `목표 형질 유전자 수 동일. <strong>${p2Name}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
+                recommendReason = `목표 형질 유전자 수 동일. <strong>${escapeHtml(p2Name)}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
             }
         }
     } else {
         // 목표 형질 미선택 시 전체 R 유전자 수로 판단
         if (p1TotalR >= p2TotalR) {
             recommendRecurrent = 'mother';
-            recommendReason = `<strong>${p1Name}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p2TotalR}개)`;
+            recommendReason = `<strong>${escapeHtml(p1Name)}</strong>이 전체 우성 유전자가 더 많음 (${p1TotalR}개 vs ${p1TotalR}개)`;
         } else {
             recommendRecurrent = 'father';
-            recommendReason = `<strong>${p2Name}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
+            recommendReason = `<strong>${escapeHtml(p2Name)}</strong>이 전체 우성 유전자가 더 많음 (${p2TotalR}개 vs ${p1TotalR}개)`;
         }
     }
 
