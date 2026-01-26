@@ -1314,6 +1314,9 @@ const PAGINATION_CONFIG = {
     predictionTable: { pageSize: 20, currentPage: 1 }
 };
 
+// 페이징용 전역 데이터 저장소
+let _batchResultsCache = { data: [], targetName: '' };
+
 function createPaginationControls(containerId, totalItems, config, renderCallback) {
     const totalPages = Math.ceil(totalItems / config.pageSize);
     if (totalPages <= 1) return '';
@@ -7224,25 +7227,51 @@ function displayBatchPredictionResults(predictions) {
 }
 
 // === 현재 최적해 일괄 예측 결과 표시 ===
-function displayBatchResults(batchResults, targetName) {
-    if (!batchResults || batchResults.length === 0) {
+function displayBatchResults(batchResults, targetName, page = 1) {
+    // 새 데이터인 경우 캐시 업데이트
+    if (batchResults && batchResults !== _batchResultsCache.data) {
+        _batchResultsCache = { data: batchResults, targetName: targetName };
+        PAGINATION_CONFIG.predictionTable.currentPage = 1;
+        page = 1;
+    }
+
+    // 캐시에서 데이터 가져오기
+    const data = _batchResultsCache.data;
+    const name = _batchResultsCache.targetName;
+
+    if (!data || data.length === 0) {
         document.getElementById('offspringPrediction').innerHTML = '<div class="result-card"><p>예측 결과가 없습니다.</p></div>';
         return;
     }
-    
-    const method = document.querySelector('input[name="offspringMethod"]:checked').value;
-    const phenoList = batchResults[0].predictions ? Object.keys(batchResults[0].predictions) : [];
-    
+
+    const config = PAGINATION_CONFIG.predictionTable;
+    config.currentPage = page;
+
+    const method = document.querySelector('input[name="offspringMethod"]:checked')?.value || 'deterministic';
+    const phenoList = data[0].predictions ? Object.keys(data[0].predictions) : [];
+
+    // 페이징 계산
+    const totalItems = data.length;
+    const startIdx = (page - 1) * config.pageSize;
+    const endIdx = Math.min(startIdx + config.pageSize, totalItems);
+    const pagedData = data.slice(startIdx, endIdx);
+
     let html = `<div class="result-card">
-        <h3>🎯 일괄 예측 결과: ${targetName}</h3>
-        <p><strong>총 조합 수:</strong> ${batchResults.length}개</p>
+        <h3>🎯 일괄 예측 결과: ${escapeHtml(name)}</h3>
+        <p><strong>총 조합 수:</strong> ${data.length}개</p>
         <p><strong>예측 방식:</strong> ${method === 'deterministic' ? '결정론적 (OR)' : '확률적 (멘델 분리)'}</p>
     </div>
     <div class="result-card" style="overflow-x: auto;">
-        <h3>📊 전체 예측 결과</h3>
-        <table class="data-table"><thead><tr>
+        <h3>📊 전체 예측 결과</h3>`;
+
+    // 페이징 컨트롤 (상단)
+    if (totalItems > config.pageSize) {
+        html += createPaginationControls('predictionTable', totalItems, config, 'displayBatchResultsPage');
+    }
+
+    html += `<table class="data-table"><thead><tr>
             <th>조합</th><th>부모1</th><th>부모2</th><th>유사도</th>`;
-    
+
     phenoList.forEach(pheno => html += `<th>${escapeHtml(pheno)}</th>`);
 
     if (method === 'deterministic') {
@@ -7250,17 +7279,17 @@ function displayBatchResults(batchResults, targetName) {
         displayGenes.forEach(gene => html += `<th style="background: #017f97; color: white;">${escapeHtml(gene)}</th>`);
         if (geneNames.length > 15) html += `<th style="background: #017f97; color: white;">...</th>`;
     }
-    
+
     html += '</tr></thead><tbody>';
-    
-    batchResults.forEach((result, idx) => {
+
+    pagedData.forEach((result, idx) => {
         const rowColor = idx % 2 === 0 ? '#f8f9fa' : 'white';
         html += `<tr style="background: ${rowColor};">
             <td><strong>#${result.index}</strong></td>
             <td>${escapeHtml(result.parent1)}</td>
             <td>${escapeHtml(result.parent2)}</td>
             <td>${(result.similarity * 100).toFixed(1)}%</td>`;
-        
+
         phenoList.forEach(pheno => {
             const pred = result.predictions[pheno];
             if (pred) {
@@ -7272,7 +7301,7 @@ function displayBatchResults(batchResults, targetName) {
                 html += '<td>-</td>';
             }
         });
-        
+
         if (method === 'deterministic' && result.genotypes && result.genotypes[0]) {
             const geno = result.genotypes[0];
             const displayGenes = geno.slice(0, 15);
@@ -7281,17 +7310,28 @@ function displayBatchResults(batchResults, targetName) {
             });
             if (geneNames.length > 15) html += '<td>...</td>';
         }
-        
+
         html += '</tr>';
     });
-    
-    html += '</tbody></table></div>';
-    
-    html += `<div class="result-card" style="background: #e8f5e9;">
+
+    html += '</tbody></table>';
+
+    // 페이징 컨트롤 (하단)
+    if (totalItems > config.pageSize) {
+        html += createPaginationControls('predictionTable', totalItems, config, 'displayBatchResultsPage');
+    }
+
+    html += `</div>
+    <div class="result-card" style="background: #e8f5e9;">
         <p>💾 총 ${offspringPredictions.length}개 예측 저장됨 (종합 리포트 탭에서 엑셀로 다운로드 가능)</p>
     </div>`;
-    
+
     document.getElementById('offspringPrediction').innerHTML = html;
+}
+
+// 페이징 콜백 함수
+function displayBatchResultsPage(page) {
+    displayBatchResults(null, null, page);
 }
 
 // === 전체 형질 모델 학습 ===
