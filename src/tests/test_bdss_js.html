@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BDSS JavaScript 모듈 테스트</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #0c3026;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #017f97;
+        }
+        h2 {
+            color: #017f97;
+            margin: 20px 0 10px;
+        }
+        .test-section {
+            background: #f8faf9;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid #017f97;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .pass { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .warn { background: #fff3cd; color: #856404; }
+        button {
+            background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        #logOutput {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+        }
+        .summary {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .summary-box {
+            flex: 1;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-box.pass-summary { background: #d4edda; }
+        .summary-box.fail-summary { background: #f8d7da; }
+        .summary-box h3 { font-size: 2em; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧬 BDSS JavaScript 모듈 테스트</h1>
+
+        <div class="test-section">
+            <h2>테스트 실행</h2>
+            <button onclick="runAllTests()">🚀 전체 테스트 실행</button>
+            <button onclick="runCMSTests()">🧬 CMS 테스트</button>
+            <button onclick="runCrossingTests()">🌾 교배 테스트</button>
+            <button onclick="runRecommenderTests()">📊 추천 엔진 테스트</button>
+            <button onclick="runMarkerTests()">🎯 마커 선택 테스트</button>
+            <button onclick="clearLog()">🗑️ 로그 클리어</button>
+        </div>
+
+        <div class="summary" id="summarySection" style="display: none;">
+            <div class="summary-box pass-summary">
+                <h3 id="passCount">0</h3>
+                <p>통과</p>
+            </div>
+            <div class="summary-box fail-summary">
+                <h3 id="failCount">0</h3>
+                <p>실패</p>
+            </div>
+        </div>
+
+        <div id="testResults"></div>
+
+        <h2>📋 콘솔 로그</h2>
+        <div id="logOutput">테스트 결과가 여기에 표시됩니다...</div>
+    </div>
+
+    <!-- BDSS 모듈 로드 -->
+    <script src="../js/bdss/models.js"></script>
+    <script src="../js/bdss/crossing-engine.js"></script>
+    <script src="../js/bdss/breeding-recommender.js"></script>
+    <script src="../js/bdss/marker-selector.js"></script>
+    <script src="../js/bdss/index.js"></script>
+
+    <script>
+        // 테스트 유틸리티
+        let passCount = 0;
+        let failCount = 0;
+        const logOutput = document.getElementById('logOutput');
+        const testResults = document.getElementById('testResults');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.textContent += `[${timestamp}] ${message}\n`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function clearLog() {
+            logOutput.textContent = '';
+            testResults.innerHTML = '';
+            passCount = 0;
+            failCount = 0;
+            document.getElementById('summarySection').style.display = 'none';
+        }
+
+        function addResult(testName, passed, message = '') {
+            const div = document.createElement('div');
+            div.className = `test-result ${passed ? 'pass' : 'fail'}`;
+            div.textContent = `${passed ? '✓' : '✗'} ${testName}${message ? ': ' + message : ''}`;
+            testResults.appendChild(div);
+
+            if (passed) passCount++; else failCount++;
+
+            log(`${passed ? 'PASS' : 'FAIL'}: ${testName} ${message}`);
+        }
+
+        function updateSummary() {
+            document.getElementById('summarySection').style.display = 'flex';
+            document.getElementById('passCount').textContent = passCount;
+            document.getElementById('failCount').textContent = failCount;
+        }
+
+        function assert(condition, testName, message = '') {
+            addResult(testName, condition, message);
+        }
+
+        // ============================================================
+        // CMS 테스트
+        // ============================================================
+
+        function runCMSTests() {
+            log('=== CMS 시스템 테스트 시작 ===');
+
+            const bdss = window.BDSS;
+
+            // Test 1: CMS 유형 상수 확인
+            assert(bdss.CMSType.WA === 'WA', 'CMSType.WA 확인');
+            assert(bdss.CMSType.BT === 'BT', 'CMSType.BT 확인');
+            assert(bdss.CMSType.NORMAL === 'N', 'CMSType.NORMAL 확인');
+
+            // Test 2: 세포질 유형 확인
+            assert(bdss.CytoplasmType.STERILE === 'S', 'CytoplasmType.STERILE 확인');
+            assert(bdss.CytoplasmType.FERTILE === 'F', 'CytoplasmType.FERTILE 확인');
+
+            // Test 3: Rf 유전자 생성
+            const rf1 = new bdss.RfGene('Rf1', 'R', 'R', [bdss.CMSType.WA], 1.0);
+            assert(rf1.isHomozygousDominant === true, 'Rf1 RR 동형접합 우성');
+            assert(rf1.genotype === 'RR', 'Rf1 유전자형 RR');
+
+            const rf2 = new bdss.RfGene('Rf2', 'R', 'r', [bdss.CMSType.WA], 1.0);
+            assert(rf2.isHeterozygous === true, 'Rf2 Rr 이형접합');
+
+            const rf3 = new bdss.RfGene('Rf3', 'r', 'r', [bdss.CMSType.WA], 1.0);
+            assert(rf3.isHomozygousRecessive === true, 'Rf3 rr 동형접합 열성');
+
+            // Test 4: Rf 용량 효과 (Dosage Effect)
+            const effect_RR = rf1.calculateRestorationEffect(25);
+            const effect_Rr = rf2.calculateRestorationEffect(25);
+            const effect_rr = rf3.calculateRestorationEffect(25);
+
+            assert(effect_RR === 1.0, 'RR 완전 회복', `${(effect_RR * 100).toFixed(0)}%`);
+            assert(effect_Rr > 0.5 && effect_Rr < 1.0, 'Rr 부분 회복', `${(effect_Rr * 100).toFixed(0)}%`);
+            assert(effect_rr === 0, 'rr 미회복', `${(effect_rr * 100).toFixed(0)}%`);
+
+            // Test 5: 고온 스트레스 영향
+            const effect_Rr_hot = rf2.calculateRestorationEffect(38);
+            assert(effect_Rr_hot < effect_Rr, 'Rr 고온 스트레스 회복력 감소', `${(effect_Rr_hot * 100).toFixed(0)}%`);
+
+            // Test 6: CMS 품종 생성 및 임성 확인
+            const cmsGenotype = new bdss.Genotype({}, [rf3]);  // rr
+            const cmsPlant = new bdss.RicePlant({
+                name: 'CMS_A_Line',
+                cytoplasm: bdss.CytoplasmType.STERILE,
+                cmsType: bdss.CMSType.WA,
+                genotype: cmsGenotype
+            });
+
+            assert(cmsPlant.hasSterileCytoplasm === true, 'CMS 불임 세포질 확인');
+            assert(cmsPlant.determineFertility() === bdss.FertilityStatus.STERILE, 'CMS A계통 불임');
+
+            // Test 7: R계통 가임성 확인
+            const rGenotype = new bdss.Genotype({}, [rf1]);  // RR
+            const rPlant = new bdss.RicePlant({
+                name: 'R_Line',
+                cytoplasm: bdss.CytoplasmType.STERILE,  // CMS 세포질이지만 Rf로 회복
+                cmsType: bdss.CMSType.WA,
+                genotype: rGenotype
+            });
+
+            assert(rPlant.determineFertility() === bdss.FertilityStatus.FERTILE, 'R계통 가임 (RR)');
+
+            updateSummary();
+            log('=== CMS 시스템 테스트 완료 ===\n');
+        }
+
+        // ============================================================
+        // 교배 테스트
+        // ============================================================
+
+        function runCrossingTests() {
+            log('=== 교배 엔진 테스트 시작 ===');
+
+            const bdss = window.BDSS;
+            const engine = new bdss.CrossingEngine();
+
+            // Test 1: 정상 교배
+            const mother = new bdss.RicePlant({
+                name: 'Mother',
+                cytoplasm: bdss.CytoplasmType.FERTILE
+            });
+
+            const father = new bdss.RicePlant({
+                name: 'Father',
+                cytoplasm: bdss.CytoplasmType.FERTILE
+            });
+
+            const normalCross = engine.performCross(mother, father);
+            assert(normalCross.success === true, '정상 교배 성공');
+            assert(normalCross.offspring !== null, 'F1 자손 생성');
+
+            // Test 2: CMS Dead-End 검증 (A계통 불임 화분친)
+            const rfRecessive = new bdss.RfGene('Rf1', 'r', 'r', [bdss.CMSType.WA], 1.0);
+            const cmsGenotype = new bdss.Genotype({}, [rfRecessive]);
+
+            const aLine = new bdss.RicePlant({
+                name: 'A_Line',
+                cytoplasm: bdss.CytoplasmType.STERILE,
+                cmsType: bdss.CMSType.WA,
+                genotype: cmsGenotype
+            });
+
+            // A × A (둘 다 불임) - 화분친 불가
+            const aaValidation = engine.validateCross(aLine, aLine);
+            assert(aaValidation.isValid === false, 'A × A Dead-End 감지');
+            assert(aaValidation.deadEndType !== null, 'Dead-End 유형 기록');
+
+            // Test 3: A × R 교배 (정상)
+            const rfDominant = new bdss.RfGene('Rf1', 'R', 'R', [bdss.CMSType.WA], 1.0);
+            const rGenotype = new bdss.Genotype({}, [rfDominant]);
+
+            const rLine = new bdss.RicePlant({
+                name: 'R_Line',
+                cytoplasm: bdss.CytoplasmType.FERTILE,
+                genotype: rGenotype
+            });
+
+            const arCross = engine.performCross(aLine, rLine);
+            assert(arCross.success === true, 'A × R 교배 성공');
+            assert(arCross.offspring.cytoplasm === bdss.CytoplasmType.STERILE, 'F1 세포질 모계 유전');
+
+            // Test 4: 교배 방향 추천
+            const recommendation = engine.recommendCrossDirection(aLine, rLine);
+            assert(recommendation.recommended !== null, '교배 방향 추천');
+            assert(recommendation.recommended.isValid === true, '추천 방향 유효');
+
+            // Test 5: F2 집단 생성
+            if (arCross.success) {
+                const f2Pop = engine.generateF2Population(arCross.offspring, 20);
+                assert(f2Pop.length === 20, 'F2 집단 크기 확인', `${f2Pop.length}개체`);
+            }
+
+            updateSummary();
+            log('=== 교배 엔진 테스트 완료 ===\n');
+        }
+
+        // ============================================================
+        // 추천 엔진 테스트
+        // ============================================================
+
+        function runRecommenderTests() {
+            log('=== 육종 방법 추천 테스트 시작 ===');
+
+            const bdss = window.BDSS;
+            const recommender = new bdss.BreedingMethodRecommender();
+
+            // Test 1: 고유전력 질적 형질 → Pedigree/MABC
+            const config1 = new bdss.BreedingProgramConfig({
+                programName: '도열병 저항성 육종',
+                targetTraits: ['blast_resistance'],
+                budgetLimit: 100000000,
+                timeLimitYears: 8
+            });
+
+            const result1 = recommender.recommend(
+                config1,
+                { blast_resistance: 0.85 },
+                { blast_resistance: bdss.TraitType.QUALITATIVE }
+            );
+
+            assert(
+                result1.recommended_method === 'pedigree' || result1.recommended_method === 'mabc',
+                '고유전력 질적 형질 → Pedigree/MABC',
+                result1.recommended_method
+            );
+
+            // Test 2: 저유전력 양적 형질 + Speed Breeding → SSD
+            const config2 = new bdss.BreedingProgramConfig({
+                programName: '다수성 육종',
+                targetTraits: ['yield'],
+                budgetLimit: 200000000,
+                timeLimitYears: 6,
+                hasSpeedBreeding: true
+            });
+
+            const result2 = recommender.recommend(
+                config2,
+                { yield: 0.25 },
+                { yield: bdss.TraitType.QUANTITATIVE }
+            );
+
+            assert(
+                result2.recommended_method === 'ssd',
+                '저유전력 + Speed Breeding → SSD',
+                result2.recommended_method
+            );
+
+            // Test 3: 긴급 프로그램 + DH 시설 → DH
+            const config3 = new bdss.BreedingProgramConfig({
+                programName: '긴급 품종 개발',
+                targetTraits: ['salt_tolerance'],
+                budgetLimit: 500000000,
+                timeLimitYears: 3,
+                hasSpeedBreeding: true,
+                hasDHFacility: true
+            });
+
+            const result3 = recommender.recommend(
+                config3,
+                { salt_tolerance: 0.5 },
+                { salt_tolerance: bdss.TraitType.QUALITATIVE }
+            );
+
+            assert(
+                result3.recommended_method === 'dh' || result3.recommended_method === 'mabc',
+                '긴급 + DH 시설 → DH/MABC',
+                result3.recommended_method
+            );
+
+            // Test 4: 신뢰도 확인
+            assert(result1.confidence_score > 0, '신뢰도 점수 존재', `${(result1.confidence_score * 100).toFixed(0)}%`);
+
+            // Test 5: 비용 분석 확인
+            assert(Object.keys(result1.cost_analysis).length > 0, '비용 분석 생성');
+            assert(result1.cost_analysis[result1.recommended_method].total_cost > 0, '총 비용 계산');
+
+            updateSummary();
+            log('=== 육종 방법 추천 테스트 완료 ===\n');
+        }
+
+        // ============================================================
+        // 마커 선택 테스트
+        // ============================================================
+
+        function runMarkerTests() {
+            log('=== MAS 마커 선택 테스트 시작 ===');
+
+            const bdss = window.BDSS;
+            const selector = new bdss.MASMarkerSelector({ confidenceLevel: 0.95 });
+
+            // 샘플 유전자 데이터
+            const targetGenes = [
+                { name: 'Pi-ta', chromosome: '12', position: 10.5 },
+                { name: 'Pi-b', chromosome: '2', position: 35.2 },
+                { name: 'Xa21', chromosome: '11', position: 21.0 },
+                { name: 'Sub1A', chromosome: '9', position: 6.3 }
+            ];
+
+            // 샘플 마커 데이터
+            const availableMarkers = [
+                { name: 'RM144', chromosome: '12', position: 10.2, linkedGenes: ['Pi-ta'] },
+                { name: 'RM527', chromosome: '12', position: 12.0, linkedGenes: ['Pi-ta'] },
+                { name: 'RM208', chromosome: '2', position: 34.8, linkedGenes: ['Pi-b'] },
+                { name: 'RM21', chromosome: '11', position: 20.5, linkedGenes: ['Xa21'] },
+                { name: 'RM219', chromosome: '9', position: 6.1, linkedGenes: ['Sub1A'] },
+                { name: 'RM519', chromosome: '9', position: 7.5, linkedGenes: ['Sub1A'] },
+                { name: 'RM001', chromosome: '1', position: 50.0, linkedGenes: [] }
+            ];
+
+            // Test 1: 최소 마커 세트 선택
+            const result = selector.selectMinimumMarkerSet(targetGenes, availableMarkers);
+
+            assert(result.selectedMarkers.length > 0, '마커 선택됨', `${result.selectedMarkers.length}개`);
+            assert(result.coverage > 0, '커버리지 > 0', `${(result.coverage * 100).toFixed(0)}%`);
+
+            // Test 2: 커버리지 확인
+            assert(
+                result.coverage >= 0.8,
+                '80% 이상 커버리지',
+                `${(result.coverage * 100).toFixed(0)}%`
+            );
+
+            // Test 3: 연관 드래그 분석
+            assert(
+                Object.keys(result.linkageDragAnalysis).length > 0,
+                '연관 드래그 분석 생성'
+            );
+
+            // Test 4: 집단 크기 계산
+            assert(
+                result.recommendedPopulationSize > 0,
+                '집단 크기 계산',
+                `${result.recommendedPopulationSize}개체`
+            );
+
+            // Test 5: 배경 마커 선택
+            const bgResult = selector.selectBackgroundMarkers('12', 10.5, availableMarkers);
+            assert(bgResult.markers.length > 0, '배경 마커 선택됨', `${bgResult.markers.length}개`);
+            assert(bgResult.estimatedGenerations > 0, '예상 세대 수 계산', `${bgResult.estimatedGenerations}세대`);
+
+            // Test 6: 마커 우선순위
+            const markersWithMetrics = availableMarkers.map(m => ({
+                ...m,
+                polymorphism: Math.random(),
+                reliability: 0.7 + Math.random() * 0.3,
+                cost: 3000 + Math.random() * 5000
+            }));
+
+            const prioritized = selector.prioritizeMarkers(markersWithMetrics);
+            assert(prioritized[0].priorityScore >= prioritized[1].priorityScore, '우선순위 정렬 확인');
+
+            // Test 7: MABC 전략
+            const mabcStrategy = selector.getMABCSelectionStrategy(
+                2,
+                [{ name: 'RM144' }],
+                bgResult.markers
+            );
+            assert(mabcStrategy.generation === 'BC2', 'BC2 전략 생성');
+            assert(mabcStrategy.populationSize > 0, '집단 크기 포함');
+
+            updateSummary();
+            log('=== MAS 마커 선택 테스트 완료 ===\n');
+        }
+
+        // ============================================================
+        // 전체 테스트
+        // ============================================================
+
+        function runAllTests() {
+            clearLog();
+            log('╔════════════════════════════════════════╗');
+            log('║  BDSS JavaScript 모듈 전체 테스트 시작   ║');
+            log('╚════════════════════════════════════════╝\n');
+
+            // 모듈 초기화
+            if (window.BDSS && window.BDSS.init) {
+                window.BDSS.init();
+            }
+
+            try {
+                runCMSTests();
+            } catch (e) {
+                log(`CMS 테스트 오류: ${e.message}`);
+                addResult('CMS 테스트', false, e.message);
+            }
+
+            try {
+                runCrossingTests();
+            } catch (e) {
+                log(`교배 테스트 오류: ${e.message}`);
+                addResult('교배 테스트', false, e.message);
+            }
+
+            try {
+                runRecommenderTests();
+            } catch (e) {
+                log(`추천 엔진 테스트 오류: ${e.message}`);
+                addResult('추천 엔진 테스트', false, e.message);
+            }
+
+            try {
+                runMarkerTests();
+            } catch (e) {
+                log(`마커 선택 테스트 오류: ${e.message}`);
+                addResult('마커 선택 테스트', false, e.message);
+            }
+
+            log('\n╔════════════════════════════════════════╗');
+            log(`║  테스트 완료: ${passCount} 통과, ${failCount} 실패        ║`);
+            log('╚════════════════════════════════════════╝');
+
+            updateSummary();
+        }
+
+        // 페이지 로드 시 초기화
+        window.addEventListener('load', () => {
+            log('BDSS 테스트 페이지 로드 완료');
+            if (window.BDSS) {
+                log(`BDSS 버전: ${window.BDSS.VERSION || 'unknown'}`);
+            } else {
+                log('경고: BDSS 모듈이 로드되지 않았습니다.');
+            }
+        });
+    </script>
+</body>
+</html>
