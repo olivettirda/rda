@@ -1308,6 +1308,44 @@ function parseExcelWithWorker(arrayBuffer) {
 // Worker 사용 가능 여부 확인 (Worker 지원 안 되면 기존 방식 사용)
 const useWorker = typeof Worker !== 'undefined';
 
+// === 페이징 설정 ===
+const PAGINATION_CONFIG = {
+    markerTable: { pageSize: 50, currentPage: 1 },
+    predictionTable: { pageSize: 20, currentPage: 1 }
+};
+
+function createPaginationControls(containerId, totalItems, config, renderCallback) {
+    const totalPages = Math.ceil(totalItems / config.pageSize);
+    if (totalPages <= 1) return '';
+
+    const currentPage = config.currentPage;
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+
+    let html = `<div class="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin: 15px 0; flex-wrap: wrap;">
+        <span style="color: #666; font-size: 0.9em;">총 ${totalItems}개 (${totalPages}페이지)</span>
+        <button class="btn btn-sm" onclick="${renderCallback}(1)" ${currentPage === 1 ? 'disabled' : ''} style="padding: 5px 10px;">◀◀</button>
+        <button class="btn btn-sm" onclick="${renderCallback}(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="padding: 5px 10px;">◀</button>`;
+
+    for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === currentPage;
+        html += `<button class="btn btn-sm" onclick="${renderCallback}(${i})"
+            style="padding: 5px 12px; ${isActive ? 'background: var(--dmrt-primary); color: white;' : ''}">${i}</button>`;
+    }
+
+    html += `<button class="btn btn-sm" onclick="${renderCallback}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="padding: 5px 10px;">▶</button>
+        <button class="btn btn-sm" onclick="${renderCallback}(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} style="padding: 5px 10px;">▶▶</button>
+        <select onchange="${renderCallback}(1); PAGINATION_CONFIG.${containerId}.pageSize = parseInt(this.value);" style="padding: 5px; border-radius: 4px; border: 1px solid var(--dmrt-border);">
+            <option value="20" ${config.pageSize === 20 ? 'selected' : ''}>20개씩</option>
+            <option value="50" ${config.pageSize === 50 ? 'selected' : ''}>50개씩</option>
+            <option value="100" ${config.pageSize === 100 ? 'selected' : ''}>100개씩</option>
+            <option value="500" ${config.pageSize === 500 ? 'selected' : ''}>500개씩</option>
+        </select>
+    </div>`;
+
+    return html;
+}
+
 // === 형질-유전자 매핑 (Option A용) ===
 const traitGeneMapping = {
     '아밀로스': ['Wx', 'SSIIa', 'SBE3', 'ISA'],
@@ -3699,27 +3737,50 @@ function displayChrDetail(chr) {
     document.getElementById('markerTable').innerHTML = html;
 }
 
-function displayMarkerTable() {
-    const linked = markerInfo.filter(m => m.chr);
+function displayMarkerTable(page = 1) {
+    const config = PAGINATION_CONFIG.markerTable;
+    config.currentPage = page;
+
+    const linked = markerInfo.filter(m => m.chr).sort((a,b) => a.chr - b.chr || (a.position_cM || 0) - (b.position_cM || 0));
     const unlinked = markerInfo.filter(m => !m.chr);
-    
+
+    // 페이징 적용 (연관 마커에만)
+    const totalLinked = linked.length;
+    const startIdx = (page - 1) * config.pageSize;
+    const endIdx = Math.min(startIdx + config.pageSize, totalLinked);
+    const pagedLinked = linked.slice(startIdx, endIdx);
+
     let html = `<div class="result-card"><h3>📋 전체 마커 정보 (${markerInfo.length}개)</h3>`;
+
     if (linked.length) {
-        html += `<h4 style="color:#00b894;margin:15px 0;">✅ 연관 매핑 완료 (${linked.length}개)</h4>
-            <table class="data-table"><thead><tr><th>마커</th><th>염색체</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
-        linked.sort((a,b) => a.chr - b.chr || (a.position_cM || 0) - (b.position_cM || 0)).forEach(m => {
+        html += `<h4 style="color:#00b894;margin:15px 0;">✅ 연관 매핑 완료 (${linked.length}개)</h4>`;
+
+        // 페이징 컨트롤 (상단)
+        if (totalLinked > config.pageSize) {
+            html += createPaginationControls('markerTable', totalLinked, config, 'displayMarkerTable');
+        }
+
+        html += `<table class="data-table"><thead><tr><th>마커</th><th>염색체</th><th>위치(cM)</th><th>억제</th></tr></thead><tbody>`;
+        pagedLinked.forEach(m => {
             html += `<tr><td><strong>${escapeHtml(m.name)}</strong></td><td>Chr ${m.chr}</td>
                 <td>${m.position_cM?.toFixed(2) || '-'}</td>
                 <td><span class="quality-badge ${getSuppClass(m.suppression)}">${m.suppression?.toFixed(1)}</span></td></tr>`;
         });
         html += '</tbody></table>';
+
+        // 페이징 컨트롤 (하단)
+        if (totalLinked > config.pageSize) {
+            html += createPaginationControls('markerTable', totalLinked, config, 'displayMarkerTable');
+        }
     }
+
     if (unlinked.length) {
         html += `<h4 style="color:#e17055;margin:15px 0;">⚠️ 위치 미정 - 독립 분리 적용 (${unlinked.length}개)</h4>
             <div style="display:flex;flex-wrap:wrap;gap:5px;">`;
         unlinked.forEach(m => { html += `<span class="gene-chip">${escapeHtml(m.name)}</span>`; });
         html += '</div>';
     }
+
     html += '</div>';
     document.getElementById('markerTable').innerHTML = html;
 }
