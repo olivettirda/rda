@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>이미지 크기 조절기 - Image Resizer</title>
+    <title>이미지 변환기 - Image Converter</title>
     <link rel="icon" type="image/png" href="files/ssallogo.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/psd.js@3.4.0/dist/psd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -21,7 +22,7 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 0 auto;
         }
 
@@ -47,6 +48,15 @@
             padding: 25px;
             margin-bottom: 20px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .card-title {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .upload-area {
@@ -82,6 +92,23 @@
             font-size: 0.9rem;
         }
 
+        .format-tags {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .format-tag {
+            background: rgba(1, 127, 151, 0.15);
+            color: #017f97;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
         .upload-btn {
             display: inline-block;
             background: linear-gradient(135deg, #0c3026 0%, #017f97 100%);
@@ -101,6 +128,47 @@
 
         #fileInput {
             display: none;
+        }
+
+        /* 탭 네비게이션 */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            background: #cce3dd;
+            padding: 5px;
+            border-radius: 12px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: #666;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #017f97;
+        }
+
+        .tab.active {
+            background: white;
+            color: #017f97;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .settings {
@@ -161,6 +229,79 @@
             margin-top: 8px;
         }
 
+        /* ICO 사이즈 선택 */
+        .ico-sizes {
+            display: none;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f7f5;
+            border-radius: 10px;
+        }
+
+        .ico-sizes.show {
+            display: flex;
+        }
+
+        .ico-sizes label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border: 2px solid #e0e0e0;
+            transition: all 0.2s;
+        }
+
+        .ico-sizes label:hover {
+            border-color: #017f97;
+        }
+
+        .ico-sizes input:checked + span {
+            color: #017f97;
+            font-weight: 600;
+        }
+
+        .ico-sizes label:has(input:checked) {
+            border-color: #017f97;
+            background: #e8f4f8;
+        }
+
+        .ico-sizes input {
+            accent-color: #017f97;
+        }
+
+        /* 투명 여백 옵션 */
+        .padding-option {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f7f5;
+            border-radius: 10px;
+        }
+
+        .padding-option.show {
+            display: block;
+        }
+
+        .padding-option label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .padding-option input {
+            accent-color: #017f97;
+            width: 18px;
+            height: 18px;
+        }
+
         .image-list {
             max-height: 400px;
             overflow-y: auto;
@@ -179,8 +320,9 @@
         .image-item img {
             width: 60px;
             height: 60px;
-            object-fit: cover;
+            object-fit: contain;
             border-radius: 8px;
+            background: repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 10px 10px;
         }
 
         .image-info {
@@ -216,6 +358,12 @@
         .image-info .size .ratio {
             color: #017f97;
             font-weight: 600;
+        }
+
+        .image-info .dimensions {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 2px;
         }
 
         .image-item .remove-btn {
@@ -421,6 +569,10 @@
                 width: 100%;
                 justify-content: center;
             }
+
+            .tabs {
+                flex-direction: column;
+            }
         }
 
         /* 스크롤바 스타일 */
@@ -467,51 +619,144 @@
         @keyframes shimmer {
             100% { left: 100%; }
         }
+
+        /* 알림 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📸 이미지 크기 조절기</h1>
-            <p>이미지 크기와 용량을 쉽고 빠르게 조절하세요</p>
+            <h1>🖼️ 이미지 변환기</h1>
+            <p>이미지 포맷 변환, 크기 조절, ICO 생성을 한 번에</p>
         </header>
 
         <div class="card">
             <div class="upload-area" id="uploadArea">
                 <div class="icon">📁</div>
                 <h3>이미지를 드래그하거나 클릭하세요</h3>
-                <p>JPG, PNG, WEBP 지원 | 여러 파일 동시 선택 가능</p>
+                <p>여러 파일 동시 선택 가능</p>
+                <div class="format-tags">
+                    <span class="format-tag">JPG</span>
+                    <span class="format-tag">PNG</span>
+                    <span class="format-tag">WEBP</span>
+                    <span class="format-tag">GIF</span>
+                    <span class="format-tag">BMP</span>
+                    <span class="format-tag">SVG</span>
+                    <span class="format-tag">PSD</span>
+                    <span class="format-tag">ICO</span>
+                    <span class="format-tag">TIFF</span>
+                </div>
                 <div class="upload-btn">파일 선택</div>
             </div>
-            <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp">
+            <input type="file" id="fileInput" multiple accept="image/*,.psd,.ai,.svg">
         </div>
 
         <div class="card">
-            <h3 style="margin-bottom: 15px; color: #333;">⚙️ 압축 설정</h3>
-            <div class="settings">
-                <div class="setting-item">
-                    <label>압축 품질</label>
-                    <input type="range" id="quality" min="10" max="100" value="70">
-                    <div class="value" id="qualityValue">70%</div>
+            <div class="tabs">
+                <button class="tab active" data-tab="resize">📐 크기/압축</button>
+                <button class="tab" data-tab="convert">🔄 포맷 변환</button>
+                <button class="tab" data-tab="ico">⭐ ICO 생성</button>
+            </div>
+
+            <!-- 크기/압축 탭 -->
+            <div class="tab-content active" id="resize-tab">
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>압축 품질</label>
+                        <input type="range" id="quality" min="10" max="100" value="85">
+                        <div class="value" id="qualityValue">85%</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>최대 너비 (px)</label>
+                        <input type="range" id="maxWidth" min="100" max="4000" value="1920" step="100">
+                        <div class="value" id="maxWidthValue">1920px</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>출력 형식</label>
+                        <select id="outputFormat">
+                            <option value="original">원본 유지</option>
+                            <option value="jpeg">JPEG</option>
+                            <option value="png">PNG</option>
+                            <option value="webp">WebP</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="setting-item">
-                    <label>최대 너비 (px)</label>
-                    <input type="range" id="maxWidth" min="100" max="4000" value="1920" step="100">
-                    <div class="value" id="maxWidthValue">1920px</div>
+            </div>
+
+            <!-- 포맷 변환 탭 -->
+            <div class="tab-content" id="convert-tab">
+                <div class="settings">
+                    <div class="setting-item">
+                        <label>변환할 포맷</label>
+                        <select id="convertFormat">
+                            <option value="jpeg">JPEG (.jpg)</option>
+                            <option value="png">PNG (.png)</option>
+                            <option value="webp">WebP (.webp)</option>
+                            <option value="gif">GIF (.gif)</option>
+                            <option value="bmp">BMP (.bmp)</option>
+                            <option value="ico">ICO (.ico) - 단일 사이즈</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>품질 (JPEG/WebP)</label>
+                        <input type="range" id="convertQuality" min="10" max="100" value="90">
+                        <div class="value" id="convertQualityValue">90%</div>
+                    </div>
                 </div>
-                <div class="setting-item">
-                    <label>출력 형식</label>
-                    <select id="outputFormat">
-                        <option value="jpeg">JPEG (권장)</option>
-                        <option value="png">PNG</option>
-                        <option value="webp">WebP (최신)</option>
-                    </select>
+            </div>
+
+            <!-- ICO 생성 탭 -->
+            <div class="tab-content" id="ico-tab">
+                <div class="settings">
+                    <div class="setting-item" style="grid-column: 1 / -1;">
+                        <label>ICO 사이즈 선택 (다중 선택 가능)</label>
+                        <div class="ico-sizes show" style="display: flex;">
+                            <label><input type="checkbox" name="icoSize" value="16" checked><span>16×16 (파비콘)</span></label>
+                            <label><input type="checkbox" name="icoSize" value="32" checked><span>32×32 (파비콘)</span></label>
+                            <label><input type="checkbox" name="icoSize" value="48" checked><span>48×48</span></label>
+                            <label><input type="checkbox" name="icoSize" value="64"><span>64×64</span></label>
+                            <label><input type="checkbox" name="icoSize" value="128"><span>128×128</span></label>
+                            <label><input type="checkbox" name="icoSize" value="256"><span>256×256</span></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="padding-option show" style="display: block;">
+                    <label>
+                        <input type="checkbox" id="addPadding" checked>
+                        <span>비율이 1:1이 아닌 이미지에 투명 여백 추가 (정사각형으로 만들기)</span>
+                    </label>
                 </div>
             </div>
         </div>
 
         <div class="card" id="resultsCard" style="display: none;">
-            <h3 style="margin-bottom: 15px; color: #333;">📊 압축 결과</h3>
+            <h3 class="card-title">📊 처리 결과</h3>
 
             <div class="stats">
                 <div class="stat-item">
@@ -523,7 +768,7 @@
                     <div class="value" id="originalSize">0 MB</div>
                 </div>
                 <div class="stat-item">
-                    <div class="label">압축 후 크기</div>
+                    <div class="label">변환 후 크기</div>
                     <div class="value green" id="compressedSize">0 MB</div>
                 </div>
             </div>
@@ -540,8 +785,8 @@
             </div>
 
             <div class="action-buttons">
-                <button class="btn btn-primary" id="compressBtn" disabled>
-                    <span>🗜️</span> 압축 시작
+                <button class="btn btn-primary" id="processBtn" disabled>
+                    <span>⚡</span> 변환 시작
                 </button>
                 <button class="btn btn-success" id="downloadZipBtn" disabled>
                     <span>📦</span> ZIP 다운로드
@@ -560,10 +805,12 @@
         </footer>
     </div>
 
+    <div class="toast" id="toast"></div>
+
     <script>
         // 상태 관리
         let images = [];
-        let compressedImages = [];
+        let currentTab = 'resize';
 
         // DOM 요소
         const uploadArea = document.getElementById('uploadArea');
@@ -573,19 +820,31 @@
         const maxWidth = document.getElementById('maxWidth');
         const maxWidthValue = document.getElementById('maxWidthValue');
         const outputFormat = document.getElementById('outputFormat');
+        const convertFormat = document.getElementById('convertFormat');
+        const convertQuality = document.getElementById('convertQuality');
+        const convertQualityValue = document.getElementById('convertQualityValue');
         const resultsCard = document.getElementById('resultsCard');
         const imageList = document.getElementById('imageList');
-        const compressBtn = document.getElementById('compressBtn');
+        const processBtn = document.getElementById('processBtn');
         const downloadZipBtn = document.getElementById('downloadZipBtn');
         const downloadFolderBtn = document.getElementById('downloadFolderBtn');
         const clearAllBtn = document.getElementById('clearAllBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const addPadding = document.getElementById('addPadding');
 
         // File System Access API 지원 확인
         if ('showDirectoryPicker' in window) {
             downloadFolderBtn.style.display = 'inline-flex';
         }
-        const progressBar = document.getElementById('progressBar');
-        const progressFill = document.getElementById('progressFill');
+
+        // 토스트 알림
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
 
         // 파일 크기 포맷
         function formatSize(bytes) {
@@ -598,9 +857,22 @@
 
         // 압축률 계산
         function calculateRatio(original, compressed) {
+            if (original === 0) return '0%';
             const ratio = ((original - compressed) / original * 100).toFixed(1);
             return ratio > 0 ? `-${ratio}%` : `+${Math.abs(ratio)}%`;
         }
+
+        // 탭 전환
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+                document.getElementById(currentTab + '-tab').classList.add('active');
+                console.log('탭 전환:', currentTab);
+            });
+        });
 
         // 업로드 영역 이벤트
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -633,32 +905,147 @@
             maxWidthValue.textContent = maxWidth.value + 'px';
         });
 
-        // 파일 처리
-        function handleFiles(files) {
-            const validFiles = Array.from(files).filter(file =>
-                file.type.match(/image\/(jpeg|png|webp)/)
-            );
+        convertQuality.addEventListener('input', () => {
+            convertQualityValue.textContent = convertQuality.value + '%';
+        });
 
-            if (validFiles.length === 0) {
-                alert('지원하지 않는 파일 형식입니다.\nJPG, PNG, WEBP 파일만 업로드 가능합니다.');
-                return;
+        // PSD 파일 처리
+        async function handlePSD(file) {
+            console.log('PSD 파일 처리 시작:', file.name);
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const psd = await PSD.fromDroppedFile(file);
+                await psd.parse();
+                const png = psd.image.toPng();
+                console.log('PSD 파싱 완료');
+                return png.src;
+            } catch (error) {
+                console.error('PSD 파싱 에러:', error);
+                showToast('PSD 파일 처리 실패: ' + file.name, 'error');
+                return null;
             }
+        }
 
-            validFiles.forEach(file => {
+        // SVG 파일 처리
+        async function handleSVG(file) {
+            console.log('SVG 파일 처리 시작:', file.name);
+            return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    images.push({
-                        id: Date.now() + Math.random(),
-                        name: file.name,
-                        originalSize: file.size,
-                        dataUrl: e.target.result,
-                        compressed: null,
-                        compressedSize: 0
-                    });
-                    updateUI();
+                    const svgText = e.target.result;
+                    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+                    const url = URL.createObjectURL(blob);
+
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        // SVG 크기 추출 또는 기본값
+                        let width = img.width || 1000;
+                        let height = img.height || 1000;
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        URL.revokeObjectURL(url);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = () => {
+                        console.error('SVG 렌더링 실패');
+                        resolve(null);
+                    };
+                    img.src = url;
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // ICO 파일 처리 (첫 번째 이미지만 추출)
+        async function handleICO(file) {
+            console.log('ICO 파일 처리 시작:', file.name);
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = () => resolve(null);
+                    img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             });
+        }
+
+        // 파일 처리
+        async function handleFiles(files) {
+            console.log('파일 처리 시작:', files.length, '개');
+            const validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg', '.psd', '.ico', '.tiff', '.tif'];
+
+            for (const file of files) {
+                const ext = '.' + file.name.split('.').pop().toLowerCase();
+                const isValid = validExtensions.includes(ext) || file.type.startsWith('image/');
+
+                if (!isValid) {
+                    console.log('지원하지 않는 형식:', file.name);
+                    showToast(`지원하지 않는 형식: ${file.name}`, 'error');
+                    continue;
+                }
+
+                let dataUrl = null;
+                let width = 0, height = 0;
+
+                // PSD 파일 처리
+                if (ext === '.psd') {
+                    dataUrl = await handlePSD(file);
+                }
+                // SVG 파일 처리
+                else if (ext === '.svg') {
+                    dataUrl = await handleSVG(file);
+                }
+                // ICO 파일 처리
+                else if (ext === '.ico') {
+                    dataUrl = await handleICO(file);
+                }
+                // 일반 이미지 처리
+                else {
+                    dataUrl = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                if (!dataUrl) continue;
+
+                // 이미지 크기 가져오기
+                const dimensions = await new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => resolve({ width: img.width, height: img.height });
+                    img.onerror = () => resolve({ width: 0, height: 0 });
+                    img.src = dataUrl;
+                });
+
+                images.push({
+                    id: Date.now() + Math.random(),
+                    name: file.name,
+                    originalSize: file.size,
+                    dataUrl: dataUrl,
+                    width: dimensions.width,
+                    height: dimensions.height,
+                    processed: null,
+                    processedSize: 0,
+                    processedName: null
+                });
+
+                console.log('이미지 추가:', file.name, dimensions.width + 'x' + dimensions.height);
+                updateUI();
+            }
         }
 
         // UI 업데이트
@@ -668,15 +1055,15 @@
             // 통계 업데이트
             document.getElementById('totalFiles').textContent = images.length;
             const totalOriginal = images.reduce((sum, img) => sum + img.originalSize, 0);
-            const totalCompressed = images.reduce((sum, img) => sum + img.compressedSize, 0);
+            const totalProcessed = images.reduce((sum, img) => sum + img.processedSize, 0);
             document.getElementById('originalSize').textContent = formatSize(totalOriginal);
-            document.getElementById('compressedSize').textContent = formatSize(totalCompressed);
+            document.getElementById('compressedSize').textContent = formatSize(totalProcessed);
 
             // 버튼 상태
-            compressBtn.disabled = images.length === 0;
-            const hasCompressed = images.some(img => img.compressed);
-            downloadZipBtn.disabled = !hasCompressed;
-            downloadFolderBtn.disabled = !hasCompressed;
+            processBtn.disabled = images.length === 0;
+            const hasProcessed = images.some(img => img.processed);
+            downloadZipBtn.disabled = !hasProcessed;
+            downloadFolderBtn.disabled = !hasProcessed;
             clearAllBtn.disabled = images.length === 0;
 
             // 이미지 리스트 렌더링
@@ -692,18 +1079,19 @@
 
             imageList.innerHTML = images.map(img => `
                 <div class="image-item" data-id="${img.id}">
-                    <img src="${img.compressed || img.dataUrl}" alt="${img.name}">
+                    <img src="${img.processed || img.dataUrl}" alt="${img.name}">
                     <div class="image-info">
-                        <div class="name">${img.name}</div>
+                        <div class="name">${img.processedName || img.name}</div>
+                        <div class="dimensions">${img.width} × ${img.height}px</div>
                         <div class="size">
-                            <span class="${img.compressed ? 'original' : ''}">${formatSize(img.originalSize)}</span>
-                            ${img.compressed ? `
-                                → <span class="compressed">${formatSize(img.compressedSize)}</span>
-                                <span class="ratio">(${calculateRatio(img.originalSize, img.compressedSize)})</span>
+                            <span class="${img.processed ? 'original' : ''}">${formatSize(img.originalSize)}</span>
+                            ${img.processed ? `
+                                → <span class="compressed">${formatSize(img.processedSize)}</span>
+                                <span class="ratio">(${calculateRatio(img.originalSize, img.processedSize)})</span>
                             ` : ''}
                         </div>
                     </div>
-                    ${img.compressed ? `
+                    ${img.processed ? `
                         <button class="download-btn" onclick="downloadSingle('${img.id}')">⬇</button>
                     ` : ''}
                     <button class="remove-btn" onclick="removeImage('${img.id}')">×</button>
@@ -720,13 +1108,51 @@
         // 개별 다운로드
         window.downloadSingle = function(id) {
             const img = images.find(i => i.id == id);
-            if (img && img.compressed) {
-                downloadImage(img.compressed, img.name);
+            if (img && img.processed) {
+                if (img.processedBlob) {
+                    // ICO 등 Blob 데이터
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(img.processedBlob);
+                    link.download = img.processedName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                } else {
+                    downloadImage(img.processed, img.processedName);
+                }
             }
         };
 
-        // 이미지 압축
-        async function compressImage(imageData, quality, maxWidth, format) {
+        // 이미지를 정사각형으로 만들기 (투명 여백 추가)
+        function makeSquare(imageData, targetSize) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetSize;
+                    canvas.height = targetSize;
+                    const ctx = canvas.getContext('2d');
+
+                    // 투명 배경
+                    ctx.clearRect(0, 0, targetSize, targetSize);
+
+                    // 비율 유지하며 중앙 배치
+                    const scale = Math.min(targetSize / img.width, targetSize / img.height);
+                    const newWidth = img.width * scale;
+                    const newHeight = img.height * scale;
+                    const x = (targetSize - newWidth) / 2;
+                    const y = (targetSize - newHeight) / 2;
+
+                    ctx.drawImage(img, x, y, newWidth, newHeight);
+                    resolve(canvas);
+                };
+                img.src = imageData;
+            });
+        }
+
+        // 이미지 리사이즈/압축
+        async function processResize(imageData, qualityVal, maxWidthVal, format, originalFormat) {
             return new Promise((resolve) => {
                 const img = new Image();
                 img.onload = () => {
@@ -735,21 +1161,27 @@
                     let height = img.height;
 
                     // 최대 너비 조정
-                    if (width > maxWidth) {
-                        height = (height * maxWidth) / width;
-                        width = maxWidth;
+                    if (width > maxWidthVal) {
+                        height = (height * maxWidthVal) / width;
+                        width = maxWidthVal;
                     }
 
                     canvas.width = width;
                     canvas.height = height;
 
                     const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, width, height);
+
+                    // 투명 배경 지원 여부
+                    const outputFmt = format === 'original' ? originalFormat : format;
+                    if (outputFmt === 'jpeg') {
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, width, height);
+                    }
+
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    const mimeType = `image/${format}`;
-                    const dataUrl = canvas.toDataURL(mimeType, quality / 100);
+                    const mimeType = `image/${outputFmt === 'jpg' ? 'jpeg' : outputFmt}`;
+                    const dataUrl = canvas.toDataURL(mimeType, qualityVal / 100);
 
                     resolve(dataUrl);
                 };
@@ -757,41 +1189,249 @@
             });
         }
 
-        // 압축 시작
-        compressBtn.addEventListener('click', async () => {
-            const qualityVal = parseInt(quality.value);
-            const maxWidthVal = parseInt(maxWidth.value);
-            const format = outputFormat.value;
+        // 포맷 변환
+        async function processConvert(imageData, format, qualityVal) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
 
-            progressBar.classList.add('show');
-            compressBtn.disabled = true;
-            compressBtn.innerHTML = '<span>⏳</span> 압축 중...';
+                    const ctx = canvas.getContext('2d');
 
+                    // JPEG는 투명 배경 지원 안 함
+                    if (format === 'jpeg' || format === 'bmp') {
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, img.width, img.height);
+                    }
+
+                    ctx.drawImage(img, 0, 0);
+
+                    let mimeType, dataUrl;
+
+                    if (format === 'bmp') {
+                        // BMP는 Canvas API가 지원하지 않으므로 PNG로 대체
+                        mimeType = 'image/png';
+                        dataUrl = canvas.toDataURL(mimeType);
+                    } else if (format === 'ico') {
+                        // 단일 사이즈 ICO
+                        mimeType = 'image/png';
+                        dataUrl = canvas.toDataURL(mimeType);
+                    } else {
+                        mimeType = `image/${format}`;
+                        dataUrl = canvas.toDataURL(mimeType, qualityVal / 100);
+                    }
+
+                    resolve(dataUrl);
+                };
+                img.src = imageData;
+            });
+        }
+
+        // ICO 파일 생성 (멀티사이즈)
+        async function createICO(imageData, sizes, usePadding) {
+            console.log('ICO 생성 시작, 사이즈:', sizes, '패딩:', usePadding);
+
+            const pngDataArray = [];
+
+            for (const size of sizes) {
+                let canvas;
+
+                if (usePadding) {
+                    canvas = await makeSquare(imageData, size);
+                } else {
+                    canvas = await new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const c = document.createElement('canvas');
+                            c.width = size;
+                            c.height = size;
+                            const ctx = c.getContext('2d');
+                            ctx.drawImage(img, 0, 0, size, size);
+                            resolve(c);
+                        };
+                        img.src = imageData;
+                    });
+                }
+
+                // PNG 데이터 추출
+                const pngDataUrl = canvas.toDataURL('image/png');
+                const base64 = pngDataUrl.split(',')[1];
+                const binaryString = atob(base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                pngDataArray.push({ size, data: bytes });
+            }
+
+            // ICO 파일 구조 생성
+            const icoData = buildICO(pngDataArray);
+            console.log('ICO 생성 완료, 크기:', icoData.byteLength);
+            return new Blob([icoData], { type: 'image/x-icon' });
+        }
+
+        // ICO 파일 바이너리 구조 생성
+        function buildICO(images) {
+            // ICONDIR 헤더 (6 bytes)
+            // ICONDIRENTRY (16 bytes each)
+            // Image data
+
+            const headerSize = 6;
+            const entrySize = 16;
+            const numImages = images.length;
+
+            // 전체 크기 계산
+            let totalSize = headerSize + (entrySize * numImages);
+            const imageOffsets = [];
+
+            for (const img of images) {
+                imageOffsets.push(totalSize);
+                totalSize += img.data.length;
+            }
+
+            const buffer = new ArrayBuffer(totalSize);
+            const view = new DataView(buffer);
+            const uint8 = new Uint8Array(buffer);
+
+            // ICONDIR
+            view.setUint16(0, 0, true);        // Reserved
+            view.setUint16(2, 1, true);        // Type (1 = ICO)
+            view.setUint16(4, numImages, true); // Number of images
+
+            // ICONDIRENTRY for each image
+            let offset = headerSize;
             for (let i = 0; i < images.length; i++) {
                 const img = images[i];
-                const compressed = await compressImage(img.dataUrl, qualityVal, maxWidthVal, format);
+                const size = img.size >= 256 ? 0 : img.size;
 
-                // Base64를 Blob으로 변환하여 크기 계산
-                const base64Data = compressed.split(',')[1];
-                const compressedSize = Math.round((base64Data.length * 3) / 4);
+                view.setUint8(offset, size);           // Width
+                view.setUint8(offset + 1, size);       // Height
+                view.setUint8(offset + 2, 0);          // Color palette
+                view.setUint8(offset + 3, 0);          // Reserved
+                view.setUint16(offset + 4, 1, true);   // Color planes
+                view.setUint16(offset + 6, 32, true);  // Bits per pixel
+                view.setUint32(offset + 8, img.data.length, true);  // Image size
+                view.setUint32(offset + 12, imageOffsets[i], true); // Image offset
 
-                img.compressed = compressed;
-                img.compressedSize = compressedSize;
+                offset += entrySize;
+            }
 
-                // 확장자 업데이트
-                const ext = format === 'jpeg' ? 'jpg' : format;
-                img.name = img.name.replace(/\.[^.]+$/, `.${ext}`);
+            // Image data
+            for (let i = 0; i < images.length; i++) {
+                uint8.set(images[i].data, imageOffsets[i]);
+            }
 
-                // 진행률 업데이트
-                const progress = ((i + 1) / images.length) * 100;
-                progressFill.style.width = progress + '%';
+            return buffer;
+        }
 
-                updateUI();
+        // 원본 포맷 추출
+        function getOriginalFormat(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const formatMap = {
+                'jpg': 'jpeg',
+                'jpeg': 'jpeg',
+                'png': 'png',
+                'webp': 'webp',
+                'gif': 'gif',
+                'bmp': 'png',
+                'svg': 'png',
+                'psd': 'png',
+                'ico': 'png',
+                'tiff': 'png',
+                'tif': 'png'
+            };
+            return formatMap[ext] || 'png';
+        }
+
+        // 처리 시작
+        processBtn.addEventListener('click', async () => {
+            console.log('처리 시작, 모드:', currentTab);
+
+            progressBar.classList.add('show');
+            processBtn.disabled = true;
+            processBtn.innerHTML = '<span>⏳</span> 처리 중...';
+
+            try {
+                for (let i = 0; i < images.length; i++) {
+                    const img = images[i];
+                    console.log('처리 중:', img.name);
+
+                    let processedData = null;
+                    let processedBlob = null;
+                    let newName = img.name;
+
+                    if (currentTab === 'resize') {
+                        // 크기/압축 모드
+                        const qualityVal = parseInt(quality.value);
+                        const maxWidthVal = parseInt(maxWidth.value);
+                        const format = outputFormat.value;
+                        const originalFormat = getOriginalFormat(img.name);
+
+                        processedData = await processResize(img.dataUrl, qualityVal, maxWidthVal, format, originalFormat);
+
+                        if (format !== 'original') {
+                            const ext = format === 'jpeg' ? 'jpg' : format;
+                            newName = img.name.replace(/\.[^.]+$/, `.${ext}`);
+                        }
+                    }
+                    else if (currentTab === 'convert') {
+                        // 포맷 변환 모드
+                        const format = convertFormat.value;
+                        const qualityVal = parseInt(convertQuality.value);
+
+                        processedData = await processConvert(img.dataUrl, format, qualityVal);
+
+                        const ext = format === 'jpeg' ? 'jpg' : format;
+                        newName = img.name.replace(/\.[^.]+$/, `.${ext}`);
+                    }
+                    else if (currentTab === 'ico') {
+                        // ICO 생성 모드
+                        const checkedSizes = Array.from(document.querySelectorAll('input[name="icoSize"]:checked'))
+                            .map(cb => parseInt(cb.value))
+                            .sort((a, b) => a - b);
+
+                        if (checkedSizes.length === 0) {
+                            showToast('ICO 사이즈를 하나 이상 선택해주세요', 'error');
+                            continue;
+                        }
+
+                        const usePadding = addPadding.checked;
+                        processedBlob = await createICO(img.dataUrl, checkedSizes, usePadding);
+                        processedData = URL.createObjectURL(processedBlob);
+                        newName = img.name.replace(/\.[^.]+$/, '.ico');
+                    }
+
+                    // 결과 저장
+                    img.processed = processedData;
+                    img.processedName = newName;
+                    img.processedBlob = processedBlob;
+
+                    if (processedBlob) {
+                        img.processedSize = processedBlob.size;
+                    } else {
+                        // Base64 크기 계산
+                        const base64Data = processedData.split(',')[1];
+                        img.processedSize = Math.round((base64Data.length * 3) / 4);
+                    }
+
+                    // 진행률 업데이트
+                    const progress = ((i + 1) / images.length) * 100;
+                    progressFill.style.width = progress + '%';
+
+                    updateUI();
+                }
+
+                showToast('변환 완료!', 'success');
+            } catch (error) {
+                console.error('처리 에러:', error);
+                showToast('처리 중 오류 발생', 'error');
             }
 
             progressBar.classList.remove('show');
-            compressBtn.disabled = false;
-            compressBtn.innerHTML = '<span>🗜️</span> 압축 시작';
+            processBtn.disabled = false;
+            processBtn.innerHTML = '<span>⚡</span> 변환 시작';
         });
 
         // 날짜/시간 폴더명 생성
@@ -803,7 +1443,7 @@
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
-            return `compressed_${year}${month}${day}_${hours}${minutes}${seconds}`;
+            return `converted_${year}${month}${day}_${hours}${minutes}${seconds}`;
         }
 
         // Base64를 Blob으로 변환
@@ -821,8 +1461,8 @@
 
         // ZIP 다운로드
         downloadZipBtn.addEventListener('click', async () => {
-            const compressedImages = images.filter(img => img.compressed);
-            if (compressedImages.length === 0) return;
+            const processedImages = images.filter(img => img.processed);
+            if (processedImages.length === 0) return;
 
             downloadZipBtn.disabled = true;
             downloadZipBtn.innerHTML = '<span>⏳</span> ZIP 생성 중...';
@@ -832,9 +1472,14 @@
                 const folderName = getDateTimeFolderName();
                 const folder = zip.folder(folderName);
 
-                compressedImages.forEach(img => {
-                    const blob = dataUrlToBlob(img.compressed);
-                    folder.file(img.name, blob);
+                processedImages.forEach(img => {
+                    let blob;
+                    if (img.processedBlob) {
+                        blob = img.processedBlob;
+                    } else {
+                        blob = dataUrlToBlob(img.processed);
+                    }
+                    folder.file(img.processedName, blob);
                 });
 
                 const content = await zip.generateAsync({ type: 'blob' });
@@ -845,9 +1490,11 @@
                 link.click();
                 document.body.removeChild(link);
                 URL.revokeObjectURL(link.href);
+
+                showToast('ZIP 다운로드 완료!', 'success');
             } catch (error) {
-                alert('ZIP 파일 생성 중 오류가 발생했습니다.');
-                console.error(error);
+                showToast('ZIP 생성 중 오류', 'error');
+                console.error('ZIP 에러:', error);
             }
 
             downloadZipBtn.disabled = false;
@@ -856,11 +1503,10 @@
 
         // 폴더에 저장 (File System Access API)
         downloadFolderBtn.addEventListener('click', async () => {
-            const compressedImages = images.filter(img => img.compressed);
-            if (compressedImages.length === 0) return;
+            const processedImages = images.filter(img => img.processed);
+            if (processedImages.length === 0) return;
 
             try {
-                // 폴더 선택
                 const dirHandle = await window.showDirectoryPicker();
                 const folderName = getDateTimeFolderName();
                 const subDirHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
@@ -868,19 +1514,24 @@
                 downloadFolderBtn.disabled = true;
                 downloadFolderBtn.innerHTML = '<span>⏳</span> 저장 중...';
 
-                for (const img of compressedImages) {
-                    const blob = dataUrlToBlob(img.compressed);
-                    const fileHandle = await subDirHandle.getFileHandle(img.name, { create: true });
+                for (const img of processedImages) {
+                    let blob;
+                    if (img.processedBlob) {
+                        blob = img.processedBlob;
+                    } else {
+                        blob = dataUrlToBlob(img.processed);
+                    }
+                    const fileHandle = await subDirHandle.getFileHandle(img.processedName, { create: true });
                     const writable = await fileHandle.createWritable();
                     await writable.write(blob);
                     await writable.close();
                 }
 
-                alert(`${compressedImages.length}개 파일이 "${folderName}" 폴더에 저장되었습니다.`);
+                showToast(`${processedImages.length}개 파일 저장 완료!`, 'success');
             } catch (error) {
                 if (error.name !== 'AbortError') {
-                    alert('폴더 저장 중 오류가 발생했습니다.');
-                    console.error(error);
+                    showToast('폴더 저장 중 오류', 'error');
+                    console.error('폴더 저장 에러:', error);
                 }
             }
 
@@ -903,6 +1554,7 @@
             if (confirm('모든 이미지를 삭제하시겠습니까?')) {
                 images = [];
                 updateUI();
+                showToast('모든 이미지 삭제됨', 'success');
             }
         });
 
@@ -913,6 +1565,8 @@
                 e.returnValue = '';
             }
         });
+
+        console.log('이미지 변환기 초기화 완료');
     </script>
 </body>
 </html>
