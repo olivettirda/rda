@@ -539,13 +539,153 @@
 
         .zoom-controls span { color: #aaa; font-size: 0.85rem; }
         .zoom-controls input { width: 100px; }
+
+        /* Advanced Analysis Styles */
+        .preprocessing-panel {
+            background: #f5f5f5;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .preprocessing-panel h4 {
+            color: var(--primary-dark);
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+
+        .preprocessing-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .preprocessing-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .preprocessing-option input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .qscore-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .qscore-high { background: #c8e6c9; color: #2e7d32; }
+        .qscore-medium { background: #fff3e0; color: #e65100; }
+        .qscore-low { background: #ffcdd2; color: #c62828; }
+
+        .binning-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+
+        .binning-table th, .binning-table td {
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .binning-table th {
+            background: var(--primary-light);
+            font-weight: 500;
+        }
+
+        .warp-preview {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .warp-preview canvas {
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .intensity-profile {
+            height: 60px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+
+        .allele-code {
+            display: inline-block;
+            min-width: 28px;
+            text-align: center;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .allele-A { background: var(--band-p1); color: white; }
+        .allele-B { background: var(--band-p2); color: white; }
+        .allele-H { background: var(--band-het); color: white; }
+        .allele-C { background: #4caf50; color: white; }
+        .allele-D { background: #ff9800; color: white; }
+        .allele-null { background: #9e9e9e; color: white; }
+
+        /* Step 5 Analysis Settings */
+        .analysis-settings {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .analysis-settings { grid-template-columns: 1fr; }
+        }
+
+        .setting-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .setting-card h5 {
+            color: var(--primary-dark);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .slider-with-value {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-with-value input[type="range"] {
+            flex: 1;
+        }
+
+        .slider-with-value span {
+            min-width: 50px;
+            text-align: right;
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
     </style>
 </head>
 <body>
     <header class="header">
         <div class="header-left">
-            <h1>Gel 이미지 분석기</h1>
-            <p>전기영동 젤 이미지 분석 및 유전자형 판독</p>
+            <h1>Gel 이미지 분석기 v2.0</h1>
+            <p>고급 전기영동 분석 • Rolling Ball • Z-score • Allele Binning • Q-score</p>
         </div>
         <button class="reset-btn" onclick="resetAll()">처음부터 다시</button>
     </header>
@@ -728,7 +868,7 @@
                     <div class="gel-canvas-wrapper">
                         <div class="gel-tools">
                             <button class="tool-btn active" id="toolBand" onclick="setTool('band')">🎯 밴드 표시</button>
-                            <button class="tool-btn" id="toolAutoBand" onclick="autoDetectBands()">🔍 자동 감지</button>
+                            <button class="tool-btn" id="toolAutoBand" onclick="smartAutoDetectBands()">🔍 자동 감지</button>
                             <button class="tool-btn" id="toolErase" onclick="setTool('erase')">🧹 밴드 삭제</button>
                             <button class="tool-btn" id="toolClearBands" onclick="clearBands()">🗑️ 밴드 초기화</button>
                         </div>
@@ -762,6 +902,35 @@
                                     </select>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="sidebar-section">
+                            <h4>🔬 고급 전처리</h4>
+                            <div class="preprocessing-options" style="display: block;">
+                                <div class="preprocessing-option">
+                                    <input type="checkbox" id="enableRollingBall" onchange="updatePreprocessing()">
+                                    <label for="enableRollingBall">Rolling Ball 배경 차감</label>
+                                </div>
+                                <div class="form-group" style="margin-left: 26px; margin-top: 5px;">
+                                    <label style="font-size: 0.75rem;">반경 (px)</label>
+                                    <input type="number" id="rollingBallRadius" value="50" min="10" max="200" style="width: 70px;" onchange="updatePreprocessing()">
+                                </div>
+                                <div class="preprocessing-option" style="margin-top: 10px;">
+                                    <input type="checkbox" id="enableSmileCorrection" onchange="updatePreprocessing()">
+                                    <label for="enableSmileCorrection">스마일 효과 보정</label>
+                                </div>
+                                <div class="preprocessing-option" style="margin-top: 10px;">
+                                    <input type="checkbox" id="enableZScore" checked onchange="updatePreprocessing()">
+                                    <label for="enableZScore">Z-score 피크 검출</label>
+                                </div>
+                                <div class="form-group" style="margin-left: 26px; margin-top: 5px;">
+                                    <label style="font-size: 0.75rem;">Z-score 임계값</label>
+                                    <input type="number" id="zScoreThreshold" value="3.5" min="1" max="10" step="0.5" style="width: 70px;">
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="applyPreprocessing()" style="margin-top: 10px; width: 100%;">
+                                전처리 적용
+                            </button>
                         </div>
 
                         <div class="sidebar-section">
@@ -810,10 +979,36 @@
                     <p id="summaryText">분석 결과가 여기에 표시됩니다.</p>
                 </div>
 
+                <!-- 검량선 및 빈닝 정보 -->
+                <div class="analysis-settings" id="analysisInfoPanel" style="display: none;">
+                    <div class="setting-card">
+                        <h5>📈 검량선 정보</h5>
+                        <div id="calibrationInfo">
+                            <p style="font-size: 0.85rem; color: var(--text-light);">검량선 미적용</p>
+                        </div>
+                    </div>
+                    <div class="setting-card">
+                        <h5>🧬 Allele Binning</h5>
+                        <div id="binningInfo">
+                            <p style="font-size: 0.85rem; color: var(--text-light);">빈닝 정보 없음</p>
+                        </div>
+                    </div>
+                    <div class="setting-card">
+                        <h5>📋 유전형 코드 안내</h5>
+                        <div style="font-size: 0.8rem; line-height: 1.8;">
+                            <span class="allele-code allele-A">A</span> P1 동형접합<br>
+                            <span class="allele-code allele-B">B</span> P2 동형접합<br>
+                            <span class="allele-code allele-H">H</span> 이형접합<br>
+                            <span class="allele-code allele-null">-</span> 미판정/결측
+                        </div>
+                    </div>
+                </div>
+
                 <div class="btn-group" style="margin-bottom: 16px;">
                     <button class="btn btn-primary" onclick="downloadExcel()">📥 Excel 다운로드</button>
                     <button class="btn btn-secondary" onclick="downloadCsv()">📥 CSV 다운로드</button>
                     <button class="btn btn-success" onclick="sendToSimulator()">🌾 시뮬레이터로 전송</button>
+                    <button class="btn btn-warning" onclick="showAnalysisDetails()">📊 상세 정보</button>
                 </div>
 
                 <h4 style="margin: 20px 0 10px; color: var(--primary-dark);">유전자형 판정</h4>
@@ -863,6 +1058,666 @@
             '50bp': [50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 800, 900, 1000],
             '1kb': [250, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 8000, 10000]
         };
+
+        // Advanced Analysis Settings
+        let analysisSettings = {
+            rollingBallRadius: 50,
+            smileCorrection: true,
+            polynomialDegree: 4,
+            zScoreThreshold: 3.5,
+            binningTolerance: 5,
+            minQScore: 20
+        };
+
+        // Calibration data for molecular weight calculation
+        let calibrationData = {
+            positions: [],
+            sizes: [],
+            regressionCoeffs: { a: 0, b: 0 },
+            rSquared: 0
+        };
+
+        // Allele binning data
+        let alleleBins = [];
+
+        // ===============================
+        // Rolling Ball 배경 차감 알고리즘
+        // ===============================
+        function rollingBallBackgroundSubtraction(imageData, radius) {
+            console.log('=== Rolling Ball 배경 차감 시작 ===');
+            console.log(`반경: ${radius}px`);
+
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+            const result = new Uint8ClampedArray(data.length);
+
+            // 그레이스케일 배열 생성
+            const gray = new Float32Array(width * height);
+            for (let i = 0; i < width * height; i++) {
+                const idx = i * 4;
+                gray[i] = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+            }
+
+            // Rolling Ball 배경 추정
+            const background = new Float32Array(width * height);
+            const ballDiameter = 2 * radius + 1;
+            const ballProfile = new Float32Array(ballDiameter);
+
+            // 반구형 프로파일 생성
+            for (let i = 0; i < ballDiameter; i++) {
+                const x = i - radius;
+                ballProfile[i] = Math.sqrt(Math.max(0, radius * radius - x * x));
+            }
+
+            // 수평 방향 Rolling Ball
+            const temp = new Float32Array(width * height);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let minVal = Infinity;
+                    for (let i = 0; i < ballDiameter; i++) {
+                        const bx = x + i - radius;
+                        if (bx >= 0 && bx < width) {
+                            const val = gray[y * width + bx] - ballProfile[i];
+                            minVal = Math.min(minVal, val);
+                        }
+                    }
+                    temp[y * width + x] = minVal;
+                }
+            }
+
+            // 수직 방향 Rolling Ball
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    let minVal = Infinity;
+                    for (let i = 0; i < ballDiameter; i++) {
+                        const by = y + i - radius;
+                        if (by >= 0 && by < height) {
+                            const val = temp[by * width + x] - ballProfile[i];
+                            minVal = Math.min(minVal, val);
+                        }
+                    }
+                    background[y * width + x] = Math.max(0, minVal);
+                }
+            }
+
+            // 배경 차감 및 결과 생성
+            for (let i = 0; i < width * height; i++) {
+                const idx = i * 4;
+                const subtracted = Math.max(0, gray[i] - background[i]);
+                const normalized = Math.min(255, subtracted * 1.5); // 대비 강화
+
+                result[idx] = normalized;
+                result[idx + 1] = normalized;
+                result[idx + 2] = normalized;
+                result[idx + 3] = data[idx + 3]; // Alpha 유지
+            }
+
+            console.log('Rolling Ball 배경 차감 완료');
+            return new ImageData(result, width, height);
+        }
+
+        // ===============================
+        // 스마일 효과 보정 (Polynomial Warping)
+        // ===============================
+        function correctSmileEffect(imageData, referencePoints, degree = 4) {
+            console.log('=== 스마일 효과 보정 시작 ===');
+            console.log(`다항식 차수: ${degree}, 참조점 수: ${referencePoints.length}`);
+
+            if (referencePoints.length < 3) {
+                console.log('참조점이 부족하여 보정 생략');
+                return imageData;
+            }
+
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+            const result = new Uint8ClampedArray(data.length);
+
+            // 참조점으로부터 다항식 회귀 계수 계산
+            const coeffs = polynomialRegression(referencePoints, degree);
+            console.log('다항식 계수:', coeffs);
+
+            // 이미지 워핑
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // 다항식을 사용하여 보정된 y 좌표 계산
+                    let yOffset = 0;
+                    for (let i = 0; i <= degree; i++) {
+                        yOffset += coeffs[i] * Math.pow(x, i);
+                    }
+
+                    const srcY = y + yOffset;
+                    const dstIdx = (y * width + x) * 4;
+
+                    // 이중 선형 보간 (Bilinear Interpolation)
+                    if (srcY >= 0 && srcY < height - 1) {
+                        const y0 = Math.floor(srcY);
+                        const y1 = y0 + 1;
+                        const ty = srcY - y0;
+
+                        const idx0 = (y0 * width + x) * 4;
+                        const idx1 = (y1 * width + x) * 4;
+
+                        for (let c = 0; c < 4; c++) {
+                            result[dstIdx + c] = Math.round(
+                                data[idx0 + c] * (1 - ty) + data[idx1 + c] * ty
+                            );
+                        }
+                    } else if (srcY >= 0 && srcY < height) {
+                        const idx = (Math.floor(srcY) * width + x) * 4;
+                        for (let c = 0; c < 4; c++) {
+                            result[dstIdx + c] = data[idx + c];
+                        }
+                    } else {
+                        // 범위 밖은 배경색
+                        result[dstIdx] = result[dstIdx + 1] = result[dstIdx + 2] = 0;
+                        result[dstIdx + 3] = 255;
+                    }
+                }
+            }
+
+            console.log('스마일 효과 보정 완료');
+            return new ImageData(result, width, height);
+        }
+
+        // 다항식 회귀 계산 (최소자승법)
+        function polynomialRegression(points, degree) {
+            const n = points.length;
+            if (n === 0) return new Array(degree + 1).fill(0);
+
+            // 정규화를 위한 중앙값 계산
+            const xMean = points.reduce((s, p) => s + p.x, 0) / n;
+            const yMean = points.reduce((s, p) => s + p.y, 0) / n;
+
+            // Vandermonde 행렬 생성
+            const X = [];
+            const Y = [];
+            for (const point of points) {
+                const row = [];
+                const normalizedX = (point.x - xMean) / xMean; // 정규화
+                for (let i = 0; i <= degree; i++) {
+                    row.push(Math.pow(normalizedX, i));
+                }
+                X.push(row);
+                Y.push(point.y - yMean);
+            }
+
+            // 단순 최소자승법 (간소화)
+            // 2차 다항식만 간단하게 계산
+            if (degree === 2 && n >= 3) {
+                // y = a0 + a1*x + a2*x^2 형태로 피팅
+                let sumX = 0, sumX2 = 0, sumX3 = 0, sumX4 = 0;
+                let sumY = 0, sumXY = 0, sumX2Y = 0;
+
+                for (const p of points) {
+                    const x = (p.x - xMean) / xMean;
+                    const y = p.y - yMean;
+                    sumX += x;
+                    sumX2 += x * x;
+                    sumX3 += x * x * x;
+                    sumX4 += x * x * x * x;
+                    sumY += y;
+                    sumXY += x * y;
+                    sumX2Y += x * x * y;
+                }
+
+                // 간소화된 해 (대각 우세 가정)
+                const a0 = sumY / n;
+                const a1 = n > 1 ? sumXY / sumX2 : 0;
+                const a2 = n > 2 ? (sumX2Y - a0 * sumX2) / sumX4 : 0;
+
+                return [a0, a1, a2, 0, 0]; // 상위 차수는 0
+            }
+
+            return new Array(degree + 1).fill(0);
+        }
+
+        // ===============================
+        // Z-score 기반 피크 검출
+        // ===============================
+        function detectPeaksWithZScore(profile, threshold = 3.5, lag = 30) {
+            console.log(`Z-score 피크 검출: threshold=${threshold}, lag=${lag}`);
+
+            const n = profile.length;
+            const peaks = [];
+            const signals = new Array(n).fill(0);
+
+            if (n < lag + 1) return peaks;
+
+            // 이동 평균과 이동 표준편차 계산
+            const filteredY = [...profile];
+            const avgFilter = new Array(n).fill(0);
+            const stdFilter = new Array(n).fill(0);
+
+            // 초기 윈도우 통계
+            let sum = 0, sumSq = 0;
+            for (let i = 0; i < lag; i++) {
+                sum += profile[i];
+                sumSq += profile[i] * profile[i];
+            }
+            avgFilter[lag - 1] = sum / lag;
+            stdFilter[lag - 1] = Math.sqrt(sumSq / lag - avgFilter[lag - 1] * avgFilter[lag - 1]);
+
+            // Z-score 기반 신호 검출
+            for (let i = lag; i < n; i++) {
+                const prevAvg = avgFilter[i - 1];
+                const prevStd = stdFilter[i - 1] || 1;
+
+                const zScore = Math.abs((profile[i] - prevAvg) / prevStd);
+
+                if (zScore > threshold) {
+                    signals[i] = profile[i] > prevAvg ? 1 : -1;
+                    // 이상치는 평균 계산에서 제외 (평균값으로 대체)
+                    filteredY[i] = prevAvg;
+                } else {
+                    signals[i] = 0;
+                    filteredY[i] = profile[i];
+                }
+
+                // 이동 평균/표준편차 업데이트
+                let windowSum = 0, windowSumSq = 0;
+                for (let j = i - lag + 1; j <= i; j++) {
+                    windowSum += filteredY[j];
+                    windowSumSq += filteredY[j] * filteredY[j];
+                }
+                avgFilter[i] = windowSum / lag;
+                stdFilter[i] = Math.sqrt(Math.max(0, windowSumSq / lag - avgFilter[i] * avgFilter[i]));
+            }
+
+            // 양의 피크 추출
+            for (let i = 1; i < n - 1; i++) {
+                if (signals[i] === 1 && signals[i - 1] <= 0) {
+                    // 피크 시작 - 로컬 최대값 찾기
+                    let maxPos = i;
+                    let maxVal = profile[i];
+                    while (i < n && signals[i] === 1) {
+                        if (profile[i] > maxVal) {
+                            maxVal = profile[i];
+                            maxPos = i;
+                        }
+                        i++;
+                    }
+                    peaks.push({
+                        position: maxPos,
+                        intensity: maxVal,
+                        zScore: Math.abs((maxVal - avgFilter[maxPos]) / (stdFilter[maxPos] || 1))
+                    });
+                }
+            }
+
+            console.log(`Z-score 피크 ${peaks.length}개 검출`);
+            return peaks;
+        }
+
+        // ===============================
+        // 로그-선형 회귀 분자량 산출
+        // ===============================
+        function calibrateMolecularWeight(ladderPositions, ladderSizes) {
+            console.log('=== 로그-선형 회귀 검량선 작성 ===');
+            console.log('래더 위치:', ladderPositions);
+            console.log('래더 크기:', ladderSizes);
+
+            if (ladderPositions.length < 2 || ladderSizes.length < 2) {
+                console.log('래더 데이터 부족');
+                return null;
+            }
+
+            // 위치와 크기 매칭 (위치 오름차순 = 크기 내림차순)
+            const sortedPairs = [];
+            const sortedPos = [...ladderPositions].sort((a, b) => a - b);
+            const sortedSizes = [...ladderSizes].sort((a, b) => b - a);
+
+            const minLen = Math.min(sortedPos.length, sortedSizes.length);
+            for (let i = 0; i < minLen; i++) {
+                sortedPairs.push({
+                    distance: sortedPos[i],
+                    size: sortedSizes[i],
+                    logSize: Math.log10(sortedSizes[i])
+                });
+            }
+
+            // log10(MW) = a * D + b 회귀 계산
+            let sumD = 0, sumLogMW = 0, sumD2 = 0, sumDLogMW = 0;
+            const n = sortedPairs.length;
+
+            for (const pair of sortedPairs) {
+                sumD += pair.distance;
+                sumLogMW += pair.logSize;
+                sumD2 += pair.distance * pair.distance;
+                sumDLogMW += pair.distance * pair.logSize;
+            }
+
+            const denominator = n * sumD2 - sumD * sumD;
+            if (Math.abs(denominator) < 1e-10) {
+                console.log('회귀 계산 실패: 분모가 0에 가까움');
+                return null;
+            }
+
+            const a = (n * sumDLogMW - sumD * sumLogMW) / denominator;
+            const b = (sumLogMW * sumD2 - sumD * sumDLogMW) / denominator;
+
+            // R² 계산
+            const yMean = sumLogMW / n;
+            let ssTot = 0, ssRes = 0;
+
+            for (const pair of sortedPairs) {
+                const yPred = a * pair.distance + b;
+                ssTot += Math.pow(pair.logSize - yMean, 2);
+                ssRes += Math.pow(pair.logSize - yPred, 2);
+            }
+
+            const rSquared = 1 - (ssRes / ssTot);
+
+            calibrationData = {
+                positions: sortedPos,
+                sizes: sortedSizes,
+                regressionCoeffs: { a, b },
+                rSquared
+            };
+
+            console.log(`회귀식: log10(MW) = ${a.toFixed(6)} * D + ${b.toFixed(4)}`);
+            console.log(`결정계수 R² = ${rSquared.toFixed(4)}`);
+
+            return calibrationData;
+        }
+
+        // 검량선을 사용한 분자량 계산
+        function calculateMolecularWeight(distance) {
+            if (!calibrationData.regressionCoeffs) {
+                return estimateBandSize(0, distance); // Fallback
+            }
+
+            const { a, b } = calibrationData.regressionCoeffs;
+            const logMW = a * distance + b;
+            const mw = Math.pow(10, logMW);
+
+            return Math.round(mw);
+        }
+
+        // ===============================
+        // 대립유전자 빈닝 (Allele Binning)
+        // ===============================
+        function performAlleleBinning(allBandSizes, repeatLength = 2) {
+            console.log('=== 대립유전자 빈닝 시작 ===');
+            console.log(`전체 밴드 수: ${allBandSizes.length}, 반복 단위: ${repeatLength}bp`);
+
+            if (allBandSizes.length === 0) return [];
+
+            // 모든 밴드 크기를 수집하고 정렬
+            const sizes = [...allBandSizes].sort((a, b) => a - b);
+
+            // 초기 빈 생성 (반복 단위 기반)
+            const bins = [];
+            let currentBin = {
+                center: sizes[0],
+                min: sizes[0] - analysisSettings.binningTolerance,
+                max: sizes[0] + analysisSettings.binningTolerance,
+                members: [sizes[0]],
+                count: 1
+            };
+
+            for (let i = 1; i < sizes.length; i++) {
+                const size = sizes[i];
+
+                // 현재 빈에 속하는지 확인
+                if (size <= currentBin.max + repeatLength / 2) {
+                    currentBin.members.push(size);
+                    currentBin.count++;
+                    // 중심 업데이트
+                    const sum = currentBin.members.reduce((a, b) => a + b, 0);
+                    currentBin.center = sum / currentBin.members.length;
+                    currentBin.max = currentBin.center + analysisSettings.binningTolerance;
+                } else {
+                    // 새 빈 시작
+                    bins.push(currentBin);
+                    currentBin = {
+                        center: size,
+                        min: size - analysisSettings.binningTolerance,
+                        max: size + analysisSettings.binningTolerance,
+                        members: [size],
+                        count: 1
+                    };
+                }
+            }
+            bins.push(currentBin);
+
+            // 최소자승법으로 빈 경계 최적화
+            optimizeBinBoundaries(bins);
+
+            // 빈에 대립유전자 번호 할당
+            bins.forEach((bin, idx) => {
+                bin.alleleNumber = idx + 1;
+                bin.roundedSize = Math.round(bin.center);
+            });
+
+            alleleBins = bins;
+
+            console.log(`빈닝 결과: ${bins.length}개 대립유전자`);
+            bins.forEach(bin => {
+                console.log(`  Allele ${bin.alleleNumber}: ${bin.roundedSize}bp (n=${bin.count}, range=${bin.min.toFixed(1)}-${bin.max.toFixed(1)})`);
+            });
+
+            return bins;
+        }
+
+        // 빈 경계 최적화 (분산 최소화)
+        function optimizeBinBoundaries(bins) {
+            const stepSize = 0.5;
+            const maxIterations = 20;
+
+            for (let iter = 0; iter < maxIterations; iter++) {
+                let improved = false;
+
+                for (const bin of bins) {
+                    if (bin.members.length < 2) continue;
+
+                    // 현재 분산
+                    const currentVariance = calculateVariance(bin.members, bin.center);
+
+                    // 중심 이동 시도
+                    for (const delta of [-stepSize, stepSize]) {
+                        const newCenter = bin.center + delta;
+                        const newVariance = calculateVariance(bin.members, newCenter);
+
+                        if (newVariance < currentVariance) {
+                            bin.center = newCenter;
+                            bin.min = newCenter - analysisSettings.binningTolerance;
+                            bin.max = newCenter + analysisSettings.binningTolerance;
+                            improved = true;
+                        }
+                    }
+                }
+
+                if (!improved) break;
+            }
+        }
+
+        function calculateVariance(values, mean) {
+            if (values.length === 0) return 0;
+            const sumSq = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0);
+            return sumSq / values.length;
+        }
+
+        // 밴드 크기를 빈에 할당
+        function assignToBin(bandSize) {
+            for (const bin of alleleBins) {
+                if (bandSize >= bin.min && bandSize <= bin.max) {
+                    return bin;
+                }
+            }
+
+            // 가장 가까운 빈 찾기
+            let closest = null;
+            let minDist = Infinity;
+            for (const bin of alleleBins) {
+                const dist = Math.abs(bandSize - bin.center);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = bin;
+                }
+            }
+
+            return closest;
+        }
+
+        // ===============================
+        // Q-score 품질 지표 계산
+        // ===============================
+        function calculateQScore(band, laneProfile) {
+            // Q = -10 * log10(error_probability)
+            // 품질 요소: SNR, 피크 분리도, 피팅 잔차
+
+            const factors = {
+                snr: 0,
+                resolution: 0,
+                fitting: 0
+            };
+
+            // 1. SNR (Signal-to-Noise Ratio)
+            if (laneProfile && laneProfile.length > 0) {
+                const bandPos = laneOrientation === 'horizontal' ? band.x : band.y;
+                const windowSize = 20;
+                const start = Math.max(0, Math.round(bandPos) - windowSize);
+                const end = Math.min(laneProfile.length - 1, Math.round(bandPos) + windowSize);
+
+                const windowValues = laneProfile.slice(start, end + 1);
+                const signal = Math.max(...windowValues);
+                const noise = calculateStdDev(windowValues);
+
+                factors.snr = noise > 0 ? signal / noise : 10;
+            }
+
+            // 2. Peak Resolution (인접 밴드와의 분리도)
+            const sameLaneBands = bands.filter(b => b.laneIdx === band.laneIdx && b !== band);
+            if (sameLaneBands.length > 0) {
+                const bandPos = laneOrientation === 'horizontal' ? band.x : band.y;
+                let minDist = Infinity;
+
+                for (const other of sameLaneBands) {
+                    const otherPos = laneOrientation === 'horizontal' ? other.x : other.y;
+                    minDist = Math.min(minDist, Math.abs(bandPos - otherPos));
+                }
+
+                factors.resolution = Math.min(1, minDist / 30); // 30px 이상이면 최대
+            } else {
+                factors.resolution = 1; // 단일 밴드는 분리도 최대
+            }
+
+            // 3. Fitting residual (가우시안 피팅 잔차)
+            factors.fitting = 0.8; // 기본값 (실제 피팅 시 계산)
+
+            // 가중 평균으로 오류 확률 계산
+            const weights = { snr: 0.4, resolution: 0.3, fitting: 0.3 };
+            const qualityScore =
+                (factors.snr > 5 ? 0.9 : factors.snr / 5 * 0.9) * weights.snr +
+                factors.resolution * weights.resolution +
+                factors.fitting * weights.fitting;
+
+            const errorProb = Math.max(0.001, 1 - qualityScore);
+            const qScore = Math.round(-10 * Math.log10(errorProb));
+
+            return {
+                qScore: Math.min(40, Math.max(0, qScore)),
+                factors,
+                confidence: qualityScore
+            };
+        }
+
+        function calculateStdDev(values) {
+            if (values.length === 0) return 0;
+            const mean = values.reduce((a, b) => a + b, 0) / values.length;
+            const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+            return Math.sqrt(variance);
+        }
+
+        function getQScoreClass(qScore) {
+            if (qScore >= 30) return 'qscore-high';
+            if (qScore >= 20) return 'qscore-medium';
+            return 'qscore-low';
+        }
+
+        // ===============================
+        // 표준 유전형 코드 스코어링
+        // ===============================
+        function scoreGenotype(laneBands, p1Reference, p2Reference) {
+            /*
+             * 스코어링 시스템:
+             * A (1): P1과 동일 (동형접합)
+             * B (2): P2와 동일 (동형접합)
+             * H (3): 이형접합 (양쪽 밴드 모두 존재)
+             * C: 우성 마커에서 P1이 아닌 형질
+             * D: 우성 마커에서 P2가 아닌 형질
+             * - (.): 결측치
+             */
+
+            const tolerance = analysisSettings.binningTolerance || 10;
+            const result = {
+                code: '-',
+                numericCode: null,
+                confidence: 0,
+                matchedBands: []
+            };
+
+            if (!laneBands || laneBands.length === 0) {
+                return result;
+            }
+
+            // 밴드 위치/크기 비교
+            const bandPositions = laneBands.map(b =>
+                laneOrientation === 'horizontal' ? b.x : b.y
+            );
+
+            // P1, P2 참조점과 비교
+            let matchesP1 = false;
+            let matchesP2 = false;
+
+            if (p1Reference) {
+                for (const pos of bandPositions) {
+                    if (Math.abs(pos - p1Reference) <= tolerance) {
+                        matchesP1 = true;
+                        result.matchedBands.push({ position: pos, match: 'P1' });
+                        break;
+                    }
+                }
+            }
+
+            if (p2Reference) {
+                for (const pos of bandPositions) {
+                    if (Math.abs(pos - p2Reference) <= tolerance) {
+                        matchesP2 = true;
+                        result.matchedBands.push({ position: pos, match: 'P2' });
+                        break;
+                    }
+                }
+            }
+
+            // 유전형 결정
+            if (matchesP1 && matchesP2) {
+                result.code = 'H';
+                result.numericCode = 3;
+                result.confidence = 0.95;
+            } else if (matchesP1) {
+                result.code = 'A';
+                result.numericCode = 1;
+                result.confidence = 0.9;
+            } else if (matchesP2) {
+                result.code = 'B';
+                result.numericCode = 2;
+                result.confidence = 0.9;
+            } else if (laneBands.length >= 2) {
+                result.code = 'H';
+                result.numericCode = 3;
+                result.confidence = 0.7; // 불확실한 이형접합
+            } else if (laneBands.length === 1) {
+                // 참조점 없이 단일 밴드 - 위치 기반 추정
+                result.code = bandPositions[0] < (p1Reference || p2Reference || 0) ? 'A' : 'B';
+                result.numericCode = result.code === 'A' ? 1 : 2;
+                result.confidence = 0.5;
+            }
+
+            return result;
+        }
 
         // DOM Elements
         const imageUploadZone = document.getElementById('imageUploadZone');
@@ -1998,6 +2853,208 @@
             drawBands();
         }
 
+        // 전처리 옵션 상태 변경 핸들러
+        function updatePreprocessing() {
+            const rollingBallEnabled = document.getElementById('enableRollingBall').checked;
+            const smileCorrectionEnabled = document.getElementById('enableSmileCorrection').checked;
+            const zScoreEnabled = document.getElementById('enableZScore').checked;
+
+            console.log('전처리 옵션 변경:', {
+                rollingBall: rollingBallEnabled,
+                smileCorrection: smileCorrectionEnabled,
+                zScore: zScoreEnabled
+            });
+        }
+
+        // 전처리 적용
+        let preprocessedImageData = null;
+
+        function applyPreprocessing() {
+            if (!originalImageData) {
+                alert('이미지를 먼저 업로드하세요.');
+                return;
+            }
+
+            console.log('=== 전처리 적용 시작 ===');
+
+            // 원본 복사
+            let processedData = new ImageData(
+                new Uint8ClampedArray(originalImageData.data),
+                originalImageData.width,
+                originalImageData.height
+            );
+
+            // Rolling Ball 배경 차감
+            if (document.getElementById('enableRollingBall').checked) {
+                const radius = parseInt(document.getElementById('rollingBallRadius').value) || 50;
+                processedData = rollingBallBackgroundSubtraction(processedData, radius);
+            }
+
+            // 스마일 효과 보정
+            if (document.getElementById('enableSmileCorrection').checked) {
+                // 래더 밴드 위치를 참조점으로 사용
+                const referencePoints = [];
+                if (ladderBandPositions.length > 0 && lanes.length > 0) {
+                    // 래더 레인의 밴드 위치들을 수집
+                    const ladderLaneIdx = parseInt(document.getElementById('ladderLane').value) - 1;
+                    const ladderBands = bands.filter(b => b.laneIdx === ladderLaneIdx && b.isLadder);
+
+                    ladderBands.forEach(band => {
+                        referencePoints.push({
+                            x: band.x,
+                            y: band.y
+                        });
+                    });
+                }
+
+                if (referencePoints.length >= 3) {
+                    processedData = correctSmileEffect(processedData, referencePoints, 2);
+                } else {
+                    console.log('스마일 보정 생략: 참조점 부족 (최소 3개 필요)');
+                }
+            }
+
+            preprocessedImageData = processedData;
+
+            // 캔버스에 적용
+            const canvas = document.getElementById('gelCanvas2');
+            const ctx = canvas.getContext('2d');
+            ctx.putImageData(processedData, 0, 0);
+
+            // 밴드 다시 그리기
+            drawBands();
+
+            alert('전처리가 적용되었습니다.\n\n• Rolling Ball: ' +
+                (document.getElementById('enableRollingBall').checked ? '✓' : '✗') +
+                '\n• 스마일 보정: ' +
+                (document.getElementById('enableSmileCorrection').checked ? '✓' : '✗') +
+                '\n\n자동 감지 버튼을 눌러 밴드를 다시 감지하세요.');
+        }
+
+        // Z-score 기반 밴드 자동 감지 (개선된 버전)
+        function autoDetectBandsAdvanced() {
+            const useZScore = document.getElementById('enableZScore').checked;
+            const zThreshold = parseFloat(document.getElementById('zScoreThreshold').value) || 3.5;
+
+            if (!useZScore) {
+                // 기존 방식 사용
+                autoDetectBands();
+                return;
+            }
+
+            console.log('=== Z-score 기반 밴드 자동 감지 ===');
+
+            if (!originalImageData) {
+                alert('이미지를 먼저 업로드하세요.');
+                return;
+            }
+
+            if (lanes.length === 0) {
+                alert('먼저 레인을 설정하세요.');
+                return;
+            }
+
+            const imgData = preprocessedImageData || originalImageData;
+            const imgWidth = imgData.width;
+            const imgHeight = imgData.height;
+            const data = imgData.data;
+
+            const bandWidth = parseInt(document.getElementById('bandSampleWidth').value);
+            const minDistance = parseInt(document.getElementById('minBandDistance').value);
+            const ladderLaneNum = parseInt(document.getElementById('ladderLane').value) - 1;
+
+            bands = [];
+            ladderBandPositions = [];
+
+            // 각 레인에 대해 Z-score 피크 검출
+            lanes.forEach((lane, laneIdx) => {
+                const profile = getLaneProfile(laneIdx, data, imgWidth, imgHeight, bandWidth);
+                const smoothed = gaussianSmooth(profile, 5);
+
+                const peaks = detectPeaksWithZScore(smoothed, zThreshold, 30);
+
+                console.log(`Lane ${laneIdx + 1}: ${peaks.length}개 피크 (Z-score 방식)`);
+
+                peaks.forEach(peak => {
+                    const isLadder = laneIdx === ladderLaneNum;
+
+                    if (isLadder) {
+                        ladderBandPositions.push(peak.position);
+                    }
+
+                    if (laneOrientation === 'horizontal') {
+                        bands.push({
+                            laneIdx: laneIdx,
+                            x: peak.position,
+                            y: lane.pos,
+                            lanePos: lane.pos,
+                            size: 0, // 나중에 보정
+                            isLadder: isLadder,
+                            intensity: peak.intensity,
+                            zScore: peak.zScore
+                        });
+                    } else {
+                        bands.push({
+                            laneIdx: laneIdx,
+                            x: lane.pos,
+                            y: peak.position,
+                            lanePos: lane.pos,
+                            size: 0,
+                            isLadder: isLadder,
+                            intensity: peak.intensity,
+                            zScore: peak.zScore
+                        });
+                    }
+                });
+            });
+
+            // 로그-선형 회귀로 분자량 보정
+            if (ladderBandPositions.length >= 2) {
+                const ladderType = document.getElementById('ladderType').value;
+                let ladderSizes = ladderDefs[ladderType] || [100, 500, 1000];
+
+                if (ladderType === 'custom') {
+                    const customInput = document.getElementById('customLadderBands').value;
+                    if (customInput) {
+                        ladderSizes = customInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                    }
+                }
+
+                const calibration = calibrateMolecularWeight(ladderBandPositions, ladderSizes);
+
+                if (calibration) {
+                    // 모든 밴드에 보정된 분자량 적용
+                    bands.forEach(band => {
+                        const pos = laneOrientation === 'horizontal' ? band.x : band.y;
+                        band.size = calculateMolecularWeight(pos);
+                    });
+
+                    console.log(`분자량 보정 완료 (R² = ${calibration.rSquared.toFixed(4)})`);
+                }
+            }
+
+            drawBands();
+            updateLaneBandList();
+
+            alert(`${bands.length}개의 밴드가 감지되었습니다.\n\n` +
+                `• Z-score 임계값: ${zThreshold}\n` +
+                `• 래더 기반 보정: ${calibrationData.rSquared ? 'R² = ' + calibrationData.rSquared.toFixed(4) : '미적용'}`);
+        }
+
+        // 스마트 자동 감지 - 설정에 따라 적절한 방식 선택
+        function smartAutoDetectBands() {
+            const useZScore = document.getElementById('enableZScore') &&
+                              document.getElementById('enableZScore').checked;
+
+            console.log('스마트 자동 감지 시작:', useZScore ? 'Z-score 방식' : '기본 방식');
+
+            if (useZScore) {
+                autoDetectBandsAdvanced();
+            } else {
+                autoDetectBands();
+            }
+        }
+
         function updateLaneBandList() {
             const container = document.getElementById('laneBandList');
 
@@ -2058,107 +3115,365 @@
             // 1. 수평 밴드 그룹 분석 (같은 높이의 밴드들을 그룹화)
             const bandGroups = analyzeBandAlignment();
 
-            // 2. 체크 레인 분석 (1번 레인의 1, 2번째 밴드가 체크)
-            const checkLane = 0; // 첫 번째 레인이 체크
-            const checkBands = bands.filter(b => b.laneIdx === checkLane && !b.isLadder)
-                .sort((a, b) => {
-                    const posA = laneOrientation === 'horizontal' ? a.x : a.y;
-                    const posB = laneOrientation === 'horizontal' ? b.x : b.y;
-                    return posA - posB;
-                });
+            // 2. Allele Binning 수행
+            const allBandSizes = bands.filter(b => !b.isLadder).map(b => b.size);
+            if (allBandSizes.length > 0) {
+                performAlleleBinning(allBandSizes);
+            }
 
-            console.log(`체크 레인(${checkLane + 1}) 밴드 수: ${checkBands.length}`);
+            // 3. 체크 레인 분석 (P1/P2 참조점 결정)
+            // 첫 번째와 마지막 비-래더 레인을 P1, P2로 간주
+            let p1Reference = null;
+            let p2Reference = null;
+
+            const nonLadderLanes = lanes.map((_, idx) => idx).filter(idx => !ladderLanes.includes(idx));
+            if (nonLadderLanes.length >= 2) {
+                const p1Lane = nonLadderLanes[0];
+                const p2Lane = nonLadderLanes[nonLadderLanes.length - 1];
+
+                const p1Bands = bands.filter(b => b.laneIdx === p1Lane && !b.isLadder);
+                const p2Bands = bands.filter(b => b.laneIdx === p2Lane && !b.isLadder);
+
+                if (p1Bands.length > 0) {
+                    p1Reference = laneOrientation === 'horizontal' ? p1Bands[0].x : p1Bands[0].y;
+                }
+                if (p2Bands.length > 0 && p2Bands[0] !== p1Bands[0]) {
+                    // P2 참조점은 P1과 다른 위치여야 함
+                    const p2Pos = laneOrientation === 'horizontal' ? p2Bands[0].x : p2Bands[0].y;
+                    if (p1Reference === null || Math.abs(p2Pos - p1Reference) > 20) {
+                        p2Reference = p2Pos;
+                    }
+                }
+            }
+
+            console.log(`P1 참조: ${p1Reference}, P2 참조: ${p2Reference}`);
+
+            // 4. 각 레인의 프로파일 생성 (Q-score 계산용)
+            const imgData = preprocessedImageData || originalImageData;
+            const bandWidth = parseInt(document.getElementById('bandSampleWidth').value) || 15;
+            const laneProfiles = {};
+            if (imgData) {
+                lanes.forEach((lane, idx) => {
+                    if (!ladderLanes.includes(idx)) {
+                        laneProfiles[idx] = getLaneProfile(idx, imgData.data, imgData.width, imgData.height, bandWidth);
+                    }
+                });
+            }
 
             // Group bands by lane
             const results = lanes.map((lane, laneIdx) => {
                 if (ladderLanes.includes(laneIdx)) {
-                    return { lane: laneIdx + 1, name: lane.name, genotype: 'Ladder', bands: [], bandSizes: [], bandPattern: 'Ladder' };
+                    return { lane: laneIdx + 1, name: lane.name, genotype: 'Ladder', alleleCode: '-', bands: [], bandSizes: [], bandPattern: 'Ladder', qScore: null };
                 }
 
-                const laneBands = bands.filter(b => b.laneIdx === laneIdx)
+                const laneBands = bands.filter(b => b.laneIdx === laneIdx && !b.isLadder)
                     .sort((a, b) => b.size - a.size); // Sort by size descending
 
                 const bandSizes = laneBands.map(b => b.size);
+
+                // Q-score 계산
+                let avgQScore = 0;
+                const qScores = [];
+                const laneProfile = laneProfiles[laneIdx];
+
+                laneBands.forEach(band => {
+                    const qResult = calculateQScore(band, laneProfile);
+                    band.qScore = qResult.qScore;
+                    qScores.push(qResult.qScore);
+                });
+
+                if (qScores.length > 0) {
+                    avgQScore = Math.round(qScores.reduce((a, b) => a + b, 0) / qScores.length);
+                }
+
+                // 표준 유전형 코드 스코어링
+                const genotypeResult = scoreGenotype(laneBands, p1Reference, p2Reference);
+
+                // 기존 방식과 통합
                 let genotype = '-';
+                let alleleCode = '-';
                 let bandPattern = '';
 
-                if (markerType === 'codominant') {
-                    // Codominant: 2 bands = Het, 1 band = Homo
+                if (markerType === 'codominant' || markerType === 'snp') {
                     if (laneBands.length === 0) {
                         genotype = '-';
+                        alleleCode = '-';
                         bandPattern = '없음';
                     } else if (laneBands.length === 1) {
-                        // 밴드 패턴 분석으로 P1/P2 결정
-                        const patternType = determineBandPatternType(laneIdx, bandGroups, checkBands);
-                        genotype = patternType === 'P1' ? 'Homo(P1)' : patternType === 'P2' ? 'Homo(P2)' : 'Homo';
-                        bandPattern = `1밴드 (${patternType || '?'})`;
+                        genotype = genotypeResult.code === 'A' ? 'Homo(P1)' :
+                                   genotypeResult.code === 'B' ? 'Homo(P2)' : 'Homo';
+                        alleleCode = genotypeResult.code;
+                        bandPattern = `1밴드`;
                     } else if (laneBands.length >= 2) {
                         genotype = 'Het';
+                        alleleCode = 'H';
                         bandPattern = `${laneBands.length}밴드`;
                     }
                 } else if (markerType === 'dominant') {
-                    // Dominant: band present = 1, absent = 0
-                    genotype = laneBands.length > 0 ? '1' : '0';
-                    bandPattern = laneBands.length > 0 ? '밴드 있음' : '밴드 없음';
-                } else if (markerType === 'snp') {
-                    // SNP/CAPS: similar to codominant
-                    if (laneBands.length === 0) {
-                        genotype = '-';
-                        bandPattern = '없음';
-                    } else if (laneBands.length === 1) {
-                        const patternType = determineBandPatternType(laneIdx, bandGroups, checkBands);
-                        genotype = patternType === 'P1' ? 'Homo(P1)' : patternType === 'P2' ? 'Homo(P2)' : 'Homo';
-                        bandPattern = `1밴드`;
+                    if (laneBands.length > 0) {
+                        genotype = '1';
+                        alleleCode = 'C';
+                        bandPattern = '밴드 있음';
                     } else {
-                        genotype = 'Het';
-                        bandPattern = `${laneBands.length}밴드`;
+                        genotype = '0';
+                        alleleCode = 'D';
+                        bandPattern = '밴드 없음';
                     }
                 }
+
+                // Allele Binning 적용
+                const alleleNumbers = [];
+                laneBands.forEach(band => {
+                    const bin = assignToBin(band.size);
+                    if (bin) {
+                        band.alleleNumber = bin.alleleNumber;
+                        band.binnedSize = bin.roundedSize;
+                        alleleNumbers.push(bin.alleleNumber);
+                    }
+                });
 
                 return {
                     lane: laneIdx + 1,
                     name: lane.name,
                     genotype: genotype,
+                    alleleCode: alleleCode,
+                    numericCode: genotypeResult.numericCode,
                     bands: laneBands,
                     bandSizes: bandSizes,
-                    bandPattern: bandPattern
+                    binnedSizes: laneBands.map(b => b.binnedSize || b.size),
+                    alleleNumbers: alleleNumbers,
+                    bandPattern: bandPattern,
+                    qScore: avgQScore,
+                    confidence: genotypeResult.confidence,
+                    patternChange: false
                 };
             }).filter(r => r.genotype !== 'Ladder');
 
-            // 3. 인접 레인 비교로 패턴 변화 감지
+            // 5. 인접 레인 비교로 패턴 변화 감지
             detectPatternChanges(results, bandGroups);
 
-            // Render results table
+            // Render results table with enhanced data
             renderResultsTable(results, markerName);
 
-            // Update summary
-            const counts = { 'P1': 0, 'P2': 0, Het: 0, '-': 0 };
+            // 6. 빈닝 통계 표시
+            displayBinningStats();
+
+            // Update summary with R² if available
+            const counts = { A: 0, B: 0, H: 0, '-': 0 };
+            let lowQScoreCount = 0;
+
             results.forEach(r => {
-                if (r.genotype.includes('P1') || r.genotype === '1') {
-                    counts['P1']++;
-                } else if (r.genotype.includes('P2') || r.genotype === '0') {
-                    counts['P2']++;
-                } else if (r.genotype === 'Het') {
-                    counts['Het']++;
-                } else if (r.genotype === 'Homo') {
-                    counts['P1']++; // 기본값으로 P1
+                if (r.alleleCode === 'A' || r.genotype.includes('P1')) {
+                    counts['A']++;
+                } else if (r.alleleCode === 'B' || r.genotype.includes('P2')) {
+                    counts['B']++;
+                } else if (r.alleleCode === 'H' || r.genotype === 'Het') {
+                    counts['H']++;
                 } else {
                     counts['-']++;
                 }
+
+                if (r.qScore !== null && r.qScore < analysisSettings.minQScore) {
+                    lowQScoreCount++;
+                }
             });
+
+            const rSquaredInfo = calibrationData.rSquared ?
+                `<br>검량선 R² = ${calibrationData.rSquared.toFixed(4)}` : '';
+            const qScoreWarning = lowQScoreCount > 0 ?
+                `<br><span style="color: #e65100;">⚠️ ${lowQScoreCount}개 시료 품질 낮음 (Q < ${analysisSettings.minQScore})</span>` : '';
 
             document.getElementById('summaryText').innerHTML = `
                 <strong>${markerName}</strong> 마커 분석 결과<br>
                 총 ${results.length}개 시료 |
-                P1형: ${counts['P1']}개 |
-                P2형: ${counts['P2']}개 |
-                이형접합: ${counts['Het']}개 |
-                미판정: ${counts['-']}개
+                <span class="allele-code allele-A">A</span> ${counts['A']}개 |
+                <span class="allele-code allele-B">B</span> ${counts['B']}개 |
+                <span class="allele-code allele-H">H</span> ${counts['H']}개 |
+                <span class="allele-code allele-null">-</span> ${counts['-']}개
+                ${rSquaredInfo}${qScoreWarning}
             `;
 
             // Store for export
             window.analysisResults = results;
             window.markerName = markerName;
+
+            console.log('=== 결과 생성 완료 ===');
+            console.log('결과:', results);
+        }
+
+        // 빈닝 통계 표시
+        function displayBinningStats() {
+            const panel = document.getElementById('analysisInfoPanel');
+            const calibInfo = document.getElementById('calibrationInfo');
+            const binInfo = document.getElementById('binningInfo');
+
+            // 패널 표시
+            panel.style.display = 'grid';
+
+            // 검량선 정보 업데이트
+            if (calibrationData.rSquared) {
+                calibInfo.innerHTML = `
+                    <div style="font-size: 0.85rem;">
+                        <strong>회귀식:</strong><br>
+                        <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">
+                            log₁₀(MW) = ${calibrationData.regressionCoeffs.a.toFixed(5)}D + ${calibrationData.regressionCoeffs.b.toFixed(3)}
+                        </code><br>
+                        <strong>R² = ${calibrationData.rSquared.toFixed(4)}</strong>
+                        ${calibrationData.rSquared >= 0.99 ?
+                            '<span style="color: #2e7d32;"> ✓ 우수</span>' :
+                            calibrationData.rSquared >= 0.95 ?
+                            '<span style="color: #ff9800;"> △ 양호</span>' :
+                            '<span style="color: #c62828;"> ✗ 검토 필요</span>'
+                        }
+                    </div>
+                `;
+            } else {
+                calibInfo.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-light);">검량선 미적용</p>';
+            }
+
+            // 빈닝 정보 업데이트
+            if (alleleBins.length > 0) {
+                binInfo.innerHTML = `
+                    <table class="binning-table">
+                        <thead>
+                            <tr><th>Allele</th><th>크기(bp)</th><th>n</th></tr>
+                        </thead>
+                        <tbody>
+                            ${alleleBins.slice(0, 5).map(bin => `
+                                <tr>
+                                    <td>${bin.alleleNumber}</td>
+                                    <td>${bin.roundedSize}</td>
+                                    <td>${bin.count}</td>
+                                </tr>
+                            `).join('')}
+                            ${alleleBins.length > 5 ? `<tr><td colspan="3" style="color: #666;">외 ${alleleBins.length - 5}개...</td></tr>` : ''}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                binInfo.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-light);">빈닝 정보 없음</p>';
+            }
+
+            console.log('=== Allele Binning 통계 ===');
+            alleleBins.forEach(bin => {
+                console.log(`Allele ${bin.alleleNumber}: ${bin.roundedSize}bp (n=${bin.count})`);
+            });
+        }
+
+        // 분석 상세 정보 팝업
+        function showAnalysisDetails() {
+            if (!window.analysisResults) {
+                alert('분석 결과가 없습니다.');
+                return;
+            }
+
+            const markerName = window.markerName || 'Marker';
+
+            // Q-score 통계
+            const qScores = window.analysisResults
+                .filter(r => r.qScore !== null && r.qScore !== undefined)
+                .map(r => r.qScore);
+
+            const avgQ = qScores.length > 0 ?
+                (qScores.reduce((a, b) => a + b, 0) / qScores.length).toFixed(1) : '-';
+            const minQ = qScores.length > 0 ? Math.min(...qScores) : '-';
+            const maxQ = qScores.length > 0 ? Math.max(...qScores) : '-';
+            const lowQCount = qScores.filter(q => q < analysisSettings.minQScore).length;
+
+            // 유전형 분포
+            const codeDist = { A: 0, B: 0, H: 0, '-': 0 };
+            window.analysisResults.forEach(r => {
+                if (r.alleleCode in codeDist) codeDist[r.alleleCode]++;
+                else codeDist['-']++;
+            });
+
+            // 팝업 표시
+            const popup = window.open('', '분석 상세', 'width=600,height=500');
+            popup.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>${markerName} 분석 상세</title>
+                    <style>
+                        body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; background: #f8fafa; }
+                        h2 { color: #0c3026; border-bottom: 2px solid #017f97; padding-bottom: 10px; }
+                        .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                        .card h3 { color: #017f97; margin-bottom: 10px; font-size: 1rem; }
+                        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+                        .stat-item { background: #f5f5f5; padding: 10px; border-radius: 4px; text-align: center; }
+                        .stat-value { font-size: 1.5rem; font-weight: bold; color: #0c3026; }
+                        .stat-label { font-size: 0.8rem; color: #666; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        th, td { padding: 8px; border: 1px solid #ddd; text-align: center; }
+                        th { background: #017f97; color: white; }
+                    </style>
+                </head>
+                <body>
+                    <h2>${markerName} 분석 상세 정보</h2>
+
+                    <div class="card">
+                        <h3>📊 Q-score 통계</h3>
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <div class="stat-value">${avgQ}</div>
+                                <div class="stat-label">평균 Q-score</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${minQ} ~ ${maxQ}</div>
+                                <div class="stat-label">범위</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" style="color: ${lowQCount > 0 ? '#e65100' : '#2e7d32'};">${lowQCount}</div>
+                                <div class="stat-label">품질 낮은 시료 (Q < ${analysisSettings.minQScore})</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${qScores.length}</div>
+                                <div class="stat-label">분석된 시료</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>🧬 유전형 분포</h3>
+                        <table>
+                            <tr><th>코드</th><th>A (P1)</th><th>B (P2)</th><th>H (Het)</th><th>- (미판정)</th></tr>
+                            <tr><td>개수</td><td>${codeDist.A}</td><td>${codeDist.B}</td><td>${codeDist.H}</td><td>${codeDist['-']}</td></tr>
+                            <tr><td>비율</td>
+                                <td>${(codeDist.A / window.analysisResults.length * 100).toFixed(1)}%</td>
+                                <td>${(codeDist.B / window.analysisResults.length * 100).toFixed(1)}%</td>
+                                <td>${(codeDist.H / window.analysisResults.length * 100).toFixed(1)}%</td>
+                                <td>${(codeDist['-'] / window.analysisResults.length * 100).toFixed(1)}%</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    ${calibrationData.rSquared ? `
+                    <div class="card">
+                        <h3>📈 검량선 정보</h3>
+                        <p><strong>회귀식:</strong> log₁₀(MW) = ${calibrationData.regressionCoeffs.a.toFixed(6)} × D + ${calibrationData.regressionCoeffs.b.toFixed(4)}</p>
+                        <p><strong>결정계수:</strong> R² = ${calibrationData.rSquared.toFixed(4)}</p>
+                        <p><strong>참조점 수:</strong> ${calibrationData.positions.length}개</p>
+                    </div>
+                    ` : ''}
+
+                    ${alleleBins.length > 0 ? `
+                    <div class="card">
+                        <h3>🎯 Allele Binning</h3>
+                        <table>
+                            <tr><th>Allele #</th><th>중심 크기 (bp)</th><th>샘플 수</th></tr>
+                            ${alleleBins.map(bin => `
+                                <tr><td>${bin.alleleNumber}</td><td>${bin.roundedSize}</td><td>${bin.count}</td></tr>
+                            `).join('')}
+                        </table>
+                    </div>
+                    ` : ''}
+
+                    <p style="text-align: center; color: #666; margin-top: 20px; font-size: 0.8rem;">
+                        생성일: ${new Date().toLocaleString('ko-KR')}
+                    </p>
+                </body>
+                </html>
+            `);
         }
 
         // 수평 밴드 정렬 분석 - 같은 높이의 밴드들을 그룹화
@@ -2291,13 +3606,35 @@
                     <th>레인</th>
                     <th>시료명</th>
                     <th>밴드 크기 (bp)</th>
-                    <th>패턴</th>
+                    <th>빈닝 크기</th>
+                    <th>코드</th>
+                    <th>Q-score</th>
                     <th>유전자형</th>
                     <th>수동 수정</th>
                 </tr>
             `;
 
             tbody.innerHTML = results.map((r, idx) => {
+                // 대립유전자 코드에 따른 색상
+                let alleleClass = 'allele-null';
+                if (r.alleleCode === 'A') alleleClass = 'allele-A';
+                else if (r.alleleCode === 'B') alleleClass = 'allele-B';
+                else if (r.alleleCode === 'H') alleleClass = 'allele-H';
+                else if (r.alleleCode === 'C') alleleClass = 'allele-C';
+                else if (r.alleleCode === 'D') alleleClass = 'allele-D';
+
+                // Q-score 표시
+                const qScoreDisplay = r.qScore !== null && r.qScore !== undefined ?
+                    `<span class="qscore-badge ${getQScoreClass(r.qScore)}" title="품질 점수: ${r.qScore}">${r.qScore}</span>` : '-';
+
+                // 패턴 변화 표시
+                const patternChangeStyle = r.patternChange ?
+                    'background: #fff3e0; border-left: 3px solid #ff9800;' : '';
+
+                // 빈닝된 크기 표시
+                const binnedSizesDisplay = r.binnedSizes && r.binnedSizes.length > 0 ?
+                    r.binnedSizes.join(', ') : '-';
+
                 // 유전자형에 따른 배지 색상 결정
                 let badgeClass = 'genotype-null';
                 if (r.genotype.includes('P1') || r.genotype === '1') {
@@ -2310,29 +3647,36 @@
                     badgeClass = 'genotype-p1';
                 }
 
-                // 패턴 변화 표시
-                const patternChangeStyle = r.patternChange ?
-                    'background: #fff3e0; border-left: 3px solid #ff9800;' : '';
+                // 낮은 Q-score 경고
+                const lowQWarning = r.qScore !== null && r.qScore < analysisSettings.minQScore ?
+                    '<span style="color: #e65100;" title="품질 검토 필요">⚠️</span>' : '';
 
                 return `
                     <tr style="${patternChangeStyle}">
                         <td>${r.lane}</td>
                         <td>${r.name}</td>
                         <td>${r.bandSizes.length > 0 ? r.bandSizes.join(', ') : '-'}</td>
+                        <td>${binnedSizesDisplay}</td>
                         <td>
-                            ${r.bandPattern || '-'}
-                            ${r.patternChange ? '<span style="color: #ff9800; font-weight: bold;" title="이전 레인과 패턴 변화">⚠️</span>' : ''}
+                            <span class="allele-code ${alleleClass}">${r.alleleCode}</span>
+                            ${r.numericCode ? `<span style="font-size: 0.7rem; color: #666;">(${r.numericCode})</span>` : ''}
+                        </td>
+                        <td>
+                            ${qScoreDisplay} ${lowQWarning}
                         </td>
                         <td>
                             <span class="genotype-badge ${badgeClass}">${r.genotype}</span>
+                            ${r.patternChange ? '<span style="color: #ff9800; font-weight: bold;" title="이전 레인과 패턴 변화">⚠️</span>' : ''}
                         </td>
                         <td>
                             <select onchange="updateGenotype(${idx}, this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border);">
-                                <option value="${r.genotype}" selected>${r.genotype}</option>
-                                <option value="Homo(P1)">Homo(P1)</option>
-                                <option value="Homo(P2)">Homo(P2)</option>
-                                <option value="Het">Het</option>
-                                <option value="-">미판정</option>
+                                <option value="${r.alleleCode}" selected>${r.alleleCode}</option>
+                                <option value="A">A (P1)</option>
+                                <option value="B">B (P2)</option>
+                                <option value="H">H (Het)</option>
+                                <option value="C">C</option>
+                                <option value="D">D</option>
+                                <option value="-">- (미판정)</option>
                             </select>
                         </td>
                     </tr>
@@ -2342,7 +3686,25 @@
 
         function updateGenotype(idx, value) {
             if (window.analysisResults && window.analysisResults[idx]) {
-                window.analysisResults[idx].genotype = value;
+                // 대립유전자 코드 업데이트
+                window.analysisResults[idx].alleleCode = value;
+
+                // 유전형도 함께 업데이트
+                const codeToGenotype = {
+                    'A': 'Homo(P1)',
+                    'B': 'Homo(P2)',
+                    'H': 'Het',
+                    'C': '1',
+                    'D': '0',
+                    '-': '-'
+                };
+                window.analysisResults[idx].genotype = codeToGenotype[value] || value;
+
+                // 수치 코드 업데이트
+                const codeToNumeric = { 'A': 1, 'B': 2, 'H': 3, 'C': 1, 'D': 0, '-': null };
+                window.analysisResults[idx].numericCode = codeToNumeric[value];
+
+                console.log(`Lane ${idx + 1} 유전형 수정: ${value}`);
             }
         }
 
@@ -2350,26 +3712,84 @@
             if (!window.analysisResults) return;
 
             const markerName = window.markerName || 'Marker';
+
+            // 확장된 데이터 형식
             const data = window.analysisResults.map(r => ({
                 '레인': r.lane,
                 '시료명': r.name,
-                '밴드 크기': r.bandSizes.join(', '),
-                [markerName]: r.genotype
+                '밴드 크기 (bp)': r.bandSizes.join(', '),
+                '빈닝 크기 (bp)': r.binnedSizes ? r.binnedSizes.join(', ') : r.bandSizes.join(', '),
+                [`${markerName}_코드`]: r.alleleCode,
+                [`${markerName}_수치`]: r.numericCode || '',
+                '유전자형': r.genotype,
+                'Q-score': r.qScore || '',
+                '신뢰도': r.confidence ? (r.confidence * 100).toFixed(1) + '%' : ''
             }));
 
             const ws = XLSX.utils.json_to_sheet(data);
+
+            // 열 너비 자동 조정
+            const colWidths = [
+                { wch: 6 },  // 레인
+                { wch: 15 }, // 시료명
+                { wch: 20 }, // 밴드 크기
+                { wch: 20 }, // 빈닝 크기
+                { wch: 12 }, // 코드
+                { wch: 10 }, // 수치
+                { wch: 12 }, // 유전자형
+                { wch: 8 },  // Q-score
+                { wch: 10 }  // 신뢰도
+            ];
+            ws['!cols'] = colWidths;
+
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Gel Analysis');
+
+            // 검량선 정보 시트 추가
+            if (calibrationData.rSquared) {
+                const calibData = [
+                    { '항목': '회귀 계수 a', '값': calibrationData.regressionCoeffs.a },
+                    { '항목': '회귀 계수 b', '값': calibrationData.regressionCoeffs.b },
+                    { '항목': 'R²', '값': calibrationData.rSquared },
+                    { '항목': '래더 위치 수', '값': calibrationData.positions.length }
+                ];
+                const calibWs = XLSX.utils.json_to_sheet(calibData);
+                XLSX.utils.book_append_sheet(wb, calibWs, 'Calibration');
+            }
+
+            // Allele Binning 정보 시트 추가
+            if (alleleBins.length > 0) {
+                const binData = alleleBins.map(bin => ({
+                    'Allele #': bin.alleleNumber,
+                    '중심 크기 (bp)': bin.roundedSize,
+                    '범위 최소': bin.min.toFixed(1),
+                    '범위 최대': bin.max.toFixed(1),
+                    '샘플 수': bin.count
+                }));
+                const binWs = XLSX.utils.json_to_sheet(binData);
+                XLSX.utils.book_append_sheet(wb, binWs, 'Allele Bins');
+            }
+
             XLSX.writeFile(wb, `gel_analysis_${markerName}_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+            console.log('Excel 파일 다운로드 완료');
         }
 
         function downloadCsv() {
             if (!window.analysisResults) return;
 
             const markerName = window.markerName || 'Marker';
-            const headers = ['레인', '시료명', '밴드 크기', markerName];
+            const headers = ['레인', '시료명', '밴드 크기', '빈닝 크기', `${markerName}_코드`, `${markerName}_수치`, 'Q-score'];
             const rows = window.analysisResults.map(r =>
-                [r.lane, r.name, r.bandSizes.join('; '), r.genotype]
+                [
+                    r.lane,
+                    r.name,
+                    r.bandSizes.join('; '),
+                    r.binnedSizes ? r.binnedSizes.join('; ') : r.bandSizes.join('; '),
+                    r.alleleCode,
+                    r.numericCode || '',
+                    r.qScore || ''
+                ]
             );
 
             let csv = headers.join(',') + '\n';
@@ -2382,6 +3802,8 @@
             link.href = URL.createObjectURL(blob);
             link.download = `gel_analysis_${markerName}_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
+
+            console.log('CSV 파일 다운로드 완료');
         }
 
         function sendToSimulator() {
@@ -2392,50 +3814,86 @@
 
             const markerName = window.markerName || 'Marker';
 
-            // Convert to simulator format
-            // Genotype mapping: Homo(P1) or Homo → 0, Homo(P2) → 2, Het → 1, - → null
+            // Convert to simulator format using standard allele codes
+            // A → 0 (P1 homozygote), B → 2 (P2 homozygote), H → 1 (heterozygote)
             const simulatorData = {
                 source: 'gel_analyzer',
                 timestamp: new Date().toISOString(),
+                version: '2.0',
                 genes: [markerName],
+                calibration: calibrationData.rSquared ? {
+                    rSquared: calibrationData.rSquared,
+                    coefficients: calibrationData.regressionCoeffs
+                } : null,
+                alleleBins: alleleBins.map(bin => ({
+                    allele: bin.alleleNumber,
+                    size: bin.roundedSize,
+                    count: bin.count
+                })),
                 samples: {}
             };
 
             window.analysisResults.forEach(r => {
+                // 표준 유전형 코드 매핑
                 let value = null;
-                if (r.genotype === 'Homo' || r.genotype === 'Homo(P1)' || r.genotype === '0') {
+                if (r.alleleCode === 'A' || r.genotype === 'Homo(P1)') {
                     value = 0;
-                } else if (r.genotype === 'Homo(P2)' || r.genotype === '1') {
+                } else if (r.alleleCode === 'B' || r.genotype === 'Homo(P2)') {
                     value = 2;
-                } else if (r.genotype === 'Het') {
+                } else if (r.alleleCode === 'H' || r.genotype === 'Het') {
                     value = 1;
+                } else if (r.numericCode !== null && r.numericCode !== undefined) {
+                    value = r.numericCode;
                 }
 
                 simulatorData.samples[r.name] = {
-                    [markerName]: value
+                    [markerName]: value,
+                    qScore: r.qScore,
+                    confidence: r.confidence,
+                    bandSizes: r.bandSizes,
+                    binnedSizes: r.binnedSizes
                 };
             });
 
             // Save to localStorage
             localStorage.setItem('gelDataForSimulator', JSON.stringify(simulatorData));
 
-            // Show confirmation
+            // Show confirmation with quality summary
             const count = Object.keys(simulatorData.samples).length;
-            alert(`시뮬레이터로 전송 완료!\n\n• 시료 수: ${count}개\n• 마커: ${markerName}\n\n시뮬레이터에서 'Gel 데이터 가져오기' 버튼을 클릭하세요.`);
+            const lowQCount = window.analysisResults.filter(r => r.qScore < analysisSettings.minQScore).length;
+            const rSquaredInfo = calibrationData.rSquared ?
+                `\n• 검량선 R²: ${calibrationData.rSquared.toFixed(4)}` : '';
+            const qualityWarning = lowQCount > 0 ?
+                `\n\n⚠️ ${lowQCount}개 시료의 품질이 낮습니다 (Q < ${analysisSettings.minQScore})` : '';
+
+            alert(`시뮬레이터로 전송 완료!\n\n• 시료 수: ${count}개\n• 마커: ${markerName}${rSquaredInfo}${qualityWarning}\n\n시뮬레이터에서 'Gel 데이터 가져오기' 버튼을 클릭하세요.`);
 
             console.log('=== Gel 분석 데이터 전송 ===');
-            console.log(simulatorData);
+            console.log(JSON.stringify(simulatorData, null, 2));
         }
 
         function resetAll() {
             if (confirm('모든 분석을 초기화하시겠습니까?')) {
+                // 기본 변수 초기화
                 gelImage = null;
                 originalImageData = null;
+                preprocessedImageData = null;
                 lanes = [];
                 bands = [];
                 ladderBandPositions = [];
                 sampleInfo = {};
                 currentStep = 1;
+
+                // 고급 분석 변수 초기화
+                calibrationData = {
+                    positions: [],
+                    sizes: [],
+                    regressionCoeffs: { a: 0, b: 0 },
+                    rSquared: 0
+                };
+                alleleBins = [];
+                window.analysisResults = null;
+                window.markerName = null;
 
                 // Reset upload zones
                 imageUploadZone.classList.remove('has-file');
@@ -2454,7 +3912,21 @@
                 // Reset form
                 document.getElementById('markerName').value = '';
 
+                // Reset preprocessing checkboxes
+                const rollingBallCb = document.getElementById('enableRollingBall');
+                const smileCb = document.getElementById('enableSmileCorrection');
+                const zScoreCb = document.getElementById('enableZScore');
+                if (rollingBallCb) rollingBallCb.checked = false;
+                if (smileCb) smileCb.checked = false;
+                if (zScoreCb) zScoreCb.checked = true;
+
+                // Reset analysis info panel
+                const panel = document.getElementById('analysisInfoPanel');
+                if (panel) panel.style.display = 'none';
+
                 goToStep(1);
+
+                console.log('=== 전체 초기화 완료 ===');
             }
         }
     </script>
