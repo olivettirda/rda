@@ -27,7 +27,7 @@ from .breeding_recommender import BreedingMethodRecommender
 from .marker_selector import MASMarkerSelector
 from .elite_identifier import EliteParentIdentifier
 from .statistical_engine import StatisticalEngine
-from .famd_engine import FAMDEngine, FAMDResult, QualitativeTraitType
+from .famd import FAMDEngine, FAMDResult, QualitativeTraitType
 
 __version__ = "1.0.0"
 __all__ = [
