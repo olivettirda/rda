@@ -26,8 +26,8 @@ except ImportError:
 import sys
 import os
 
-# 상위 디렉토리를 path에 추가
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 현재 디렉토리를 path에 추가 (famd 폴더)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from famd_engine import (
     FAMDEngine,
