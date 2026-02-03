@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 암호 해제 도구</title>
+    <link rel="icon" href="../ssallogo.ico" type="image/x-icon">
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        /* 디자인 시스템 변수 */
+        :root {
+            --primary-dark: #0c3026;
+            --primary-main: #017f97;
+            --primary-light: #e8f4f8;
+            --bg-page: #ffffff;
+            --bg-card: #f8f9fa;
+            --bg-input: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-placeholder: #adb5bd;
+            --text-disabled: #ced4da;
+            --success: #28a745;
+            --warning: #ffc107;
+            --error: #dc3545;
+            --info: #17a2b8;
+            --border-default: #dee2e6;
+            --border-focus: #017f97;
+            --border-error: #dc3545;
+            --font-primary: 'KoPub Dotum', 'Malgun Gothic', sans-serif;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-10: 2.5rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --text-xs: 0.75rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+            --text-3xl: 1.875rem;
+            --font-regular: 400;
+            --font-medium: 500;
+            --font-bold: 700;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-primary);
+            background: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* 헤더 */
+        .header {
+            position: sticky;
+            top: 0;
+            height: 64px;
+            background: var(--primary-dark);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 var(--space-6);
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-medium);
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .header-icon {
+            width: 32px;
+            height: 32px;
+        }
+
+        /* 메인 컨테이너 */
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: var(--space-8) var(--space-4);
+        }
+
+        /* 카드 */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: var(--space-6);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: var(--text-xl);
+            font-weight: var(--font-medium);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .card-description {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        /* 파일 업로드 영역 */
+        .file-upload {
+            border: 2px dashed var(--border-default);
+            border-radius: 8px;
+            padding: var(--space-10);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-input);
+        }
+
+        .file-upload:hover,
+        .file-upload.drag-over {
+            border-color: var(--primary-main);
+            background: var(--primary-light);
+        }
+
+        .file-upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto var(--space-4);
+            color: var(--text-placeholder);
+        }
+
+        .file-upload-text {
+            font-size: var(--text-base);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .file-upload-hint {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        /* 파일 정보 */
+        .file-info {
+            display: none;
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            background: white;
+            border-radius: 6px;
+            border: 1px solid var(--border-default);
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-info-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-3);
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            color: var(--error);
+        }
+
+        .file-name {
+            font-size: var(--text-base);
+            font-weight: var(--font-medium);
+            word-break: break-all;
+        }
+
+        .file-size {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .file-remove {
+            margin-left: auto;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: var(--space-2);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .file-remove:hover {
+            background: #f1f3f4;
+            color: var(--error);
+        }
+
+        /* 비밀번호 입력 */
+        .password-section {
+            display: none;
+            margin-top: var(--space-6);
+        }
+
+        .password-section.show {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: var(--space-4);
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: var(--space-2);
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--text-primary);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .form-input {
+            width: 100%;
+            height: 44px;
+            padding: var(--space-3) var(--space-4);
+            padding-right: 44px;
+            font-size: var(--text-base);
+            color: var(--text-primary);
+            background: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-placeholder);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(1, 127, 151, 0.15);
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .toggle-password:hover {
+            background: #f1f3f4;
+            color: var(--text-primary);
+        }
+
+        .form-hint {
+            margin-top: var(--space-2);
+            font-size: var(--text-xs);
+            color: var(--text-secondary);
+        }
+
+        /* 버튼 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+            min-height: 44px;
+            padding: var(--space-3) var(--space-6);
+            font-size: var(--text-base);
+            font-weight: var(--font-medium);
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-dark);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0a2820;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(12, 48, 38, 0.3);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .btn.is-loading {
+            pointer-events: none;
+            position: relative;
+        }
+
+        .btn.is-loading .btn-text {
+            visibility: hidden;
+        }
+
+        .btn.is-loading::after {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 결과 영역 */
+        .result-section {
+            display: none;
+            margin-top: var(--space-6);
+        }
+
+        .result-section.show {
+            display: block;
+        }
+
+        /* 알림 */
+        .alert {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-3);
+            padding: var(--space-4);
+            border-radius: 6px;
+            margin-bottom: var(--space-4);
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .alert-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: var(--font-medium);
+            margin-bottom: var(--space-1);
+        }
+
+        .alert-message {
+            font-size: var(--text-sm);
+        }
+
+        /* 정보 박스 */
+        .info-box {
+            margin-top: var(--space-8);
+            padding: var(--space-4);
+            background: var(--primary-light);
+            border-radius: 6px;
+            border-left: 4px solid var(--primary-main);
+        }
+
+        .info-box-title {
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--primary-dark);
+            margin-bottom: var(--space-2);
+        }
+
+        .info-box-content {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+        }
+
+        .info-box-content ul {
+            margin: var(--space-2) 0 0 var(--space-4);
+        }
+
+        .info-box-content li {
+            margin-bottom: var(--space-1);
+        }
+
+        /* 반응형 */
+        @media (max-width: 576px) {
+            .container {
+                padding: var(--space-4);
+            }
+
+            .card {
+                padding: var(--space-4);
+            }
+
+            .file-upload {
+                padding: var(--space-6);
+            }
+        }
+
+        /* 접근성 */
+        :focus-visible {
+            outline: 2px solid var(--primary-main);
+            outline-offset: 2px;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1 class="header-title">
+            <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+            </svg>
+            PDF 암호 해제 도구
+        </h1>
+    </header>
+
+    <main class="container">
+        <div class="card">
+            <h2 class="card-title">암호로 보호된 PDF 파일 잠금 해제</h2>
+            <p class="card-description">
+                PDF 파일의 암호를 입력하여 보호를 해제한 새 파일을 다운로드하세요.
+                모든 처리는 브라우저에서 진행되며 파일이 서버로 전송되지 않습니다.
+            </p>
+
+            <!-- 파일 업로드 -->
+            <div class="file-upload" id="dropZone" role="button" tabindex="0" aria-label="PDF 파일 업로드">
+                <input type="file" id="fileInput" accept=".pdf" aria-describedby="fileHint">
+                <svg class="file-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="12" y2="12"/>
+                    <line x1="15" y1="15" x2="12" y2="12"/>
+                </svg>
+                <p class="file-upload-text">PDF 파일을 드래그하거나 클릭하여 선택</p>
+                <p class="file-upload-hint" id="fileHint">최대 100MB까지 업로드 가능</p>
+            </div>
+
+            <!-- 파일 정보 -->
+            <div class="file-info" id="fileInfo">
+                <div class="file-info-header">
+                    <svg class="file-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
+                    </svg>
+                    <div>
+                        <div class="file-name" id="fileName">-</div>
+                        <div class="file-size" id="fileSize">-</div>
+                    </div>
+                    <button class="file-remove" id="fileRemove" aria-label="파일 제거">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 비밀번호 입력 섹션 -->
+            <div class="password-section" id="passwordSection">
+                <div class="form-group">
+                    <label for="password" class="form-label">PDF 비밀번호</label>
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="password"
+                            class="form-input"
+                            placeholder="암호를 입력하세요"
+                            autocomplete="off"
+                        >
+                        <button type="button" class="toggle-password" id="togglePassword" aria-label="비밀번호 표시">
+                            <svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg id="eyeOffIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="form-hint">PDF 파일에 설정된 암호를 입력하세요</p>
+                </div>
+
+                <button type="button" class="btn btn-primary btn-block" id="unlockBtn" disabled>
+                    <span class="btn-text">암호 해제하기</span>
+                </button>
+            </div>
+
+            <!-- 결과 섹션 -->
+            <div class="result-section" id="resultSection">
+                <div class="alert" id="resultAlert">
+                    <svg class="alert-icon" id="resultIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9 12l2 2 4-4"/>
+                    </svg>
+                    <div class="alert-content">
+                        <div class="alert-title" id="resultTitle">성공</div>
+                        <div class="alert-message" id="resultMessage">메시지</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 정보 박스 -->
+            <div class="info-box">
+                <div class="info-box-title">개인정보 보호</div>
+                <div class="info-box-content">
+                    <ul>
+                        <li>파일은 브라우저에서만 처리되며 서버로 전송되지 않습니다</li>
+                        <li>입력한 비밀번호도 저장되지 않습니다</li>
+                        <li>안전하게 암호를 해제하고 새 PDF를 다운로드하세요</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 디버깅: 초기화 시작
+        console.log('PDF 암호 해제 도구 초기화 시작');
+
+        // 전역 변수
+        let selectedFile = null;
+
+        // DOM 요소
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileRemove = document.getElementById('fileRemove');
+        const passwordSection = document.getElementById('passwordSection');
+        const passwordInput = document.getElementById('password');
+        const togglePassword = document.getElementById('togglePassword');
+        const eyeIcon = document.getElementById('eyeIcon');
+        const eyeOffIcon = document.getElementById('eyeOffIcon');
+        const unlockBtn = document.getElementById('unlockBtn');
+        const resultSection = document.getElementById('resultSection');
+        const resultAlert = document.getElementById('resultAlert');
+        const resultIcon = document.getElementById('resultIcon');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultMessage = document.getElementById('resultMessage');
+
+        console.log('DOM 요소 로드 완료');
+
+        // 파일 크기 포맷팅
+        function formatFileSize(bytes) {
+            console.log('파일 크기 포맷팅:', bytes);
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 파일 선택 처리
+        function handleFileSelect(file) {
+            console.log('파일 선택:', { name: file.name, size: file.size, type: file.type });
+
+            if (!file) {
+                console.log('파일이 없음');
+                return;
+            }
+
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                console.log('PDF 파일이 아님');
+                showResult('error', '지원하지 않는 형식', 'PDF 파일만 업로드할 수 있습니다.');
+                return;
+            }
+
+            if (file.size > 100 * 1024 * 1024) {
+                console.log('파일 크기 초과:', file.size);
+                showResult('error', '파일 크기 초과', '100MB 이하의 파일만 업로드할 수 있습니다.');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('show');
+            passwordSection.classList.add('show');
+            resultSection.classList.remove('show');
+            passwordInput.value = '';
+            unlockBtn.disabled = true;
+
+            console.log('파일 선택 완료, UI 업데이트됨');
+        }
+
+        // 파일 제거
+        function removeFile() {
+            console.log('파일 제거');
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.classList.remove('show');
+            passwordSection.classList.remove('show');
+            resultSection.classList.remove('show');
+        }
+
+        // 결과 표시
+        function showResult(type, title, message) {
+            console.log('결과 표시:', { type, title, message });
+
+            resultSection.classList.add('show');
+            resultAlert.className = 'alert alert-' + type;
+            resultTitle.textContent = title;
+            resultMessage.textContent = message;
+
+            // 아이콘 업데이트
+            if (type === 'success') {
+                resultIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>';
+            } else if (type === 'error') {
+                resultIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>';
+            } else {
+                resultIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+            }
+        }
+
+        // PDF 암호 해제
+        async function unlockPdf() {
+            console.log('PDF 암호 해제 시작');
+
+            if (!selectedFile) {
+                console.log('선택된 파일 없음');
+                showResult('error', '파일 없음', 'PDF 파일을 먼저 선택해주세요.');
+                return;
+            }
+
+            const password = passwordInput.value;
+            if (!password) {
+                console.log('비밀번호 미입력');
+                showResult('error', '비밀번호 필요', '비밀번호를 입력해주세요.');
+                return;
+            }
+
+            // 로딩 상태
+            unlockBtn.classList.add('is-loading');
+            unlockBtn.disabled = true;
+            resultSection.classList.remove('show');
+
+            try {
+                console.log('파일 읽기 시작');
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                console.log('파일 읽기 완료, 크기:', arrayBuffer.byteLength);
+
+                console.log('PDF 로드 시도 (암호 사용)');
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, {
+                    password: password,
+                    ignoreEncryption: false
+                });
+                console.log('PDF 로드 성공, 페이지 수:', pdfDoc.getPageCount());
+
+                // 새 PDF 생성 (암호 없이)
+                console.log('새 PDF 생성 시작');
+                const newPdfDoc = await PDFLib.PDFDocument.create();
+                const pages = await newPdfDoc.copyPages(pdfDoc, pdfDoc.getPageIndices());
+
+                console.log('페이지 복사:', pages.length, '페이지');
+                pages.forEach(page => newPdfDoc.addPage(page));
+
+                // 메타데이터 복사 시도
+                try {
+                    const title = pdfDoc.getTitle();
+                    const author = pdfDoc.getAuthor();
+                    const subject = pdfDoc.getSubject();
+                    if (title) newPdfDoc.setTitle(title);
+                    if (author) newPdfDoc.setAuthor(author);
+                    if (subject) newPdfDoc.setSubject(subject);
+                    console.log('메타데이터 복사 완료');
+                } catch (metaError) {
+                    console.log('메타데이터 복사 실패 (무시):', metaError.message);
+                }
+
+                // 새 PDF 저장
+                console.log('새 PDF 저장 시작');
+                const pdfBytes = await newPdfDoc.save();
+                console.log('새 PDF 저장 완료, 크기:', pdfBytes.length);
+
+                // 다운로드
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+
+                // 파일명에서 확장자 제거 후 _unlocked 추가
+                const originalName = selectedFile.name.replace(/\.pdf$/i, '');
+                link.download = originalName + '_unlocked.pdf';
+                link.href = url;
+
+                console.log('다운로드 시작:', link.download);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                showResult('success', '암호 해제 완료', `"${link.download}" 파일이 다운로드됩니다.`);
+                console.log('암호 해제 및 다운로드 완료');
+
+            } catch (error) {
+                console.error('PDF 암호 해제 오류:', error);
+                console.error('오류 상세:', JSON.stringify({
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                }, null, 2));
+
+                let errorMessage = '알 수 없는 오류가 발생했습니다.';
+
+                if (error.message.includes('password') || error.message.includes('Password') || error.message.includes('decrypt')) {
+                    errorMessage = '비밀번호가 올바르지 않습니다. 다시 확인해주세요.';
+                } else if (error.message.includes('encrypted')) {
+                    errorMessage = '암호화된 PDF를 처리할 수 없습니다. 비밀번호를 확인해주세요.';
+                } else if (error.message.includes('Invalid')) {
+                    errorMessage = '유효하지 않은 PDF 파일입니다.';
+                }
+
+                showResult('error', '암호 해제 실패', errorMessage);
+            } finally {
+                unlockBtn.classList.remove('is-loading');
+                unlockBtn.disabled = !passwordInput.value;
+            }
+        }
+
+        // 이벤트 리스너
+
+        // 드래그 앤 드롭
+        dropZone.addEventListener('click', () => {
+            console.log('드롭존 클릭');
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            console.log('파일 드롭');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            console.log('파일 선택 변경');
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        // 파일 제거
+        fileRemove.addEventListener('click', removeFile);
+
+        // 비밀번호 표시 토글
+        togglePassword.addEventListener('click', () => {
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+            eyeIcon.style.display = type === 'password' ? 'block' : 'none';
+            eyeOffIcon.style.display = type === 'password' ? 'none' : 'block';
+            console.log('비밀번호 표시 토글:', type);
+        });
+
+        // 비밀번호 입력 감지
+        passwordInput.addEventListener('input', () => {
+            unlockBtn.disabled = !passwordInput.value;
+        });
+
+        // Enter 키로 제출
+        passwordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && passwordInput.value) {
+                unlockPdf();
+            }
+        });
+
+        // 암호 해제 버튼
+        unlockBtn.addEventListener('click', unlockPdf);
+
+        console.log('PDF 암호 해제 도구 초기화 완료');
+    </script>
+</body>
+</html>
