@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF 암호 해제 도구</title>
     <link rel="icon" href="../ssallogo.ico" type="image/x-icon">
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- PDF.js for reading encrypted PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- jsPDF for creating new PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         /* 디자인 시스템 변수 */
         :root {
@@ -176,7 +179,6 @@
             display: flex;
             align-items: center;
             gap: var(--space-3);
-            margin-bottom: var(--space-3);
         }
 
         .file-icon {
@@ -355,6 +357,37 @@
             to { transform: rotate(360deg); }
         }
 
+        /* 진행률 표시 */
+        .progress-section {
+            display: none;
+            margin-top: var(--space-4);
+        }
+
+        .progress-section.show {
+            display: block;
+        }
+
+        .progress-text {
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+            text-align: center;
+        }
+
+        .progress {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-main);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
         /* 결과 영역 */
         .result-section {
             display: none;
@@ -391,6 +424,12 @@
             background: #d1ecf1;
             color: #0c5460;
             border: 1px solid #bee5eb;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
         }
 
         .alert-icon {
@@ -566,6 +605,14 @@
                 <button type="button" class="btn btn-primary btn-block" id="unlockBtn" disabled>
                     <span class="btn-text">암호 해제하기</span>
                 </button>
+
+                <!-- 진행률 -->
+                <div class="progress-section" id="progressSection">
+                    <p class="progress-text" id="progressText">처리 중...</p>
+                    <div class="progress">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 결과 섹션 -->
@@ -597,8 +644,12 @@
     </main>
 
     <script>
+        // PDF.js worker 설정
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
         // 디버깅: 초기화 시작
         console.log('PDF 암호 해제 도구 초기화 시작');
+        console.log('PDF.js 버전:', pdfjsLib.version);
 
         // 전역 변수
         let selectedFile = null;
@@ -616,6 +667,9 @@
         const eyeIcon = document.getElementById('eyeIcon');
         const eyeOffIcon = document.getElementById('eyeOffIcon');
         const unlockBtn = document.getElementById('unlockBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressText = document.getElementById('progressText');
+        const progressBar = document.getElementById('progressBar');
         const resultSection = document.getElementById('resultSection');
         const resultAlert = document.getElementById('resultAlert');
         const resultIcon = document.getElementById('resultIcon');
@@ -632,6 +686,15 @@
             const sizes = ['Bytes', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 진행률 업데이트
+        function updateProgress(percent, text) {
+            progressBar.style.width = percent + '%';
+            if (text) {
+                progressText.textContent = text;
+            }
+            console.log('진행률:', percent + '%', text || '');
         }
 
         // 파일 선택 처리
@@ -661,6 +724,7 @@
             fileInfo.classList.add('show');
             passwordSection.classList.add('show');
             resultSection.classList.remove('show');
+            progressSection.classList.remove('show');
             passwordInput.value = '';
             unlockBtn.disabled = true;
 
@@ -675,12 +739,14 @@
             fileInfo.classList.remove('show');
             passwordSection.classList.remove('show');
             resultSection.classList.remove('show');
+            progressSection.classList.remove('show');
         }
 
         // 결과 표시
         function showResult(type, title, message) {
             console.log('결과 표시:', { type, title, message });
 
+            progressSection.classList.remove('show');
             resultSection.classList.add('show');
             resultAlert.className = 'alert alert-' + type;
             resultTitle.textContent = title;
@@ -691,12 +757,14 @@
                 resultIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>';
             } else if (type === 'error') {
                 resultIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>';
+            } else if (type === 'warning') {
+                resultIcon.innerHTML = '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
             } else {
                 resultIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
             }
         }
 
-        // PDF 암호 해제
+        // PDF 암호 해제 (PDF.js + jsPDF 방식)
         async function unlockPdf() {
             console.log('PDF 암호 해제 시작');
 
@@ -717,83 +785,121 @@
             unlockBtn.classList.add('is-loading');
             unlockBtn.disabled = true;
             resultSection.classList.remove('show');
+            progressSection.classList.add('show');
+            updateProgress(0, 'PDF 파일 읽는 중...');
 
             try {
                 console.log('파일 읽기 시작');
                 const arrayBuffer = await selectedFile.arrayBuffer();
                 console.log('파일 읽기 완료, 크기:', arrayBuffer.byteLength);
+                updateProgress(10, 'PDF 열기 시도 중...');
 
-                console.log('PDF 로드 시도 (암호 사용)');
-                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, {
-                    password: password,
-                    ignoreEncryption: false
+                // PDF.js로 암호화된 PDF 열기
+                console.log('PDF.js로 문서 로드 시도');
+                const loadingTask = pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    password: password
                 });
-                console.log('PDF 로드 성공, 페이지 수:', pdfDoc.getPageCount());
 
-                // 새 PDF 생성 (암호 없이)
-                console.log('새 PDF 생성 시작');
-                const newPdfDoc = await PDFLib.PDFDocument.create();
-                const pages = await newPdfDoc.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                const pdfDoc = await loadingTask.promise;
+                const numPages = pdfDoc.numPages;
+                console.log('PDF 로드 성공, 페이지 수:', numPages);
+                updateProgress(20, `PDF 열기 성공 (${numPages}페이지)`);
 
-                console.log('페이지 복사:', pages.length, '페이지');
-                pages.forEach(page => newPdfDoc.addPage(page));
+                // 첫 페이지로 방향 및 크기 결정
+                const firstPage = await pdfDoc.getPage(1);
+                const viewport = firstPage.getViewport({ scale: 1 });
+                console.log('첫 페이지 크기:', viewport.width, 'x', viewport.height);
 
-                // 메타데이터 복사 시도
-                try {
-                    const title = pdfDoc.getTitle();
-                    const author = pdfDoc.getAuthor();
-                    const subject = pdfDoc.getSubject();
-                    if (title) newPdfDoc.setTitle(title);
-                    if (author) newPdfDoc.setAuthor(author);
-                    if (subject) newPdfDoc.setSubject(subject);
-                    console.log('메타데이터 복사 완료');
-                } catch (metaError) {
-                    console.log('메타데이터 복사 실패 (무시):', metaError.message);
+                // jsPDF 생성 (첫 페이지 기준으로 방향 설정)
+                const { jsPDF } = window.jspdf;
+                const isLandscape = viewport.width > viewport.height;
+                const pdf = new jsPDF({
+                    orientation: isLandscape ? 'landscape' : 'portrait',
+                    unit: 'pt',
+                    format: [viewport.width, viewport.height]
+                });
+
+                console.log('jsPDF 생성, 방향:', isLandscape ? '가로' : '세로');
+
+                // 고해상도 렌더링을 위한 스케일
+                const scale = 2;
+
+                // 각 페이지 렌더링
+                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    console.log(`페이지 ${pageNum}/${numPages} 처리 중...`);
+                    updateProgress(20 + Math.floor((pageNum / numPages) * 70), `페이지 ${pageNum}/${numPages} 변환 중...`);
+
+                    const page = await pdfDoc.getPage(pageNum);
+                    const pageViewport = page.getViewport({ scale: scale });
+
+                    // 캔버스 생성
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = pageViewport.width;
+                    canvas.height = pageViewport.height;
+
+                    // 페이지 렌더링
+                    await page.render({
+                        canvasContext: context,
+                        viewport: pageViewport
+                    }).promise;
+
+                    // 이미지로 변환
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+                    // 첫 페이지가 아니면 새 페이지 추가
+                    if (pageNum > 1) {
+                        const pageVp = page.getViewport({ scale: 1 });
+                        const pageIsLandscape = pageVp.width > pageVp.height;
+                        pdf.addPage([pageVp.width, pageVp.height], pageIsLandscape ? 'landscape' : 'portrait');
+                    }
+
+                    // 현재 페이지 크기 가져오기
+                    const currentPageVp = page.getViewport({ scale: 1 });
+
+                    // 이미지 추가
+                    pdf.addImage(imgData, 'JPEG', 0, 0, currentPageVp.width, currentPageVp.height);
+
+                    console.log(`페이지 ${pageNum} 완료`);
                 }
 
-                // 새 PDF 저장
-                console.log('새 PDF 저장 시작');
-                const pdfBytes = await newPdfDoc.save();
-                console.log('새 PDF 저장 완료, 크기:', pdfBytes.length);
+                updateProgress(95, 'PDF 생성 중...');
 
-                // 다운로드
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-
-                // 파일명에서 확장자 제거 후 _unlocked 추가
+                // 파일명 생성
                 const originalName = selectedFile.name.replace(/\.pdf$/i, '');
-                link.download = originalName + '_unlocked.pdf';
-                link.href = url;
+                const newFileName = originalName + '_unlocked.pdf';
 
-                console.log('다운로드 시작:', link.download);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
+                // PDF 저장 및 다운로드
+                console.log('PDF 다운로드 시작:', newFileName);
+                pdf.save(newFileName);
 
-                showResult('success', '암호 해제 완료', `"${link.download}" 파일이 다운로드됩니다.`);
+                updateProgress(100, '완료!');
+                showResult('success', '암호 해제 완료', `"${newFileName}" 파일이 다운로드됩니다.`);
                 console.log('암호 해제 및 다운로드 완료');
 
             } catch (error) {
                 console.error('PDF 암호 해제 오류:', error);
                 console.error('오류 상세:', JSON.stringify({
                     name: error.name,
-                    message: error.message,
-                    stack: error.stack
+                    message: error.message
                 }, null, 2));
 
                 let errorMessage = '알 수 없는 오류가 발생했습니다.';
+                let errorType = 'error';
 
-                if (error.message.includes('password') || error.message.includes('Password') || error.message.includes('decrypt')) {
+                if (error.name === 'PasswordException' ||
+                    error.message.includes('password') ||
+                    error.message.includes('Password') ||
+                    error.message.includes('Incorrect')) {
                     errorMessage = '비밀번호가 올바르지 않습니다. 다시 확인해주세요.';
-                } else if (error.message.includes('encrypted')) {
-                    errorMessage = '암호화된 PDF를 처리할 수 없습니다. 비밀번호를 확인해주세요.';
-                } else if (error.message.includes('Invalid')) {
+                } else if (error.message.includes('Invalid PDF')) {
                     errorMessage = '유효하지 않은 PDF 파일입니다.';
+                } else if (error.message.includes('encrypted')) {
+                    errorMessage = '지원하지 않는 암호화 방식입니다.';
                 }
 
-                showResult('error', '암호 해제 실패', errorMessage);
+                showResult(errorType, '암호 해제 실패', errorMessage);
             } finally {
                 unlockBtn.classList.remove('is-loading');
                 unlockBtn.disabled = !passwordInput.value;
