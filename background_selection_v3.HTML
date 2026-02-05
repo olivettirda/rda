@@ -1,6 +1,6 @@
  <!DOCTYPE html>
 
-<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<html lang="ko"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>벼 백그라운드 셀렉션 분석기</title> <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script> <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script> <style> @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
     :root {
         --bg-primary: #ffffff;
@@ -1000,8 +1000,8 @@
                         
                         <div style="margin-top: 1.5rem;">
                             <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--accent-darker);">염색체별 회복률 분포</h3>
-                            <div class="chart-container">
-                                <canvas id="recoveryChart"></canvas>
+                            <div id="recoveryChartsContainer" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                                <!-- Individual sample charts will be populated here -->
                             </div>
                         </div>
                         
@@ -1633,7 +1633,7 @@ SSIIa,6,6749554"></textarea>
     let sampleNames = [];
     let currentSample = null;
     let analysisResults = {};
-    let recoveryChart = null;
+    let recoveryCharts = {};  // 샘플별 개별 차트 저장
     let comparisonChart = null;
     
     // 시각화 스타일 프리셋
@@ -2202,99 +2202,128 @@ SSIIa,6,6749554"></textarea>
         // 염색체별 회복률 차트
         updateRecoveryChart();
     }
-    
+
     function updateRecoveryChart() {
-        const ctx = document.getElementById('recoveryChart').getContext('2d');
-        
-        if (recoveryChart) {
-            recoveryChart.destroy();
-        }
-        
+        const container = document.getElementById('recoveryChartsContainer');
+        container.innerHTML = '';
+
+        // 기존 차트 정리
+        Object.values(recoveryCharts).forEach(chart => chart.destroy());
+        recoveryCharts = {};
+
         const labels = Object.keys(GENOME_BUILDS[currentBuild].chromosomes).map(c => c.replace('Chr', ''));
-        const datasets = [];
-        
-        const colors = [
-            'rgba(1, 127, 151, 0.8)',
-            'rgba(12, 48, 38, 0.8)',
-            'rgba(0, 161, 184, 0.8)',
-            'rgba(204, 227, 221, 0.9)',
-            'rgba(100, 150, 140, 0.8)'
-        ];
-        
-        let colorIndex = 0;
-        Object.entries(analysisResults).forEach(([sample, result]) => {
+        const samples = Object.keys(analysisResults);
+
+        samples.forEach((sample, idx) => {
+            const result = analysisResults[sample];
             const data = labels.map(chr => {
                 return result.chromosomes[chr] ? result.chromosomes[chr].recoveryRate : 0;
             });
-            
-            datasets.push({
-                label: sample,
-                data: data,
-                backgroundColor: colors[colorIndex % colors.length],
-                borderColor: colors[colorIndex % colors.length].replace('0.8', '1'),
-                borderWidth: 1
-            });
-            colorIndex++;
-        });
-        
-        recoveryChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels, datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
+
+            // 차트 컨테이너 생성
+            const chartWrapper = document.createElement('div');
+            chartWrapper.style.cssText = 'background: white; border-radius: 8px; padding: 1rem; border: 1px solid var(--border-color);';
+
+            const title = document.createElement('div');
+            title.style.cssText = 'font-weight: 600; font-size: 0.85rem; color: var(--accent-darker); margin-bottom: 0.5rem; text-align: center;';
+            title.textContent = `${sample} (${result.recoveryRate.toFixed(1)}%)`;
+            chartWrapper.appendChild(title);
+
+            const chartContainer = document.createElement('div');
+            chartContainer.style.cssText = 'height: 200px;';
+            const canvas = document.createElement('canvas');
+            canvas.id = `recoveryChart_${idx}`;
+            chartContainer.appendChild(canvas);
+            chartWrapper.appendChild(chartContainer);
+
+            container.appendChild(chartWrapper);
+
+            // 차트 생성
+            const ctx = canvas.getContext('2d');
+            recoveryCharts[sample] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '회복률 (%)',
+                        data: data,
+                        backgroundColor: 'rgba(1, 127, 151, 0.7)',
+                        borderColor: 'rgba(1, 127, 151, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            display: true,
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: (value) => value.toFixed(0),
+                            font: { size: 9, weight: 'bold' },
+                            color: '#0c3026'
+                        }
                     },
-                    title: {
-                        display: false
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { font: { size: 9 } },
+                            title: { display: false }
+                        },
+                        x: {
+                            ticks: { font: { size: 9 } },
+                            title: { display: false }
+                        }
                     }
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: '회복률 (%)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: '염색체'
-                        }
-                    }
-                }
-            }
+                plugins: [ChartDataLabels]
+            });
         });
     }
     
     function updateComparisonChart(samples) {
         const ctx = document.getElementById('comparisonChart').getContext('2d');
-        
+
         if (comparisonChart) {
             comparisonChart.destroy();
         }
-        
+
         const data = samples.map(s => analysisResults[s].recoveryRate);
         const threshold = parseInt(document.getElementById('recoveryThreshold').value);
-        
+
+        // 회복률 기준 정렬하여 탑 3 식별
+        const sortedIndices = data
+            .map((v, i) => ({ value: v, index: i }))
+            .sort((a, b) => b.value - a.value)
+            .map(item => item.index);
+        const top3Indices = new Set(sortedIndices.slice(0, 3));
+
+        // 색상 설정: 탑3은 진한 청록, 나머지는 옅은 청록 (recurrent 색상)
+        const darkTeal = 'rgba(1, 127, 151, 0.9)';      // 선발 개체 TOP3
+        const lightTeal = 'rgba(204, 227, 221, 0.9)';   // 기타 개체 (recurrent 색상)
+
+        const backgroundColors = data.map((v, i) => top3Indices.has(i) ? darkTeal : lightTeal);
+        const borderColors = data.map((v, i) => top3Indices.has(i) ? 'rgba(1, 127, 151, 1)' : 'rgba(180, 210, 200, 1)');
+
         comparisonChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: samples,
                 datasets: [{
-                    label: '유전체 회복률 (%)',
-                    data: data,
-                    backgroundColor: data.map(v => 
-                        v >= threshold ? 'rgba(1, 127, 151, 0.8)' : 'rgba(184, 134, 11, 0.8)'
-                    ),
-                    borderColor: data.map(v => 
-                        v >= threshold ? 'rgba(1, 127, 151, 1)' : 'rgba(184, 134, 11, 1)'
-                    ),
-                    borderWidth: 2
+                    label: '선발 개체 (TOP 3)',
+                    data: data.map((v, i) => top3Indices.has(i) ? v : null),
+                    backgroundColor: darkTeal,
+                    borderColor: 'rgba(1, 127, 151, 1)',
+                    borderWidth: 1
+                }, {
+                    label: '기타 개체',
+                    data: data.map((v, i) => top3Indices.has(i) ? null : v),
+                    backgroundColor: lightTeal,
+                    borderColor: 'rgba(180, 210, 200, 1)',
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -2302,7 +2331,26 @@ SSIIa,6,6749554"></textarea>
                 maintainAspectRatio: false,
                 indexAxis: 'y',
                 plugins: {
-                    legend: { display: false },
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: { size: 11 }
+                        }
+                    },
+                    datalabels: {
+                        display: true,
+                        anchor: 'center',
+                        align: 'center',
+                        formatter: (value) => value ? value.toFixed(1) + '%' : '',
+                        font: { size: 11, weight: 'bold' },
+                        color: (context) => {
+                            // 탑3 (dataset 0)은 흰색, 기타 (dataset 1)는 검정
+                            return context.datasetIndex === 0 ? '#ffffff' : '#333333';
+                        }
+                    },
                     annotation: {
                         annotations: {
                             line1: {
@@ -2324,13 +2372,18 @@ SSIIa,6,6749554"></textarea>
                     x: {
                         beginAtZero: true,
                         max: 100,
+                        stacked: true,
                         title: {
                             display: true,
                             text: '회복률 (%)'
                         }
+                    },
+                    y: {
+                        stacked: true
                     }
                 }
-            }
+            },
+            plugins: [ChartDataLabels]
         });
         
         // 선발 추천 업데이트
@@ -3268,19 +3321,30 @@ SSIIa,6,6749554"></textarea>
         // 렌더링 대기
         await new Promise(r => setTimeout(r, 100));
 
-        // 회복률 차트
-        if (typeof recoveryChart !== 'undefined' && recoveryChart) {
-            recoveryChart.resize(); // 차트 리사이즈 강제
-            await new Promise(r => setTimeout(r, 100));
-            const blob = await captureChartAsBlob(recoveryChart, '염색체별 회복률 분포', 1200, 300);
-            if (blob) {
-                imgFolder.file('recovery_chart.png', blob);
+        // 회복률 차트 (샘플별 개별 + 전체 통합)
+        const recoveryFolder = imgFolder.folder('recovery_by_sample');
+
+        if (typeof recoveryCharts !== 'undefined' && Object.keys(recoveryCharts).length > 0) {
+            // 개별 샘플 차트
+            for (const [sample, chart] of Object.entries(recoveryCharts)) {
+                chart.resize();
+                await new Promise(r => setTimeout(r, 50));
+                const blob = await captureChartAsBlob(chart, `${sample} - 염색체별 회복률`, 800, 200);
+                if (blob) {
+                    recoveryFolder.file(`recovery_${sample}.png`, blob);
+                }
+            }
+
+            // 전체 통합 이미지 (html2canvas로 컨테이너 캡처)
+            const allChartsBlob = await captureRecoveryChartsGridAsBlob(1200, 300);
+            if (allChartsBlob) {
+                imgFolder.file('recovery_all_samples.png', allChartsBlob);
             }
         }
 
         // 비교 차트
         if (typeof comparisonChart !== 'undefined' && comparisonChart) {
-            comparisonChart.resize(); // 차트 리사이즈 강제
+            comparisonChart.resize();
             await new Promise(r => setTimeout(r, 100));
             const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', 1200, 300);
             if (blob) {
@@ -3303,6 +3367,41 @@ SSIIa,6,6749554"></textarea>
         } catch (e) {
             console.error(e);
             showNotification('ZIP 생성 오류', 'error');
+        }
+    }
+
+    // 회복률 차트 그리드 전체를 이미지로 캡처
+    async function captureRecoveryChartsGridAsBlob(width, dpi, bgColor = '#ffffff') {
+        const container = document.getElementById('recoveryChartsContainer');
+        if (!container || container.children.length === 0) return null;
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
+        document.body.appendChild(wrapper);
+
+        const h = document.createElement('h2');
+        h.textContent = '샘플별 염색체 회복률 분포';
+        h.style.cssText = 'font-size:18px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
+        wrapper.appendChild(h);
+
+        const gridClone = container.cloneNode(true);
+        gridClone.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;';
+        wrapper.appendChild(gridClone);
+
+        try {
+            const scale = dpi / 96;
+            const canvas = await html2canvas(wrapper, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+
+            return new Promise(resolve => {
+                canvas.toBlob(blob => {
+                    document.body.removeChild(wrapper);
+                    resolve(blob);
+                }, 'image/png', 0.95);
+            });
+        } catch (e) {
+            console.error(e);
+            document.body.removeChild(wrapper);
+            return null;
         }
     }
 
@@ -3390,12 +3489,28 @@ SSIIa,6,6749554"></textarea>
 
                 if (includeRecovery) {
                     progressEl.textContent = '회복률 차트 생성 중...';
-                    if (typeof recoveryChart !== 'undefined' && recoveryChart) {
-                        recoveryChart.resize();
-                        await new Promise(r => setTimeout(r, 100));
-                        const blob = await captureChartAsBlob(recoveryChart, '염색체별 회복률 분포', width, dpi);
-                        if (blob) {
-                            chartFolder.file('recovery_chart.png', blob);
+                    const recoveryFolder = chartFolder.folder('recovery_by_sample');
+
+                    if (typeof recoveryCharts !== 'undefined' && Object.keys(recoveryCharts).length > 0) {
+                        // 개별 샘플 차트
+                        const samples = Object.keys(recoveryCharts);
+                        for (let i = 0; i < samples.length; i++) {
+                            const sample = samples[i];
+                            progressEl.textContent = `회복률 차트 생성 중... (${i+1}/${samples.length})`;
+                            const chart = recoveryCharts[sample];
+                            chart.resize();
+                            await new Promise(r => setTimeout(r, 50));
+                            const blob = await captureChartAsBlob(chart, `${sample} - 염색체별 회복률`, width, dpi);
+                            if (blob) {
+                                recoveryFolder.file(`recovery_${sample}.png`, blob);
+                            }
+                        }
+
+                        // 전체 통합 이미지
+                        progressEl.textContent = '회복률 전체 차트 생성 중...';
+                        const allChartsBlob = await captureRecoveryChartsGridAsBlob(width, dpi);
+                        if (allChartsBlob) {
+                            chartFolder.file('recovery_all_samples.png', allChartsBlob);
                         }
                     }
                 }
