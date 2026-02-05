@@ -1149,9 +1149,28 @@
             <div class="form-group" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                 <h4 style="font-size: 0.9rem; color: var(--accent-darker); margin-bottom: 0.75rem;">🖼️ 이미지 파일</h4>
                 <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
-                    <input type="checkbox" id="bulkChromosomeImg" checked> 염색체 시각화 (PNG)
+                    <input type="checkbox" id="bulkChromosomeImg" checked onchange="toggleChromosomeSelection()"> 염색체 시각화 (PNG)
                     <small style="color:var(--text-secondary);font-size:0.75rem;">- 모든 샘플</small>
                 </label>
+                <div id="chromosomeSelectionContainer" style="margin-left:1.5rem;margin-bottom:0.75rem;padding:0.5rem;background:rgba(0,0,0,0.03);border-radius:4px;font-size:0.8rem;">
+                    <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;font-weight:600;">
+                        <input type="checkbox" id="bulkChrAll" checked onchange="toggleAllChromosomes(this.checked)"> 전체 (1~12)
+                    </label>
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.25rem;">
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="01" checked> Chr01</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="02" checked> Chr02</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="03" checked> Chr03</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="04" checked> Chr04</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="05" checked> Chr05</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="06" checked> Chr06</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="07" checked> Chr07</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="08" checked> Chr08</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="09" checked> Chr09</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="10" checked> Chr10</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="11" checked> Chr11</label>
+                        <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="12" checked> Chr12</label>
+                    </div>
+                </div>
                 <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
                     <input type="checkbox" id="bulkRecoveryChart" checked> 염색체별 회복률 차트 (PNG)
                 </label>
@@ -2954,6 +2973,38 @@ SSIIa,6,6749554"></textarea>
         document.getElementById('bulkExportProgress').style.display = 'none';
     }
 
+    // 염색체 선택 토글
+    function toggleChromosomeSelection() {
+        const container = document.getElementById('chromosomeSelectionContainer');
+        const checked = document.getElementById('bulkChromosomeImg').checked;
+        container.style.display = checked ? 'block' : 'none';
+    }
+
+    // 전체 염색체 토글
+    function toggleAllChromosomes(checked) {
+        document.querySelectorAll('.bulk-chr-individual').forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
+    // 개별 염색체 체크박스 변경 시 전체 체크박스 업데이트
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('bulk-chr-individual')) {
+            const allChecked = [...document.querySelectorAll('.bulk-chr-individual')].every(cb => cb.checked);
+            document.getElementById('bulkChrAll').checked = allChecked;
+        }
+    });
+
+    // 선택된 염색체 목록 가져오기
+    function getSelectedChromosomes() {
+        const includeAll = document.getElementById('bulkChrAll').checked;
+        const selected = [];
+        document.querySelectorAll('.bulk-chr-individual:checked').forEach(cb => {
+            selected.push(cb.value);
+        });
+        return { includeAll, selected };
+    }
+
     // 원시 데이터 CSV 내보내기
     function exportRawDataCSV() {
         if (markerData.length === 0) {
@@ -3134,11 +3185,15 @@ SSIIa,6,6749554"></textarea>
         const vizContainer = document.createElement('div');
         vizContainer.style.cssText = 'background:white;padding:10px;';
 
+        const maxLength = Math.max(...Object.values(build.chromosomes).map(c => c.length));
+
         // 각 염색체 그리기
         Object.entries(build.chromosomes).forEach(([chrKey, chrInfo]) => {
             const chrNum = chrKey.replace('Chr', '');
             const chrData = result.chromosomes[chrNum];
             if (!chrData) return;
+
+            const totalWidthPercent = (chrInfo.length / maxLength * 100);
 
             const chrRow = document.createElement('div');
             chrRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;';
@@ -3151,7 +3206,7 @@ SSIIa,6,6749554"></textarea>
 
             // 염색체 구조 (p-arm / centromere / q-arm)
             const chrStructure = document.createElement('div');
-            chrStructure.style.cssText = `flex:1;display:flex;align-items:center;height:${vizStyles.chrH}px;`;
+            chrStructure.style.cssText = `flex:1;display:flex;align-items:center;height:${vizStyles.chrH}px;max-width:${totalWidthPercent}%;`;
 
             const centromereRatio = chrInfo.centromere / chrInfo.length;
             const pArmRatio = centromereRatio;
@@ -3169,27 +3224,64 @@ SSIIa,6,6749554"></textarea>
             const centromere = document.createElement('div');
             centromere.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -2px;`;
 
-            // 마커 표시
+            // 마커 영역 표시 (화면과 동일한 영역 방식)
             if (chrData.markers && chrData.markers.length > 0) {
-                chrData.markers.forEach(marker => {
-                    const pos = marker.position;
-                    let targetArm, relativePos;
+                // p-arm 마커
+                const pArmMarkers = chrData.markers
+                    .filter(m => m.position < chrInfo.centromere)
+                    .sort((a, b) => a.position - b.position);
 
-                    if (pos < chrInfo.centromere) {
-                        targetArm = pArm;
-                        relativePos = (pos / chrInfo.centromere) * 100;
-                    } else {
-                        targetArm = qArm;
-                        relativePos = ((pos - chrInfo.centromere) / (chrInfo.length - chrInfo.centromere)) * 100;
-                    }
+                pArmMarkers.forEach((marker, i) => {
+                    const prevMarker = pArmMarkers[i - 1];
+                    const nextMarker = pArmMarkers[i + 1];
+
+                    const regionStart = prevMarker
+                        ? (prevMarker.position + marker.position) / 2
+                        : 0;
+                    const regionEnd = nextMarker
+                        ? Math.min(chrInfo.centromere, (marker.position + nextMarker.position) / 2)
+                        : chrInfo.centromere;
+
+                    const relStart = (regionStart / chrInfo.centromere * 100);
+                    const relWidth = ((regionEnd - regionStart) / chrInfo.centromere * 100);
 
                     let markerColor = vizStyles.recurrent;
                     if (marker.type === 'donor') markerColor = vizStyles.donor;
                     else if (marker.type === 'heterozygous') markerColor = vizStyles.het;
 
                     const markerEl = document.createElement('div');
-                    markerEl.style.cssText = `position:absolute;left:${relativePos}%;top:0;width:2px;height:100%;background:${markerColor};`;
-                    targetArm.appendChild(markerEl);
+                    markerEl.style.cssText = `position:absolute;left:${relStart}%;top:0;width:${relWidth}%;height:100%;background:${markerColor};`;
+                    pArm.appendChild(markerEl);
+                });
+
+                // q-arm 마커
+                const qArmStart = chrInfo.centromere;
+                const qArmLength = chrInfo.length - chrInfo.centromere;
+                const qArmMarkers = chrData.markers
+                    .filter(m => m.position >= chrInfo.centromere)
+                    .sort((a, b) => a.position - b.position);
+
+                qArmMarkers.forEach((marker, i) => {
+                    const prevMarker = qArmMarkers[i - 1];
+                    const nextMarker = qArmMarkers[i + 1];
+
+                    const regionStart = prevMarker
+                        ? Math.max(qArmStart, (prevMarker.position + marker.position) / 2)
+                        : qArmStart;
+                    const regionEnd = nextMarker
+                        ? (marker.position + nextMarker.position) / 2
+                        : chrInfo.length;
+
+                    const relStart = ((regionStart - qArmStart) / qArmLength * 100);
+                    const relWidth = ((regionEnd - regionStart) / qArmLength * 100);
+
+                    let markerColor = vizStyles.recurrent;
+                    if (marker.type === 'donor') markerColor = vizStyles.donor;
+                    else if (marker.type === 'heterozygous') markerColor = vizStyles.het;
+
+                    const markerEl = document.createElement('div');
+                    markerEl.style.cssText = `position:absolute;left:${relStart}%;top:0;width:${relWidth}%;height:100%;background:${markerColor};`;
+                    qArm.appendChild(markerEl);
                 });
             }
 
@@ -3292,27 +3384,66 @@ SSIIa,6,6749554"></textarea>
         const centromere = document.createElement('div');
         centromere.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -3px;`;
 
-        // 마커 표시
-        chrData.markers.forEach(marker => {
-            const pos = marker.position;
-            let targetArm, relativePos;
+        // 마커 영역 표시 (화면과 동일한 영역 방식)
+        if (chrData.markers && chrData.markers.length > 0) {
+            // p-arm 마커
+            const pArmMarkers = chrData.markers
+                .filter(m => m.position < chrInfo.centromere)
+                .sort((a, b) => a.position - b.position);
 
-            if (pos < chrInfo.centromere) {
-                targetArm = pArm;
-                relativePos = (pos / chrInfo.centromere) * 100;
-            } else {
-                targetArm = qArm;
-                relativePos = ((pos - chrInfo.centromere) / (chrInfo.length - chrInfo.centromere)) * 100;
-            }
+            pArmMarkers.forEach((marker, i) => {
+                const prevMarker = pArmMarkers[i - 1];
+                const nextMarker = pArmMarkers[i + 1];
 
-            let bgColor = vizStyles.recurrent;
-            if (marker.type === 'donor') bgColor = vizStyles.donor;
-            else if (marker.type === 'heterozygous') bgColor = vizStyles.het;
+                const regionStart = prevMarker
+                    ? (prevMarker.position + marker.position) / 2
+                    : 0;
+                const regionEnd = nextMarker
+                    ? Math.min(chrInfo.centromere, (marker.position + nextMarker.position) / 2)
+                    : chrInfo.centromere;
 
-            const markerEl = document.createElement('div');
-            markerEl.style.cssText = `position:absolute;left:${relativePos}%;top:0;width:3px;height:100%;background:${bgColor};`;
-            targetArm.appendChild(markerEl);
-        });
+                const relStart = (regionStart / chrInfo.centromere * 100);
+                const relWidth = ((regionEnd - regionStart) / chrInfo.centromere * 100);
+
+                let markerColor = vizStyles.recurrent;
+                if (marker.type === 'donor') markerColor = vizStyles.donor;
+                else if (marker.type === 'heterozygous') markerColor = vizStyles.het;
+
+                const markerEl = document.createElement('div');
+                markerEl.style.cssText = `position:absolute;left:${relStart}%;top:0;width:${relWidth}%;height:100%;background:${markerColor};`;
+                pArm.appendChild(markerEl);
+            });
+
+            // q-arm 마커
+            const qArmStart = chrInfo.centromere;
+            const qArmLength = chrInfo.length - chrInfo.centromere;
+            const qArmMarkers = chrData.markers
+                .filter(m => m.position >= chrInfo.centromere)
+                .sort((a, b) => a.position - b.position);
+
+            qArmMarkers.forEach((marker, i) => {
+                const prevMarker = qArmMarkers[i - 1];
+                const nextMarker = qArmMarkers[i + 1];
+
+                const regionStart = prevMarker
+                    ? Math.max(qArmStart, (prevMarker.position + marker.position) / 2)
+                    : qArmStart;
+                const regionEnd = nextMarker
+                    ? (marker.position + nextMarker.position) / 2
+                    : chrInfo.length;
+
+                const relStart = ((regionStart - qArmStart) / qArmLength * 100);
+                const relWidth = ((regionEnd - regionStart) / qArmLength * 100);
+
+                let markerColor = vizStyles.recurrent;
+                if (marker.type === 'donor') markerColor = vizStyles.donor;
+                else if (marker.type === 'heterozygous') markerColor = vizStyles.het;
+
+                const markerEl = document.createElement('div');
+                markerEl.style.cssText = `position:absolute;left:${relStart}%;top:0;width:${relWidth}%;height:100%;background:${markerColor};`;
+                qArm.appendChild(markerEl);
+            });
+        }
 
         chrStructure.appendChild(pArm);
         chrStructure.appendChild(centromere);
@@ -3568,25 +3699,31 @@ SSIIa,6,6749554"></textarea>
             // 2. 염색체 시각화 이미지 추가 (샘플별 폴더 구조)
             if (includeChromosome) {
                 const samples = Object.keys(analysisResults);
-                const totalTasks = samples.length * 13; // 전체 1개 + 개별 12개
+                const chrSelection = getSelectedChromosomes();
+                const includeAllChr = chrSelection.includeAll;
+                const selectedChrs = chrSelection.selected;
+
+                // 전체 이미지 + 선택된 개별 염색체 수
+                const totalTasks = samples.length * (1 + selectedChrs.length);
                 let taskCount = 0;
 
                 for (let i = 0; i < samples.length; i++) {
                     const sample = samples[i];
                     const sampleFolder = chromoFolder.folder(sample);
 
-                    // 전체 염색체 이미지
-                    taskCount++;
-                    progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - 전체 염색체 생성 중...`;
-                    const allBlob = await captureChromosomeVizAsBlob(sample, width, dpi);
-                    if (allBlob) {
-                        sampleFolder.file(`all_chromosomes.png`, allBlob);
+                    // 전체 염색체 이미지 (전체 선택 시에만)
+                    if (includeAllChr) {
+                        taskCount++;
+                        progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - 전체 염색체 생성 중...`;
+                        const allBlob = await captureChromosomeVizAsBlob(sample, width, dpi);
+                        if (allBlob) {
+                            sampleFolder.file(`all_chromosomes.png`, allBlob);
+                        }
                     }
 
-                    // 개별 염색체 이미지 (Chr01 ~ Chr12)
-                    for (let chr = 1; chr <= 12; chr++) {
+                    // 선택된 개별 염색체 이미지
+                    for (const chrNum of selectedChrs) {
                         taskCount++;
-                        const chrNum = chr.toString().padStart(2, '0');
                         progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - Chr${chrNum} 생성 중...`;
                         const chrBlob = await captureSingleChromosomeAsBlob(sample, chrNum, width, dpi);
                         if (chrBlob) {
