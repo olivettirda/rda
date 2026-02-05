@@ -819,7 +819,7 @@
                             </svg>
                             파일 선택
                         </label>
-                        <input type="file" id="markerFile" accept=".csv,.tsv,.txt">
+                        <input type="file" id="markerFile" accept=".csv,.tsv,.txt,.xlsx,.xls">
                         <div id="fileName" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
                     </div>
                     
@@ -1999,14 +1999,36 @@ SSIIa,6,6749554"></textarea>
     function handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
-        
+
         document.getElementById('fileName').textContent = `📎 ${file.name}`;
-        
+
         const reader = new FileReader();
+        const isExcel = file.name.match(/\.xlsx?$/i);
+
         reader.onload = (e) => {
-            parseMarkerData(e.target.result, file.name);
+            if (isExcel) {
+                // Excel 파일 처리
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const csvContent = XLSX.utils.sheet_to_csv(firstSheet);
+                    parseMarkerData(csvContent, file.name.replace(/\.xlsx?$/i, '.csv'));
+                    console.log('Excel 파일 로드:', file.name);
+                } catch (err) {
+                    showNotification('Excel 파일 파싱 중 오류가 발생했습니다', 'error');
+                    console.error('Excel 파싱 오류:', err);
+                }
+            } else {
+                parseMarkerData(e.target.result, file.name);
+            }
         };
-        reader.readAsText(file);
+
+        if (isExcel) {
+            reader.readAsArrayBuffer(file);
+        } else {
+            reader.readAsText(file);
+        }
     }
     
     function parseMarkerData(content, filename) {
