@@ -852,6 +852,13 @@
                 </div>
                 <div class="card-body">
                     <div class="form-group">
+                        <label>작물 (Crop)</label>
+                        <select id="cropSelect" onchange="updateCropSelection()">
+                            <option value="rice">🌾 벼 (Rice)</option>
+                            <option value="wheat">🌾 밀 (Wheat)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Reference Build</label>
                         <select id="genomeBuild" onchange="updateGenomeBuild()">
                             <option value="IRGSP-1.0">IRGSP-1.0 (Nipponbare)</option>
@@ -862,7 +869,7 @@
                             <option value="Aus-N22">Aus N22 Reference</option>
                         </select>
                     </div>
-                    
+
                     <div class="genome-info" id="genomeInfo">
                         <!-- Chromosome lengths will be populated here -->
                     </div>
@@ -1154,7 +1161,7 @@
                 </label>
                 <div id="chromosomeSelectionContainer" style="margin-left:1.5rem;margin-bottom:0.75rem;padding:0.5rem;background:rgba(0,0,0,0.03);border-radius:4px;font-size:0.8rem;">
                     <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
-                        <input type="checkbox" id="bulkChrAllInOne" checked> 전체 염색체 (1~12 한 이미지)
+                        <input type="checkbox" id="bulkChrAllInOne" checked> <span id="bulkChrAllLabel">전체 염색체 한 이미지</span>
                     </label>
                     <div style="border-top:1px solid rgba(0,0,0,0.1);margin:0.5rem 0;padding-top:0.5rem;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
@@ -1164,19 +1171,8 @@
                                 <button type="button" onclick="selectAllIndividualChromosomes(false)" style="padding:2px 6px;font-size:0.7rem;border:1px solid #ccc;border-radius:3px;background:#fff;cursor:pointer;">전체 해제</button>
                             </div>
                         </div>
-                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.25rem;">
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="01" checked> Chr01</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="02" checked> Chr02</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="03" checked> Chr03</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="04" checked> Chr04</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="05" checked> Chr05</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="06" checked> Chr06</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="07" checked> Chr07</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="08" checked> Chr08</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="09" checked> Chr09</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="10" checked> Chr10</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="11" checked> Chr11</label>
-                            <label style="display:flex;align-items:center;gap:0.3rem;"><input type="checkbox" class="bulk-chr-individual" value="12" checked> Chr12</label>
+                        <div class="bulk-chr-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.25rem;">
+                            <!-- 동적 생성됨 -->
                         </div>
                     </div>
                 </div>
@@ -1535,8 +1531,10 @@ SSIIa,6,6749554"></textarea>
     // 벼 게놈 빌드 정보 (하드코딩)
     // =====================================================
     const GENOME_BUILDS = {
+        // ========== 벼 (Rice) ==========
         'IRGSP-1.0': {
             name: 'IRGSP-1.0 (Nipponbare)',
+            crop: 'rice',
             species: 'Oryza sativa japonica',
             description: 'International Rice Genome Sequencing Project Build 1.0',
             totalLength: 373245519,
@@ -1557,6 +1555,7 @@ SSIIa,6,6749554"></textarea>
         },
         'MSU7': {
             name: 'MSU Rice Genome Annotation Project v7',
+            crop: 'rice',
             species: 'Oryza sativa japonica',
             description: 'Michigan State University Rice Genome Annotation v7.0',
             totalLength: 372077801,
@@ -1577,6 +1576,7 @@ SSIIa,6,6749554"></textarea>
         },
         'Os-Nipponbare-Reference-IRGSP-1.0': {
             name: 'Os-Nipponbare-Reference-IRGSP-1.0',
+            crop: 'rice',
             species: 'Oryza sativa japonica',
             description: 'NCBI RefSeq Assembly (GCF_001433935.1)',
             totalLength: 373245519,
@@ -1597,6 +1597,7 @@ SSIIa,6,6749554"></textarea>
         },
         'Indica-IR8': {
             name: 'Indica IR8 Reference',
+            crop: 'rice',
             species: 'Oryza sativa indica',
             description: 'IR8 Reference Genome (Green Revolution variety)',
             totalLength: 380000000,
@@ -1617,6 +1618,7 @@ SSIIa,6,6749554"></textarea>
         },
         'Indica-9311': {
             name: 'Indica 9311 Reference',
+            crop: 'rice',
             species: 'Oryza sativa indica',
             description: '9311 Reference Genome (BGI Assembly)',
             totalLength: 382000000,
@@ -1637,6 +1639,7 @@ SSIIa,6,6749554"></textarea>
         },
         'Aus-N22': {
             name: 'Aus N22 Reference',
+            crop: 'rice',
             species: 'Oryza sativa aus',
             description: 'N22 (Nagina 22) Drought tolerant aus variety',
             totalLength: 377000000,
@@ -1654,12 +1657,190 @@ SSIIa,6,6749554"></textarea>
                 'Chr11': { length: 29300000, centromere: 12200000 },
                 'Chr12': { length: 27800000, centromere: 11800000 }
             }
+        },
+
+        // ========== 밀 (Wheat) ==========
+        'IWGSC-RefSeq-v2.1': {
+            name: 'IWGSC RefSeq v2.1 (Chinese Spring)',
+            crop: 'wheat',
+            species: 'Triticum aestivum',
+            ploidy: '6x (AABBDD)',
+            description: '가장 널리 쓰이는 밀 표준 지놈. 조립 품질 및 어노테이션 개선 버전.',
+            totalLength: 14547261565,
+            chromosomes: {
+                'Chr1A': { length: 594102056, centromere: 212000000 },
+                'Chr2A': { length: 780798557, centromere: 305000000 },
+                'Chr3A': { length: 750843639, centromere: 270000000 },
+                'Chr4A': { length: 744588157, centromere: 250000000 },
+                'Chr5A': { length: 709773743, centromere: 210000000 },
+                'Chr6A': { length: 618079260, centromere: 270000000 },
+                'Chr7A': { length: 736706236, centromere: 330000000 },
+                'Chr1B': { length: 689851870, centromere: 240000000 },
+                'Chr2B': { length: 801256715, centromere: 330000000 },
+                'Chr3B': { length: 830829764, centromere: 350000000 },
+                'Chr4B': { length: 673617499, centromere: 240000000 },
+                'Chr5B': { length: 713149757, centromere: 230000000 },
+                'Chr6B': { length: 720988478, centromere: 300000000 },
+                'Chr7B': { length: 750620385, centromere: 340000000 },
+                'Chr1D': { length: 495453186, centromere: 170000000 },
+                'Chr2D': { length: 651852609, centromere: 265000000 },
+                'Chr3D': { length: 615552423, centromere: 230000000 },
+                'Chr4D': { length: 509857067, centromere: 180000000 },
+                'Chr5D': { length: 566080677, centromere: 185000000 },
+                'Chr6D': { length: 473592718, centromere: 200000000 },
+                'Chr7D': { length: 638686055, centromere: 290000000 }
+            }
+        },
+        'T2T-ChineseSpring': {
+            name: 'T2T-Chinese Spring',
+            crop: 'wheat',
+            species: 'Triticum aestivum',
+            ploidy: '6x (AABBDD)',
+            description: '텔로미어-텔로미어(T2T) 수준의 완전 해독. 센트로미어 영역 포함.',
+            totalLength: 15000000000,
+            chromosomes: {
+                'Chr1A': { length: 600000000, centromere: 215000000 },
+                'Chr2A': { length: 790000000, centromere: 310000000 },
+                'Chr3A': { length: 760000000, centromere: 275000000 },
+                'Chr4A': { length: 755000000, centromere: 255000000 },
+                'Chr5A': { length: 720000000, centromere: 215000000 },
+                'Chr6A': { length: 625000000, centromere: 275000000 },
+                'Chr7A': { length: 745000000, centromere: 335000000 },
+                'Chr1B': { length: 700000000, centromere: 245000000 },
+                'Chr2B': { length: 815000000, centromere: 335000000 },
+                'Chr3B': { length: 845000000, centromere: 355000000 },
+                'Chr4B': { length: 685000000, centromere: 245000000 },
+                'Chr5B': { length: 725000000, centromere: 235000000 },
+                'Chr6B': { length: 735000000, centromere: 305000000 },
+                'Chr7B': { length: 765000000, centromere: 345000000 },
+                'Chr1D': { length: 505000000, centromere: 175000000 },
+                'Chr2D': { length: 665000000, centromere: 270000000 },
+                'Chr3D': { length: 625000000, centromere: 235000000 },
+                'Chr4D': { length: 520000000, centromere: 185000000 },
+                'Chr5D': { length: 580000000, centromere: 190000000 },
+                'Chr6D': { length: 485000000, centromere: 205000000 },
+                'Chr7D': { length: 650000000, centromere: 295000000 }
+            }
+        },
+        'Fielder-Genome': {
+            name: 'Fielder Genome',
+            crop: 'wheat',
+            species: 'Triticum aestivum',
+            ploidy: '6x (AABBDD)',
+            description: '형질전환 효율이 극도로 높은 품종의 고품질 지놈 (He et al., 2022).',
+            totalLength: 14500000000,
+            chromosomes: {
+                'Chr1A': { length: 590000000, centromere: 210000000 },
+                'Chr2A': { length: 775000000, centromere: 302000000 },
+                'Chr3A': { length: 745000000, centromere: 268000000 },
+                'Chr4A': { length: 740000000, centromere: 248000000 },
+                'Chr5A': { length: 705000000, centromere: 208000000 },
+                'Chr6A': { length: 615000000, centromere: 268000000 },
+                'Chr7A': { length: 732000000, centromere: 328000000 },
+                'Chr1B': { length: 685000000, centromere: 238000000 },
+                'Chr2B': { length: 795000000, centromere: 328000000 },
+                'Chr3B': { length: 825000000, centromere: 348000000 },
+                'Chr4B': { length: 670000000, centromere: 238000000 },
+                'Chr5B': { length: 710000000, centromere: 228000000 },
+                'Chr6B': { length: 718000000, centromere: 298000000 },
+                'Chr7B': { length: 745000000, centromere: 338000000 },
+                'Chr1D': { length: 492000000, centromere: 168000000 },
+                'Chr2D': { length: 648000000, centromere: 263000000 },
+                'Chr3D': { length: 612000000, centromere: 228000000 },
+                'Chr4D': { length: 506000000, centromere: 178000000 },
+                'Chr5D': { length: 562000000, centromere: 183000000 },
+                'Chr6D': { length: 470000000, centromere: 198000000 },
+                'Chr7D': { length: 635000000, centromere: 288000000 }
+            }
+        },
+        'Svevo-Durum': {
+            name: 'Svevo (Durum Wheat)',
+            crop: 'wheat',
+            species: 'Triticum turgidum ssp. durum',
+            ploidy: '4x (AABB)',
+            description: '듀럼밀(파스타 밀)의 표준 참조 지놈 (Maccaferri et al., 2019).',
+            totalLength: 10450000000,
+            chromosomes: {
+                'Chr1A': { length: 595000000, centromere: 213000000 },
+                'Chr2A': { length: 782000000, centromere: 306000000 },
+                'Chr3A': { length: 752000000, centromere: 271000000 },
+                'Chr4A': { length: 746000000, centromere: 251000000 },
+                'Chr5A': { length: 711000000, centromere: 211000000 },
+                'Chr6A': { length: 620000000, centromere: 271000000 },
+                'Chr7A': { length: 738000000, centromere: 331000000 },
+                'Chr1B': { length: 691000000, centromere: 241000000 },
+                'Chr2B': { length: 803000000, centromere: 331000000 },
+                'Chr3B': { length: 832000000, centromere: 351000000 },
+                'Chr4B': { length: 675000000, centromere: 241000000 },
+                'Chr5B': { length: 715000000, centromere: 231000000 },
+                'Chr6B': { length: 722000000, centromere: 301000000 },
+                'Chr7B': { length: 752000000, centromere: 341000000 }
+            }
+        },
+        'Zavitan-WildEmmer': {
+            name: 'Zavitan (Wild Emmer)',
+            crop: 'wheat',
+            species: 'Triticum turgidum ssp. dicoccoides',
+            ploidy: '4x (AABB)',
+            description: '야생 4배체 밀(Wild Emmer) 지놈 (Avni et al., 2017). 가뭄 내성, 병저항성 야생 유전자원.',
+            totalLength: 10500000000,
+            chromosomes: {
+                'Chr1A': { length: 598000000, centromere: 215000000 },
+                'Chr2A': { length: 785000000, centromere: 308000000 },
+                'Chr3A': { length: 755000000, centromere: 273000000 },
+                'Chr4A': { length: 748000000, centromere: 253000000 },
+                'Chr5A': { length: 713000000, centromere: 213000000 },
+                'Chr6A': { length: 622000000, centromere: 273000000 },
+                'Chr7A': { length: 740000000, centromere: 333000000 },
+                'Chr1B': { length: 693000000, centromere: 243000000 },
+                'Chr2B': { length: 805000000, centromere: 333000000 },
+                'Chr3B': { length: 835000000, centromere: 353000000 },
+                'Chr4B': { length: 678000000, centromere: 243000000 },
+                'Chr5B': { length: 718000000, centromere: 233000000 },
+                'Chr6B': { length: 725000000, centromere: 303000000 },
+                'Chr7B': { length: 755000000, centromere: 343000000 }
+            }
+        },
+        'Aegilops-tauschii': {
+            name: 'Aegilops tauschii (D-donor)',
+            crop: 'wheat',
+            species: 'Aegilops tauschii',
+            ploidy: '2x (DD)',
+            description: '6배체 밀 D 게놈의 직접적 조상종. 고해상도 구축 (Luo et al., 2017).',
+            totalLength: 4020000000,
+            chromosomes: {
+                'Chr1D': { length: 495000000, centromere: 170000000 },
+                'Chr2D': { length: 652000000, centromere: 265000000 },
+                'Chr3D': { length: 616000000, centromere: 230000000 },
+                'Chr4D': { length: 510000000, centromere: 180000000 },
+                'Chr5D': { length: 566000000, centromere: 185000000 },
+                'Chr6D': { length: 474000000, centromere: 200000000 },
+                'Chr7D': { length: 639000000, centromere: 290000000 }
+            }
+        },
+        'Triticum-urartu': {
+            name: 'Triticum urartu (A-donor)',
+            crop: 'wheat',
+            species: 'Triticum urartu',
+            ploidy: '2x (AA)',
+            description: '6배체 밀 A 게놈의 기원종 (Ling et al., 2018).',
+            totalLength: 4940000000,
+            chromosomes: {
+                'Chr1A': { length: 594000000, centromere: 212000000 },
+                'Chr2A': { length: 780000000, centromere: 305000000 },
+                'Chr3A': { length: 750000000, centromere: 270000000 },
+                'Chr4A': { length: 744000000, centromere: 250000000 },
+                'Chr5A': { length: 709000000, centromere: 210000000 },
+                'Chr6A': { length: 618000000, centromere: 270000000 },
+                'Chr7A': { length: 736000000, centromere: 330000000 }
+            }
         }
     };
     
     // =====================================================
     // 전역 변수
     // =====================================================
+    let currentCrop = 'rice';
     let currentBuild = 'IRGSP-1.0';
     let markerData = [];
     let sampleNames = [];
@@ -1711,13 +1892,67 @@ SSIIa,6,6749554"></textarea>
     // 초기화
     // =====================================================
     document.addEventListener('DOMContentLoaded', () => {
-        updateGenomeBuild();
+        updateCropSelection();  // 초기화: 작물 선택 및 게놈 빌드 설정
         setupFileUpload();
     });
     
     // =====================================================
     // 게놈 빌드 관련 함수
     // =====================================================
+    function updateCropSelection() {
+        currentCrop = document.getElementById('cropSelect').value;
+
+        // 해당 작물의 게놈 빌드만 필터링
+        const filteredBuilds = Object.entries(GENOME_BUILDS)
+            .filter(([key, build]) => build.crop === currentCrop);
+
+        // 게놈 빌드 드롭다운 업데이트
+        const genomeBuildSelect = document.getElementById('genomeBuild');
+        genomeBuildSelect.innerHTML = filteredBuilds
+            .map(([key, build]) => `<option value="${key}">${build.name}</option>`)
+            .join('');
+
+        // 첫 번째 빌드 선택
+        if (filteredBuilds.length > 0) {
+            currentBuild = filteredBuilds[0][0];
+            genomeBuildSelect.value = currentBuild;
+        }
+
+        // 염색체 선택 체크박스 업데이트
+        updateChromosomeCheckboxes();
+
+        // 게놈 빌드 정보 표시
+        updateGenomeBuild();
+
+        console.log('작물 변경:', currentCrop, '/ 빌드:', currentBuild);
+    }
+
+    // 염색체 선택 체크박스 동적 생성
+    function updateChromosomeCheckboxes() {
+        const build = GENOME_BUILDS[currentBuild];
+        if (!build) return;
+
+        const chromosomes = Object.keys(build.chromosomes);
+        const container = document.querySelector('#chromosomeSelectionContainer .bulk-chr-grid');
+
+        // "전체 염색체" 레이블 업데이트
+        const allLabel = document.getElementById('bulkChrAllLabel');
+        if (allLabel) {
+            allLabel.textContent = `전체 염색체 (${chromosomes.length}개 한 이미지)`;
+        }
+
+        if (!container) return;
+
+        // 염색체 수에 따라 그리드 열 수 조정
+        const cols = chromosomes.length <= 12 ? 4 : 7;
+        container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+        container.innerHTML = chromosomes.map(chr => {
+            const chrNum = chr.replace('Chr', '');
+            return `<label style="display:flex;align-items:center;gap:0.3rem;font-size:0.75rem;"><input type="checkbox" class="bulk-chr-individual" value="${chrNum}" checked> ${chr}</label>`;
+        }).join('');
+    }
+
     function updateGenomeBuild() {
         currentBuild = document.getElementById('genomeBuild').value;
         const build = GENOME_BUILDS[currentBuild];
@@ -3697,21 +3932,26 @@ SSIIa,6,6749554"></textarea>
                 }
             }
 
-            // 2. 염색체 시각화 이미지 추가 (샘플별 폴더 구조)
+            // 2. 염색체 시각화 이미지 추가
             if (includeChromosome) {
                 const samples = Object.keys(analysisResults);
                 const chrSelection = getSelectedChromosomes();
                 const includeAllInOne = chrSelection.includeAllInOne;
                 const selectedChrs = chrSelection.selected;
 
-                // 전체 이미지 + 선택된 개별 염색체 수
+                // 샘플당 이미지 개수 계산
                 const allInOneCount = includeAllInOne ? 1 : 0;
-                const totalTasks = samples.length * (allInOneCount + selectedChrs.length);
+                const imagesPerSample = allInOneCount + selectedChrs.length;
+                const totalTasks = samples.length * imagesPerSample;
                 let taskCount = 0;
+
+                // 샘플당 1개 이미지면 폴더 없이 직접 저장
+                const useSubfolder = imagesPerSample > 1;
 
                 for (let i = 0; i < samples.length; i++) {
                     const sample = samples[i];
-                    const sampleFolder = chromoFolder.folder(sample);
+                    const targetFolder = useSubfolder ? chromoFolder.folder(sample) : chromoFolder;
+                    const filePrefix = useSubfolder ? '' : `${sample}_`;
 
                     // 전체 염색체 이미지 (1~12 한 이미지)
                     if (includeAllInOne) {
@@ -3719,7 +3959,7 @@ SSIIa,6,6749554"></textarea>
                         progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - 전체 염색체 생성 중...`;
                         const allBlob = await captureChromosomeVizAsBlob(sample, width, dpi);
                         if (allBlob) {
-                            sampleFolder.file(`all_chromosomes.png`, allBlob);
+                            targetFolder.file(`${filePrefix}all_chromosomes.png`, allBlob);
                         }
                     }
 
@@ -3729,7 +3969,7 @@ SSIIa,6,6749554"></textarea>
                         progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - Chr${chrNum} 생성 중...`;
                         const chrBlob = await captureSingleChromosomeAsBlob(sample, chrNum, width, dpi);
                         if (chrBlob) {
-                            sampleFolder.file(`chr${chrNum}.png`, chrBlob);
+                            targetFolder.file(`${filePrefix}chr${chrNum}.png`, chrBlob);
                         }
                     }
                 }
