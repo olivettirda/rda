@@ -2951,45 +2951,47 @@ SSIIa,6,6749554"></textarea>
         return '\uFEFF' + csv;
     }
 
-    // 차트를 이미지로 캡처
-    async function captureChartAsBlob(chartCanvas, title, width, dpi, bgColor = '#ffffff') {
+    // 차트를 이미지로 캡처 (Chart.js 인스턴스 직접 사용)
+    async function captureChartAsBlob(chartInstance, title, width, dpi, bgColor = '#ffffff') {
+        // Chart.js 인스턴스 검증
+        if (!chartInstance || !chartInstance.canvas) {
+            console.warn('차트 인스턴스가 유효하지 않음:', title);
+            return null;
+        }
+
+        const chartCanvas = chartInstance.canvas;
+
         // 캔버스 크기 검증
-        if (!chartCanvas || chartCanvas.width === 0 || chartCanvas.height === 0) {
+        if (chartCanvas.width === 0 || chartCanvas.height === 0) {
             console.warn('차트 캔버스가 유효하지 않음 (width/height가 0):', title);
             return null;
         }
 
-        const container = document.createElement('div');
-        container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
-        document.body.appendChild(container);
-
-        const h = document.createElement('h2');
-        h.textContent = title;
-        h.style.cssText = 'font-size:16px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
-        container.appendChild(h);
-
-        // 차트 캔버스 복제
-        const chartClone = document.createElement('canvas');
-        chartClone.width = chartCanvas.width;
-        chartClone.height = chartCanvas.height;
-        const ctx = chartClone.getContext('2d');
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, chartClone.width, chartClone.height);
-
+        // Chart.js의 toBase64Image를 사용하여 차트 이미지 생성
         try {
-            ctx.drawImage(chartCanvas, 0, 0);
-        } catch (e) {
-            console.error('drawImage 실패:', e);
-            document.body.removeChild(container);
-            return null;
-        }
+            const base64Image = chartInstance.toBase64Image('image/png', 1);
 
-        const chartWrapper = document.createElement('div');
-        chartWrapper.style.cssText = 'max-width:100%;';
-        chartWrapper.appendChild(chartClone);
-        container.appendChild(chartWrapper);
+            const container = document.createElement('div');
+            container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
+            document.body.appendChild(container);
 
-        try {
+            const h = document.createElement('h2');
+            h.textContent = title;
+            h.style.cssText = 'font-size:16px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
+            container.appendChild(h);
+
+            // 이미지 요소 생성
+            const img = document.createElement('img');
+            img.src = base64Image;
+            img.style.cssText = 'max-width:100%;height:auto;display:block;margin:0 auto;';
+
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+
+            container.appendChild(img);
+
             const scale = dpi / 96;
             const canvas = await html2canvas(container, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
 
@@ -3000,8 +3002,7 @@ SSIIa,6,6749554"></textarea>
                 }, 'image/png', 0.95);
             });
         } catch (e) {
-            console.error(e);
-            document.body.removeChild(container);
+            console.error('차트 캡처 실패:', e);
             return null;
         }
     }
@@ -3113,6 +3114,136 @@ SSIIa,6,6749554"></textarea>
         }
     }
 
+    // 개별 염색체를 이미지로 캡처
+    async function captureSingleChromosomeAsBlob(sampleName, chrNum, width, dpi, bgColor = '#ffffff') {
+        const result = analysisResults[sampleName];
+        if (!result) return null;
+
+        const build = GENOME_BUILDS[currentBuild];
+        const chrKey = `Chr${chrNum.padStart(2, '0')}`;
+        const chrInfo = build.chromosomes[chrKey];
+        if (!chrInfo) return null;
+
+        const chrData = result.chromosomes[chrNum];
+        if (!chrData) return null;
+
+        const container = document.createElement('div');
+        container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
+        document.body.appendChild(container);
+
+        const rate = chrData.recoveryRate?.toFixed(1) || '0';
+        const h = document.createElement('h2');
+        h.textContent = `${sampleName} - Chr${chrNum} (${rate}% recovery)`;
+        h.style.cssText = 'font-size:16px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
+        container.appendChild(h);
+
+        // 범례 추가
+        const leg = document.createElement('div');
+        leg.style.cssText = 'display:flex;gap:20px;flex-wrap:wrap;padding:10px;background:#f8fafa;border-radius:6px;margin-bottom:15px;font-size:11px;justify-content:center;';
+        leg.innerHTML = `
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.donor};"></div><span>Donor</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.recurrent};"></div><span>Recurrent</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.het};"></div><span>Het</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.centromere};"></div><span>Centromere</span></div>
+        `;
+        container.appendChild(leg);
+
+        // 염색체 시각화 그리기
+        const chrContainer = document.createElement('div');
+        chrContainer.style.cssText = 'padding:15px;background:white;border-radius:8px;';
+
+        // 염색체 구조 (p-arm / centromere / q-arm)
+        const chrRow = document.createElement('div');
+        chrRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+
+        const label = document.createElement('div');
+        label.textContent = `Chr ${chrNum}`;
+        label.style.cssText = `width:60px;font-size:14px;font-weight:600;color:${vizStyles.label};text-align:right;`;
+        chrRow.appendChild(label);
+
+        const chrStructure = document.createElement('div');
+        chrStructure.style.cssText = `flex:1;display:flex;align-items:center;height:${vizStyles.chrH + 10}px;`;
+
+        const centromereRatio = chrInfo.centromere / chrInfo.length;
+        const pArmRatio = centromereRatio;
+        const qArmRatio = 1 - centromereRatio;
+
+        // p-arm
+        const pArm = document.createElement('div');
+        pArm.style.cssText = `flex-grow:${pArmRatio};height:${vizStyles.chrH}px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px 0 0 ${vizStyles.chrRadius}px;position:relative;overflow:hidden;`;
+
+        // q-arm
+        const qArm = document.createElement('div');
+        qArm.style.cssText = `flex-grow:${qArmRatio};height:${vizStyles.chrH}px;background:${vizStyles.track};border-radius:0 ${vizStyles.chrRadius}px ${vizStyles.chrRadius}px 0;position:relative;overflow:hidden;`;
+
+        // centromere
+        const centromere = document.createElement('div');
+        centromere.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -3px;`;
+
+        // 마커 표시
+        chrData.markers.forEach(marker => {
+            const pos = marker.position;
+            let targetArm, relativePos;
+
+            if (pos < chrInfo.centromere) {
+                targetArm = pArm;
+                relativePos = (pos / chrInfo.centromere) * 100;
+            } else {
+                targetArm = qArm;
+                relativePos = ((pos - chrInfo.centromere) / (chrInfo.length - chrInfo.centromere)) * 100;
+            }
+
+            let bgColor = vizStyles.recurrent;
+            if (marker.type === 'donor') bgColor = vizStyles.donor;
+            else if (marker.type === 'heterozygous') bgColor = vizStyles.het;
+
+            const markerEl = document.createElement('div');
+            markerEl.style.cssText = `position:absolute;left:${relativePos}%;top:0;width:3px;height:100%;background:${bgColor};`;
+            targetArm.appendChild(markerEl);
+        });
+
+        chrStructure.appendChild(pArm);
+        chrStructure.appendChild(centromere);
+        chrStructure.appendChild(qArm);
+        chrRow.appendChild(chrStructure);
+
+        const lengthLabel = document.createElement('div');
+        lengthLabel.textContent = formatBp(chrInfo.length);
+        lengthLabel.style.cssText = `width:80px;font-size:12px;color:${vizStyles.label};font-family:'JetBrains Mono',monospace;`;
+        chrRow.appendChild(lengthLabel);
+
+        chrContainer.appendChild(chrRow);
+
+        // 통계 정보
+        const stats = document.createElement('div');
+        stats.style.cssText = 'display:flex;gap:20px;flex-wrap:wrap;margin-top:15px;font-size:12px;justify-content:center;';
+        stats.innerHTML = `
+            <span>Total: ${chrData.total}</span>
+            <span style="color:#0c3026;">Recurrent: ${chrData.recurrent}</span>
+            <span style="color:#017f97;">Donor: ${chrData.donor}</span>
+            <span style="color:#b8860b;">Het: ${chrData.heterozygous}</span>
+        `;
+        chrContainer.appendChild(stats);
+
+        container.appendChild(chrContainer);
+
+        try {
+            const scale = dpi / 96;
+            const canvas = await html2canvas(container, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+
+            return new Promise(resolve => {
+                canvas.toBlob(blob => {
+                    document.body.removeChild(container);
+                    resolve(blob);
+                }, 'image/png', 0.95);
+            });
+        } catch (e) {
+            console.error(e);
+            document.body.removeChild(container);
+            return null;
+        }
+    }
+
     // 모든 차트 이미지를 ZIP으로 다운로드
     async function exportAllCharts() {
         if (Object.keys(analysisResults).length === 0) {
@@ -3138,22 +3269,20 @@ SSIIa,6,6749554"></textarea>
         await new Promise(r => setTimeout(r, 100));
 
         // 회복률 차트
-        const recoveryCanvas = document.getElementById('recoveryChart');
-        if (recoveryCanvas && typeof recoveryChart !== 'undefined' && recoveryChart) {
+        if (typeof recoveryChart !== 'undefined' && recoveryChart) {
             recoveryChart.resize(); // 차트 리사이즈 강제
-            await new Promise(r => setTimeout(r, 50));
-            const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', 1200, 300);
+            await new Promise(r => setTimeout(r, 100));
+            const blob = await captureChartAsBlob(recoveryChart, '염색체별 회복률 분포', 1200, 300);
             if (blob) {
                 imgFolder.file('recovery_chart.png', blob);
             }
         }
 
         // 비교 차트
-        const comparisonCanvas = document.getElementById('comparisonChart');
-        if (comparisonCanvas && typeof comparisonChart !== 'undefined' && comparisonChart) {
+        if (typeof comparisonChart !== 'undefined' && comparisonChart) {
             comparisonChart.resize(); // 차트 리사이즈 강제
-            await new Promise(r => setTimeout(r, 50));
-            const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', 1200, 300);
+            await new Promise(r => setTimeout(r, 100));
+            const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', 1200, 300);
             if (blob) {
                 imgFolder.file('comparison_chart.png', blob);
             }
@@ -3216,15 +3345,33 @@ SSIIa,6,6749554"></textarea>
                 }
             }
 
-            // 2. 염색체 시각화 이미지 추가
+            // 2. 염색체 시각화 이미지 추가 (샘플별 폴더 구조)
             if (includeChromosome) {
                 const samples = Object.keys(analysisResults);
+                const totalTasks = samples.length * 13; // 전체 1개 + 개별 12개
+                let taskCount = 0;
+
                 for (let i = 0; i < samples.length; i++) {
                     const sample = samples[i];
-                    progressEl.textContent = `염색체 시각화 생성 중... (${i+1}/${samples.length})`;
-                    const blob = await captureChromosomeVizAsBlob(sample, width, dpi);
-                    if (blob) {
-                        chromoFolder.file(`chromosome_${sample}.png`, blob);
+                    const sampleFolder = chromoFolder.folder(sample);
+
+                    // 전체 염색체 이미지
+                    taskCount++;
+                    progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - 전체 염색체 생성 중...`;
+                    const allBlob = await captureChromosomeVizAsBlob(sample, width, dpi);
+                    if (allBlob) {
+                        sampleFolder.file(`all_chromosomes.png`, allBlob);
+                    }
+
+                    // 개별 염색체 이미지 (Chr01 ~ Chr12)
+                    for (let chr = 1; chr <= 12; chr++) {
+                        taskCount++;
+                        const chrNum = chr.toString().padStart(2, '0');
+                        progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - Chr${chrNum} 생성 중...`;
+                        const chrBlob = await captureSingleChromosomeAsBlob(sample, chrNum, width, dpi);
+                        if (chrBlob) {
+                            sampleFolder.file(`chr${chrNum}.png`, chrBlob);
+                        }
                     }
                 }
             }
@@ -3243,11 +3390,10 @@ SSIIa,6,6749554"></textarea>
 
                 if (includeRecovery) {
                     progressEl.textContent = '회복률 차트 생성 중...';
-                    const recoveryCanvas = document.getElementById('recoveryChart');
-                    if (recoveryCanvas && typeof recoveryChart !== 'undefined' && recoveryChart) {
+                    if (typeof recoveryChart !== 'undefined' && recoveryChart) {
                         recoveryChart.resize();
-                        await new Promise(r => setTimeout(r, 50));
-                        const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', width, dpi);
+                        await new Promise(r => setTimeout(r, 100));
+                        const blob = await captureChartAsBlob(recoveryChart, '염색체별 회복률 분포', width, dpi);
                         if (blob) {
                             chartFolder.file('recovery_chart.png', blob);
                         }
@@ -3256,11 +3402,10 @@ SSIIa,6,6749554"></textarea>
 
                 if (includeComparison) {
                     progressEl.textContent = '샘플 비교 차트 생성 중...';
-                    const comparisonCanvas = document.getElementById('comparisonChart');
-                    if (comparisonCanvas && typeof comparisonChart !== 'undefined' && comparisonChart) {
+                    if (typeof comparisonChart !== 'undefined' && comparisonChart) {
                         comparisonChart.resize();
-                        await new Promise(r => setTimeout(r, 50));
-                        const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', width, dpi);
+                        await new Promise(r => setTimeout(r, 100));
+                        const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', width, dpi);
                         if (blob) {
                             chartFolder.file('comparison_chart.png', blob);
                         }
@@ -3273,12 +3418,13 @@ SSIIa,6,6749554"></textarea>
             }
 
             // 4. README 추가
+            const sampleList = Object.keys(analysisResults);
             const readme = `Background Selection Analysis Export
 =====================================
 
 Date: ${new Date().toISOString().slice(0,10)}
 Genome Build: ${currentBuild}
-Samples: ${Object.keys(analysisResults).join(', ')}
+Samples: ${sampleList.join(', ')}
 
 Contents:
 ---------
@@ -3288,10 +3434,15 @@ data/
 
 images/
   chromosomes/
-    - chromosome_[sample].png: 각 샘플의 염색체 시각화
+    [Sample Name]/
+      - all_chromosomes.png: 전체 염색체(1~12번) 시각화
+      - chr01.png ~ chr12.png: 각 염색체 개별 시각화
   charts/
     - recovery_chart.png: 염색체별 회복률 분포 차트
     - comparison_chart.png: 샘플 간 회복률 비교 차트
+
+Samples included: ${sampleList.length}
+${sampleList.map(s => `  - ${s}`).join('\n')}
 
 Generated by Rice Background Selection Analyzer
 `;
