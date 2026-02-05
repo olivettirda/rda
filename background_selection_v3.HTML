@@ -3697,21 +3697,26 @@ SSIIa,6,6749554"></textarea>
                 }
             }
 
-            // 2. 염색체 시각화 이미지 추가 (샘플별 폴더 구조)
+            // 2. 염색체 시각화 이미지 추가
             if (includeChromosome) {
                 const samples = Object.keys(analysisResults);
                 const chrSelection = getSelectedChromosomes();
                 const includeAllInOne = chrSelection.includeAllInOne;
                 const selectedChrs = chrSelection.selected;
 
-                // 전체 이미지 + 선택된 개별 염색체 수
+                // 샘플당 이미지 개수 계산
                 const allInOneCount = includeAllInOne ? 1 : 0;
-                const totalTasks = samples.length * (allInOneCount + selectedChrs.length);
+                const imagesPerSample = allInOneCount + selectedChrs.length;
+                const totalTasks = samples.length * imagesPerSample;
                 let taskCount = 0;
+
+                // 샘플당 1개 이미지면 폴더 없이 직접 저장
+                const useSubfolder = imagesPerSample > 1;
 
                 for (let i = 0; i < samples.length; i++) {
                     const sample = samples[i];
-                    const sampleFolder = chromoFolder.folder(sample);
+                    const targetFolder = useSubfolder ? chromoFolder.folder(sample) : chromoFolder;
+                    const filePrefix = useSubfolder ? '' : `${sample}_`;
 
                     // 전체 염색체 이미지 (1~12 한 이미지)
                     if (includeAllInOne) {
@@ -3719,7 +3724,7 @@ SSIIa,6,6749554"></textarea>
                         progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - 전체 염색체 생성 중...`;
                         const allBlob = await captureChromosomeVizAsBlob(sample, width, dpi);
                         if (allBlob) {
-                            sampleFolder.file(`all_chromosomes.png`, allBlob);
+                            targetFolder.file(`${filePrefix}all_chromosomes.png`, allBlob);
                         }
                     }
 
@@ -3729,7 +3734,7 @@ SSIIa,6,6749554"></textarea>
                         progressEl.textContent = `[${taskCount}/${totalTasks}] ${sample} - Chr${chrNum} 생성 중...`;
                         const chrBlob = await captureSingleChromosomeAsBlob(sample, chrNum, width, dpi);
                         if (chrBlob) {
-                            sampleFolder.file(`chr${chrNum}.png`, chrBlob);
+                            targetFolder.file(`${filePrefix}chr${chrNum}.png`, chrBlob);
                         }
                     }
                 }
