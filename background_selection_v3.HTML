@@ -833,6 +833,9 @@
                         </select>
                     </div>
                     
+                    <button class="btn btn-secondary btn-block" onclick="downloadRawDataTemplate()" style="margin-bottom: 0.5rem;">
+                        📥 입력 양식 다운로드
+                    </button>
                     <button class="btn btn-secondary btn-block" onclick="loadDemoData()" style="margin-bottom: 0.5rem;">
                         📊 데모 데이터 로드
                     </button>
@@ -1384,6 +1387,113 @@ SSIIa,6,6749554"></textarea>
 
             <div class="divider"></div>
             <button class="btn btn-primary btn-block" onclick="importKaspData()">✅ 데이터 불러오기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 타겟캡처시퀀싱 변환 모달 -->
+<div class="modal-overlay" id="targetCaptureModal">
+    <div class="modal" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h3>🔬 타겟캡처시퀀싱 데이터 변환</h3>
+            <button class="modal-close" onclick="closeTargetCaptureModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: #e8f4f0; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                    <strong>💡 타겟캡처시퀀싱 형식이 감지되었습니다</strong><br>
+                    아래에서 Donor(공여친), Recurrent(반복친) 부모를 선택하고, 분석할 샘플을 체크해주세요.
+                </p>
+            </div>
+
+            <!-- 샘플 목록 표시 -->
+            <div class="form-group">
+                <label>📋 파일 내 샘플 목록</label>
+                <div id="tcSampleList" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem; margin-bottom: 1rem;">
+                    <p style="text-align: center; color: var(--text-secondary);">데이터 로딩 중...</p>
+                </div>
+            </div>
+
+            <!-- Donor/Recurrent 선택 -->
+            <div class="two-col" style="gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label style="color: var(--accent-dark); font-weight: 600;">🔹 Donor (공여친, B)</label>
+                    <select id="tcDonorSelect" style="width: 100%; padding: 0.625rem; border: 2px solid var(--accent-dark); border-radius: 8px;">
+                        <option value="">-- 선택 --</option>
+                    </select>
+                    <small id="tcDonorInfo" style="display: block; margin-top: 0.25rem; color: var(--text-secondary); font-size: 0.75rem;"></small>
+                </div>
+                <div class="form-group">
+                    <label style="color: #017f97; font-weight: 600;">🔸 Recurrent (반복친, A)</label>
+                    <select id="tcRecurrentSelect" style="width: 100%; padding: 0.625rem; border: 2px solid #017f97; border-radius: 8px;">
+                        <option value="">-- 선택 --</option>
+                    </select>
+                    <small id="tcRecurrentInfo" style="display: block; margin-top: 0.25rem; color: var(--text-secondary); font-size: 0.75rem;"></small>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 분석 대상 샘플 선택 -->
+            <div class="form-group">
+                <label>✅ 분석 대상 샘플 선택</label>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="tcSelectAllSamples(true)" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">전체 선택</button>
+                    <button class="btn btn-secondary" onclick="tcSelectAllSamples(false)" style="font-size: 0.75rem; padding: 0.4rem 0.8rem;">전체 해제</button>
+                </div>
+                <div id="tcAnalysisSamples" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem;">
+                    <p style="text-align: center; color: var(--text-secondary);">Donor/Recurrent 선택 후 표시됩니다</p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 변환 버튼 -->
+            <button class="btn btn-primary btn-block" onclick="executeTargetCaptureConversion()" style="padding: 1rem; font-size: 1rem;">
+                🔄 변환 실행
+            </button>
+            <p id="tcConversionProgress" style="text-align: center; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem; display: none;"></p>
+        </div>
+    </div>
+</div>
+
+<!-- 변환 결과 확인 모달 -->
+<div class="modal-overlay" id="conversionResultModal">
+    <div class="modal" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h3>📊 변환 결과</h3>
+            <button class="modal-close" onclick="closeConversionResultModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 요약 카드 -->
+            <div id="conversionSummary" style="background: #f8fafa; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <!-- 동적으로 채워짐 -->
+            </div>
+
+            <!-- Missing 요약 -->
+            <div class="form-group">
+                <label>⚠️ Missing 데이터 요약</label>
+                <div id="missingBadges" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <!-- 동적으로 채워짐 -->
+                </div>
+            </div>
+
+            <!-- Missing 상세 토글 -->
+            <div class="form-group">
+                <button class="btn btn-secondary" onclick="toggleMissingDetail()" style="font-size: 0.8rem;">
+                    📋 Missing 상세 보기
+                </button>
+                <div id="missingDetailTable" style="display: none; max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; margin-top: 0.5rem;">
+                    <!-- 동적으로 채워짐 -->
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- 진행 버튼 -->
+            <button class="btn btn-primary btn-block" onclick="applyConversionResult()" style="padding: 1rem; font-size: 1rem;">
+                ✅ 변환 결과 적용 및 분석 진행
+            </button>
         </div>
     </div>
 </div>
@@ -2843,6 +2953,12 @@ SSIIa,6,6749554"></textarea>
 
     // 차트를 이미지로 캡처
     async function captureChartAsBlob(chartCanvas, title, width, dpi, bgColor = '#ffffff') {
+        // 캔버스 크기 검증
+        if (!chartCanvas || chartCanvas.width === 0 || chartCanvas.height === 0) {
+            console.warn('차트 캔버스가 유효하지 않음 (width/height가 0):', title);
+            return null;
+        }
+
         const container = document.createElement('div');
         container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
         document.body.appendChild(container);
@@ -2859,7 +2975,14 @@ SSIIa,6,6749554"></textarea>
         const ctx = chartClone.getContext('2d');
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, chartClone.width, chartClone.height);
-        ctx.drawImage(chartCanvas, 0, 0);
+
+        try {
+            ctx.drawImage(chartCanvas, 0, 0);
+        } catch (e) {
+            console.error('drawImage 실패:', e);
+            document.body.removeChild(container);
+            return null;
+        }
 
         const chartWrapper = document.createElement('div');
         chartWrapper.style.cssText = 'max-width:100%;';
@@ -3002,9 +3125,23 @@ SSIIa,6,6749554"></textarea>
         const zip = new JSZip();
         const imgFolder = zip.folder('charts');
 
+        // 패널 상태 저장 및 일시 표시 (숨겨진 캔버스 렌더링을 위해)
+        const statsPanel = document.getElementById('panel-statistics');
+        const compPanel = document.getElementById('panel-comparison');
+        const statsPanelWasHidden = statsPanel && !statsPanel.classList.contains('active');
+        const compPanelWasHidden = compPanel && !compPanel.classList.contains('active');
+
+        if (statsPanelWasHidden) statsPanel.style.display = 'block';
+        if (compPanelWasHidden) compPanel.style.display = 'block';
+
+        // 렌더링 대기
+        await new Promise(r => setTimeout(r, 100));
+
         // 회복률 차트
         const recoveryCanvas = document.getElementById('recoveryChart');
-        if (recoveryCanvas && recoveryChart) {
+        if (recoveryCanvas && typeof recoveryChart !== 'undefined' && recoveryChart) {
+            recoveryChart.resize(); // 차트 리사이즈 강제
+            await new Promise(r => setTimeout(r, 50));
             const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', 1200, 300);
             if (blob) {
                 imgFolder.file('recovery_chart.png', blob);
@@ -3013,12 +3150,18 @@ SSIIa,6,6749554"></textarea>
 
         // 비교 차트
         const comparisonCanvas = document.getElementById('comparisonChart');
-        if (comparisonCanvas && comparisonChart) {
+        if (comparisonCanvas && typeof comparisonChart !== 'undefined' && comparisonChart) {
+            comparisonChart.resize(); // 차트 리사이즈 강제
+            await new Promise(r => setTimeout(r, 50));
             const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', 1200, 300);
             if (blob) {
                 imgFolder.file('comparison_chart.png', blob);
             }
         }
+
+        // 패널 상태 복원
+        if (statsPanelWasHidden) statsPanel.style.display = '';
+        if (compPanelWasHidden) compPanel.style.display = '';
 
         try {
             const content = await zip.generateAsync({ type: 'blob' });
@@ -3086,27 +3229,47 @@ SSIIa,6,6749554"></textarea>
                 }
             }
 
-            // 3. 차트 이미지 추가
-            if (includeRecovery) {
-                progressEl.textContent = '회복률 차트 생성 중...';
-                const recoveryCanvas = document.getElementById('recoveryChart');
-                if (recoveryCanvas && recoveryChart) {
-                    const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', width, dpi);
-                    if (blob) {
-                        chartFolder.file('recovery_chart.png', blob);
-                    }
-                }
-            }
+            // 3. 차트 이미지 추가 (패널 일시 표시)
+            if (includeRecovery || includeComparison) {
+                const statsPanel = document.getElementById('panel-statistics');
+                const compPanel = document.getElementById('panel-comparison');
+                const statsPanelWasHidden = statsPanel && !statsPanel.classList.contains('active');
+                const compPanelWasHidden = compPanel && !compPanel.classList.contains('active');
 
-            if (includeComparison) {
-                progressEl.textContent = '샘플 비교 차트 생성 중...';
-                const comparisonCanvas = document.getElementById('comparisonChart');
-                if (comparisonCanvas && comparisonChart) {
-                    const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', width, dpi);
-                    if (blob) {
-                        chartFolder.file('comparison_chart.png', blob);
+                if (statsPanelWasHidden) statsPanel.style.display = 'block';
+                if (compPanelWasHidden) compPanel.style.display = 'block';
+
+                await new Promise(r => setTimeout(r, 100));
+
+                if (includeRecovery) {
+                    progressEl.textContent = '회복률 차트 생성 중...';
+                    const recoveryCanvas = document.getElementById('recoveryChart');
+                    if (recoveryCanvas && typeof recoveryChart !== 'undefined' && recoveryChart) {
+                        recoveryChart.resize();
+                        await new Promise(r => setTimeout(r, 50));
+                        const blob = await captureChartAsBlob(recoveryCanvas, '염색체별 회복률 분포', width, dpi);
+                        if (blob) {
+                            chartFolder.file('recovery_chart.png', blob);
+                        }
                     }
                 }
+
+                if (includeComparison) {
+                    progressEl.textContent = '샘플 비교 차트 생성 중...';
+                    const comparisonCanvas = document.getElementById('comparisonChart');
+                    if (comparisonCanvas && typeof comparisonChart !== 'undefined' && comparisonChart) {
+                        comparisonChart.resize();
+                        await new Promise(r => setTimeout(r, 50));
+                        const blob = await captureChartAsBlob(comparisonCanvas, '샘플 비교 차트', width, dpi);
+                        if (blob) {
+                            chartFolder.file('comparison_chart.png', blob);
+                        }
+                    }
+                }
+
+                // 패널 상태 복원
+                if (statsPanelWasHidden) statsPanel.style.display = '';
+                if (compPanelWasHidden) compPanel.style.display = '';
             }
 
             // 4. README 추가
@@ -3625,5 +3788,681 @@ Generated by Rice Background Selection Analyzer
             console.error(err);
             showNotification('데이터 처리 오류: ' + err.message, 'error');
         }
+    }
+
+    // =====================================================
+    // 양식 다운로드 기능
+    // =====================================================
+    function downloadRawDataTemplate() {
+        console.log('양식 다운로드 시작');
+
+        // raw_data 형식 템플릿 생성
+        const template = `Marker,Chr,Position,Donor,Recurrent,Sample1,Sample2,Sample3
+Chr01_1000000,01,1000000,A,A,A,A,B
+Chr01_2000000,01,2000000,B,A,B,H,A
+Chr01_3000000,01,3000000,A,A,A,A,A
+Chr02_1500000,02,1500000,B,A,A,B,-
+Chr02_3000000,02,3000000,A,A,A,A,A`;
+
+        const blob = new Blob(['\uFEFF' + template], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'raw_data_template.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        showNotification('양식 파일이 다운로드되었습니다', 'success');
+    }
+
+    // =====================================================
+    // 파일 포맷 자동 감지
+    // =====================================================
+
+    // 타겟캡처시퀀싱 데이터 임시 저장
+    let tcParsedData = null;
+    let tcSampleList = [];
+    let tcConversionResult = null;
+
+    function detectFileFormat(content, filename) {
+        console.log('파일 포맷 감지 시작:', filename);
+
+        // CSV 또는 TSV 파싱
+        let delimiter = '\t';
+        if (filename.endsWith('.csv')) {
+            delimiter = ',';
+        }
+
+        const lines = content.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+            console.log('감지 결과: 데이터 부족');
+            return { format: 'unknown', error: '데이터 행이 부족합니다' };
+        }
+
+        const firstRow = lines[0].split(delimiter);
+        console.log('첫 행 분석:', firstRow.slice(0, 10));
+
+        // raw_data 형식 감지: 첫 셀이 'Marker'
+        if (firstRow[0]?.trim().toLowerCase() === 'marker') {
+            console.log('감지 결과: raw_data 형식');
+            return { format: 'raw_data' };
+        }
+
+        // 타겟캡처시퀀싱 형식 감지: 첫 행에 chr로 시작하는 값이 있음
+        const hasChr = firstRow.slice(4).some(v => /^chr\d{1,2}$/i.test(v?.trim()));
+        if (hasChr) {
+            console.log('감지 결과: target_capture 형식');
+            return { format: 'target_capture' };
+        }
+
+        console.log('감지 결과: unknown');
+        return { format: 'unknown' };
+    }
+
+    // 기존 handleFileUpload 함수를 확장
+    const originalHandleFileUpload = handleFileUpload;
+    handleFileUpload = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        console.log('파일 업로드:', file.name);
+        document.getElementById('fileName').textContent = `📎 ${file.name}`;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target.result;
+            const detection = detectFileFormat(content, file.name);
+
+            console.log('포맷 감지 결과:', detection);
+
+            if (detection.format === 'raw_data') {
+                // 기존 방식으로 처리
+                parseMarkerData(content, file.name);
+            } else if (detection.format === 'target_capture') {
+                // 타겟캡처시퀀싱 변환 모달 열기
+                parseTargetCaptureData(content, file.name);
+                openTargetCaptureModal();
+            } else {
+                // 기본적으로 raw_data 형식 시도
+                showNotification('파일 형식을 자동 감지하지 못했습니다. raw_data 형식으로 시도합니다.', 'info');
+                parseMarkerData(content, file.name);
+            }
+        };
+
+        // 인코딩 처리: UTF-8 시도 후 실패 시 CP949
+        reader.onerror = () => {
+            console.error('UTF-8 읽기 실패, CP949 시도');
+            const reader2 = new FileReader();
+            reader2.onload = (e) => {
+                const decoder = new TextDecoder('euc-kr');
+                const content = decoder.decode(e.target.result);
+                const detection = detectFileFormat(content, file.name);
+
+                if (detection.format === 'target_capture') {
+                    parseTargetCaptureData(content, file.name);
+                    openTargetCaptureModal();
+                } else {
+                    parseMarkerData(content, file.name);
+                }
+            };
+            reader2.readAsArrayBuffer(file);
+        };
+
+        reader.readAsText(file, 'utf-8');
+    };
+
+    // =====================================================
+    // 타겟캡처시퀀싱 데이터 파싱
+    // =====================================================
+    function parseTargetCaptureData(content, filename) {
+        console.log('타겟캡처시퀀싱 데이터 파싱 시작');
+
+        let delimiter = ',';
+        if (filename.endsWith('.tsv') || filename.endsWith('.txt')) {
+            delimiter = '\t';
+        }
+
+        const lines = content.split('\n').filter(line => line.trim());
+
+        // Row 0: 염색체 정보
+        const chrRow = lines[0].split(delimiter);
+        // Row 1: 위치 정보
+        const posRow = lines[1].split(delimiter);
+        // Row 2: 마커명/헤더
+        const headerRow = lines[2].split(delimiter);
+
+        console.log('헤더 행:', headerRow.slice(0, 8));
+
+        // 샘플 데이터 파싱 (Row 3~)
+        tcSampleList = [];
+        const sampleData = [];
+
+        for (let i = 3; i < lines.length; i++) {
+            const cols = lines[i].split(delimiter);
+            if (!cols[0] || cols[0].trim() === '') continue;
+
+            const sample = {
+                rowIndex: i,
+                snId: cols[0]?.trim() || '',
+                lineName: cols[1]?.trim() || '',
+                accession: cols[2]?.trim() || '',
+                cross: cols[3]?.trim() || '',
+                genotypes: cols.slice(4)
+            };
+
+            // Reference 행 제외 (첫 셀이 'Reference'인 경우)
+            if (sample.snId.toLowerCase() === 'reference') {
+                console.log('Reference 행 제외:', sample.lineName);
+                continue;
+            }
+
+            sampleData.push(sample);
+            tcSampleList.push(sample);
+        }
+
+        console.log('파싱된 샘플 수:', tcSampleList.length);
+
+        // 마커 정보 저장
+        tcParsedData = {
+            chrRow: chrRow.slice(4),
+            posRow: posRow.slice(4),
+            headerRow: headerRow.slice(4),
+            samples: sampleData,
+            delimiter: delimiter
+        };
+
+        // 샘플 목록 UI 업데이트
+        updateTcSampleListUI();
+        updateTcParentDropdowns();
+    }
+
+    function updateTcSampleListUI() {
+        const container = document.getElementById('tcSampleList');
+        if (tcSampleList.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">샘플을 찾을 수 없습니다</p>';
+            return;
+        }
+
+        let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">';
+        html += '<thead><tr style="background: var(--header-bg); color: white;">';
+        html += '<th style="padding: 6px 8px; text-align: left;">시험번호</th>';
+        html += '<th style="padding: 6px 8px; text-align: left;">계통명</th>';
+        html += '<th style="padding: 6px 8px; text-align: left;">접수번호</th>';
+        html += '<th style="padding: 6px 8px; text-align: left;">교배조합</th>';
+        html += '</tr></thead><tbody>';
+
+        tcSampleList.forEach((sample, idx) => {
+            const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafa';
+            html += `<tr style="background: ${bg};">`;
+            html += `<td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${sample.snId}</td>`;
+            html += `<td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${sample.lineName}</td>`;
+            html += `<td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color);">${sample.accession}</td>`;
+            html += `<td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${sample.cross}">${sample.cross}</td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function updateTcParentDropdowns() {
+        const donorSelect = document.getElementById('tcDonorSelect');
+        const recurrentSelect = document.getElementById('tcRecurrentSelect');
+
+        let options = '<option value="">-- 선택 --</option>';
+        tcSampleList.forEach((sample, idx) => {
+            const label = `${sample.snId} - ${sample.lineName}`;
+            options += `<option value="${idx}">${label}</option>`;
+        });
+
+        donorSelect.innerHTML = options;
+        recurrentSelect.innerHTML = options;
+
+        // 선택 변경 이벤트
+        donorSelect.onchange = recurrentSelect.onchange = updateTcAnalysisSamples;
+    }
+
+    function updateTcAnalysisSamples() {
+        const donorIdx = document.getElementById('tcDonorSelect').value;
+        const recurrentIdx = document.getElementById('tcRecurrentSelect').value;
+        const container = document.getElementById('tcAnalysisSamples');
+
+        // Donor/Recurrent 정보 표시
+        if (donorIdx !== '') {
+            const d = tcSampleList[donorIdx];
+            document.getElementById('tcDonorInfo').textContent = `접수번호: ${d.accession}, 교배조합: ${d.cross}`;
+        } else {
+            document.getElementById('tcDonorInfo').textContent = '';
+        }
+
+        if (recurrentIdx !== '') {
+            const r = tcSampleList[recurrentIdx];
+            document.getElementById('tcRecurrentInfo').textContent = `접수번호: ${r.accession}, 교배조합: ${r.cross}`;
+        } else {
+            document.getElementById('tcRecurrentInfo').textContent = '';
+        }
+
+        if (donorIdx === '' || recurrentIdx === '') {
+            container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 1rem;">Donor와 Recurrent를 먼저 선택해주세요</p>';
+            return;
+        }
+
+        if (donorIdx === recurrentIdx) {
+            container.innerHTML = '<p style="text-align: center; color: #dc3545; padding: 1rem;">Donor와 Recurrent는 다른 샘플이어야 합니다</p>';
+            return;
+        }
+
+        // 분석 대상 샘플 체크박스 표시 (부모 제외)
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.5rem; padding: 0.5rem;">';
+
+        tcSampleList.forEach((sample, idx) => {
+            if (idx == donorIdx || idx == recurrentIdx) return;
+
+            html += `<label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f8fafa; border-radius: 4px; cursor: pointer;">`;
+            html += `<input type="checkbox" class="tc-sample-checkbox" value="${idx}" checked>`;
+            html += `<span style="font-size: 0.8rem;"><strong>${sample.snId}</strong> - ${sample.lineName}</span>`;
+            html += `</label>`;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function tcSelectAllSamples(selectAll) {
+        document.querySelectorAll('.tc-sample-checkbox').forEach(cb => {
+            cb.checked = selectAll;
+        });
+    }
+
+    // =====================================================
+    // 타겟캡처시퀀싱 → raw_data 변환 로직
+    // =====================================================
+    function executeTargetCaptureConversion() {
+        console.log('변환 실행 시작');
+
+        const donorIdx = document.getElementById('tcDonorSelect').value;
+        const recurrentIdx = document.getElementById('tcRecurrentSelect').value;
+
+        if (donorIdx === '' || recurrentIdx === '') {
+            showNotification('Donor와 Recurrent를 선택해주세요', 'error');
+            return;
+        }
+
+        if (donorIdx === recurrentIdx) {
+            showNotification('Donor와 Recurrent는 다른 샘플이어야 합니다', 'error');
+            return;
+        }
+
+        // 선택된 분석 대상 샘플
+        const selectedSamples = [];
+        document.querySelectorAll('.tc-sample-checkbox:checked').forEach(cb => {
+            selectedSamples.push(parseInt(cb.value));
+        });
+
+        if (selectedSamples.length === 0) {
+            showNotification('분석할 샘플을 선택해주세요', 'error');
+            return;
+        }
+
+        const progressEl = document.getElementById('tcConversionProgress');
+        progressEl.style.display = 'block';
+        progressEl.textContent = '변환 중...';
+
+        try {
+            const donor = tcSampleList[donorIdx];
+            const recurrent = tcSampleList[recurrentIdx];
+
+            console.log('Donor:', donor.snId, donor.lineName);
+            console.log('Recurrent:', recurrent.snId, recurrent.lineName);
+            console.log('분석 대상 샘플 수:', selectedSamples.length);
+
+            // 변환 실행
+            const result = convertTargetCaptureToRawData(
+                tcParsedData,
+                parseInt(donorIdx),
+                parseInt(recurrentIdx),
+                selectedSamples
+            );
+
+            tcConversionResult = result;
+
+            console.log('변환 완료:', JSON.stringify(result.summary, null, 2));
+
+            // 결과 모달 표시
+            closeTargetCaptureModal();
+            showConversionResult(result);
+
+        } catch (err) {
+            console.error('변환 오류:', err);
+            showNotification('변환 중 오류 발생: ' + err.message, 'error');
+            progressEl.textContent = '오류 발생';
+        }
+    }
+
+    function convertTargetCaptureToRawData(data, donorIdx, recurrentIdx, sampleIndices) {
+        const donor = tcSampleList[donorIdx];
+        const recurrent = tcSampleList[recurrentIdx];
+
+        const rawData = [];
+        const missingDetail = [];
+        const sampleMapping = [];
+
+        // 통계
+        const summary = {
+            donor: { id: donor.snId, name: donor.lineName, accession: donor.accession },
+            recurrent: { id: recurrent.snId, name: recurrent.lineName, accession: recurrent.accession },
+            totalMarkers: 0,
+            polymorphic: 0,
+            monomorphic: 0,
+            genotypeCounts: { A: 0, B: 0, H: 0, missing: 0 },
+            missingDetail: { no_call: 0, low_quality: 0, multi_allele: 0, no_match: 0 },
+            chrSummary: {}
+        };
+
+        // 샘플 매핑 생성
+        const samples = sampleIndices.map(idx => tcSampleList[idx]);
+        samples.forEach((sample, colIdx) => {
+            sampleMapping.push({
+                column: `Sample${colIdx + 1}`,
+                snId: sample.snId,
+                lineName: sample.lineName,
+                accession: sample.accession,
+                cross: sample.cross,
+                role: '분석대상'
+            });
+        });
+
+        // 마커별 처리
+        const numMarkers = data.chrRow.length;
+        console.log('총 마커 수:', numMarkers);
+
+        for (let m = 0; m < numMarkers; m++) {
+            const chrRaw = data.chrRow[m]?.trim() || '';
+            const posRaw = data.posRow[m]?.trim() || '';
+
+            // 염색체 번호 추출 (chr01 -> 01)
+            const chrMatch = chrRaw.match(/chr(\d+)/i);
+            if (!chrMatch) continue;
+
+            const chr = chrMatch[1].padStart(2, '0');
+            const position = parseInt(posRaw);
+
+            if (isNaN(position)) continue;
+
+            const markerName = `Chr${chr}_${position}`;
+
+            // Donor/Recurrent genotype
+            const donorGT = donor.genotypes[m]?.trim() || '';
+            const recurrentGT = recurrent.genotypes[m]?.trim() || '';
+
+            // 다형성 판정
+            const isPolyMarker = isPolymorphic(donorGT, recurrentGT);
+
+            summary.totalMarkers++;
+            if (isPolyMarker) {
+                summary.polymorphic++;
+            } else {
+                summary.monomorphic++;
+            }
+
+            // Chr별 통계
+            if (!summary.chrSummary[chr]) {
+                summary.chrSummary[chr] = { total: 0, polymorphic: 0 };
+            }
+            summary.chrSummary[chr].total++;
+            if (isPolyMarker) summary.chrSummary[chr].polymorphic++;
+
+            // 마커 객체 생성
+            const marker = {
+                Marker: markerName,
+                Chr: chr,
+                Position: position,
+                Donor: isPolyMarker ? 'B' : 'A',
+                Recurrent: 'A'
+            };
+
+            // 각 샘플의 genotype 변환
+            samples.forEach((sample, sampleIdx) => {
+                const sampleGT = sample.genotypes[m]?.trim() || '';
+                const converted = convertGenotype(sampleGT, donorGT, recurrentGT, isPolyMarker);
+
+                marker[`Sample${sampleIdx + 1}`] = converted.code;
+
+                // 통계 업데이트
+                if (converted.code === 'A') summary.genotypeCounts.A++;
+                else if (converted.code === 'B') summary.genotypeCounts.B++;
+                else if (converted.code === 'H') summary.genotypeCounts.H++;
+                else if (converted.code === '-') {
+                    summary.genotypeCounts.missing++;
+                    if (converted.type) {
+                        summary.missingDetail[converted.type]++;
+
+                        // Missing 상세 기록
+                        missingDetail.push({
+                            marker: markerName,
+                            chr: chr,
+                            position: position,
+                            sample: `Sample${sampleIdx + 1}`,
+                            lineId: sample.lineName,
+                            originalGenotype: converted.original,
+                            missingType: converted.type,
+                            donorGT: donorGT,
+                            recurrentGT: recurrentGT
+                        });
+                    }
+                }
+            });
+
+            rawData.push(marker);
+        }
+
+        return {
+            rawData: rawData,
+            missingDetail: missingDetail,
+            sampleMapping: sampleMapping,
+            summary: summary
+        };
+    }
+
+    function isPolymorphic(donorGT, recurrentGT) {
+        if (!donorGT || !recurrentGT) return false;
+        if (donorGT === recurrentGT) return false;
+        if (donorGT === 'NN' || recurrentGT === 'NN') return false;
+        if (donorGT.startsWith('*') || recurrentGT.startsWith('*')) return false;
+        return true;
+    }
+
+    function convertGenotype(sampleGT, donorGT, recurrentGT, isPolyMarker) {
+        // Missing 판정
+        if (!sampleGT || sampleGT === '' || sampleGT === 'NN') {
+            return { code: '-', type: 'no_call', original: sampleGT };
+        }
+        if (sampleGT.startsWith('*')) {
+            return { code: '-', type: 'low_quality', original: sampleGT };
+        }
+        if (sampleGT.length > 2) {
+            return { code: '-', type: 'multi_allele', original: sampleGT };
+        }
+
+        // Monomorphic
+        if (!isPolyMarker) {
+            return { code: 'A', type: null, original: sampleGT };
+        }
+
+        // Polymorphic 매칭
+        if (sampleGT === recurrentGT) {
+            return { code: 'A', type: null, original: sampleGT };
+        }
+        if (sampleGT === donorGT) {
+            return { code: 'B', type: null, original: sampleGT };
+        }
+
+        // Het 판정 (2글자이고 서로 다른 경우)
+        if (sampleGT.length === 2 && sampleGT[0] !== sampleGT[1]) {
+            // 부모가 둘 다 homo인 경우만 het 판정
+            if (recurrentGT.length === 2 && recurrentGT[0] === recurrentGT[1] &&
+                donorGT.length === 2 && donorGT[0] === donorGT[1]) {
+                const recAllele = recurrentGT[0];
+                const donAllele = donorGT[0];
+                const sampleSet = new Set(sampleGT);
+
+                if (sampleSet.has(recAllele) && sampleSet.has(donAllele) && sampleSet.size === 2) {
+                    return { code: 'H', type: null, original: sampleGT };
+                }
+            }
+            return { code: '-', type: 'no_match', original: sampleGT };
+        }
+
+        // 그 외
+        return { code: '-', type: 'no_match', original: sampleGT };
+    }
+
+    // =====================================================
+    // 변환 결과 표시
+    // =====================================================
+    function showConversionResult(result) {
+        const s = result.summary;
+
+        // 요약 카드
+        const summaryHtml = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid var(--accent-dark);">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Donor (B)</div>
+                    <div style="font-weight: 600;">${s.donor.name}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${s.donor.id} / ${s.donor.accession}</div>
+                </div>
+                <div style="padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid #017f97;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Recurrent (A)</div>
+                    <div style="font-weight: 600;">${s.recurrent.name}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${s.recurrent.id} / ${s.recurrent.accession}</div>
+                </div>
+            </div>
+            <div style="margin-top: 1rem; padding: 1rem; background: white; border-radius: 8px;">
+                <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                    <div><span style="font-weight: 600; color: var(--accent-darker);">${s.totalMarkers.toLocaleString()}</span> 총 마커</div>
+                    <div><span style="font-weight: 600; color: var(--accent-dark);">${s.polymorphic.toLocaleString()}</span> 다형성</div>
+                    <div><span style="font-weight: 600; color: var(--text-secondary);">${s.monomorphic.toLocaleString()}</span> 단형성</div>
+                </div>
+                <div style="margin-top: 0.75rem; display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem;">
+                    <span style="background: #E8F5E9; padding: 2px 8px; border-radius: 4px;">A: ${s.genotypeCounts.A.toLocaleString()}</span>
+                    <span style="background: #017f97; color: white; padding: 2px 8px; border-radius: 4px;">B: ${s.genotypeCounts.B.toLocaleString()}</span>
+                    <span style="background: #54b7c6; color: white; padding: 2px 8px; border-radius: 4px;">H: ${s.genotypeCounts.H.toLocaleString()}</span>
+                    <span style="background: #F5F5F5; padding: 2px 8px; border-radius: 4px;">Missing: ${s.genotypeCounts.missing.toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+        document.getElementById('conversionSummary').innerHTML = summaryHtml;
+
+        // Missing 뱃지
+        const badgeColors = {
+            no_call: '#E0E0E0',
+            low_quality: '#FFF3E0',
+            multi_allele: '#FCE4EC',
+            no_match: '#FFF9C4'
+        };
+        const badgeLabels = {
+            no_call: 'No Call',
+            low_quality: 'Low Quality',
+            multi_allele: 'Multi-allele',
+            no_match: 'Mismatch'
+        };
+
+        let badgesHtml = '';
+        Object.entries(s.missingDetail).forEach(([type, count]) => {
+            if (count > 0) {
+                badgesHtml += `<span style="background: ${badgeColors[type]}; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem;">${badgeLabels[type]}: ${count}</span>`;
+            }
+        });
+        document.getElementById('missingBadges').innerHTML = badgesHtml || '<span style="color: var(--text-secondary);">Missing 데이터 없음</span>';
+
+        // Missing 상세 테이블
+        if (result.missingDetail.length > 0) {
+            let tableHtml = '<table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">';
+            tableHtml += '<thead><tr style="background: var(--header-bg); color: white;">';
+            tableHtml += '<th style="padding: 6px;">Marker</th>';
+            tableHtml += '<th style="padding: 6px;">Chr</th>';
+            tableHtml += '<th style="padding: 6px;">Sample</th>';
+            tableHtml += '<th style="padding: 6px;">Line</th>';
+            tableHtml += '<th style="padding: 6px;">Original</th>';
+            tableHtml += '<th style="padding: 6px;">Type</th>';
+            tableHtml += '</tr></thead><tbody>';
+
+            result.missingDetail.slice(0, 100).forEach((m, idx) => {
+                const bg = idx % 2 === 0 ? '#fff' : '#f8fafa';
+                tableHtml += `<tr style="background: ${bg};">`;
+                tableHtml += `<td style="padding: 6px; border-bottom: 1px solid var(--border-color);">${m.marker}</td>`;
+                tableHtml += `<td style="padding: 6px; border-bottom: 1px solid var(--border-color);">${m.chr}</td>`;
+                tableHtml += `<td style="padding: 6px; border-bottom: 1px solid var(--border-color);">${m.sample}</td>`;
+                tableHtml += `<td style="padding: 6px; border-bottom: 1px solid var(--border-color);">${m.lineId}</td>`;
+                tableHtml += `<td style="padding: 6px; border-bottom: 1px solid var(--border-color); font-family: monospace;">${m.originalGenotype}</td>`;
+                tableHtml += `<td style="padding: 6px; border-bottom: 1px solid var(--border-color);"><span style="background: ${badgeColors[m.missingType]}; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">${badgeLabels[m.missingType]}</span></td>`;
+                tableHtml += '</tr>';
+            });
+
+            if (result.missingDetail.length > 100) {
+                tableHtml += `<tr><td colspan="6" style="padding: 8px; text-align: center; color: var(--text-secondary);">... 외 ${result.missingDetail.length - 100}건</td></tr>`;
+            }
+
+            tableHtml += '</tbody></table>';
+            document.getElementById('missingDetailTable').innerHTML = tableHtml;
+        } else {
+            document.getElementById('missingDetailTable').innerHTML = '<p style="padding: 1rem; text-align: center; color: var(--text-secondary);">Missing 데이터가 없습니다</p>';
+        }
+
+        // 모달 열기
+        document.getElementById('conversionResultModal').classList.add('active');
+    }
+
+    function toggleMissingDetail() {
+        const el = document.getElementById('missingDetailTable');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function applyConversionResult() {
+        if (!tcConversionResult) {
+            showNotification('변환 결과가 없습니다', 'error');
+            return;
+        }
+
+        console.log('변환 결과 적용');
+
+        // markerData에 적용
+        markerData = tcConversionResult.rawData;
+
+        // sampleNames 설정
+        sampleNames = ['Donor', 'Recurrent'];
+        tcConversionResult.sampleMapping.forEach((m, idx) => {
+            sampleNames.push(`Sample${idx + 1}`);
+        });
+
+        // 부모 선택 드롭다운 업데이트
+        updateParentSelects();
+
+        // Donor/Recurrent 자동 선택
+        document.getElementById('donorParent').value = 'Donor';
+        document.getElementById('recurrentParent').value = 'Recurrent';
+
+        // 데이터 테이블 업데이트
+        updateDataTable();
+
+        // 모달 닫기
+        closeConversionResultModal();
+
+        showNotification(`${markerData.length}개 마커, ${sampleNames.length - 2}개 분석 샘플 로드 완료`, 'success');
+    }
+
+    // =====================================================
+    // 모달 제어
+    // =====================================================
+    function openTargetCaptureModal() {
+        document.getElementById('targetCaptureModal').classList.add('active');
+    }
+
+    function closeTargetCaptureModal() {
+        document.getElementById('targetCaptureModal').classList.remove('active');
+        document.getElementById('tcConversionProgress').style.display = 'none';
+    }
+
+    function closeConversionResultModal() {
+        document.getElementById('conversionResultModal').classList.remove('active');
     }
 </script>
