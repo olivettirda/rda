@@ -418,6 +418,9 @@
     
     .legend-color.centromere {
         background: var(--viz-centromere);
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
     }
     
     /* Stats Grid */
@@ -796,6 +799,64 @@
         font-size: 0.75rem;
         margin-bottom: 0.25rem;
     }
+
+    /* Chromosome Filter Bar */
+    .chr-filter-bar {
+        padding: 0.75rem 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+    }
+    .chr-filter-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .chr-filter-checkbox input { cursor: pointer; }
+
+    /* Marker Label System */
+    .marker-label-group {
+        position: absolute;
+        top: 100%;
+        pointer-events: none;
+        z-index: 5;
+    }
+    .marker-label-line {
+        position: absolute;
+        width: 1px;
+        background: var(--viz-label);
+        opacity: 0.6;
+    }
+    .marker-label-branch {
+        position: absolute;
+        height: 1px;
+        background: var(--viz-label);
+        opacity: 0.6;
+    }
+    .marker-label-text {
+        position: absolute;
+        font-size: 9px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--viz-label);
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+
+    /* cM mode indicator */
+    .cm-mode-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 2px 8px;
+        background: #fff3e0;
+        border: 1px solid #ffb74d;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        color: #e65100;
+    }
 </style>
 
 </head> <body> <header> <h1><img src="files/ssallogo.png" alt="" style="height:1.2em;vertical-align:middle;margin-right:0.3em;">백그라운드 셀렉션 분석기</h1> <p>유전체 회복률 분석 및 시각화</p> </header>
@@ -912,6 +973,53 @@
                 </div>
             </div>
             
+            <!-- Visualization Settings (moved up) -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>🎨 시각화 설정</h2>
+                </div>
+                <div class="card-body">
+                    <div class="form-group-sm">
+                        <label>맵 단위</label>
+                        <select id="mapUnitSelect" onchange="onMapUnitChange()">
+                            <option value="physical">물리적 위치 (Genome Build 기반)</option>
+                            <option value="cM">유전 거리 (cM)</option>
+                        </select>
+                    </div>
+                    <div class="form-group-sm">
+                        <label>위치 표시 단위</label>
+                        <select id="positionUnitSelect" onchange="applyVizStyles()">
+                            <option value="auto">자동</option>
+                            <option value="bp">bp</option>
+                            <option value="Kb">Kb</option>
+                            <option value="Mb">Mb</option>
+                        </select>
+                    </div>
+                    <div class="divider" style="margin: 0.5rem 0;"></div>
+                    <div class="form-group-sm">
+                        <label style="display:flex;align-items:center;gap:0.5rem;">
+                            <input type="checkbox" id="vizShowMarkers" onchange="applyVizStyles()"> 마커 위치 표시 (선)
+                        </label>
+                    </div>
+                    <div id="markerLabelOptions" style="display:none;padding-left:1rem;">
+                        <div class="form-group-sm">
+                            <label style="display:flex;align-items:center;gap:0.5rem;">
+                                <input type="checkbox" id="vizShowMarkerNames" checked onchange="applyVizStyles()"> 마커 이름 표시
+                            </label>
+                        </div>
+                        <div class="form-group-sm">
+                            <label style="display:flex;align-items:center;gap:0.5rem;">
+                                <input type="checkbox" id="vizShowMarkerPos" onchange="applyVizStyles()"> 마커 위치 표시
+                            </label>
+                        </div>
+                    </div>
+                    <div class="divider" style="margin: 0.5rem 0;"></div>
+                    <button class="btn btn-secondary btn-block" onclick="openStyleModal()" style="font-size:0.8rem;">
+                        🎨 색상/스타일 상세 설정
+                    </button>
+                </div>
+            </div>
+
             <!-- Export -->
             <div class="card">
                 <div class="card-header">
@@ -938,10 +1046,6 @@
                     <button class="btn btn-secondary btn-block" onclick="exportAllCharts()" style="margin-bottom: 0.5rem;">
                         📈 차트 이미지
                         <small style="display:block;font-size:0.65rem;opacity:0.75;margin-top:2px;">회복률/비교 차트 (ZIP)</small>
-                    </button>
-                    <div class="divider" style="margin: 0.75rem 0;"></div>
-                    <button class="btn btn-secondary btn-block" onclick="openStyleModal()">
-                        🎨 시각화 설정
                     </button>
                 </div>
             </div>
@@ -984,6 +1088,16 @@
                             </div>
                         </div>
                         
+                        <!-- Chromosome Filter -->
+                        <div class="chr-filter-bar" id="chrFilterBar" style="display:none;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                                <span style="font-size:0.8rem;font-weight:600;color:var(--accent-darker);white-space:nowrap;">염색체 필터:</span>
+                                <button class="chr-filter-btn" onclick="toggleAllChromosomeFilters(true)" style="font-size:0.7rem;padding:3px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);cursor:pointer;">전체 선택</button>
+                                <button class="chr-filter-btn" onclick="toggleAllChromosomeFilters(false)" style="font-size:0.7rem;padding:3px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);cursor:pointer;">전체 해제</button>
+                                <div id="chrFilterCheckboxes" style="display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
+                            </div>
+                        </div>
+
                         <div class="chromosome-container" id="chromosomeViz">
                             <div class="empty-state">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1885,8 +1999,16 @@ SSIIa,6,6749554"></textarea>
     let vizOptions = {
         splitArms: true,      // 단완/장완 분리
         showCentromere: true, // 동원체 표시
-        bgOpacity: 100        // 배경 투명도 (0-100)
+        bgOpacity: 100,       // 배경 투명도 (0-100)
+        showMarkers: false,   // 마커 위치 선 표시
+        showMarkerNames: true, // 마커 이름 표시
+        showMarkerPos: false,  // 마커 위치 수치 표시
+        mapUnit: 'physical',   // 'physical' or 'cM'
+        positionUnit: 'auto'   // 'auto', 'bp', 'Kb', 'Mb'
     };
+
+    // 염색체 필터 (어떤 염색체를 표시할지)
+    let chrFilterState = {}; // { 'Chr01': true, 'Chr02': true, ... }
     
     // =====================================================
     // 초기화
@@ -1956,23 +2078,28 @@ SSIIa,6,6749554"></textarea>
     function updateGenomeBuild() {
         currentBuild = document.getElementById('genomeBuild').value;
         const build = GENOME_BUILDS[currentBuild];
-        
+
         let html = `<div style="margin-bottom: 0.5rem; font-weight: 600; color: var(--accent-darker);">
             ${build.name}
         </div>
         <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
             Total: ${formatBp(build.totalLength)}
         </div>`;
-        
+
         for (const [chr, info] of Object.entries(build.chromosomes)) {
             html += `<div class="genome-info-row">
                 <span class="genome-info-chr">${chr}</span>
                 <span class="genome-info-len">${formatBp(info.length)}</span>
             </div>`;
         }
-        
+
         document.getElementById('genomeInfo').innerHTML = html;
-        
+
+        // 염색체 필터 상태도 업데이트
+        if (Object.keys(analysisResults).length > 0) {
+            initChrFilter();
+        }
+
         // 분석 결과가 있으면 다시 그리기
         if (markerData.length > 0 && currentSample) {
             visualizeChromosome(currentSample);
@@ -2163,7 +2290,10 @@ SSIIa,6,6749554"></textarea>
         
         // 샘플 탭 생성
         createSampleTabs(targetSamples);
-        
+
+        // 염색체 필터 초기화
+        initChrFilter();
+
         // 첫 번째 샘플 시각화
         currentSample = targetSamples[0];
         visualizeChromosome(currentSample);
@@ -2279,61 +2409,144 @@ SSIIa,6,6749554"></textarea>
         const build = GENOME_BUILDS[currentBuild];
         const result = analysisResults[sample];
         const container = document.getElementById('chromosomeViz');
-        
+
         if (!result) {
             container.innerHTML = '<div class="empty-state">분석 결과가 없습니다</div>';
             return;
         }
-        
-        const maxLength = Math.max(...Object.values(build.chromosomes).map(c => c.length));
-        
+
+        // cM 모드 처리: 마커 데이터에서 최대 위치를 이용
+        const isCmMode = vizOptions.mapUnit === 'cM';
+
+        // 필터된 염색체만 표시
+        const filteredChrs = Object.entries(build.chromosomes).filter(([chrName]) => {
+            return chrFilterState[chrName] !== false; // undefined도 true로 취급
+        });
+
+        if (filteredChrs.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="padding:1.5rem;"><h3>표시할 염색체가 없습니다</h3><p>염색체 필터에서 최소 하나의 염색체를 선택해주세요</p></div>';
+            return;
+        }
+
+        const maxLength = isCmMode
+            ? getMaxCmLength(result, filteredChrs)
+            : Math.max(...filteredChrs.map(([, c]) => c.length));
+
         let html = '';
-        
-        Object.entries(build.chromosomes).forEach(([chrName, chrInfo]) => {
+        const markerLabelTargets = []; // 후처리용 마커 라벨 타겟
+
+        filteredChrs.forEach(([chrName, chrInfo]) => {
             const chrNum = chrName.replace('Chr', '');
             const chrResult = result.chromosomes[chrNum];
-            const totalWidthPercent = (chrInfo.length / maxLength * 100).toFixed(2);
-            const centromerePercent = (chrInfo.centromere / chrInfo.length * 100).toFixed(2);
-            
+
+            let chrLength, centromerePos;
+            if (isCmMode) {
+                // cM 모드: 마커 위치를 cM으로 간주, 염색체 길이는 가장 큰 마커 위치
+                const maxPos = chrResult && chrResult.markers.length > 0
+                    ? Math.max(...chrResult.markers.map(m => m.position))
+                    : 100;
+                chrLength = maxPos * 1.05; // 5% 여백
+                centromerePos = chrLength * (chrInfo.centromere / chrInfo.length); // 비율 유지
+            } else {
+                chrLength = chrInfo.length;
+                centromerePos = chrInfo.centromere;
+            }
+
+            const totalWidthPercent = (chrLength / maxLength * 100).toFixed(2);
+            const centromerePercent = (centromerePos / chrLength * 100).toFixed(2);
+            const lengthLabel = isCmMode ? formatCm(chrLength) : formatPosition(chrLength);
+
+            // 마커 라벨을 위한 추가 여백 (하단)
+            const extraMargin = vizOptions.showMarkers ? 'margin-bottom:' + getMarkerLabelHeight(chrResult, centromerePos, chrLength) + 'px;' : '';
+
             if (vizOptions.splitArms) {
-                // 단완/장완 분리 모드
-                const pArmRatio = chrInfo.centromere / chrInfo.length;
-                const qArmRatio = (chrInfo.length - chrInfo.centromere) / chrInfo.length;
+                const pArmRatio = centromerePos / chrLength;
+                const qArmRatio = (chrLength - centromerePos) / chrLength;
                 const pGrow = (pArmRatio * 100).toFixed(2);
                 const qGrow = (qArmRatio * 100).toFixed(2);
-                
-                html += `<div class="chromosome-row">
+
+                html += `<div class="chromosome-row" data-chr="${chrName}" style="${extraMargin}">
                     <div class="chr-label">${chrName}</div>
                     <div class="chr-structure" style="width: ${totalWidthPercent}%">
-                        <div class="chr-p-arm" style="flex-grow: ${pGrow}">
-                            ${generateMarkerRegionsForArm(chrResult, 0, chrInfo.centromere, chrInfo.centromere)}
+                        <div class="chr-p-arm" data-arm="p" data-chr="${chrName}" style="flex-grow: ${pGrow}">
+                            ${generateMarkerRegionsForArm(chrResult, 0, centromerePos, centromerePos)}
                         </div>
                         ${vizOptions.showCentromere ? '<div class="chr-centromere"></div>' : ''}
-                        <div class="chr-q-arm" style="flex-grow: ${qGrow}">
-                            ${generateMarkerRegionsForArm(chrResult, chrInfo.centromere, chrInfo.length, chrInfo.length - chrInfo.centromere)}
+                        <div class="chr-q-arm" data-arm="q" data-chr="${chrName}" style="flex-grow: ${qGrow}">
+                            ${generateMarkerRegionsForArm(chrResult, centromerePos, chrLength, chrLength - centromerePos)}
                         </div>
                     </div>
-                    <div class="chr-length">${formatBp(chrInfo.length)}</div>
+                    <div class="chr-length">${lengthLabel}</div>
                 </div>`;
+
+                if (vizOptions.showMarkers) {
+                    markerLabelTargets.push({ chr: chrName, chrResult, armStart: 0, armEnd: centromerePos, armLength: centromerePos, arm: 'p' });
+                    markerLabelTargets.push({ chr: chrName, chrResult, armStart: centromerePos, armEnd: chrLength, armLength: chrLength - centromerePos, arm: 'q' });
+                }
             } else {
-                // 기존 bar 형태
-                html += `<div class="chromosome-row">
+                html += `<div class="chromosome-row" data-chr="${chrName}" style="${extraMargin}">
                     <div class="chr-label">${chrName}</div>
-                    <div class="chr-bar-container" style="width: ${totalWidthPercent}%">
+                    <div class="chr-bar-container" data-arm="full" data-chr="${chrName}" style="width: ${totalWidthPercent}%">
                         <div class="chr-bar">
                             ${vizOptions.showCentromere ? `<div class="chr-centromere-line" style="left: ${centromerePercent}%"></div>` : ''}
-                            ${generateMarkerRegions(chrResult, chrInfo.length)}
+                            ${generateMarkerRegions(chrResult, chrLength)}
                         </div>
                     </div>
-                    <div class="chr-length">${formatBp(chrInfo.length)}</div>
+                    <div class="chr-length">${lengthLabel}</div>
                 </div>`;
+
+                if (vizOptions.showMarkers) {
+                    markerLabelTargets.push({ chr: chrName, chrResult, armStart: 0, armEnd: chrLength, armLength: chrLength, arm: 'full' });
+                }
             }
         });
-        
+
         container.innerHTML = html;
-        
+
+        // 마커 라벨 렌더링 (DOM에 추가된 후)
+        if (vizOptions.showMarkers && (vizOptions.showMarkerNames || vizOptions.showMarkerPos)) {
+            requestAnimationFrame(() => {
+                markerLabelTargets.forEach(target => {
+                    const armEl = container.querySelector(`[data-arm="${target.arm}"][data-chr="${target.chr}"]`);
+                    if (armEl) {
+                        renderMarkerLabels(target.chrResult, target.armStart, target.armEnd, target.armLength, armEl);
+                    }
+                });
+            });
+        }
+
         // 툴팁 이벤트 설정
         setupTooltips();
+    }
+
+    // cM 모드에서 최대 길이 계산
+    function getMaxCmLength(result, filteredChrs) {
+        let maxLen = 100;
+        filteredChrs.forEach(([chrName]) => {
+            const chrNum = chrName.replace('Chr', '');
+            const chrData = result.chromosomes[chrNum];
+            if (chrData && chrData.markers.length > 0) {
+                const maxPos = Math.max(...chrData.markers.map(m => m.position));
+                if (maxPos * 1.05 > maxLen) maxLen = maxPos * 1.05;
+            }
+        });
+        return maxLen;
+    }
+
+    // 마커 라벨 높이 계산 (여백 확보용)
+    function getMarkerLabelHeight(chrResult, centromerePos, chrLength) {
+        if (!chrResult || !chrResult.markers || chrResult.markers.length === 0) return 0;
+        // 대략적인 높이: 기본 12px + 마커 수에 비례
+        const markerCount = chrResult.markers.length;
+        const clusterThreshold = chrLength * 0.03;
+        let clusters = 1;
+        const sorted = [...chrResult.markers].sort((a, b) => a.position - b.position);
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i].position - sorted[i - 1].position >= clusterThreshold) clusters++;
+        }
+        // 가장 큰 클러스터 크기
+        const maxClusterSize = Math.ceil(markerCount / Math.max(clusters, 1));
+        return 16 + maxClusterSize * 14;
     }
     
     function generateMarkerRegionsForArm(chrResult, armStart, armEnd, armLength) {
@@ -2362,47 +2575,47 @@ SSIIa,6,6749554"></textarea>
             const relStart = ((regionStart - armStart) / armLength * 100).toFixed(3);
             const relWidth = ((regionEnd - regionStart) / armLength * 100).toFixed(3);
             
-            html += `<div class="marker-region ${marker.type}" 
+            html += `<div class="marker-region ${marker.type}"
                 style="left: ${relStart}%; width: ${relWidth}%"
                 data-marker="${marker.name}"
-                data-position="${formatBp(marker.position)}"
+                data-position="${vizOptions.mapUnit === 'cM' ? formatCm(marker.position) : formatPosition(marker.position)}"
                 data-type="${marker.type}"
                 data-genotype="${marker.genotype}">
             </div>`;
         });
-        
+
         return html;
     }
-    
+
     // 기존 함수 유지 (호환성)
     function generateMarkerRegions(chrResult, chrLength) {
         if (!chrResult || chrResult.markers.length === 0) return '';
-        
+
         let html = '';
         const markers = chrResult.markers.sort((a, b) => a.position - b.position);
-        
+
         // 연속된 동일 타입 마커를 영역으로 병합
         let currentRegion = null;
-        
+
         markers.forEach((marker, i) => {
             const leftPercent = (marker.position / chrLength * 100).toFixed(3);
-            
+
             // 다음 마커까지의 거리 계산
             const nextMarker = markers[i + 1];
-            const regionEnd = nextMarker 
-                ? (marker.position + nextMarker.position) / 2 
+            const regionEnd = nextMarker
+                ? (marker.position + nextMarker.position) / 2
                 : chrLength;
-            const regionStart = i > 0 
-                ? (markers[i-1].position + marker.position) / 2 
+            const regionStart = i > 0
+                ? (markers[i-1].position + marker.position) / 2
                 : 0;
-            
+
             const startPercent = (regionStart / chrLength * 100).toFixed(3);
             const widthPercent = ((regionEnd - regionStart) / chrLength * 100).toFixed(3);
-            
-            html += `<div class="marker-region ${marker.type}" 
+
+            html += `<div class="marker-region ${marker.type}"
                 style="left: ${startPercent}%; width: ${widthPercent}%"
                 data-marker="${marker.name}"
-                data-position="${formatBp(marker.position)}"
+                data-position="${vizOptions.mapUnit === 'cM' ? formatCm(marker.position) : formatPosition(marker.position)}"
                 data-type="${marker.type}"
                 data-genotype="${marker.genotype}">
             </div>`;
@@ -2882,6 +3095,20 @@ SSIIa,6,6749554"></textarea>
         vizOptions.showCentromere = document.getElementById('vizShowCentromere').checked;
         vizOptions.bgOpacity = parseInt(document.getElementById('vizBgOpacity').value) || 100;
 
+        // 마커 표시 옵션
+        const showMarkersEl = document.getElementById('vizShowMarkers');
+        if (showMarkersEl) {
+            vizOptions.showMarkers = showMarkersEl.checked;
+            const markerLabelOpts = document.getElementById('markerLabelOptions');
+            if (markerLabelOpts) markerLabelOpts.style.display = vizOptions.showMarkers ? 'block' : 'none';
+        }
+        const showMarkerNamesEl = document.getElementById('vizShowMarkerNames');
+        if (showMarkerNamesEl) vizOptions.showMarkerNames = showMarkerNamesEl.checked;
+        const showMarkerPosEl = document.getElementById('vizShowMarkerPos');
+        if (showMarkerPosEl) vizOptions.showMarkerPos = showMarkerPosEl.checked;
+        const posUnitEl = document.getElementById('positionUnitSelect');
+        if (posUnitEl) vizOptions.positionUnit = posUnitEl.value;
+
         const root = document.documentElement;
         root.style.setProperty('--viz-donor', vizStyles.donor);
         root.style.setProperty('--viz-recurrent', vizStyles.recurrent);
@@ -2912,12 +3139,30 @@ SSIIa,6,6749554"></textarea>
     
     function resetVizStyles() {
         vizStyles = { ...PRESETS.color };
-        vizOptions = { splitArms: true, showCentromere: true, bgOpacity: 100 };
+        vizOptions = { splitArms: true, showCentromere: true, bgOpacity: 100, showMarkers: false, showMarkerNames: true, showMarkerPos: false, mapUnit: 'physical', positionUnit: 'auto' };
         document.querySelectorAll('.preset-btn').forEach((b,i) => b.classList.toggle('active', i===0));
         document.getElementById('vizSplitArms').checked = true;
         document.getElementById('vizShowCentromere').checked = true;
         document.getElementById('vizBgOpacity').value = 100;
         document.getElementById('vizBgOpacityLabel').textContent = '100%';
+        // 마커 표시 옵션 초기화
+        const showMarkersEl = document.getElementById('vizShowMarkers');
+        if (showMarkersEl) showMarkersEl.checked = false;
+        const showMarkerNamesEl = document.getElementById('vizShowMarkerNames');
+        if (showMarkerNamesEl) showMarkerNamesEl.checked = true;
+        const showMarkerPosEl = document.getElementById('vizShowMarkerPos');
+        if (showMarkerPosEl) showMarkerPosEl.checked = false;
+        const markerLabelOpts = document.getElementById('markerLabelOptions');
+        if (markerLabelOpts) markerLabelOpts.style.display = 'none';
+        const mapUnitEl = document.getElementById('mapUnitSelect');
+        if (mapUnitEl) mapUnitEl.value = 'physical';
+        const posUnitEl = document.getElementById('positionUnitSelect');
+        if (posUnitEl) posUnitEl.value = 'auto';
+        // 게놈 빌드 다시 활성화
+        const genomeBuildSelect = document.getElementById('genomeBuild');
+        if (genomeBuildSelect) genomeBuildSelect.disabled = false;
+        const genomeBuildCard = genomeBuildSelect?.closest('.card');
+        if (genomeBuildCard) { genomeBuildCard.style.opacity = '1'; genomeBuildCard.style.pointerEvents = 'auto'; }
         syncUIFromViz();
         applyVizStyles();
     }
@@ -3004,7 +3249,7 @@ SSIIa,6,6749554"></textarea>
                 <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.donor};border:1px solid rgba(0,0,0,0.1);"></div><span>Donor</span></div>
                 <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.recurrent};border:1px solid rgba(0,0,0,0.1);"></div><span>Recurrent</span></div>
                 <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.het};border:1px solid rgba(0,0,0,0.1);"></div><span>Het</span></div>
-                <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.1);"></div><span>Centromere</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><div style="width:14px;height:14px;border-radius:50%;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.1);"></div><span>Centromere</span></div>
             `;
             container.appendChild(leg);
         }
@@ -3080,14 +3325,22 @@ SSIIa,6,6749554"></textarea>
         const build = GENOME_BUILDS[currentBuild];
         const result = analysisResults[currentSample];
         if (!result) { showNotification('분석 결과 없음', 'error'); return; }
-        
-        const maxLen = Math.max(...Object.values(build.chromosomes).map(c => c.length));
+
+        const isCmMode = vizOptions.mapUnit === 'cM';
+
+        // 필터된 염색체만
+        const chrs = Object.entries(build.chromosomes).filter(([chrName]) => {
+            return chrFilterState[chrName] !== false;
+        });
+
+        const maxLen = isCmMode
+            ? getMaxCmLength(result, chrs)
+            : Math.max(...chrs.map(([, c]) => c.length));
         const pad = 20, labelW = 50, lenW = 70;
         const barW = width - pad*2 - labelW - lenW - 20;
-        const chrH = vizStyles.chrH, gap = 8;
+        const chrH = vizStyles.chrH, gap = vizOptions.showMarkers ? 60 : 8;
         const centR = vizStyles.centromereW / 2;
         const legH = includeLegend ? 50 : 0, titleH = includeTitle ? 40 : 0;
-        const chrs = Object.entries(build.chromosomes);
         const totalH = pad*2 + titleH + legH + chrs.length * (chrH + gap);
         
         let svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -3104,7 +3357,11 @@ SSIIa,6,6749554"></textarea>
             svg += `<rect x="${pad}" y="${y}" width="${width-pad*2}" height="35" rx="4" fill="#f8fafa"/>`;
             let lx = pad + 15;
             items.forEach(it => {
-                svg += `<rect x="${lx}" y="${y+10}" width="18" height="12" rx="2" fill="${it.c}" stroke="rgba(0,0,0,0.1)"/>`;
+                if (it.l === 'Centromere') {
+                    svg += `<circle cx="${lx+7}" cy="${y+16}" r="7" fill="${it.c}" stroke="rgba(0,0,0,0.1)"/>`;
+                } else {
+                    svg += `<rect x="${lx}" y="${y+10}" width="18" height="12" rx="2" fill="${it.c}" stroke="rgba(0,0,0,0.1)"/>`;
+                }
                 svg += `<text x="${lx+24}" y="${y+20}" class="leg">${it.l}</text>`;
                 lx += 110;
             });
@@ -3115,52 +3372,95 @@ SSIIa,6,6749554"></textarea>
             const chrNum = name.replace('Chr','');
             const chrRes = result.chromosomes[chrNum];
             const cy = y + i * (chrH + gap);
-            const totalChrWidth = (info.length / maxLen) * barW;
-            
+
+            // cM 모드 처리
+            let chrLength, centromerePos;
+            if (isCmMode) {
+                const maxPos = chrRes && chrRes.markers.length > 0 ? Math.max(...chrRes.markers.map(m => m.position)) : 100;
+                chrLength = maxPos * 1.05;
+                centromerePos = chrLength * (info.centromere / info.length);
+            } else {
+                chrLength = info.length;
+                centromerePos = info.centromere;
+            }
+
+            const totalChrWidth = (chrLength / maxLen) * barW;
+            const lengthLabel = isCmMode ? formatCm(chrLength) : formatPosition(chrLength);
+
             svg += `<text x="${labelW}" y="${cy + chrH/2 + 4}" text-anchor="end" class="lbl">${name}</text>`;
-            
+
+            // 마커 라벨 생성 함수 (SVG용)
+            function addSvgMarkerLabels(markers, armX, armWidth, armStart, armLength) {
+                if (!vizOptions.showMarkers || markers.length === 0) return;
+                const clusterThreshold = armLength * 0.03;
+                const clusters = [];
+                let cluster = [markers[0]];
+                for (let k = 1; k < markers.length; k++) {
+                    if (markers[k].position - cluster[cluster.length - 1].position < clusterThreshold) {
+                        cluster.push(markers[k]);
+                    } else { clusters.push(cluster); cluster = [markers[k]]; }
+                }
+                clusters.push(cluster);
+
+                clusters.forEach(cl => {
+                    const centerPos = cl.reduce((s, m) => s + m.position, 0) / cl.length;
+                    const cx = armX + ((centerPos - armStart) / armLength) * armWidth;
+                    const lineH = 10 + cl.length * 12;
+                    svg += `<line x1="${cx}" y1="${cy + chrH}" x2="${cx}" y2="${cy + chrH + lineH}" stroke="${vizStyles.label}" stroke-width="1" opacity="0.6"/>`;
+
+                    cl.forEach((m, idx) => {
+                        const by = cy + chrH + 10 + idx * 12;
+                        const dir = idx % 2 === 0 ? 1 : -1;
+                        const bLen = cl.length > 1 ? 8 + idx * 3 : 0;
+                        if (bLen > 0) {
+                            svg += `<line x1="${cx}" y1="${by}" x2="${cx + dir * bLen}" y2="${by}" stroke="${vizStyles.label}" stroke-width="1" opacity="0.6"/>`;
+                        }
+                        let labelText = '';
+                        if (vizOptions.showMarkerNames) labelText = m.name;
+                        if (vizOptions.showMarkerPos) {
+                            const posText = isCmMode ? formatCm(m.position) : formatPosition(m.position);
+                            labelText += (labelText ? ' ' : '') + posText;
+                        }
+                        if (labelText) {
+                            const tx = cx + dir * (bLen + 3);
+                            const anchor = dir > 0 ? 'start' : 'end';
+                            svg += `<text x="${tx}" y="${by + 3}" text-anchor="${anchor}" style="font-family:'JetBrains Mono',monospace;font-size:8px;fill:${vizStyles.label};">${escXml(labelText)}</text>`;
+                        }
+                    });
+                });
+            }
+
             if (vizOptions.splitArms) {
-                // 분리 모드 - 세 개의 도형이 붙어있음 (단완, 동원체, 장완)
-                const pArmWidth = (info.centromere / info.length) * totalChrWidth;
+                const pArmWidth = (centromerePos / chrLength) * totalChrWidth;
                 const qArmWidth = totalChrWidth - pArmWidth;
                 const pArmX = labelW + 10;
-                const centX = pArmX + pArmWidth - 2; // 동원체가 단완과 살짝 겹침
+                const centX = pArmX + pArmWidth - 2;
                 const qArmX = vizOptions.showCentromere ? centX + vizStyles.centromereW - 2 : pArmX + pArmWidth;
 
-                // p-arm (단완) - 둥근 사각형
                 svg += `<rect x="${pArmX}" y="${cy}" width="${pArmWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" ry="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.borderColor}" stroke-width="${vizStyles.chrBorder}"/>`;
-
-                // q-arm (장완) - 둥근 사각형
                 svg += `<rect x="${qArmX}" y="${cy}" width="${qArmWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" ry="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.borderColor}" stroke-width="${vizStyles.chrBorder}"/>`;
-                
-                // 마커 그리기
+
                 if (chrRes && chrRes.markers.length > 0) {
                     const markers = chrRes.markers.sort((a,b) => a.position - b.position);
-                    
-                    // p-arm 마커
-                    const pMarkers = markers.filter(m => m.position < info.centromere);
+                    const pMarkers = markers.filter(m => m.position < centromerePos);
                     pMarkers.forEach((m, j) => {
-                        const prev = pMarkers[j-1];
-                        const next = pMarkers[j+1];
+                        const prev = pMarkers[j-1]; const next = pMarkers[j+1];
                         const start = prev ? (prev.position + m.position)/2 : 0;
-                        const end = next ? Math.min(info.centromere, (m.position + next.position)/2) : info.centromere;
-                        const rx = pArmX + (start / info.centromere) * pArmWidth;
-                        const rw = ((end - start) / info.centromere) * pArmWidth;
+                        const end = next ? Math.min(centromerePos, (m.position + next.position)/2) : centromerePos;
+                        const rx = pArmX + (start / centromerePos) * pArmWidth;
+                        const rw = ((end - start) / centromerePos) * pArmWidth;
                         let fill = vizStyles.recurrent;
                         if (m.type === 'donor') fill = vizStyles.donor;
                         else if (m.type === 'heterozygous') fill = vizStyles.het;
                         svg += `<rect x="${rx}" y="${cy}" width="${rw}" height="${chrH}" fill="${fill}"/>`;
                     });
-                    
-                    // q-arm 마커
-                    const qMarkers = markers.filter(m => m.position >= info.centromere);
-                    const qStart = info.centromere;
-                    const qLen = info.length - info.centromere;
+                    const qMarkers = markers.filter(m => m.position >= centromerePos);
+                    const qStart = centromerePos;
+                    const qLen = chrLength - centromerePos;
                     qMarkers.forEach((m, j) => {
-                        const prev = qMarkers[j-1];
-                        const next = qMarkers[j+1];
+                        const prev = qMarkers[j-1]; const next = qMarkers[j+1];
                         const start = prev ? (prev.position + m.position)/2 : qStart;
-                        const end = next ? (m.position + next.position)/2 : info.length;
+                        const end = next ? (m.position + next.position)/2 : chrLength;
                         const rx = qArmX + ((start - qStart) / qLen) * qArmWidth;
                         const rw = ((end - start) / qLen) * qArmWidth;
                         let fill = vizStyles.recurrent;
@@ -3168,44 +3468,44 @@ SSIIa,6,6749554"></textarea>
                         else if (m.type === 'heterozygous') fill = vizStyles.het;
                         svg += `<rect x="${rx}" y="${cy}" width="${rw}" height="${chrH}" fill="${fill}"/>`;
                     });
+
+                    // 마커 라벨
+                    addSvgMarkerLabels(pMarkers, pArmX, pArmWidth, 0, centromerePos);
+                    addSvgMarkerLabels(qMarkers, qArmX, qArmWidth, centromerePos, chrLength - centromerePos);
                 }
-                
-                // 동원체 (원형)
+
                 if (vizOptions.showCentromere) {
                     svg += `<circle cx="${centX + vizStyles.centromereW/2}" cy="${cy + chrH/2}" r="${centR}" fill="${vizStyles.centromere}"/>`;
                 }
-                
-                svg += `<text x="${qArmX + qArmWidth + 10}" y="${cy+chrH/2+4}" class="len">${formatBp(info.length)}</text>`;
+                svg += `<text x="${qArmX + qArmWidth + 10}" y="${cy+chrH/2+4}" class="len">${lengthLabel}</text>`;
             } else {
-                // 기존 bar 형태
                 const barX = labelW + 10;
-                const centromereX = barX + (info.centromere / info.length) * totalChrWidth;
+                const centromereX = barX + (centromerePos / chrLength) * totalChrWidth;
 
                 svg += `<rect x="${barX}" y="${cy}" width="${totalChrWidth}" height="${chrH}" rx="${vizStyles.chrRadius}" fill="${vizStyles.track}" stroke="${vizStyles.borderColor}" stroke-width="${vizStyles.chrBorder}"/>`;
-                
-                // 마커 그리기
+
                 if (chrRes && chrRes.markers.length > 0) {
                     const markers = chrRes.markers.sort((a,b) => a.position - b.position);
                     markers.forEach((m, j) => {
-                        const prev = markers[j-1];
-                        const next = markers[j+1];
+                        const prev = markers[j-1]; const next = markers[j+1];
                         const start = prev ? (prev.position + m.position)/2 : 0;
-                        const end = next ? (m.position + next.position)/2 : info.length;
-                        const rx = barX + (start / info.length) * totalChrWidth;
-                        const rw = ((end - start) / info.length) * totalChrWidth;
+                        const end = next ? (m.position + next.position)/2 : chrLength;
+                        const rx = barX + (start / chrLength) * totalChrWidth;
+                        const rw = ((end - start) / chrLength) * totalChrWidth;
                         let fill = vizStyles.recurrent;
                         if (m.type === 'donor') fill = vizStyles.donor;
                         else if (m.type === 'heterozygous') fill = vizStyles.het;
                         svg += `<rect x="${rx}" y="${cy}" width="${rw}" height="${chrH}" fill="${fill}"/>`;
                     });
+
+                    // 마커 라벨
+                    addSvgMarkerLabels(markers, barX, totalChrWidth, 0, chrLength);
                 }
-                
-                // 동원체 (선)
+
                 if (vizOptions.showCentromere) {
                     svg += `<rect x="${centromereX - vizStyles.centromereW/2}" y="${cy}" width="${vizStyles.centromereW}" height="${chrH}" fill="${vizStyles.centromere}"/>`;
                 }
-                
-                svg += `<text x="${barX + totalChrWidth + 10}" y="${cy+chrH/2+4}" class="len">${formatBp(info.length)}</text>`;
+                svg += `<text x="${barX + totalChrWidth + 10}" y="${cy+chrH/2+4}" class="len">${lengthLabel}</text>`;
             }
         });
         
@@ -3435,7 +3735,7 @@ SSIIa,6,6749554"></textarea>
             <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.donor};border:1px solid rgba(0,0,0,0.1);"></div><span>Donor</span></div>
             <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.recurrent};border:1px solid rgba(0,0,0,0.1);"></div><span>Recurrent</span></div>
             <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.het};border:1px solid rgba(0,0,0,0.1);"></div><span>Het</span></div>
-            <div style="display:flex;align-items:center;gap:6px;"><div style="width:18px;height:12px;border-radius:2px;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.1);"></div><span>Centromere</span></div>
+            <div style="display:flex;align-items:center;gap:6px;"><div style="width:14px;height:14px;border-radius:50%;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.1);"></div><span>Centromere</span></div>
         `;
         container.appendChild(leg);
 
@@ -3606,7 +3906,7 @@ SSIIa,6,6749554"></textarea>
             <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.donor};"></div><span>Donor</span></div>
             <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.recurrent};"></div><span>Recurrent</span></div>
             <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.het};"></div><span>Het</span></div>
-            <div style="display:flex;align-items:center;gap:5px;"><div style="width:16px;height:10px;border-radius:2px;background:${vizStyles.centromere};"></div><span>Centromere</span></div>
+            <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:50%;background:${vizStyles.centromere};"></div><span>Centromere</span></div>
         `;
         container.appendChild(leg);
 
@@ -5253,5 +5553,213 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
     function closeConversionResultModal() {
         document.getElementById('conversionResultModal').classList.remove('active');
+    }
+
+    // =====================================================
+    // 염색체 필터 기능
+    // =====================================================
+    function initChrFilter() {
+        const build = GENOME_BUILDS[currentBuild];
+        if (!build) return;
+
+        const chrNames = Object.keys(build.chromosomes);
+        chrFilterState = {};
+        chrNames.forEach(chr => { chrFilterState[chr] = true; });
+
+        const container = document.getElementById('chrFilterCheckboxes');
+        if (!container) return;
+
+        container.innerHTML = chrNames.map(chr => {
+            return `<label class="chr-filter-checkbox">
+                <input type="checkbox" checked data-chr="${chr}" onchange="onChrFilterChange('${chr}', this.checked)">
+                ${chr}
+            </label>`;
+        }).join('');
+
+        document.getElementById('chrFilterBar').style.display = 'block';
+        console.log('염색체 필터 초기화:', chrNames.length, '개');
+    }
+
+    function toggleAllChromosomeFilters(checked) {
+        console.log('전체 염색체 필터:', checked ? '선택' : '해제');
+        const checkboxes = document.querySelectorAll('#chrFilterCheckboxes input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = checked;
+            const chr = cb.dataset.chr;
+            chrFilterState[chr] = checked;
+        });
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
+    }
+
+    function onChrFilterChange(chr, checked) {
+        console.log('염색체 필터 변경:', chr, checked);
+        chrFilterState[chr] = checked;
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
+    }
+
+    // =====================================================
+    // 맵 단위 (cM / physical) 전환
+    // =====================================================
+    function onMapUnitChange() {
+        const select = document.getElementById('mapUnitSelect');
+        vizOptions.mapUnit = select.value;
+        console.log('맵 단위 변경:', vizOptions.mapUnit);
+
+        // cM 모드일 때 게놈 빌드 드롭다운 비활성화
+        const genomeBuildSelect = document.getElementById('genomeBuild');
+        const genomeBuildCard = genomeBuildSelect?.closest('.card');
+        if (vizOptions.mapUnit === 'cM') {
+            genomeBuildSelect.disabled = true;
+            if (genomeBuildCard) {
+                genomeBuildCard.style.opacity = '0.5';
+                genomeBuildCard.style.pointerEvents = 'none';
+            }
+        } else {
+            genomeBuildSelect.disabled = false;
+            if (genomeBuildCard) {
+                genomeBuildCard.style.opacity = '1';
+                genomeBuildCard.style.pointerEvents = 'auto';
+            }
+        }
+
+        // 분석 결과 있으면 다시 그리기
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
+    }
+
+    // 위치 포맷 (단위 옵션 반영)
+    function formatPosition(bp) {
+        const unit = vizOptions.positionUnit;
+        if (unit === 'bp') return bp.toLocaleString() + ' bp';
+        if (unit === 'Kb') return (bp / 1000).toFixed(1) + ' Kb';
+        if (unit === 'Mb') return (bp / 1000000).toFixed(2) + ' Mb';
+        // auto
+        return formatBp(bp);
+    }
+
+    // cM 단위 포맷
+    function formatCm(val) {
+        return val.toFixed(1) + ' cM';
+    }
+
+    // =====================================================
+    // 마커 라벨 표시 시스템 (1px 선 + 분기 + 텍스트 반겹침)
+    // =====================================================
+    function renderMarkerLabels(chrResult, armStart, armEnd, armLength, containerEl) {
+        if (!vizOptions.showMarkers || !chrResult || !chrResult.markers || chrResult.markers.length === 0) return;
+
+        const markers = chrResult.markers
+            .filter(m => m.position >= armStart && m.position < armEnd)
+            .sort((a, b) => a.position - b.position);
+
+        if (markers.length === 0) return;
+
+        const containerRect = containerEl.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        if (containerWidth <= 0) return;
+
+        // 마커를 클러스터로 그룹핑 (가까운 위치끼리)
+        const clusterThreshold = armLength * 0.03; // 3% 이내면 같은 클러스터
+        const clusters = [];
+        let currentCluster = [markers[0]];
+
+        for (let i = 1; i < markers.length; i++) {
+            if (markers[i].position - currentCluster[currentCluster.length - 1].position < clusterThreshold) {
+                currentCluster.push(markers[i]);
+            } else {
+                clusters.push(currentCluster);
+                currentCluster = [markers[i]];
+            }
+        }
+        clusters.push(currentCluster);
+
+        // 라벨 오버레이 컨테이너 - chr-structure 또는 chr-bar-container 레벨에 추가
+        const chrRow = containerEl.closest('.chromosome-row');
+        if (!chrRow) return;
+
+        // 기존 오버레이 삭제
+        const existingOverlay = chrRow.querySelector(`.marker-label-overlay[data-arm-start="${armStart}"]`);
+        if (existingOverlay) existingOverlay.remove();
+
+        // 오버레이는 containerEl 기준 절대 위치
+        const overlay = document.createElement('div');
+        overlay.className = 'marker-label-overlay';
+        overlay.dataset.armStart = armStart;
+        overlay.style.cssText = `position:absolute;left:${containerEl.offsetLeft}px;top:${containerEl.offsetTop}px;width:${containerWidth}px;height:${containerEl.offsetHeight}px;pointer-events:none;overflow:visible;`;
+
+        // chr-structure 또는 row를 position:relative로 설정
+        const structureEl = containerEl.closest('.chr-structure') || containerEl.closest('.chr-bar-container') || chrRow;
+        structureEl.style.position = 'relative';
+        structureEl.style.overflow = 'visible';
+        chrRow.style.overflow = 'visible';
+
+        const labelPositions = []; // 겹침 방지용
+
+        clusters.forEach(cluster => {
+            const clusterCenter = cluster.reduce((s, m) => s + m.position, 0) / cluster.length;
+            const centerPx = ((clusterCenter - armStart) / armLength) * containerWidth;
+
+            // 주 선 (1px, 염색체 아래로)
+            const lineHeight = 12 + cluster.length * 10;
+            const mainLine = document.createElement('div');
+            mainLine.style.cssText = `position:absolute;left:${centerPx}px;top:${containerEl.offsetHeight}px;width:1px;height:${lineHeight}px;background:${vizStyles.label};opacity:0.6;`;
+            overlay.appendChild(mainLine);
+
+            // 각 마커 라벨
+            cluster.forEach((marker, idx) => {
+                const branchY = 10 + idx * 13;
+                const branchDir = idx % 2 === 0 ? 1 : -1;
+                const branchLen = cluster.length > 1 ? 8 + idx * 3 : 0;
+
+                // 가지 선
+                if (branchLen > 0) {
+                    const branch = document.createElement('div');
+                    branch.style.cssText = `position:absolute;left:${branchDir > 0 ? centerPx : centerPx - branchLen}px;top:${containerEl.offsetHeight + branchY}px;width:${branchLen}px;height:1px;background:${vizStyles.label};opacity:0.6;`;
+                    overlay.appendChild(branch);
+                }
+
+                // 텍스트 라벨
+                let labelText = '';
+                if (vizOptions.showMarkerNames) labelText = marker.name;
+                if (vizOptions.showMarkerPos) {
+                    const posText = vizOptions.mapUnit === 'cM' ? formatCm(marker.position) : formatPosition(marker.position);
+                    labelText += (labelText ? ' ' : '') + posText;
+                }
+                if (!labelText) return;
+
+                const textDir = cluster.length > 1 ? branchDir : 1;
+                const textOffset = branchLen + 3;
+                const label = document.createElement('div');
+                label.style.cssText = `position:absolute;top:${containerEl.offsetHeight + branchY - 5}px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1.2;`;
+
+                if (textDir > 0) {
+                    label.style.left = `${centerPx + textOffset}px`;
+                } else {
+                    label.style.left = `${centerPx - textOffset}px`;
+                    label.style.transform = 'translateX(-100%)';
+                }
+                label.textContent = labelText;
+
+                // 겹침 방지
+                const approxLeft = centerPx;
+                let approxTop = branchY;
+                for (const prev of labelPositions) {
+                    if (Math.abs(prev.left - approxLeft) < 40 && Math.abs(prev.top - approxTop) < 12) {
+                        approxTop = prev.top + 13;
+                        label.style.top = `${containerEl.offsetHeight + approxTop - 5}px`;
+                    }
+                }
+                labelPositions.push({ left: approxLeft, top: approxTop });
+
+                overlay.appendChild(label);
+            });
+        });
+
+        structureEl.appendChild(overlay);
     }
 </script>
