@@ -3060,22 +3060,19 @@ SSIIa,6,6749554"></textarea>
         }
     }
 
-    // 염색체 시각화를 이미지로 캡처 (특정 샘플)
+    // 염색체 시각화를 이미지로 캡처 (특정 샘플) - 데이터 기반 직접 생성
     async function captureChromosomeVizAsBlob(sampleName, width, dpi, bgColor = '#ffffff') {
         const result = analysisResults[sampleName];
-        if (!result) return null;
-
-        // 현재 샘플 선택 상태 저장
-        const originalSample = currentSample;
-
-        // 샘플 변경하여 시각화 업데이트
-        if (currentSample !== sampleName) {
-            currentSample = sampleName;
-            visualizeChromosome();
+        if (!result) {
+            console.warn('분석 결과 없음:', sampleName);
+            return null;
         }
 
-        // 약간의 딜레이 후 캡처 (DOM 업데이트 대기)
-        await new Promise(r => setTimeout(r, 100));
+        const build = GENOME_BUILDS[currentBuild];
+        if (!build) {
+            console.warn('게놈 빌드 없음:', currentBuild);
+            return null;
+        }
 
         const container = document.createElement('div');
         container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
@@ -3098,48 +3095,84 @@ SSIIa,6,6749554"></textarea>
         `;
         container.appendChild(leg);
 
-        const vizClone = document.getElementById('chromosomeViz').cloneNode(true);
-        vizClone.style.background = bgColor;
-        container.appendChild(vizClone);
+        // 염색체 시각화 컨테이너 (데이터 기반 직접 생성)
+        const vizContainer = document.createElement('div');
+        vizContainer.style.cssText = 'background:white;padding:10px;';
 
-        // 인라인 스타일 적용
-        vizClone.querySelectorAll('.chromosome-row').forEach(r => r.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;');
-        vizClone.querySelectorAll('.chr-label').forEach(el => el.style.cssText = `width:50px;font-size:12px;font-weight:600;color:${vizStyles.label};text-align:right;flex-shrink:0;`);
+        // 각 염색체 그리기
+        Object.entries(build.chromosomes).forEach(([chrKey, chrInfo]) => {
+            const chrNum = chrKey.replace('Chr', '');
+            const chrData = result.chromosomes[chrNum];
+            if (!chrData) return;
 
-        vizClone.querySelectorAll('.chr-structure').forEach(el => {
-            const currentWidth = el.style.width || '100%';
-            el.style.cssText = `width:${currentWidth};display:flex;align-items:center;height:${vizStyles.chrH}px;`;
-        });
-        vizClone.querySelectorAll('.chr-p-arm').forEach(el => {
-            const grow = el.style.flexGrow || 1;
-            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.borderColor};`;
-        });
-        vizClone.querySelectorAll('.chr-q-arm').forEach(el => {
-            const grow = el.style.flexGrow || 1;
-            el.style.cssText = `flex-grow:${grow};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.borderColor};`;
-        });
-        vizClone.querySelectorAll('.chr-centromere').forEach(el => el.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -2px;`);
-        vizClone.querySelectorAll('.chr-bar-container').forEach(el => {
-            const currentWidth = el.style.width || '100%';
-            el.style.cssText = `width:${currentWidth};height:${vizStyles.chrH}px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px;position:relative;overflow:hidden;border:${vizStyles.chrBorder}px solid ${vizStyles.borderColor};`;
-        });
-        vizClone.querySelectorAll('.chr-bar').forEach(el => {
-            el.style.cssText = `height:100%;border-radius:${vizStyles.chrRadius}px;position:relative;`;
-        });
-        vizClone.querySelectorAll('.chr-centromere-line').forEach(el => {
-            el.style.cssText = `position:absolute;top:0;width:${vizStyles.centromereW}px;height:100%;background:${vizStyles.centromere};z-index:10;`;
+            const chrRow = document.createElement('div');
+            chrRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;';
+
+            // 염색체 라벨
+            const label = document.createElement('div');
+            label.textContent = chrKey;
+            label.style.cssText = `width:50px;font-size:12px;font-weight:600;color:${vizStyles.label};text-align:right;flex-shrink:0;`;
+            chrRow.appendChild(label);
+
+            // 염색체 구조 (p-arm / centromere / q-arm)
+            const chrStructure = document.createElement('div');
+            chrStructure.style.cssText = `flex:1;display:flex;align-items:center;height:${vizStyles.chrH}px;`;
+
+            const centromereRatio = chrInfo.centromere / chrInfo.length;
+            const pArmRatio = centromereRatio;
+            const qArmRatio = 1 - centromereRatio;
+
+            // p-arm
+            const pArm = document.createElement('div');
+            pArm.style.cssText = `flex-grow:${pArmRatio};height:100%;min-width:4px;background:${vizStyles.track};border-radius:${vizStyles.chrRadius}px 0 0 ${vizStyles.chrRadius}px;position:relative;overflow:hidden;`;
+
+            // q-arm
+            const qArm = document.createElement('div');
+            qArm.style.cssText = `flex-grow:${qArmRatio};height:100%;min-width:4px;background:${vizStyles.track};border-radius:0 ${vizStyles.chrRadius}px ${vizStyles.chrRadius}px 0;position:relative;overflow:hidden;`;
+
+            // centromere
+            const centromere = document.createElement('div');
+            centromere.style.cssText = `width:${vizStyles.centromereW}px;height:${vizStyles.centromereW}px;min-width:${vizStyles.centromereW}px;background:${vizStyles.centromere};border-radius:50%;z-index:10;flex-shrink:0;margin:0 -2px;`;
+
+            // 마커 표시
+            if (chrData.markers && chrData.markers.length > 0) {
+                chrData.markers.forEach(marker => {
+                    const pos = marker.position;
+                    let targetArm, relativePos;
+
+                    if (pos < chrInfo.centromere) {
+                        targetArm = pArm;
+                        relativePos = (pos / chrInfo.centromere) * 100;
+                    } else {
+                        targetArm = qArm;
+                        relativePos = ((pos - chrInfo.centromere) / (chrInfo.length - chrInfo.centromere)) * 100;
+                    }
+
+                    let markerColor = vizStyles.recurrent;
+                    if (marker.type === 'donor') markerColor = vizStyles.donor;
+                    else if (marker.type === 'heterozygous') markerColor = vizStyles.het;
+
+                    const markerEl = document.createElement('div');
+                    markerEl.style.cssText = `position:absolute;left:${relativePos}%;top:0;width:2px;height:100%;background:${markerColor};`;
+                    targetArm.appendChild(markerEl);
+                });
+            }
+
+            chrStructure.appendChild(pArm);
+            chrStructure.appendChild(centromere);
+            chrStructure.appendChild(qArm);
+            chrRow.appendChild(chrStructure);
+
+            // 염색체 길이 라벨
+            const lengthLabel = document.createElement('div');
+            lengthLabel.textContent = formatBp(chrInfo.length);
+            lengthLabel.style.cssText = `width:70px;font-size:11px;color:${vizStyles.label};font-family:'JetBrains Mono',monospace;flex-shrink:0;`;
+            chrRow.appendChild(lengthLabel);
+
+            vizContainer.appendChild(chrRow);
         });
 
-        vizClone.querySelectorAll('.marker-region').forEach(el => {
-            let bg = vizStyles.recurrent;
-            if (el.classList.contains('donor')) bg = vizStyles.donor;
-            else if (el.classList.contains('heterozygous')) bg = vizStyles.het;
-            el.style.background = bg;
-            el.style.position = 'absolute';
-            el.style.top = '0';
-            el.style.height = '100%';
-        });
-        vizClone.querySelectorAll('.chr-length').forEach(el => el.style.cssText = `width:70px;font-size:11px;color:${vizStyles.label};font-family:'JetBrains Mono',monospace;flex-shrink:0;`);
+        container.appendChild(vizContainer);
 
         try {
             const scale = dpi / 96;
@@ -3148,21 +3181,12 @@ SSIIa,6,6749554"></textarea>
             return new Promise(resolve => {
                 canvas.toBlob(blob => {
                     document.body.removeChild(container);
-                    // 원래 샘플로 복원
-                    if (originalSample !== sampleName) {
-                        currentSample = originalSample;
-                        visualizeChromosome();
-                    }
                     resolve(blob);
                 }, 'image/png', 0.95);
             });
         } catch (e) {
-            console.error(e);
+            console.error('캡처 오류:', e);
             document.body.removeChild(container);
-            if (originalSample !== sampleName) {
-                currentSample = originalSample;
-                visualizeChromosome();
-            }
             return null;
         }
     }
