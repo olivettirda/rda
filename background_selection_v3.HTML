@@ -1162,10 +1162,14 @@
 
             <div class="form-group">
                 <label>이미지 설정</label>
-                <div class="two-col" style="gap: 0.5rem;">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;">
                     <div>
                         <small style="color:var(--text-secondary);">너비 (px)</small>
                         <input type="number" id="bulkImageWidth" value="1200" min="400" max="4000" style="margin-top:0.25rem;">
+                    </div>
+                    <div>
+                        <small style="color:var(--text-secondary);">차트 높이 (px)</small>
+                        <input type="number" id="bulkChartHeight" value="500" min="200" max="2000" style="margin-top:0.25rem;">
                     </div>
                     <div>
                         <small style="color:var(--text-secondary);">DPI</small>
@@ -3004,26 +3008,19 @@ SSIIa,6,6749554"></textarea>
         return '\uFEFF' + csv;
     }
 
-    // 차트를 이미지로 캡처 (Chart.js 인스턴스 직접 사용)
-    async function captureChartAsBlob(chartInstance, title, width, dpi, bgColor = '#ffffff') {
+    // 차트를 이미지로 캡처 (원하는 크기로 리사이즈하여 캡처)
+    async function captureChartAsBlob(chartInstance, title, width, dpi, bgColor = '#ffffff', height = null) {
         // Chart.js 인스턴스 검증
         if (!chartInstance || !chartInstance.canvas) {
             console.warn('차트 인스턴스가 유효하지 않음:', title);
             return null;
         }
 
-        const chartCanvas = chartInstance.canvas;
+        // 높이가 지정되지 않으면 가로세로 비율 유지 (기본 비율 0.5)
+        const chartHeight = height || Math.round(width * 0.5);
 
-        // 캔버스 크기 검증
-        if (chartCanvas.width === 0 || chartCanvas.height === 0) {
-            console.warn('차트 캔버스가 유효하지 않음 (width/height가 0):', title);
-            return null;
-        }
-
-        // Chart.js의 toBase64Image를 사용하여 차트 이미지 생성
         try {
-            const base64Image = chartInstance.toBase64Image('image/png', 1);
-
+            // 임시 컨테이너 생성
             const container = document.createElement('div');
             container.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
             document.body.appendChild(container);
@@ -3033,20 +3030,39 @@ SSIIa,6,6749554"></textarea>
             h.style.cssText = 'font-size:16px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
             container.appendChild(h);
 
-            // 이미지 요소 생성
-            const img = document.createElement('img');
-            img.src = base64Image;
-            img.style.cssText = 'max-width:100%;height:auto;display:block;margin:0 auto;';
+            // 차트를 새로운 캔버스에 원하는 크기로 다시 그리기
+            const chartWrapper = document.createElement('div');
+            chartWrapper.style.cssText = `width:${width - 40}px;height:${chartHeight}px;`;
+            const newCanvas = document.createElement('canvas');
+            newCanvas.width = (width - 40) * (dpi / 96);
+            newCanvas.height = chartHeight * (dpi / 96);
+            newCanvas.style.cssText = `width:${width - 40}px;height:${chartHeight}px;`;
+            chartWrapper.appendChild(newCanvas);
+            container.appendChild(chartWrapper);
 
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-            });
+            // 기존 차트 설정 복사하여 새 차트 생성
+            const chartConfig = JSON.parse(JSON.stringify(chartInstance.config));
+            chartConfig.options = chartConfig.options || {};
+            chartConfig.options.responsive = false;
+            chartConfig.options.maintainAspectRatio = false;
+            chartConfig.options.animation = false;
 
-            container.appendChild(img);
+            // 데이터 라벨 플러그인 설정 복사
+            if (chartInstance.config.options?.plugins?.datalabels) {
+                chartConfig.options.plugins = chartConfig.options.plugins || {};
+                chartConfig.options.plugins.datalabels = chartInstance.config.options.plugins.datalabels;
+            }
+
+            const tempChart = new Chart(newCanvas.getContext('2d'), chartConfig);
+
+            // 렌더링 대기
+            await new Promise(r => setTimeout(r, 100));
 
             const scale = dpi / 96;
             const canvas = await html2canvas(container, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+
+            // 임시 차트 정리
+            tempChart.destroy();
 
             return new Promise(resolve => {
                 canvas.toBlob(blob => {
@@ -3330,6 +3346,13 @@ SSIIa,6,6749554"></textarea>
 
         showNotification('차트 이미지 생성 중...', 'info');
 
+        // 이미지 크기 설정 (일괄 내보내기와 동일한 기본값 사용)
+        const width = 1200;
+        const dpi = 300;
+        const sampleChartWidth = 800;
+        const sampleChartHeight = 300;  // 샘플별 차트 높이
+        const comparisonChartHeight = 500;  // 비교 차트 높이
+
         const zip = new JSZip();
         const imgFolder = zip.folder('charts');
 
@@ -3353,14 +3376,14 @@ SSIIa,6,6749554"></textarea>
             for (const [sample, chart] of Object.entries(recoveryCharts)) {
                 chart.resize();
                 await new Promise(r => setTimeout(r, 50));
-                const blob = await captureChartAsBlob(chart, `${sample} - 염색체별 회복률`, 800, 200);
+                const blob = await captureChartAsBlob(chart, `${sample} - 염색체별 회복률`, sampleChartWidth, dpi, '#ffffff', sampleChartHeight);
                 if (blob) {
                     recoveryFolder.file(`recovery_${sample}.png`, blob);
                 }
             }
 
-            // 전체 통합 이미지 (html2canvas로 컨테이너 캡처)
-            const allChartsBlob = await captureRecoveryChartsGridAsBlob(1200, 300);
+            // 전체 통합 이미지 (차트 재생성 방식)
+            const allChartsBlob = await captureRecoveryChartsGridAsBlob(width, dpi, '#ffffff', sampleChartHeight);
             if (allChartsBlob) {
                 imgFolder.file('recovery_all_samples.png', allChartsBlob);
             }
@@ -3370,7 +3393,7 @@ SSIIa,6,6749554"></textarea>
         if (typeof comparisonChart !== 'undefined' && comparisonChart) {
             comparisonChart.resize();
             await new Promise(r => setTimeout(r, 100));
-            const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', 1200, 300);
+            const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', width, dpi, '#ffffff', comparisonChartHeight);
             if (blob) {
                 imgFolder.file('comparison_chart.png', blob);
             }
@@ -3394,10 +3417,18 @@ SSIIa,6,6749554"></textarea>
         }
     }
 
-    // 회복률 차트 그리드 전체를 이미지로 캡처
-    async function captureRecoveryChartsGridAsBlob(width, dpi, bgColor = '#ffffff') {
-        const container = document.getElementById('recoveryChartsContainer');
-        if (!container || container.children.length === 0) return null;
+    // 회복률 차트 그리드 전체를 이미지로 캡처 (차트 재생성 방식)
+    async function captureRecoveryChartsGridAsBlob(width, dpi, bgColor = '#ffffff', chartHeight = null) {
+        if (typeof recoveryCharts === 'undefined' || Object.keys(recoveryCharts).length === 0) {
+            console.warn('회복률 차트가 없습니다');
+            return null;
+        }
+
+        const samples = Object.keys(recoveryCharts);
+        const cols = 3;
+        const rows = Math.ceil(samples.length / cols);
+        const cellWidth = Math.floor((width - 60) / cols); // 패딩 고려
+        const cellHeight = chartHeight || Math.round(cellWidth * 0.6);
 
         const wrapper = document.createElement('div');
         wrapper.style.cssText = `position:absolute;left:-9999px;width:${width}px;background:${bgColor};padding:20px;font-family:'Noto Sans KR',sans-serif;`;
@@ -3408,13 +3439,58 @@ SSIIa,6,6749554"></textarea>
         h.style.cssText = 'font-size:18px;font-weight:700;color:#0c3026;margin-bottom:15px;text-align:center;';
         wrapper.appendChild(h);
 
-        const gridClone = container.cloneNode(true);
-        gridClone.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;';
-        wrapper.appendChild(gridClone);
+        const grid = document.createElement('div');
+        grid.style.cssText = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:1rem;`;
+        wrapper.appendChild(grid);
+
+        const tempCharts = [];
 
         try {
+            // 각 샘플별 차트를 새로 생성
+            for (const sample of samples) {
+                const chart = recoveryCharts[sample];
+                if (!chart) continue;
+
+                const cell = document.createElement('div');
+                cell.style.cssText = `background:#ffffff;border-radius:8px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1);`;
+
+                const label = document.createElement('div');
+                label.textContent = sample;
+                label.style.cssText = 'font-size:12px;font-weight:600;color:#0c3026;margin-bottom:8px;text-align:center;';
+                cell.appendChild(label);
+
+                const chartWrapper = document.createElement('div');
+                chartWrapper.style.cssText = `width:${cellWidth - 20}px;height:${cellHeight}px;`;
+                const newCanvas = document.createElement('canvas');
+                newCanvas.width = (cellWidth - 20) * (dpi / 96);
+                newCanvas.height = cellHeight * (dpi / 96);
+                newCanvas.style.cssText = `width:${cellWidth - 20}px;height:${cellHeight}px;`;
+                chartWrapper.appendChild(newCanvas);
+                cell.appendChild(chartWrapper);
+                grid.appendChild(cell);
+
+                // 차트 설정 복사하여 새 차트 생성
+                const chartConfig = JSON.parse(JSON.stringify(chart.config));
+                chartConfig.options = chartConfig.options || {};
+                chartConfig.options.responsive = false;
+                chartConfig.options.maintainAspectRatio = false;
+                chartConfig.options.animation = false;
+                chartConfig.options.plugins = chartConfig.options.plugins || {};
+                chartConfig.options.plugins.legend = { display: false };
+                chartConfig.options.plugins.title = { display: false };
+
+                const tempChart = new Chart(newCanvas.getContext('2d'), chartConfig);
+                tempCharts.push(tempChart);
+            }
+
+            // 렌더링 대기
+            await new Promise(r => setTimeout(r, 150));
+
             const scale = dpi / 96;
             const canvas = await html2canvas(wrapper, { scale, backgroundColor: bgColor, useCORS: true, logging: false });
+
+            // 임시 차트 정리
+            tempCharts.forEach(c => c.destroy());
 
             return new Promise(resolve => {
                 canvas.toBlob(blob => {
@@ -3423,7 +3499,8 @@ SSIIa,6,6749554"></textarea>
                 }, 'image/png', 0.95);
             });
         } catch (e) {
-            console.error(e);
+            console.error('회복률 차트 그리드 캡처 실패:', e);
+            tempCharts.forEach(c => c.destroy());
             document.body.removeChild(wrapper);
             return null;
         }
@@ -3438,6 +3515,7 @@ SSIIa,6,6749554"></textarea>
         const includeComparison = document.getElementById('bulkComparisonChart').checked;
 
         const width = parseInt(document.getElementById('bulkImageWidth').value) || 1200;
+        const chartHeight = parseInt(document.getElementById('bulkChartHeight').value) || 500;
         const dpi = parseInt(document.getElementById('bulkImageDPI').value) || 300;
 
         const progressEl = document.getElementById('bulkExportProgress');
@@ -3516,15 +3594,16 @@ SSIIa,6,6749554"></textarea>
                     const recoveryFolder = chartFolder.folder('recovery_by_sample');
 
                     if (typeof recoveryCharts !== 'undefined' && Object.keys(recoveryCharts).length > 0) {
-                        // 개별 샘플 차트
+                        // 개별 샘플 차트 (높이는 너비의 0.6 비율)
                         const samples = Object.keys(recoveryCharts);
+                        const sampleChartHeight = Math.round(chartHeight * 0.6);
                         for (let i = 0; i < samples.length; i++) {
                             const sample = samples[i];
                             progressEl.textContent = `회복률 차트 생성 중... (${i+1}/${samples.length})`;
                             const chart = recoveryCharts[sample];
                             chart.resize();
                             await new Promise(r => setTimeout(r, 50));
-                            const blob = await captureChartAsBlob(chart, `${sample} - 염색체별 회복률`, width, dpi);
+                            const blob = await captureChartAsBlob(chart, `${sample} - 염색체별 회복률`, width, dpi, '#ffffff', sampleChartHeight);
                             if (blob) {
                                 recoveryFolder.file(`recovery_${sample}.png`, blob);
                             }
@@ -3532,7 +3611,7 @@ SSIIa,6,6749554"></textarea>
 
                         // 전체 통합 이미지
                         progressEl.textContent = '회복률 전체 차트 생성 중...';
-                        const allChartsBlob = await captureRecoveryChartsGridAsBlob(width, dpi);
+                        const allChartsBlob = await captureRecoveryChartsGridAsBlob(width, dpi, '#ffffff', sampleChartHeight);
                         if (allChartsBlob) {
                             chartFolder.file('recovery_all_samples.png', allChartsBlob);
                         }
@@ -3544,7 +3623,7 @@ SSIIa,6,6749554"></textarea>
                     if (typeof comparisonChart !== 'undefined' && comparisonChart) {
                         comparisonChart.resize();
                         await new Promise(r => setTimeout(r, 100));
-                        const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', width, dpi);
+                        const blob = await captureChartAsBlob(comparisonChart, '샘플 비교 차트', width, dpi, '#ffffff', chartHeight);
                         if (blob) {
                             chartFolder.file('comparison_chart.png', blob);
                         }
