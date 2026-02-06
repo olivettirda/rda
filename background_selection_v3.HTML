@@ -803,20 +803,48 @@
 
     /* Chromosome Filter Bar */
     .chr-filter-bar {
-        padding: 0.75rem 1rem;
+        padding: 0.5rem 1rem;
         background: var(--bg-secondary);
         border-radius: 8px;
         margin-bottom: 0.75rem;
     }
-    .chr-filter-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        font-size: 0.75rem;
+    .chr-filter-action-btn {
+        font-size: 0.65rem;
+        padding: 2px 7px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-secondary);
         cursor: pointer;
-        white-space: nowrap;
+        color: var(--text-secondary);
     }
-    .chr-filter-checkbox input { cursor: pointer; }
+    .chr-filter-action-btn:hover {
+        background: var(--bg-primary);
+    }
+    .chr-filter-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 8px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        border: 1.5px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+        user-select: none;
+    }
+    .chr-filter-btn:hover {
+        border-color: var(--primary-main);
+        background: rgba(1, 127, 151, 0.05);
+    }
+    .chr-filter-btn.active {
+        background: var(--primary-main);
+        color: #fff;
+        border-color: var(--primary-main);
+    }
 
     /* Marker Label System */
     .marker-label-group {
@@ -1314,11 +1342,11 @@
                         </div>
 
                         <div class="chr-filter-bar" id="chrFilterBar" style="display:none;">
-                            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-                                <span style="font-size:0.8rem;font-weight:600;color:var(--accent-darker);white-space:nowrap;">염색체 필터:</span>
-                                <button onclick="toggleAllChromosomeFilters(true)" style="font-size:0.7rem;padding:3px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);cursor:pointer;">전체 선택</button>
-                                <button onclick="toggleAllChromosomeFilters(false)" style="font-size:0.7rem;padding:3px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);cursor:pointer;">전체 해제</button>
-                                <div id="chrFilterCheckboxes" style="display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
+                            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                                <span style="font-size:0.8rem;font-weight:600;color:var(--accent-darker);white-space:nowrap;">염색체:</span>
+                                <button onclick="toggleAllChromosomeFilters(true)" class="chr-filter-action-btn">전체 선택</button>
+                                <button onclick="toggleAllChromosomeFilters(false)" class="chr-filter-action-btn">전체 해제</button>
+                                <div id="chrFilterCheckboxes" style="display:flex;gap:0.35rem;flex-wrap:wrap;"></div>
                             </div>
                         </div>
 
@@ -1569,7 +1597,7 @@
         <div class="vds-row" style="margin-bottom:0.5rem;">
             <span class="vds-label">표시:</span>
             <label class="vds-check"><input type="checkbox" id="vizShowRuler" checked onchange="applyVizStyles()"> 눈금</label>
-            <label class="vds-check"><input type="checkbox" id="vizShowMarkers" onchange="applyVizStyles()"> 마커 선</label>
+            <label class="vds-check"><input type="checkbox" id="vizShowMarkers" onchange="applyVizStyles()"> 마커 위치</label>
         </div>
         <div class="vds-row" id="markerLabelOptions" style="display:none;margin-bottom:0.5rem;">
             <span class="vds-label">마커 세부:</span>
@@ -2896,17 +2924,17 @@ SSIIa,6,6749554"></textarea>
     // 마커 라벨 높이 계산 (여백 확보용)
     function getMarkerLabelHeight(chrResult, centromerePos, chrLength) {
         if (!chrResult || !chrResult.markers || chrResult.markers.length === 0) return 0;
-        // 대략적인 높이: 기본 12px + 마커 수에 비례
         const markerCount = chrResult.markers.length;
-        const clusterThreshold = chrLength * 0.03;
+        const clusterThreshold = chrLength * 0.04;
         let clusters = 1;
         const sorted = [...chrResult.markers].sort((a, b) => a.position - b.position);
         for (let i = 1; i < sorted.length; i++) {
             if (sorted[i].position - sorted[i - 1].position >= clusterThreshold) clusters++;
         }
-        // 가장 큰 클러스터 크기
         const maxClusterSize = Math.ceil(markerCount / Math.max(clusters, 1));
-        return 16 + maxClusterSize * 14;
+        // 간결한 높이: 최대 3줄 분량 + 약간의 여유
+        const height = 10 + Math.min(maxClusterSize, 4) * 11;
+        return Math.min(height, 55);
     }
     
     function generateMarkerRegionsForArm(chrResult, armStart, armEnd, armLength) {
@@ -3857,12 +3885,12 @@ SSIIa,6,6749554"></textarea>
             y += titleH;
         }
         if (includeLegend) {
-            const items = [{c:vizStyles.donor,l:'Donor'},{c:vizStyles.recurrent,l:'Recurrent'},{c:vizStyles.het,l:'Het'}];
-            if (vizOptions.showCentromere) items.push({c:vizStyles.centromere,l:'Centromere'});
+            const items = [{c:vizStyles.donor,l:'공여친'},{c:vizStyles.recurrent,l:'반복친'},{c:vizStyles.het,l:'이형접합'}];
+            if (vizOptions.showCentromere) items.push({c:vizStyles.centromere,l:'동원체'});
             svg += `<rect x="${pad}" y="${y}" width="${width-pad*2}" height="35" rx="4" fill="#f8fafa"/>`;
             let lx = pad + 15;
             items.forEach(it => {
-                if (it.l === 'Centromere') {
+                if (it.l === '동원체') {
                     svg += `<circle cx="${lx+7}" cy="${y+16}" r="7" fill="${it.c}" stroke="rgba(0,0,0,0.1)"/>`;
                 } else {
                     svg += `<rect x="${lx}" y="${y+10}" width="18" height="12" rx="2" fill="${it.c}" stroke="rgba(0,0,0,0.1)"/>`;
@@ -6140,32 +6168,42 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
         if (!container) return;
 
         container.innerHTML = chrNames.map(chr => {
-            return `<label class="chr-filter-checkbox">
-                <input type="checkbox" checked data-chr="${chr}" onchange="onChrFilterChange('${chr}', this.checked)">
-                ${chr}
-            </label>`;
+            const shortName = chr.replace('Chr', '').replace(/^0+/, '');
+            return `<button class="chr-filter-btn active" data-chr="${chr}" onclick="toggleChrFilter(this)">Chr${shortName}</button>`;
         }).join('');
 
         document.getElementById('chrFilterBar').style.display = 'block';
         console.log('염색체 필터 초기화:', chrNames.length, '개');
     }
 
-    function toggleAllChromosomeFilters(checked) {
-        console.log('전체 염색체 필터:', checked ? '선택' : '해제');
-        const checkboxes = document.querySelectorAll('#chrFilterCheckboxes input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-            cb.checked = checked;
-            const chr = cb.dataset.chr;
-            chrFilterState[chr] = checked;
-        });
+    function toggleChrFilter(btn) {
+        const chr = btn.dataset.chr;
+        const isActive = btn.classList.contains('active');
+        if (isActive) {
+            btn.classList.remove('active');
+            chrFilterState[chr] = false;
+        } else {
+            btn.classList.add('active');
+            chrFilterState[chr] = true;
+        }
+        console.log('염색체 필터 토글:', chr, chrFilterState[chr]);
         if (currentSample && analysisResults[currentSample]) {
             visualizeChromosome(currentSample);
         }
     }
 
-    function onChrFilterChange(chr, checked) {
-        console.log('염색체 필터 변경:', chr, checked);
-        chrFilterState[chr] = checked;
+    function toggleAllChromosomeFilters(checked) {
+        console.log('전체 염색체 필터:', checked ? '선택' : '해제');
+        const btns = document.querySelectorAll('#chrFilterCheckboxes .chr-filter-btn');
+        btns.forEach(btn => {
+            const chr = btn.dataset.chr;
+            chrFilterState[chr] = checked;
+            if (checked) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
         if (currentSample && analysisResults[currentSample]) {
             visualizeChromosome(currentSample);
         }
@@ -6218,7 +6256,7 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     }
 
     // =====================================================
-    // 마커 라벨 표시 시스템 (개선: 물리적 위치 연계, 정확한 위치 매핑)
+    // 마커 라벨 표시 시스템 (컴팩트 레이아웃, 짧은 연결선)
     // =====================================================
     function renderMarkerLabels(chrResult, armStart, armEnd, armLength, containerEl) {
         if (!vizOptions.showMarkers || !chrResult || !chrResult.markers || chrResult.markers.length === 0) return;
@@ -6236,7 +6274,7 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
         }
         const containerHeight = containerEl.offsetHeight || 28;
 
-        // 1) 먼저 각 마커의 정확한 X 위치(px) 계산
+        // 1) 각 마커의 정확한 X 위치(px) 계산
         const markerPositions = markers.map(m => ({
             ...m,
             xPx: ((m.position - armStart) / armLength) * containerWidth
@@ -6247,17 +6285,13 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
             chr: containerEl.dataset.chr,
             armStart, armEnd, armLength,
             containerWidth,
-            markerCount: markers.length,
-            firstPos: markers[0]?.position,
-            lastPos: markers[markers.length-1]?.position,
-            firstXPx: markerPositions[0]?.xPx.toFixed(1),
-            lastXPx: markerPositions[markerPositions.length-1]?.xPx.toFixed(1)
+            markerCount: markers.length
         });
 
-        // 2) 염색체 바 위에 마커 위치를 나타내는 작은 눈금선(tick) 추가
+        // 2) 염색체 바 위에 마커 위치 눈금선(tick) 추가
         markerPositions.forEach(mp => {
             const tick = document.createElement('div');
-            tick.style.cssText = `position:absolute;left:${mp.xPx.toFixed(1)}px;top:0;width:1px;height:100%;background:${vizStyles.label};opacity:0.35;z-index:5;pointer-events:none;`;
+            tick.style.cssText = `position:absolute;left:${mp.xPx.toFixed(1)}px;top:0;width:1px;height:100%;background:${vizStyles.label};opacity:0.4;z-index:5;pointer-events:none;`;
             containerEl.appendChild(tick);
         });
 
@@ -6275,7 +6309,6 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
         overlay.className = 'marker-label-overlay';
         overlay.dataset.armId = `${containerEl.dataset.arm}-${containerEl.dataset.chr}`;
 
-        // 오버레이를 containerEl 기준으로 배치
         const rowRect = chrRow.getBoundingClientRect();
         const elRect = containerEl.getBoundingClientRect();
         const offsetLeft = elRect.left - rowRect.left;
@@ -6283,15 +6316,16 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
         overlay.style.cssText = `position:absolute;left:${offsetLeft}px;top:${offsetTop}px;width:${containerWidth}px;height:${containerHeight}px;pointer-events:none;overflow:visible;z-index:5;`;
 
-        // 4) 라벨 배치 - 물리적 위치 기반으로 균등 분산
-        const usedSlots = []; // {y, leftPx, rightPx}
-        const LINE_HEIGHT = 13;
-        const LABEL_MIN_GAP = 3;
+        // 4) 컴팩트 라벨 배치 - 짧은 연결선, 밀집 배치
+        const ROW_H = 10;         // 라벨 행 높이
+        const MAX_ROWS = 4;       // 최대 행 수 (연결선 길이 제한)
+        const CHAR_W = 4.8;       // 글자당 근사 픽셀폭
+        const usedSlots = [];     // {row, leftPx, rightPx}
 
         markerPositions.forEach((mp, idx) => {
             const xPx = mp.xPx;
 
-            // 텍스트 라벨 구성
+            // 라벨 텍스트 구성
             let labelText = '';
             if (vizOptions.showMarkerNames) labelText = mp.name;
             if (vizOptions.showMarkerPos) {
@@ -6300,64 +6334,51 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
             }
             if (!labelText) return;
 
-            // 라벨 방향: 왼쪽/오른쪽 번갈아
-            const isRightHalf = xPx > containerWidth * 0.6;
-            const textDir = isRightHalf ? -1 : 1;
+            // 방향 결정: 오른쪽 65% 이상이면 왼쪽으로
+            const isRight = xPx <= containerWidth * 0.65;
+            const approxW = labelText.length * CHAR_W;
 
-            // Y 위치 결정 (겹침 방지)
-            const approxLabelWidth = labelText.length * 5.5; // 대략적 글자 폭
-            let ySlot = 0;
+            // 행 배치 (겹침 방지, 최대 MAX_ROWS까지)
+            let bestRow = 0;
             let placed = false;
-
-            for (let attempt = 0; attempt < 60; attempt++) {
-                const testY = attempt * LINE_HEIGHT;
-                const testLeft = textDir > 0 ? xPx : xPx - approxLabelWidth;
-                const testRight = textDir > 0 ? xPx + approxLabelWidth : xPx;
-
+            for (let r = 0; r < MAX_ROWS; r++) {
+                const testLeft = isRight ? xPx : xPx - approxW;
+                const testRight = isRight ? xPx + approxW : xPx;
                 let overlap = false;
                 for (const slot of usedSlots) {
-                    if (Math.abs(slot.y - testY) < LINE_HEIGHT - LABEL_MIN_GAP) {
-                        // 같은 Y레벨에서 가로 겹침 확인
-                        if (!(testRight < slot.leftPx - 4 || testLeft > slot.rightPx + 4)) {
-                            overlap = true;
-                            break;
-                        }
+                    if (slot.row === r && !(testRight < slot.leftPx - 3 || testLeft > slot.rightPx + 3)) {
+                        overlap = true;
+                        break;
                     }
                 }
                 if (!overlap) {
-                    ySlot = testY;
+                    bestRow = r;
                     placed = true;
-                    usedSlots.push({ y: testY, leftPx: textDir > 0 ? xPx : xPx - approxLabelWidth, rightPx: textDir > 0 ? xPx + approxLabelWidth : xPx });
+                    usedSlots.push({ row: r, leftPx: isRight ? xPx : xPx - approxW, rightPx: isRight ? xPx + approxW : xPx });
                     break;
                 }
             }
-            if (!placed) ySlot = idx * LINE_HEIGHT;
-
-            // 수직 연결선 (염색체 바 아래에서 라벨까지)
-            const lineTop = containerHeight;
-            const lineHeight = ySlot + 8;
-            const vLine = document.createElement('div');
-            vLine.style.cssText = `position:absolute;left:${Math.round(xPx)}px;top:${lineTop}px;width:1px;height:${lineHeight}px;background:${vizStyles.label};opacity:0.3;`;
-            overlay.appendChild(vLine);
-
-            // 수평 가지선 (라벨 시작점으로)
-            const branchLen = 6;
-            if (branchLen > 0) {
-                const branch = document.createElement('div');
-                const bLeft = textDir > 0 ? Math.round(xPx) : Math.round(xPx) - branchLen;
-                branch.style.cssText = `position:absolute;left:${bLeft}px;top:${lineTop + lineHeight}px;width:${branchLen}px;height:1px;background:${vizStyles.label};opacity:0.3;`;
-                overlay.appendChild(branch);
+            if (!placed) {
+                bestRow = idx % MAX_ROWS;
+                usedSlots.push({ row: bestRow, leftPx: isRight ? xPx : xPx - approxW, rightPx: isRight ? xPx + approxW : xPx });
             }
+
+            // 수직 연결선: 염색체 바 아래에서 라벨 행까지 (짧게)
+            const lineTop = containerHeight;
+            const lineH = 4 + bestRow * ROW_H;
+            const vLine = document.createElement('div');
+            vLine.style.cssText = `position:absolute;left:${Math.round(xPx)}px;top:${lineTop}px;width:1px;height:${lineH}px;background:${vizStyles.label};opacity:0.35;`;
+            overlay.appendChild(vLine);
 
             // 텍스트 라벨
             const label = document.createElement('div');
-            const labelY = lineTop + ySlot + 2;
-            label.style.cssText = `position:absolute;top:${labelY}px;font-size:8px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1.2;`;
+            const labelY = lineTop + lineH;
+            label.style.cssText = `position:absolute;top:${labelY}px;font-size:7.5px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1;`;
 
-            if (textDir > 0) {
-                label.style.left = `${Math.round(xPx + branchLen + 2)}px`;
+            if (isRight) {
+                label.style.left = `${Math.round(xPx + 2)}px`;
             } else {
-                label.style.right = `${Math.round(containerWidth - xPx + branchLen + 2)}px`;
+                label.style.right = `${Math.round(containerWidth - xPx + 2)}px`;
             }
             label.textContent = labelText;
             overlay.appendChild(label);
