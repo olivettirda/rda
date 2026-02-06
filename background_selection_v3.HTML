@@ -6205,7 +6205,7 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     }
 
     // =====================================================
-    // 마커 라벨 표시 시스템 (개선: 안전한 DOM 접근)
+    // 마커 라벨 표시 시스템 (개선: 물리적 위치 연계, 정확한 위치 매핑)
     // =====================================================
     function renderMarkerLabels(chrResult, armStart, armEnd, armLength, containerEl) {
         if (!vizOptions.showMarkers || !chrResult || !chrResult.markers || chrResult.markers.length === 0) return;
@@ -6216,46 +6216,53 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
         if (markers.length === 0) return;
 
-        // 안전하게 컨테이너 크기 확인
         const containerWidth = containerEl.offsetWidth;
         if (!containerWidth || containerWidth <= 0) {
-            console.log('마커 라벨: 컨테이너 너비 0, 건너뜀', containerEl);
+            console.log('마커 라벨: 컨테이너 너비 0, 건너뜀');
             return;
         }
         const containerHeight = containerEl.offsetHeight || 28;
 
-        // 마커를 클러스터로 그룹핑 (가까운 위치끼리)
-        const clusterThreshold = armLength * 0.04; // 4% 이내면 같은 클러스터
-        const clusters = [];
-        let currentCluster = [markers[0]];
+        // 1) 먼저 각 마커의 정확한 X 위치(px) 계산
+        const markerPositions = markers.map(m => ({
+            ...m,
+            xPx: ((m.position - armStart) / armLength) * containerWidth
+        }));
 
-        for (let i = 1; i < markers.length; i++) {
-            if (markers[i].position - currentCluster[currentCluster.length - 1].position < clusterThreshold) {
-                currentCluster.push(markers[i]);
-            } else {
-                clusters.push(currentCluster);
-                currentCluster = [markers[i]];
-            }
-        }
-        clusters.push(currentCluster);
+        console.log('마커 라벨 렌더링:', {
+            arm: containerEl.dataset.arm,
+            chr: containerEl.dataset.chr,
+            armStart, armEnd, armLength,
+            containerWidth,
+            markerCount: markers.length,
+            firstPos: markers[0]?.position,
+            lastPos: markers[markers.length-1]?.position,
+            firstXPx: markerPositions[0]?.xPx.toFixed(1),
+            lastXPx: markerPositions[markerPositions.length-1]?.xPx.toFixed(1)
+        });
 
-        // 라벨 오버레이 컨테이너
+        // 2) 염색체 바 위에 마커 위치를 나타내는 작은 눈금선(tick) 추가
+        markerPositions.forEach(mp => {
+            const tick = document.createElement('div');
+            tick.style.cssText = `position:absolute;left:${mp.xPx.toFixed(1)}px;top:0;width:1px;height:100%;background:${vizStyles.label};opacity:0.35;z-index:5;pointer-events:none;`;
+            containerEl.appendChild(tick);
+        });
+
+        // 3) 라벨 오버레이 - chromosome-row 기준
         const chrRow = containerEl.closest('.chromosome-row');
         if (!chrRow) return;
 
-        // 기존 오버레이 삭제
-        const existingOverlay = chrRow.querySelector(`.marker-label-overlay[data-arm-start="${armStart}"]`);
+        const existingOverlay = chrRow.querySelector(`.marker-label-overlay[data-arm-id="${containerEl.dataset.arm}-${containerEl.dataset.chr}"]`);
         if (existingOverlay) existingOverlay.remove();
 
-        // 오버레이를 chrRow에 추가 (position:relative)
         chrRow.style.position = 'relative';
         chrRow.style.overflow = 'visible';
 
         const overlay = document.createElement('div');
         overlay.className = 'marker-label-overlay';
-        overlay.dataset.armStart = armStart;
+        overlay.dataset.armId = `${containerEl.dataset.arm}-${containerEl.dataset.chr}`;
 
-        // chrRow 기준으로 containerEl의 위치를 계산
+        // 오버레이를 containerEl 기준으로 배치
         const rowRect = chrRow.getBoundingClientRect();
         const elRect = containerEl.getBoundingClientRect();
         const offsetLeft = elRect.left - rowRect.left;
@@ -6263,67 +6270,84 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
         overlay.style.cssText = `position:absolute;left:${offsetLeft}px;top:${offsetTop}px;width:${containerWidth}px;height:${containerHeight}px;pointer-events:none;overflow:visible;z-index:5;`;
 
-        const labelPositions = []; // 겹침 방지용
+        // 4) 라벨 배치 - 물리적 위치 기반으로 균등 분산
+        const usedSlots = []; // {y, leftPx, rightPx}
+        const LINE_HEIGHT = 13;
+        const LABEL_MIN_GAP = 3;
 
-        clusters.forEach((cluster, clusterIdx) => {
-            const clusterCenter = cluster.reduce((s, m) => s + m.position, 0) / cluster.length;
-            const centerPx = ((clusterCenter - armStart) / armLength) * containerWidth;
+        markerPositions.forEach((mp, idx) => {
+            const xPx = mp.xPx;
 
-            // 주 선 (1px, 염색체 아래로)
-            const lineHeight = 14 + cluster.length * 12;
-            const mainLine = document.createElement('div');
-            mainLine.style.cssText = `position:absolute;left:${Math.round(centerPx)}px;top:${containerHeight}px;width:1px;height:${lineHeight}px;background:${vizStyles.label};opacity:0.5;`;
-            overlay.appendChild(mainLine);
+            // 텍스트 라벨 구성
+            let labelText = '';
+            if (vizOptions.showMarkerNames) labelText = mp.name;
+            if (vizOptions.showMarkerPos) {
+                const posText = vizOptions.mapUnit === 'cM' ? formatCm(mp.position) : formatPosition(mp.position);
+                labelText += (labelText ? ' (' + posText + ')' : posText);
+            }
+            if (!labelText) return;
 
-            // 각 마커 라벨
-            cluster.forEach((marker, idx) => {
-                const branchY = 12 + idx * 14;
-                // 클러스터가 왼쪽/오른쪽 절반인지에 따라 방향 결정
-                const isRightHalf = centerPx > containerWidth / 2;
-                const branchDir = cluster.length > 1 ? (idx % 2 === 0 ? 1 : -1) : (isRightHalf ? -1 : 1);
-                const branchLen = cluster.length > 1 ? 10 + idx * 4 : 0;
+            // 라벨 방향: 왼쪽/오른쪽 번갈아
+            const isRightHalf = xPx > containerWidth * 0.6;
+            const textDir = isRightHalf ? -1 : 1;
 
-                // 가지 선
-                if (branchLen > 0) {
-                    const branch = document.createElement('div');
-                    const bLeft = branchDir > 0 ? Math.round(centerPx) : Math.round(centerPx - branchLen);
-                    branch.style.cssText = `position:absolute;left:${bLeft}px;top:${containerHeight + branchY}px;width:${branchLen}px;height:1px;background:${vizStyles.label};opacity:0.5;`;
-                    overlay.appendChild(branch);
-                }
+            // Y 위치 결정 (겹침 방지)
+            const approxLabelWidth = labelText.length * 5.5; // 대략적 글자 폭
+            let ySlot = 0;
+            let placed = false;
 
-                // 텍스트 라벨
-                let labelText = '';
-                if (vizOptions.showMarkerNames) labelText = marker.name;
-                if (vizOptions.showMarkerPos) {
-                    const posText = vizOptions.mapUnit === 'cM' ? formatCm(marker.position) : formatPosition(marker.position);
-                    labelText += (labelText ? ' ' : '') + posText;
-                }
-                if (!labelText) return;
+            for (let attempt = 0; attempt < 60; attempt++) {
+                const testY = attempt * LINE_HEIGHT;
+                const testLeft = textDir > 0 ? xPx : xPx - approxLabelWidth;
+                const testRight = textDir > 0 ? xPx + approxLabelWidth : xPx;
 
-                const textDir = cluster.length > 1 ? branchDir : (isRightHalf ? -1 : 1);
-                const textOffset = branchLen + 4;
-                const label = document.createElement('div');
-                label.style.cssText = `position:absolute;top:${containerHeight + branchY - 5}px;font-size:8px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1.2;`;
-
-                if (textDir > 0) {
-                    label.style.left = `${Math.round(centerPx + textOffset)}px`;
-                } else {
-                    label.style.right = `${Math.round(containerWidth - centerPx + textOffset)}px`;
-                }
-                label.textContent = labelText;
-
-                // 겹침 방지
-                let approxTop = branchY;
-                for (const prev of labelPositions) {
-                    if (Math.abs(prev.left - centerPx) < 60 && Math.abs(prev.top - approxTop) < 13) {
-                        approxTop = prev.top + 14;
-                        label.style.top = `${containerHeight + approxTop - 5}px`;
+                let overlap = false;
+                for (const slot of usedSlots) {
+                    if (Math.abs(slot.y - testY) < LINE_HEIGHT - LABEL_MIN_GAP) {
+                        // 같은 Y레벨에서 가로 겹침 확인
+                        if (!(testRight < slot.leftPx - 4 || testLeft > slot.rightPx + 4)) {
+                            overlap = true;
+                            break;
+                        }
                     }
                 }
-                labelPositions.push({ left: centerPx, top: approxTop });
+                if (!overlap) {
+                    ySlot = testY;
+                    placed = true;
+                    usedSlots.push({ y: testY, leftPx: textDir > 0 ? xPx : xPx - approxLabelWidth, rightPx: textDir > 0 ? xPx + approxLabelWidth : xPx });
+                    break;
+                }
+            }
+            if (!placed) ySlot = idx * LINE_HEIGHT;
 
-                overlay.appendChild(label);
-            });
+            // 수직 연결선 (염색체 바 아래에서 라벨까지)
+            const lineTop = containerHeight;
+            const lineHeight = ySlot + 8;
+            const vLine = document.createElement('div');
+            vLine.style.cssText = `position:absolute;left:${Math.round(xPx)}px;top:${lineTop}px;width:1px;height:${lineHeight}px;background:${vizStyles.label};opacity:0.3;`;
+            overlay.appendChild(vLine);
+
+            // 수평 가지선 (라벨 시작점으로)
+            const branchLen = 6;
+            if (branchLen > 0) {
+                const branch = document.createElement('div');
+                const bLeft = textDir > 0 ? Math.round(xPx) : Math.round(xPx) - branchLen;
+                branch.style.cssText = `position:absolute;left:${bLeft}px;top:${lineTop + lineHeight}px;width:${branchLen}px;height:1px;background:${vizStyles.label};opacity:0.3;`;
+                overlay.appendChild(branch);
+            }
+
+            // 텍스트 라벨
+            const label = document.createElement('div');
+            const labelY = lineTop + ySlot + 2;
+            label.style.cssText = `position:absolute;top:${labelY}px;font-size:8px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1.2;`;
+
+            if (textDir > 0) {
+                label.style.left = `${Math.round(xPx + branchLen + 2)}px`;
+            } else {
+                label.style.right = `${Math.round(containerWidth - xPx + branchLen + 2)}px`;
+            }
+            label.textContent = labelText;
+            overlay.appendChild(label);
         });
 
         chrRow.appendChild(overlay);
