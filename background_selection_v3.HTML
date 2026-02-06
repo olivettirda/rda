@@ -1294,22 +1294,22 @@
 
                         <div class="sample-tabs" id="sampleTabs"></div>
 
-                        <div class="legend">
+                        <div class="legend" id="vizLegend">
                             <div class="legend-item">
                                 <div class="legend-color donor"></div>
-                                <span>공여친(Donor)</span>
+                                <span id="legendDonorLabel">공여친</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color recurrent"></div>
-                                <span>반복친(Recurrent)</span>
+                                <span id="legendRecurrentLabel">반복친</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color heterozygous"></div>
-                                <span>이형접합(Heterozygous)</span>
+                                <span>이형접합</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color centromere"></div>
-                                <span>동원체(Centromere)</span>
+                                <span>동원체</span>
                             </div>
                         </div>
 
@@ -2601,6 +2601,9 @@ SSIIa,6,6749554"></textarea>
             analysisResults[sample] = analyzeRecovery(sample, donor, recurrent);
         });
 
+        // 레전드에 공여친/반복친 샘플명 표시
+        updateLegendLabels(donor, recurrent);
+
         // 샘플 탭 생성
         createSampleTabs(targetSamples);
 
@@ -2623,6 +2626,14 @@ SSIIa,6,6749554"></textarea>
         showNotification('분석 완료', 'success');
     }
 
+    function updateLegendLabels(donorName, recurrentName) {
+        const donorLabel = document.getElementById('legendDonorLabel');
+        const recurrentLabel = document.getElementById('legendRecurrentLabel');
+        if (donorLabel) donorLabel.textContent = donorName ? `공여친(${donorName})` : '공여친';
+        if (recurrentLabel) recurrentLabel.textContent = recurrentName ? `반복친(${recurrentName})` : '반복친';
+        console.log('레전드 업데이트:', { donorName, recurrentName });
+    }
+
     function resetAnalysis() {
         console.log('분석 초기화');
         analysisResults = {};
@@ -2631,6 +2642,8 @@ SSIIa,6,6749554"></textarea>
         document.getElementById('sampleTabs').innerHTML = '';
         document.getElementById('chrFilterBar').style.display = 'none';
         document.getElementById('resetAnalysisBtn').disabled = true;
+        // 레전드 초기화
+        updateLegendLabels('', '');
         showNotification('분석 결과가 초기화되었습니다', 'info');
     }
     
@@ -3546,23 +3559,23 @@ SSIIa,6,6749554"></textarea>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                 <div style="display:flex;align-items:center;gap:4px;">
                     <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.donor};border:1px solid rgba(0,0,0,0.15);"></div>
-                    <span style="font-size:0.7rem;color:var(--text-secondary);">Donor</span>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">공여친</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.recurrent};border:1px solid rgba(0,0,0,0.15);"></div>
-                    <span style="font-size:0.7rem;color:var(--text-secondary);">Recurrent</span>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">반복친</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.het};border:1px solid rgba(0,0,0,0.15);"></div>
-                    <span style="font-size:0.7rem;color:var(--text-secondary);">Het</span>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">이형접합</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <div style="width:14px;height:14px;border-radius:50%;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.15);"></div>
-                    <span style="font-size:0.7rem;color:var(--text-secondary);">Cen</span>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">동원체</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.track};border:1px solid rgba(0,0,0,0.15);"></div>
-                    <span style="font-size:0.7rem;color:var(--text-secondary);">Track</span>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">트랙</span>
                 </div>
             </div>
         `;
@@ -6369,8 +6382,9 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
             seg.innerHTML = '';
 
-            // 적절한 눈금 간격 계산 (라벨 최소 50px 간격)
-            const maxLabels = Math.max(Math.floor(width / 55), 2);
+            // 적절한 눈금 간격 계산 (라벨 간격: 단위에 따라 조절)
+            const labelGap = (vizOptions.positionUnit === 'bp' || vizOptions.positionUnit === 'Kb') ? 75 : 55;
+            const maxLabels = Math.max(Math.floor(width / labelGap), 2);
             const rawInterval = length / maxLabels;
             const majorInterval = niceInterval(rawInterval, isCmMode);
             const minorInterval = majorInterval / 5;
@@ -6418,6 +6432,11 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     }
 
     function formatAxisLabel(bp) {
+        const unit = vizOptions.positionUnit;
+        if (unit === 'bp') return bp.toLocaleString() + ' bp';
+        if (unit === 'Kb') return (bp / 1000).toFixed(0) + ' Kb';
+        if (unit === 'Mb') return (bp / 1000000).toFixed(1) + ' Mb';
+        // auto
         if (bp >= 1000000) return (bp / 1000000).toFixed(0) + 'M';
         if (bp >= 1000) return (bp / 1000).toFixed(0) + 'K';
         return bp.toFixed(0);
