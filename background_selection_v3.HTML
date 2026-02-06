@@ -1114,6 +1114,13 @@
         height: 14px;
         border-top: 1px solid rgba(0,0,0,0.2);
     }
+    .shared-ruler-row {
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .shared-ruler-row .chr-axis {
+        height: 16px;
+    }
     .chr-axis-tick {
         position: absolute;
         top: 0;
@@ -2834,6 +2841,21 @@ SSIIa,6,6749554"></textarea>
         let html = '';
         const markerLabelTargets = []; // 후처리용 마커 라벨 타겟
 
+        // 마커 위치 표시 시 공유 눈금을 맨 위에 한번만 표시
+        const showSharedRuler = vizOptions.showMarkers && vizOptions.showRuler;
+        const showPerChrRuler = vizOptions.showRuler && !vizOptions.showMarkers;
+
+        if (showSharedRuler) {
+            const rulerLength = maxLength;
+            html += `<div class="shared-ruler-row" style="display:flex;align-items:flex-start;gap:0.75rem;margin-bottom:0.25rem;">
+                <div style="width:60px;flex-shrink:0;"></div>
+                <div style="width:100%;position:relative;">
+                    <div class="chr-axis chr-axis-segment" data-axis-start="0" data-axis-end="${rulerLength}" style="height:16px;"></div>
+                </div>
+                <div style="width:80px;flex-shrink:0;"></div>
+            </div>`;
+        }
+
         filteredChrs.forEach(([chrName, chrInfo]) => {
             const chrNum = chrName.replace('Chr', '');
             const chrResult = result.chromosomes[chrNum];
@@ -2879,7 +2901,7 @@ SSIIa,6,6749554"></textarea>
                                 ${generateMarkerRegionsForArm(chrResult, centromerePos, chrLength, chrLength - centromerePos)}
                             </div>
                         </div>
-                        ${vizOptions.showRuler ? `<div class="chr-axis" style="display:flex;">
+                        ${showPerChrRuler ? `<div class="chr-axis" style="display:flex;">
                             <div style="flex-grow:${pGrow};position:relative;" class="chr-axis-segment" data-axis-start="0" data-axis-end="${centromerePos}"></div>
                             <div style="width:${vizStyles.centromereW || 8}px;flex-shrink:0;"></div>
                             <div style="flex-grow:${qGrow};position:relative;" class="chr-axis-segment" data-axis-start="${centromerePos}" data-axis-end="${chrLength}"></div>
@@ -2902,7 +2924,7 @@ SSIIa,6,6749554"></textarea>
                                 ${generateMarkerRegions(chrResult, chrLength)}
                             </div>
                         </div>
-                        ${vizOptions.showRuler ? `<div class="chr-axis chr-axis-segment" data-axis-start="0" data-axis-end="${chrLength}"></div>` : ''}
+                        ${showPerChrRuler ? `<div class="chr-axis chr-axis-segment" data-axis-start="0" data-axis-end="${chrLength}"></div>` : ''}
                     </div>
                     <div class="chr-length">${lengthLabel}</div>
                 </div>`;
@@ -6636,8 +6658,10 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     function renderMarkerLabels(chrResult, armStart, armEnd, armLength, containerEl) {
         if (!vizOptions.showMarkers || !chrResult || !chrResult.markers || chrResult.markers.length === 0) return;
 
+        // 공여친(donor)과 이형접합(heterozygous) 마커만 표시 (반복친 제외)
         const markers = chrResult.markers
             .filter(m => m.position >= armStart && m.position < armEnd)
+            .filter(m => m.type === 'donor' || m.type === 'heterozygous')
             .sort((a, b) => a.position - b.position);
 
         if (markers.length === 0) return;
