@@ -284,6 +284,7 @@
         display: flex;
         align-items: center;
         height: var(--viz-chr-h);
+        width: 100%;
     }
     
     /* p-arm (단완) - 둥근 사각형, 전체 테두리 */
@@ -987,76 +988,87 @@
         background: var(--accent-light);
     }
 
-    /* ===== Floating Visualization Drawer (Right Side) ===== */
-    .viz-drawer-overlay {
-        display: none;
-    }
-    .viz-drawer {
+    /* ===== Draggable Floating Visualization Window ===== */
+    .viz-window {
         position: fixed;
-        top: 0;
-        right: -520px;
-        width: 520px;
-        height: 100vh;
+        top: 60px;
+        right: 20px;
+        width: 620px;
+        height: 80vh;
+        min-width: 400px;
+        min-height: 300px;
         background: var(--bg-card);
-        box-shadow: -4px 0 24px rgba(0,0,0,0.18);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
         z-index: 900;
-        transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
-        display: flex;
+        display: none;
         flex-direction: column;
         overflow: hidden;
+        resize: both;
     }
-    .viz-drawer.open {
-        right: 0;
+    .viz-window.open {
+        display: flex;
     }
-    .viz-drawer-header {
+    .viz-window-titlebar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.75rem 1rem;
+        padding: 0.5rem 0.75rem;
         background: linear-gradient(135deg, var(--header-bg) 0%, #0a4035 100%);
         color: white;
         flex-shrink: 0;
+        cursor: grab;
+        user-select: none;
     }
-    .viz-drawer-header h3 {
-        font-size: 0.95rem;
+    .viz-window-titlebar:active {
+        cursor: grabbing;
+    }
+    .viz-window-titlebar h3 {
+        font-size: 0.85rem;
         font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.4rem;
+        pointer-events: none;
     }
-    .viz-drawer-close {
+    .viz-window-btns {
+        display: flex;
+        gap: 4px;
+    }
+    .viz-window-btn {
         background: rgba(255,255,255,0.15);
         border: none;
         color: white;
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
+        width: 26px;
+        height: 26px;
+        border-radius: 5px;
         cursor: pointer;
-        font-size: 1.1rem;
+        font-size: 0.9rem;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: background 0.2s;
     }
-    .viz-drawer-close:hover {
+    .viz-window-btn:hover {
         background: rgba(255,255,255,0.3);
     }
-    .viz-drawer-toolbar {
+    .viz-window-toolbar {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem 1rem;
+        padding: 0.4rem 0.75rem;
         background: var(--bg-secondary);
         border-bottom: 1px solid var(--border-color);
         flex-shrink: 0;
         flex-wrap: wrap;
     }
-    .viz-drawer-toolbar .vdt-btn {
+    .viz-window-toolbar .vdt-btn {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        font-size: 0.72rem;
+        gap: 3px;
+        padding: 3px 8px;
+        font-size: 0.7rem;
         font-weight: 500;
         border: 1px solid var(--border-color);
         border-radius: 5px;
@@ -1066,146 +1078,41 @@
         transition: all 0.15s;
         white-space: nowrap;
     }
-    .viz-drawer-toolbar .vdt-btn:hover {
+    .viz-window-toolbar .vdt-btn:hover {
         background: var(--accent-light);
         border-color: var(--accent-mid);
     }
-    .viz-drawer-toolbar .vdt-btn.active {
+    .viz-window-toolbar .vdt-btn.active {
         background: var(--accent-dark);
         color: white;
         border-color: var(--accent-dark);
     }
-    .viz-drawer-toolbar .vdt-sep {
+    .viz-window-toolbar .vdt-sep {
         width: 1px;
-        height: 20px;
+        height: 18px;
         background: var(--border-color);
         flex-shrink: 0;
     }
-    .viz-drawer-body {
+    .viz-window-body {
         flex: 1;
         overflow-y: auto;
-        padding: 1rem;
+        padding: 0.75rem;
     }
-    .viz-drawer-body::-webkit-scrollbar { width: 6px; }
-    .viz-drawer-body::-webkit-scrollbar-thumb {
+    .viz-window-body::-webkit-scrollbar { width: 5px; }
+    .viz-window-body::-webkit-scrollbar-thumb {
         background: var(--border-color);
         border-radius: 3px;
     }
 
-    /* Floating open button */
-    .viz-open-btn {
-        position: fixed;
-        top: 50%;
-        right: 0;
-        transform: translateY(-50%);
-        z-index: 899;
-        padding: 12px 8px;
-        background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent-mid) 100%);
-        color: white;
-        border: none;
-        border-radius: 8px 0 0 8px;
-        cursor: pointer;
-        writing-mode: vertical-rl;
-        text-orientation: mixed;
-        font-size: 0.8rem;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        box-shadow: -2px 0 12px rgba(0,0,0,0.15);
-        transition: all 0.2s;
-        font-family: 'Noto Sans KR', sans-serif;
-    }
-    .viz-open-btn:hover {
-        padding-right: 12px;
-        box-shadow: -4px 0 16px rgba(0,0,0,0.2);
-    }
-    .viz-open-btn.hidden {
-        display: none;
-    }
-
-    /* Chromosome ruler */
-    .chr-ruler {
-        position: relative;
-        height: 16px;
-        margin-top: 1px;
-    }
-    .chr-ruler-tick {
-        position: absolute;
-        top: 0;
-        width: 1px;
-        height: 6px;
-        background: var(--viz-label);
-        opacity: 0.4;
-    }
-    .chr-ruler-tick.major {
-        height: 10px;
-        opacity: 0.6;
-    }
-    .chr-ruler-label {
-        position: absolute;
-        top: 8px;
-        font-size: 7px;
-        font-family: 'JetBrains Mono', monospace;
-        color: var(--viz-label);
-        opacity: 0.6;
-        transform: translateX(-50%);
-        white-space: nowrap;
-    }
-
-    /* Background selection boundary indicators */
-    .bg-boundary-start, .bg-boundary-end {
-        position: absolute;
-        top: -4px;
-        width: 2px;
-        height: calc(100% + 8px);
-        z-index: 15;
-    }
-    .bg-boundary-start {
-        background: #e74c3c;
-    }
-    .bg-boundary-start::before {
-        content: '';
-        position: absolute;
-        top: -3px;
-        left: -3px;
-        width: 8px;
-        height: 8px;
-        background: #e74c3c;
-        border-radius: 50%;
-    }
-    .bg-boundary-end {
-        background: #e74c3c;
-    }
-    .bg-boundary-end::before {
-        content: '';
-        position: absolute;
-        bottom: -3px;
-        left: -3px;
-        width: 8px;
-        height: 8px;
-        background: #e74c3c;
-        border-radius: 50%;
-    }
-    .bg-boundary-label {
-        position: absolute;
-        font-size: 7px;
-        font-family: 'JetBrains Mono', monospace;
-        color: #e74c3c;
-        font-weight: 600;
-        white-space: nowrap;
-        top: -14px;
-        left: 50%;
-        transform: translateX(-50%);
-    }
-
-    /* Drawer settings panel within toolbar */
-    .viz-drawer-settings {
+    /* Settings row inside toolbar */
+    .viz-window-settings {
         background: var(--bg-secondary);
         border-bottom: 1px solid var(--border-color);
-        padding: 0.5rem 1rem;
+        padding: 0.4rem 0.75rem;
         display: none;
         flex-shrink: 0;
     }
-    .viz-drawer-settings.open {
+    .viz-window-settings.open {
         display: block;
     }
     .vds-row {
@@ -1213,36 +1120,64 @@
         align-items: center;
         gap: 0.75rem;
         flex-wrap: wrap;
-        margin-bottom: 0.375rem;
+        margin-bottom: 0.25rem;
     }
     .vds-row:last-child { margin-bottom: 0; }
     .vds-check {
         display: flex;
         align-items: center;
         gap: 4px;
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         cursor: pointer;
         white-space: nowrap;
     }
     .vds-check input { width: 13px; height: 13px; cursor: pointer; }
     .vds-select {
-        padding: 3px 6px;
-        font-size: 0.75rem;
+        padding: 2px 5px;
+        font-size: 0.72rem;
         border: 1px solid var(--border-color);
         border-radius: 4px;
         background: var(--bg-card);
     }
     .vds-label {
-        font-size: 0.7rem;
+        font-size: 0.68rem;
         font-weight: 500;
         color: var(--text-secondary);
         white-space: nowrap;
     }
 
+    /* Chromosome X-axis ruler (below chromosome bar) */
+    .chr-axis {
+        position: relative;
+        height: 14px;
+        border-top: 1px solid rgba(0,0,0,0.2);
+    }
+    .chr-axis-tick {
+        position: absolute;
+        top: 0;
+        width: 1px;
+        background: rgba(0,0,0,0.3);
+    }
+    .chr-axis-tick.minor { height: 3px; }
+    .chr-axis-tick.major { height: 6px; background: rgba(0,0,0,0.5); }
+    .chr-axis-label {
+        position: absolute;
+        top: 6px;
+        font-size: 6.5px;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--text-secondary);
+        transform: translateX(-50%);
+        white-space: nowrap;
+        line-height: 1;
+    }
+
     @media (max-width: 768px) {
-        .viz-drawer {
-            width: 100vw;
-            right: -100vw;
+        .viz-window {
+            width: 95vw;
+            height: 70vh;
+            top: 10px;
+            right: 2.5vw;
+            min-width: 280px;
         }
     }
 </style>
@@ -1403,9 +1338,8 @@
                     <button class="tab-panel-btn active" onclick="switchPanel('statistics')">통계 분석</button>
                     <button class="tab-panel-btn" onclick="switchPanel('comparison')">샘플 비교</button>
                     <button class="tab-panel-btn" onclick="switchPanel('data')">원시 데이터</button>
-                    <button class="tab-panel-btn" onclick="openVizDrawer()" style="color:var(--accent-dark);font-weight:600;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
-                        염색체 시각화 열기
+                    <button class="tab-panel-btn" onclick="openVizWindow()" style="color:var(--accent-dark);font-weight:600;">
+                        염색체 시각화
                     </button>
                 </div>
                 
@@ -1630,25 +1564,24 @@
 </div>
 
 <!-- Floating Visualization Drawer (Right Side) -->
-<button class="viz-open-btn" id="vizOpenBtn" onclick="openVizDrawer()">염색체 시각화</button>
-<div class="viz-drawer" id="vizDrawer">
-    <div class="viz-drawer-header">
+<!-- Draggable Floating Visualization Window -->
+<div class="viz-window" id="vizWindow">
+    <div class="viz-window-titlebar" id="vizWindowTitlebar">
         <h3>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
             염색체 시각화
         </h3>
-        <button class="viz-drawer-close" onclick="closeVizDrawer()" title="닫기">&times;</button>
+        <div class="viz-window-btns">
+            <button class="viz-window-btn" onclick="closeVizWindow()" title="닫기">&times;</button>
+        </div>
     </div>
     <!-- Toolbar -->
-    <div class="viz-drawer-toolbar">
-        <button class="vdt-btn" onclick="toggleDrawerSettings()" id="vizDrawerSettingsBtn" title="표시 옵션">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            표시 옵션
+    <div class="viz-window-toolbar">
+        <button class="vdt-btn" onclick="toggleWindowSettings()" id="vizWindowSettingsBtn" title="표시 옵션">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            옵션
         </button>
-        <button class="vdt-btn" onclick="openStyleModal()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20 7 7 0 0 1 0-14 3.5 3.5 0 0 0 0-6"/></svg>
-            색상/스타일
-        </button>
+        <button class="vdt-btn" onclick="openStyleModal()">색상/스타일</button>
         <div class="vdt-sep"></div>
         <span class="vds-label">맵:</span>
         <select class="vds-select" id="mapUnitSelect" onchange="onMapUnitChange()">
@@ -1656,13 +1589,12 @@
             <option value="cM">유전 거리 (cM)</option>
         </select>
     </div>
-    <!-- Settings expandable panel -->
-    <div class="viz-drawer-settings" id="vizDrawerSettings">
+    <!-- Settings expandable -->
+    <div class="viz-window-settings" id="vizWindowSettings">
         <div class="vds-row">
-            <span class="vds-label">표시 항목:</span>
-            <label class="vds-check"><input type="checkbox" id="vizShowRuler" onchange="applyVizStyles()"> 눈금자</label>
+            <span class="vds-label">표시:</span>
+            <label class="vds-check"><input type="checkbox" id="vizShowRuler" checked onchange="applyVizStyles()"> 눈금</label>
             <label class="vds-check"><input type="checkbox" id="vizShowMarkers" onchange="applyVizStyles()"> 마커 선</label>
-            <label class="vds-check"><input type="checkbox" id="vizShowBoundary" checked onchange="applyVizStyles()"> 경계 표시</label>
         </div>
         <div class="vds-row" id="markerLabelOptions" style="display:none;">
             <span class="vds-label">마커 세부:</span>
@@ -1680,46 +1612,28 @@
         </div>
     </div>
     <!-- Sample tabs -->
-    <div style="padding:0.5rem 1rem;background:var(--bg-secondary);border-bottom:1px solid var(--border-color);flex-shrink:0;">
-        <div class="sample-tabs" id="sampleTabs" style="margin:0;padding:0;">
-            <!-- Sample tabs populated dynamically -->
-        </div>
+    <div style="padding:0.375rem 0.75rem;background:var(--bg-secondary);border-bottom:1px solid var(--border-color);flex-shrink:0;">
+        <div class="sample-tabs" id="sampleTabs" style="margin:0;padding:0;"></div>
     </div>
     <!-- Legend + Filter -->
-    <div style="padding:0.5rem 1rem;border-bottom:1px solid var(--border-color);flex-shrink:0;">
-        <div class="legend" style="padding:0.5rem;gap:0.75rem;background:transparent;">
-            <div class="legend-item" style="font-size:0.72rem;">
-                <div class="legend-color donor" style="width:16px;height:10px;"></div>
-                <span>공여친</span>
-            </div>
-            <div class="legend-item" style="font-size:0.72rem;">
-                <div class="legend-color recurrent" style="width:16px;height:10px;"></div>
-                <span>반복친</span>
-            </div>
-            <div class="legend-item" style="font-size:0.72rem;">
-                <div class="legend-color heterozygous" style="width:16px;height:10px;"></div>
-                <span>이형접합</span>
-            </div>
-            <div class="legend-item" style="font-size:0.72rem;">
-                <div class="legend-color centromere" style="width:10px;height:10px;"></div>
-                <span>동원체</span>
-            </div>
-            <div class="legend-item" style="font-size:0.72rem;">
-                <div style="width:10px;height:10px;background:#e74c3c;border-radius:50%;border:1px solid rgba(0,0,0,0.1);"></div>
-                <span>경계</span>
-            </div>
+    <div style="padding:0.375rem 0.75rem;border-bottom:1px solid var(--border-color);flex-shrink:0;">
+        <div class="legend" style="padding:0.25rem;gap:0.75rem;background:transparent;">
+            <div class="legend-item" style="font-size:0.7rem;"><div class="legend-color donor" style="width:14px;height:9px;"></div><span>공여친</span></div>
+            <div class="legend-item" style="font-size:0.7rem;"><div class="legend-color recurrent" style="width:14px;height:9px;"></div><span>반복친</span></div>
+            <div class="legend-item" style="font-size:0.7rem;"><div class="legend-color heterozygous" style="width:14px;height:9px;"></div><span>이형접합</span></div>
+            <div class="legend-item" style="font-size:0.7rem;"><div class="legend-color centromere" style="width:9px;height:9px;"></div><span>동원체</span></div>
         </div>
-        <div class="chr-filter-bar" id="chrFilterBar" style="display:none;padding:0.5rem;margin:0;">
+        <div class="chr-filter-bar" id="chrFilterBar" style="display:none;padding:0.375rem 0;margin:0;">
             <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-                <span style="font-size:0.7rem;font-weight:600;color:var(--accent-darker);white-space:nowrap;">필터:</span>
-                <button class="chr-filter-btn" onclick="toggleAllChromosomeFilters(true)" style="font-size:0.65rem;padding:2px 6px;border:1px solid var(--border-color);border-radius:3px;background:var(--bg-secondary);cursor:pointer;">전체</button>
-                <button class="chr-filter-btn" onclick="toggleAllChromosomeFilters(false)" style="font-size:0.65rem;padding:2px 6px;border:1px solid var(--border-color);border-radius:3px;background:var(--bg-secondary);cursor:pointer;">해제</button>
-                <div id="chrFilterCheckboxes" style="display:flex;gap:0.375rem;flex-wrap:wrap;"></div>
+                <span style="font-size:0.68rem;font-weight:600;color:var(--accent-darker);white-space:nowrap;">필터:</span>
+                <button onclick="toggleAllChromosomeFilters(true)" style="font-size:0.62rem;padding:2px 5px;border:1px solid var(--border-color);border-radius:3px;background:var(--bg-secondary);cursor:pointer;">전체</button>
+                <button onclick="toggleAllChromosomeFilters(false)" style="font-size:0.62rem;padding:2px 5px;border:1px solid var(--border-color);border-radius:3px;background:var(--bg-secondary);cursor:pointer;">해제</button>
+                <div id="chrFilterCheckboxes" style="display:flex;gap:0.3rem;flex-wrap:wrap;"></div>
             </div>
         </div>
     </div>
     <!-- Chromosome visualization body -->
-    <div class="viz-drawer-body">
+    <div class="viz-window-body">
         <div class="chromosome-container" id="chromosomeViz">
             <div class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -2432,8 +2346,7 @@ SSIIa,6,6749554"></textarea>
         showMarkers: false,   // 마커 위치 선 표시
         showMarkerNames: true, // 마커 이름 표시
         showMarkerPos: false,  // 마커 위치 수치 표시
-        showRuler: false,      // 염색체 위치 눈금 표시
-        showBoundary: true,    // 배경 선발 경계 표시
+        showRuler: true,       // 염색체 위치 눈금 (X축)
         mapUnit: 'physical',   // 'physical' or 'cM'
         positionUnit: 'auto'   // 'auto', 'bp', 'Kb', 'Mb'
     };
@@ -2751,8 +2664,8 @@ SSIIa,6,6749554"></textarea>
         currentSample = targetSamples[0];
         visualizeChromosome(currentSample);
 
-        // 드로어 자동 열기
-        openVizDrawer();
+        // 시각화 창 자동 열기
+        openVizWindow();
 
         // 통계 업데이트
         updateStatistics();
@@ -2929,8 +2842,8 @@ SSIIa,6,6749554"></textarea>
             // 마커 라벨을 위한 추가 여백 (하단)
             const extraMargin = vizOptions.showMarkers ? 'margin-bottom:' + getMarkerLabelHeight(chrResult, centromerePos, chrLength) + 'px;' : '';
 
-            // 경계 표시 HTML 생성
-            const boundaryHtml = vizOptions.showBoundary ? generateBoundaryIndicators(chrResult, chrLength, isCmMode) : '';
+            // 눈금(X축) 데이터 속성
+            const rulerAttr = vizOptions.showRuler ? `data-ruler-start="0" data-ruler-end="${chrLength}"` : '';
 
             if (vizOptions.splitArms) {
                 const pArmRatio = centromerePos / chrLength;
@@ -2938,38 +2851,26 @@ SSIIa,6,6749554"></textarea>
                 const pGrow = (pArmRatio * 100).toFixed(2);
                 const qGrow = (qArmRatio * 100).toFixed(2);
 
-                // 경계를 각 arm에 분배
-                const pBoundaryHtml = vizOptions.showBoundary ? generateBoundaryIndicatorsForArm(chrResult, 0, centromerePos, centromerePos, isCmMode) : '';
-                const qBoundaryHtml = vizOptions.showBoundary ? generateBoundaryIndicatorsForArm(chrResult, centromerePos, chrLength, chrLength - centromerePos, isCmMode) : '';
-
                 html += `<div class="chromosome-row" data-chr="${chrName}" style="${extraMargin}">
                     <div class="chr-label">${chrName}</div>
-                    <div class="chr-structure" style="width: ${totalWidthPercent}%">
-                        <div class="chr-p-arm" data-arm="p" data-chr="${chrName}" style="flex-grow: ${pGrow}">
-                            ${generateMarkerRegionsForArm(chrResult, 0, centromerePos, centromerePos)}
-                            ${pBoundaryHtml}
+                    <div style="width:${totalWidthPercent}%;display:flex;flex-direction:column;">
+                        <div class="chr-structure">
+                            <div class="chr-p-arm" data-arm="p" data-chr="${chrName}" style="flex-grow: ${pGrow}">
+                                ${generateMarkerRegionsForArm(chrResult, 0, centromerePos, centromerePos)}
+                            </div>
+                            ${vizOptions.showCentromere ? '<div class="chr-centromere"></div>' : ''}
+                            <div class="chr-q-arm" data-arm="q" data-chr="${chrName}" style="flex-grow: ${qGrow}">
+                                ${generateMarkerRegionsForArm(chrResult, centromerePos, chrLength, chrLength - centromerePos)}
+                            </div>
                         </div>
-                        ${vizOptions.showCentromere ? '<div class="chr-centromere"></div>' : ''}
-                        <div class="chr-q-arm" data-arm="q" data-chr="${chrName}" style="flex-grow: ${qGrow}">
-                            ${generateMarkerRegionsForArm(chrResult, centromerePos, chrLength, chrLength - centromerePos)}
-                            ${qBoundaryHtml}
-                        </div>
+                        ${vizOptions.showRuler ? `<div class="chr-axis" style="display:flex;">
+                            <div style="flex-grow:${pGrow};position:relative;" class="chr-axis-segment" data-axis-start="0" data-axis-end="${centromerePos}"></div>
+                            <div style="width:${vizStyles.centromereW || 8}px;flex-shrink:0;"></div>
+                            <div style="flex-grow:${qGrow};position:relative;" class="chr-axis-segment" data-axis-start="${centromerePos}" data-axis-end="${chrLength}"></div>
+                        </div>` : ''}
                     </div>
                     <div class="chr-length">${lengthLabel}</div>
                 </div>`;
-
-                // 눈금자 추가
-                if (vizOptions.showRuler) {
-                    html += `<div class="chromosome-row" data-chr="${chrName}-ruler" style="align-items:flex-start;">
-                        <div class="chr-label" style="height:16px;"></div>
-                        <div style="width: ${totalWidthPercent}%;display:flex;">
-                            <div style="flex-grow:${pGrow};position:relative;height:16px;" class="chr-ruler" data-ruler-arm="p" data-ruler-chr="${chrName}" data-ruler-start="0" data-ruler-end="${centromerePos}"></div>
-                            <div style="width:${vizStyles.centromereW || 8}px;flex-shrink:0;"></div>
-                            <div style="flex-grow:${qGrow};position:relative;height:16px;" class="chr-ruler" data-ruler-arm="q" data-ruler-chr="${chrName}" data-ruler-start="${centromerePos}" data-ruler-end="${chrLength}"></div>
-                        </div>
-                        <div class="chr-length" style="height:16px;"></div>
-                    </div>`;
-                }
 
                 if (vizOptions.showMarkers) {
                     markerLabelTargets.push({ chr: chrName, chrResult, armStart: 0, armEnd: centromerePos, armLength: centromerePos, arm: 'p' });
@@ -2978,24 +2879,17 @@ SSIIa,6,6749554"></textarea>
             } else {
                 html += `<div class="chromosome-row" data-chr="${chrName}" style="${extraMargin}">
                     <div class="chr-label">${chrName}</div>
-                    <div class="chr-bar-container" data-arm="full" data-chr="${chrName}" style="width: ${totalWidthPercent}%">
-                        <div class="chr-bar">
-                            ${vizOptions.showCentromere ? `<div class="chr-centromere-line" style="left: ${centromerePercent}%"></div>` : ''}
-                            ${generateMarkerRegions(chrResult, chrLength)}
-                            ${boundaryHtml}
+                    <div style="width:${totalWidthPercent}%;display:flex;flex-direction:column;">
+                        <div class="chr-bar-container" data-arm="full" data-chr="${chrName}" style="width:100%;">
+                            <div class="chr-bar">
+                                ${vizOptions.showCentromere ? `<div class="chr-centromere-line" style="left: ${centromerePercent}%"></div>` : ''}
+                                ${generateMarkerRegions(chrResult, chrLength)}
+                            </div>
                         </div>
+                        ${vizOptions.showRuler ? `<div class="chr-axis chr-axis-segment" data-axis-start="0" data-axis-end="${chrLength}"></div>` : ''}
                     </div>
                     <div class="chr-length">${lengthLabel}</div>
                 </div>`;
-
-                // 눈금자 추가
-                if (vizOptions.showRuler) {
-                    html += `<div class="chromosome-row" data-chr="${chrName}-ruler" style="align-items:flex-start;">
-                        <div class="chr-label" style="height:16px;"></div>
-                        <div style="width: ${totalWidthPercent}%;position:relative;height:16px;" class="chr-ruler" data-ruler-arm="full" data-ruler-chr="${chrName}" data-ruler-start="0" data-ruler-end="${chrLength}"></div>
-                        <div class="chr-length" style="height:16px;"></div>
-                    </div>`;
-                }
 
                 if (vizOptions.showMarkers) {
                     markerLabelTargets.push({ chr: chrName, chrResult, armStart: 0, armEnd: chrLength, armLength: chrLength, arm: 'full' });
@@ -3017,10 +2911,10 @@ SSIIa,6,6749554"></textarea>
             });
         }
 
-        // 눈금자 렌더링
+        // X축 눈금 렌더링
         if (vizOptions.showRuler) {
             requestAnimationFrame(() => {
-                renderAllRulers(container, isCmMode);
+                renderAxisTicks(container, isCmMode);
             });
         }
 
@@ -3764,13 +3658,9 @@ SSIIa,6,6749554"></textarea>
         const posUnitEl = document.getElementById('positionUnitSelect');
         if (posUnitEl) vizOptions.positionUnit = posUnitEl.value;
 
-        // 눈금자 옵션
+        // 눈금 옵션
         const showRulerEl = document.getElementById('vizShowRuler');
         if (showRulerEl) vizOptions.showRuler = showRulerEl.checked;
-
-        // 경계 표시 옵션
-        const showBoundaryEl = document.getElementById('vizShowBoundary');
-        if (showBoundaryEl) vizOptions.showBoundary = showBoundaryEl.checked;
 
         pushStylesToCSS();
 
@@ -6214,45 +6104,83 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     }
 
     // =====================================================
-    // 플로팅 시각화 드로어 (오른쪽 패널)
+    // 드래그 가능 플로팅 시각화 창
     // =====================================================
-    function openVizDrawer() {
-        const drawer = document.getElementById('vizDrawer');
-        const openBtn = document.getElementById('vizOpenBtn');
-        drawer.classList.add('open');
-        if (openBtn) openBtn.classList.add('hidden');
-        console.log('시각화 드로어 열림');
-        // 드로어 열릴 때 시각화 다시 렌더링 (너비 변경으로 인한 재계산)
+    function openVizWindow() {
+        const win = document.getElementById('vizWindow');
+        win.classList.add('open');
+        console.log('시각화 창 열림');
         if (currentSample && analysisResults[currentSample]) {
             setTimeout(() => visualizeChromosome(currentSample), 100);
         }
     }
 
-    function closeVizDrawer() {
-        const drawer = document.getElementById('vizDrawer');
-        const openBtn = document.getElementById('vizOpenBtn');
-        drawer.classList.remove('open');
-        if (openBtn) openBtn.classList.remove('hidden');
-        console.log('시각화 드로어 닫힘');
+    function closeVizWindow() {
+        const win = document.getElementById('vizWindow');
+        win.classList.remove('open');
+        console.log('시각화 창 닫힘');
     }
 
-    function toggleDrawerSettings() {
-        const settingsPanel = document.getElementById('vizDrawerSettings');
-        const btn = document.getElementById('vizDrawerSettingsBtn');
+    function toggleWindowSettings() {
+        const settingsPanel = document.getElementById('vizWindowSettings');
+        const btn = document.getElementById('vizWindowSettingsBtn');
         settingsPanel.classList.toggle('open');
         btn.classList.toggle('active');
-        console.log('드로어 설정 패널:', settingsPanel.classList.contains('open') ? '열림' : '닫힘');
+        console.log('시각화 설정:', settingsPanel.classList.contains('open') ? '열림' : '닫힘');
     }
 
-    // ESC 키로 드로어 닫기
+    // ESC 키로 창 닫기
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            const drawer = document.getElementById('vizDrawer');
-            if (drawer && drawer.classList.contains('open')) {
-                closeVizDrawer();
+            const win = document.getElementById('vizWindow');
+            if (win && win.classList.contains('open')) {
+                closeVizWindow();
             }
         }
     });
+
+    // 타이틀바 드래그로 창 이동
+    (function() {
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+
+        document.addEventListener('mousedown', function(e) {
+            const titlebar = document.getElementById('vizWindowTitlebar');
+            if (!titlebar || !titlebar.contains(e.target)) return;
+            // 버튼 클릭은 드래그 시작 안함
+            if (e.target.closest('.viz-window-btn')) return;
+
+            const win = document.getElementById('vizWindow');
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = win.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            const win = document.getElementById('vizWindow');
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            let newLeft = startLeft + dx;
+            let newTop = startTop + dy;
+
+            // 화면 밖으로 나가지 않도록
+            newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - 100));
+            newTop = Math.max(0, Math.min(newTop, window.innerHeight - 50));
+
+            win.style.left = newLeft + 'px';
+            win.style.top = newTop + 'px';
+            win.style.right = 'auto';
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+    })();
 
     // =====================================================
     // 염색체 필터 기능
@@ -6472,143 +6400,72 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     }
 
     // =====================================================
-    // 눈금자 렌더링
+    // X축 눈금 렌더링 (그래프 X축 스타일)
     // =====================================================
-    function renderAllRulers(container, isCmMode) {
-        const rulerEls = container.querySelectorAll('.chr-ruler');
-        rulerEls.forEach(rulerEl => {
-            const start = parseFloat(rulerEl.dataset.rulerStart) || 0;
-            const end = parseFloat(rulerEl.dataset.rulerEnd) || 0;
+    function renderAxisTicks(container, isCmMode) {
+        const segments = container.querySelectorAll('.chr-axis-segment');
+        segments.forEach(seg => {
+            const start = parseFloat(seg.dataset.axisStart) || 0;
+            const end = parseFloat(seg.dataset.axisEnd) || 0;
             const length = end - start;
             if (length <= 0) return;
 
-            const width = rulerEl.offsetWidth;
+            const width = seg.offsetWidth;
             if (width <= 0) return;
 
-            rulerEl.innerHTML = '';
+            seg.innerHTML = '';
 
-            // 적절한 간격 계산
-            const targetTicks = Math.min(Math.max(Math.floor(width / 40), 3), 15);
-            const rawInterval = length / targetTicks;
-            const interval = niceInterval(rawInterval, isCmMode);
+            // 적절한 눈금 간격 계산 (라벨 최소 50px 간격)
+            const maxLabels = Math.max(Math.floor(width / 55), 2);
+            const rawInterval = length / maxLabels;
+            const majorInterval = niceInterval(rawInterval, isCmMode);
+            const minorInterval = majorInterval / 5;
 
-            // 첫 번째 눈금 위치
-            const firstTick = Math.ceil(start / interval) * interval;
+            // 시작 위치
+            const firstMinor = Math.ceil(start / minorInterval) * minorInterval;
 
-            for (let pos = firstTick; pos <= end; pos += interval) {
+            for (let pos = firstMinor; pos <= end; pos += minorInterval) {
                 const pct = ((pos - start) / length * 100);
-                if (pct < 0 || pct > 100) continue;
+                if (pct < 0 || pct > 100.5) continue;
 
-                const isMajor = Math.abs(pos % (interval * 5)) < interval * 0.1 || pos === firstTick;
+                const isMajor = Math.abs(pos % majorInterval) < minorInterval * 0.3;
+
                 const tick = document.createElement('div');
-                tick.className = 'chr-ruler-tick' + (isMajor ? ' major' : '');
+                tick.className = 'chr-axis-tick ' + (isMajor ? 'major' : 'minor');
                 tick.style.left = pct + '%';
-                rulerEl.appendChild(tick);
+                seg.appendChild(tick);
 
-                // 라벨 (주요 눈금에만)
-                if (isMajor || targetTicks <= 6) {
+                // 라벨은 major 눈금에만
+                if (isMajor && pct >= 1 && pct <= 99) {
                     const label = document.createElement('div');
-                    label.className = 'chr-ruler-label';
+                    label.className = 'chr-axis-label';
                     label.style.left = pct + '%';
-                    label.textContent = isCmMode ? formatCm(pos) : formatRulerPosition(pos);
-                    rulerEl.appendChild(label);
+                    label.textContent = isCmMode ? (pos.toFixed(0) + ' cM') : formatAxisLabel(pos);
+                    seg.appendChild(label);
                 }
             }
         });
-        console.log('눈금자 렌더링 완료:', rulerEls.length, '개');
+        console.log('X축 눈금 렌더링:', segments.length, '개 세그먼트');
     }
 
     function niceInterval(rawInterval, isCmMode) {
         if (isCmMode) {
             const niceVals = [0.5, 1, 2, 5, 10, 20, 50, 100];
             for (const v of niceVals) {
-                if (v >= rawInterval * 0.8) return v;
+                if (v >= rawInterval * 0.7) return v;
             }
             return rawInterval;
         }
-        // physical position
-        const niceVals = [100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000];
+        const niceVals = [50000, 100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000];
         for (const v of niceVals) {
-            if (v >= rawInterval * 0.8) return v;
+            if (v >= rawInterval * 0.7) return v;
         }
         return rawInterval;
     }
 
-    function formatRulerPosition(bp) {
+    function formatAxisLabel(bp) {
         if (bp >= 1000000) return (bp / 1000000).toFixed(0) + 'M';
         if (bp >= 1000) return (bp / 1000).toFixed(0) + 'K';
         return bp.toFixed(0);
-    }
-
-    // =====================================================
-    // 배경 선발 경계 표시 (공여친 구간 시작/끝)
-    // =====================================================
-    function generateBoundaryIndicators(chrResult, chrLength, isCmMode) {
-        if (!chrResult || !chrResult.markers || chrResult.markers.length === 0) return '';
-        const markers = [...chrResult.markers].sort((a, b) => a.position - b.position);
-
-        let html = '';
-        const boundaries = findDonorBoundaries(markers);
-
-        boundaries.forEach(b => {
-            const pct = (b.position / chrLength * 100).toFixed(3);
-            const posLabel = isCmMode ? formatCm(b.position) : formatRulerPosition(b.position);
-            const cls = b.type === 'start' ? 'bg-boundary-start' : 'bg-boundary-end';
-            html += `<div class="${cls}" style="left:${pct}%"><span class="bg-boundary-label">${posLabel}</span></div>`;
-        });
-
-        return html;
-    }
-
-    function generateBoundaryIndicatorsForArm(chrResult, armStart, armEnd, armLength, isCmMode) {
-        if (!chrResult || !chrResult.markers || chrResult.markers.length === 0) return '';
-        const markers = chrResult.markers
-            .filter(m => m.position >= armStart && m.position < armEnd)
-            .sort((a, b) => a.position - b.position);
-
-        if (markers.length === 0) return '';
-
-        let html = '';
-        const boundaries = findDonorBoundaries(markers);
-
-        boundaries.forEach(b => {
-            const pct = ((b.position - armStart) / armLength * 100).toFixed(3);
-            const posLabel = isCmMode ? formatCm(b.position) : formatRulerPosition(b.position);
-            const cls = b.type === 'start' ? 'bg-boundary-start' : 'bg-boundary-end';
-            html += `<div class="${cls}" style="left:${pct}%"><span class="bg-boundary-label">${posLabel}</span></div>`;
-        });
-
-        return html;
-    }
-
-    function findDonorBoundaries(markers) {
-        const boundaries = [];
-        for (let i = 0; i < markers.length; i++) {
-            const curr = markers[i];
-            const prev = markers[i - 1];
-            const next = markers[i + 1];
-
-            // donor 구간 시작: 이전이 donor가 아니고 현재가 donor
-            if (curr.type === 'donor' || curr.type === 'heterozygous') {
-                const isNonRecurrent = (curr.type === 'donor' || curr.type === 'heterozygous');
-                const prevIsRecurrent = !prev || prev.type === 'recurrent';
-
-                if (isNonRecurrent && prevIsRecurrent) {
-                    // 시작점: 이전 마커와 현재 마커의 중간
-                    const startPos = prev ? (prev.position + curr.position) / 2 : curr.position;
-                    boundaries.push({ position: startPos, type: 'start' });
-                }
-            }
-
-            if (curr.type === 'donor' || curr.type === 'heterozygous') {
-                const nextIsRecurrent = !next || next.type === 'recurrent';
-                if (nextIsRecurrent) {
-                    // 끝점: 현재 마커와 다음 마커의 중간
-                    const endPos = next ? (curr.position + next.position) / 2 : curr.position;
-                    boundaries.push({ position: endPos, type: 'end' });
-                }
-            }
-        }
-        return boundaries;
     }
 </script>
