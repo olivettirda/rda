@@ -858,6 +858,22 @@
         background: var(--viz-label);
         opacity: 0.6;
     }
+    .marker-label-elbow {
+        position: absolute;
+        pointer-events: none;
+    }
+    .marker-label-elbow-v {
+        position: absolute;
+        width: 1px;
+        background: var(--viz-label);
+        opacity: 0.45;
+    }
+    .marker-label-elbow-h {
+        position: absolute;
+        height: 1px;
+        background: var(--viz-label);
+        opacity: 0.45;
+    }
     .marker-label-text {
         position: absolute;
         font-size: 9px;
@@ -865,6 +881,63 @@
         color: var(--viz-label);
         white-space: nowrap;
         line-height: 1.2;
+    }
+
+    /* Help tooltip icon */
+    .help-tip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-size: 0.6rem;
+        font-weight: 700;
+        cursor: help;
+        position: relative;
+        flex-shrink: 0;
+        margin-left: 4px;
+        vertical-align: middle;
+        line-height: 1;
+    }
+    .help-tip:hover {
+        background: var(--accent-light);
+        border-color: var(--accent-mid);
+        color: var(--accent-darker);
+    }
+    .help-tip .help-tip-content {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--header-bg);
+        color: white;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 400;
+        line-height: 1.4;
+        white-space: normal;
+        width: 220px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        pointer-events: none;
+    }
+    .help-tip .help-tip-content::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: var(--header-bg);
+    }
+    .help-tip:hover .help-tip-content {
+        display: block;
     }
 
     /* cM mode indicator */
@@ -1112,7 +1185,9 @@
         border-bottom: 1px solid rgba(0,0,0,0.06);
     }
     .shared-ruler-row .chr-axis {
-        height: 16px;
+        height: 18px;
+        border-top: none;
+        border-bottom: 1px solid rgba(0,0,0,0.3);
     }
     .chr-axis-tick {
         position: absolute;
@@ -1122,6 +1197,18 @@
     }
     .chr-axis-tick.minor { height: 3px; }
     .chr-axis-tick.major { height: 6px; background: rgba(0,0,0,0.5); }
+    /* 공유 눈금 (마커 모드): tick이 위로 향함 */
+    .shared-ruler-row .chr-axis-tick {
+        top: auto;
+        bottom: 0;
+    }
+    .shared-ruler-row .chr-axis-tick.minor { height: 4px; }
+    .shared-ruler-row .chr-axis-tick.major { height: 7px; }
+    .shared-ruler-row .chr-axis-label {
+        top: auto;
+        bottom: 8px;
+        font-size: 7px;
+    }
     .chr-axis-label {
         position: absolute;
         top: 6px;
@@ -1167,7 +1254,9 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>데이터 형식</label>
+                        <label style="display:flex;align-items:center;">데이터 형식
+                            <span class="help-tip">?<span class="help-tip-content">마커 데이터의 파일 형식입니다. '자동 감지'를 선택하면 파일 내용을 분석하여 HapMap, VCF 등의 형식을 자동으로 판별합니다.</span></span>
+                        </label>
                         <select id="dataFormat">
                             <option value="auto">자동 감지</option>
                             <option value="hapmap">HapMap</option>
@@ -1188,59 +1277,64 @@
                 </div>
             </div>
             
-            <!-- Genome Build -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>🧬 게놈 빌드</h2>
-                </div>
-                <div class="card-body">
-                    <div class="form-group">
-                        <label>작물 (Crop)</label>
-                        <select id="cropSelect" onchange="updateCropSelection()">
-                            <option value="rice">🌾 벼 (Rice)</option>
-                            <option value="wheat">🍞 밀 (Wheat)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Reference Build</label>
-                        <select id="genomeBuild" onchange="updateGenomeBuild()">
-                            <option value="IRGSP-1.0">IRGSP-1.0 (Nipponbare)</option>
-                            <option value="MSU7">MSU Rice Genome v7</option>
-                            <option value="Os-Nipponbare-Reference-IRGSP-1.0">Os-Nipponbare-Reference-IRGSP-1.0</option>
-                            <option value="Indica-IR8">Indica IR8 Reference</option>
-                            <option value="Indica-9311">Indica 9311 Reference</option>
-                            <option value="Aus-N22">Aus N22 Reference</option>
-                        </select>
-                    </div>
-
-                    <div class="genome-info" id="genomeInfo">
-                        <!-- Chromosome lengths will be populated here -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Analysis Settings -->
+            <!-- Analysis Settings (게놈 빌드 포함) -->
             <div class="card">
                 <div class="card-header">
                     <h2>⚙️ 분석 설정</h2>
                 </div>
                 <div class="card-body">
+                    <!-- 게놈 빌드 섹션 -->
+                    <div style="padding-bottom:0.75rem;margin-bottom:0.75rem;border-bottom:1px solid var(--border-color);">
+                        <div style="font-size:0.75rem;font-weight:600;color:var(--accent-darker);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.3rem;">
+                            🧬 게놈 빌드
+                        </div>
+                        <div class="form-group">
+                            <label>작물 (Crop)</label>
+                            <select id="cropSelect" onchange="updateCropSelection()">
+                                <option value="rice">🌾 벼 (Rice)</option>
+                                <option value="wheat">🍞 밀 (Wheat)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Reference Build</label>
+                            <select id="genomeBuild" onchange="updateGenomeBuild()">
+                                <option value="IRGSP-1.0">IRGSP-1.0 (Nipponbare)</option>
+                                <option value="MSU7">MSU Rice Genome v7</option>
+                                <option value="Os-Nipponbare-Reference-IRGSP-1.0">Os-Nipponbare-Reference-IRGSP-1.0</option>
+                                <option value="Indica-IR8">Indica IR8 Reference</option>
+                                <option value="Indica-9311">Indica 9311 Reference</option>
+                                <option value="Aus-N22">Aus N22 Reference</option>
+                            </select>
+                        </div>
+                        <div id="genomeBuildSummary" style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:0.25rem;"></div>
+                        <button class="btn btn-secondary btn-block" onclick="openGenomeBuildInfoWindow()" style="padding:4px 8px;font-size:0.7rem;">
+                            📋 빌드 상세정보 보기
+                        </button>
+                    </div>
+
+                    <!-- 부모 계통 선택 -->
                     <div class="form-group">
-                        <label>공여친(Donor)</label>
+                        <label style="display:flex;align-items:center;">공여친(Donor)
+                            <span class="help-tip">?<span class="help-tip-content">원하는 형질(유전자)을 제공하는 부모 계통입니다. 이 부모의 대립유전자가 도입 대상 구간에 존재해야 합니다.</span></span>
+                        </label>
                         <select id="donorParent">
                             <option value="">선택...</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
-                        <label>반복친(Recurrent)</label>
+                        <label style="display:flex;align-items:center;">반복친(Recurrent)
+                            <span class="help-tip">?<span class="help-tip-content">반복 교배의 기본 배경이 되는 부모 계통입니다. 교배를 반복하여 이 부모의 게놈을 최대한 회복하면서 공여친의 목표 유전자만 도입합니다.</span></span>
+                        </label>
                         <select id="recurrentParent">
                             <option value="">선택...</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
-                        <label>회복률 기준 (%)</label>
+                        <label style="display:flex;align-items:center;">회복률 기준 (%)
+                            <span class="help-tip">?<span class="help-tip-content">반복친(Recurrent Parent) 게놈의 회복 비율 기준입니다. 이 값 이상이면 '우수 계통'으로 판별됩니다. 예: 95%이면 전체 게놈의 95% 이상이 반복친 유전형인 샘플을 선발합니다.</span></span>
+                        </label>
                         <input type="range" id="recoveryThreshold" min="80" max="99" value="95" oninput="updateThresholdLabel()">
                         <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
                             <span>80%</span>
@@ -1248,7 +1342,7 @@
                             <span>99%</span>
                         </div>
                     </div>
-                    
+
                     <button class="btn btn-primary btn-block" onclick="requestRunAnalysis()">
                         🔬 분석 실행
                     </button>
@@ -1582,6 +1676,24 @@
     </div>
 </div>
 
+<!-- 게놈 빌드 상세정보 플로팅 창 (드래그 이동 가능) -->
+<div class="viz-window" id="genomeBuildInfoWindow" style="width:280px;top:120px;right:360px;">
+    <div class="viz-window-titlebar" id="genomeBuildInfoTitlebar">
+        <h3>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            게놈 빌드 상세정보
+        </h3>
+        <div class="viz-window-btns">
+            <button class="viz-window-btn" onclick="closeGenomeBuildInfoWindow()" title="닫기">&times;</button>
+        </div>
+    </div>
+    <div style="padding:0.75rem;max-height:400px;overflow-y:auto;" id="genomeBuildInfoContent">
+        <div class="genome-info" id="genomeInfo">
+            <!-- Chromosome lengths will be populated here -->
+        </div>
+    </div>
+</div>
+
 <!-- 시각화 옵션 플로팅 창 (드래그 이동 가능) -->
 <div class="viz-window" id="vizSettingsWindow">
     <div class="viz-window-titlebar" id="vizSettingsTitlebar">
@@ -1612,6 +1724,23 @@
                 <option value="Kb">Kb</option>
                 <option value="Mb">Mb</option>
             </select>
+        </div>
+        <div style="border-top:1px solid var(--border-color);padding-top:0.5rem;margin-top:0.5rem;margin-bottom:0.5rem;">
+            <div class="vds-row" style="margin-bottom:0.4rem;">
+                <span class="vds-label">눈금 간격:</span>
+                <select class="vds-select" id="gridIntervalMode" onchange="onGridIntervalModeChange();applyVizStyles();" style="font-size:0.7rem;">
+                    <option value="auto">자동</option>
+                    <option value="manual">직접 설정</option>
+                </select>
+            </div>
+            <div class="vds-row" id="gridManualRow" style="display:none;margin-bottom:0.4rem;">
+                <span class="vds-label">주 눈금:</span>
+                <input type="number" id="gridManualInterval" value="5" min="0.1" step="0.1" style="width:55px;padding:2px 4px;font-size:0.7rem;border:1px solid var(--border-color);border-radius:4px;" onchange="applyVizStyles()">
+                <span style="font-size:0.65rem;color:var(--text-secondary);">Mb</span>
+            </div>
+            <div class="vds-row" style="margin-bottom:0.25rem;">
+                <label class="vds-check"><input type="checkbox" id="vizShowMinorGrid" checked onchange="applyVizStyles()"> 보조 눈금 표시</label>
+            </div>
         </div>
         <div style="border-top:1px solid var(--border-color);padding-top:0.5rem;margin-top:0.25rem;">
             <button style="width:100%;padding:6px;font-size:0.75rem;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;" onclick="openStyleModal()">
@@ -2323,7 +2452,10 @@ SSIIa,6,6749554"></textarea>
         showMarkerPos: false,  // 마커 위치 수치 표시
         showRuler: true,       // 염색체 위치 눈금 (X축)
         mapUnit: 'physical',   // 'physical' or 'cM'
-        positionUnit: 'auto'   // 'auto', 'bp', 'Kb', 'Mb'
+        positionUnit: 'auto',  // 'auto', 'bp', 'Kb', 'Mb'
+        gridIntervalMode: 'auto',  // 'auto' or 'manual'
+        gridManualInterval: 5,     // 수동 눈금 간격 (Mb)
+        showMinorGrid: true        // 보조 눈금 표시 여부
     };
 
     // 염색체 필터 (어떤 염색체를 표시할지)
@@ -2413,6 +2545,13 @@ SSIIa,6,6749554"></textarea>
         }
 
         document.getElementById('genomeInfo').innerHTML = html;
+
+        // 빌드 요약 정보 표시 (사이드바)
+        const summaryEl = document.getElementById('genomeBuildSummary');
+        if (summaryEl) {
+            const chrCount = Object.keys(build.chromosomes).length;
+            summaryEl.textContent = `${build.name} | ${chrCount}개 염색체 | Total: ${formatBp(build.totalLength)}`;
+        }
 
         // 염색체 필터 상태도 업데이트
         if (Object.keys(analysisResults).length > 0) {
@@ -2787,12 +2926,19 @@ SSIIa,6,6749554"></textarea>
     // =====================================================
     function createSampleTabs(samples) {
         const container = document.getElementById('sampleTabs');
+        let helpShown = false;
         container.innerHTML = samples.map((sample, index) => {
             const result = analysisResults[sample];
             const recovery = result ? result.recoveryRate.toFixed(1) : '?';
-            return `<button class="sample-tab ${index === 0 ? 'active' : ''}" 
+            // 첫 번째 탭에만 도움말 아이콘 표시
+            let helpIcon = '';
+            if (!helpShown) {
+                helpIcon = `<span class="help-tip" style="margin-left:4px;vertical-align:middle;" onclick="event.stopPropagation();">?<span class="help-tip-content">샘플명 옆 백분율은 반복친(Recurrent) 게놈의 회복률입니다. 값이 높을수록 반복친 게놈을 더 많이 회복한 계통입니다.</span></span>`;
+                helpShown = true;
+            }
+            return `<button class="sample-tab ${index === 0 ? 'active' : ''}"
                     onclick="selectSample('${sample}', this)">
-                ${sample} (${recovery}%)
+                ${sample} (${recovery}%)${helpIcon}
             </button>`;
         }).join('');
     }
@@ -2978,9 +3124,9 @@ SSIIa,6,6749554"></textarea>
             if (sorted[i].position - sorted[i - 1].position >= clusterThreshold) clusters++;
         }
         const maxClusterSize = Math.ceil(markerCount / Math.max(clusters, 1));
-        // 간결한 높이: 최대 3줄 분량 + 약간의 여유
-        const height = 10 + Math.min(maxClusterSize, 4) * 11;
-        return Math.min(height, 55);
+        // 엘보우 커넥터 기준 높이: V_GAP(6) + 행높이(14) * 행수 + 폰트(9)
+        const height = 12 + Math.min(maxClusterSize, 5) * 15;
+        return Math.min(height, 90);
     }
     
     function generateMarkerRegionsForArm(chrResult, armStart, armEnd, armLength) {
@@ -3673,6 +3819,14 @@ SSIIa,6,6749554"></textarea>
         root.style.setProperty('--viz-bg', `rgba(255, 255, 255, ${bgOpacityValue})`);
     }
 
+    // 눈금 간격 모드 변경 시 수동 입력 행 표시/숨김
+    function onGridIntervalModeChange() {
+        const mode = document.getElementById('gridIntervalMode').value;
+        const manualRow = document.getElementById('gridManualRow');
+        if (manualRow) manualRow.style.display = mode === 'manual' ? 'flex' : 'none';
+        console.log('눈금 간격 모드:', mode);
+    }
+
     // 드로어 설정에서 호출되는 applyVizStyles (마커 옵션 등)
     function applyVizStyles() {
         // 마커 표시 옵션
@@ -3692,6 +3846,14 @@ SSIIa,6,6749554"></textarea>
         // 눈금 옵션
         const showRulerEl = document.getElementById('vizShowRuler');
         if (showRulerEl) vizOptions.showRuler = showRulerEl.checked;
+
+        // 눈금 간격 옵션
+        const gridModeEl = document.getElementById('gridIntervalMode');
+        if (gridModeEl) vizOptions.gridIntervalMode = gridModeEl.value;
+        const gridManualEl = document.getElementById('gridManualInterval');
+        if (gridManualEl) vizOptions.gridManualInterval = parseFloat(gridManualEl.value) || 5;
+        const showMinorEl = document.getElementById('vizShowMinorGrid');
+        if (showMinorEl) vizOptions.showMinorGrid = showMinorEl.checked;
 
         pushStylesToCSS();
 
@@ -3718,6 +3880,9 @@ SSIIa,6,6749554"></textarea>
         vizOptions.showMarkerPos = false;
         vizOptions.mapUnit = 'physical';
         vizOptions.positionUnit = 'auto';
+        vizOptions.gridIntervalMode = 'auto';
+        vizOptions.gridManualInterval = 5;
+        vizOptions.showMinorGrid = true;
         document.querySelectorAll('.preset-btn').forEach((b,i) => b.classList.toggle('active', i===0));
         // 플로팅 패널 초기화
         const showMarkersEl = document.getElementById('vizShowMarkers');
@@ -3732,10 +3897,18 @@ SSIIa,6,6749554"></textarea>
         if (mapUnitEl) mapUnitEl.value = 'physical';
         const posUnitEl = document.getElementById('positionUnitSelect');
         if (posUnitEl) posUnitEl.value = 'auto';
+        const gridModeEl = document.getElementById('gridIntervalMode');
+        if (gridModeEl) gridModeEl.value = 'auto';
+        const gridManualRow = document.getElementById('gridManualRow');
+        if (gridManualRow) gridManualRow.style.display = 'none';
+        const gridManualEl = document.getElementById('gridManualInterval');
+        if (gridManualEl) gridManualEl.value = '5';
+        const showMinorEl = document.getElementById('vizShowMinorGrid');
+        if (showMinorEl) showMinorEl.checked = true;
         const genomeBuildSelect = document.getElementById('genomeBuild');
         if (genomeBuildSelect) genomeBuildSelect.disabled = false;
-        const genomeBuildCard = genomeBuildSelect?.closest('.card');
-        if (genomeBuildCard) { genomeBuildCard.style.opacity = '1'; genomeBuildCard.style.pointerEvents = 'auto'; }
+        const genomeBuildSection = genomeBuildSelect?.closest('div[style*="border-bottom"]');
+        if (genomeBuildSection) { genomeBuildSection.style.opacity = '1'; genomeBuildSection.style.pointerEvents = 'auto'; }
         // 모달 UI 동기화
         syncUIFromViz();
         _styleModalDirty = true;
@@ -3755,7 +3928,9 @@ SSIIa,6,6749554"></textarea>
             return;
         }
         const build = GENOME_BUILDS[currentBuild];
-        let csv = 'Sample,Total_Recovery_Rate,Total_Markers,Recurrent,Donor,Het';
+        let csv = `# Reference Build: ${build.name} (${currentBuild})\n`;
+        csv += `# Total Genome Length: ${formatBp(build.totalLength)}\n`;
+        csv += 'Sample,Total_Recovery_Rate,Total_Markers,Recurrent,Donor,Het';
         Object.keys(build.chromosomes).forEach(chr => { csv += `,${chr}_Recovery`; });
         csv += '\n';
         
@@ -4149,8 +4324,10 @@ SSIIa,6,6749554"></textarea>
             return;
         }
 
+        const build = GENOME_BUILDS[currentBuild];
         const headers = ['Marker', 'Chr', 'Position', ...sampleNames];
-        let csv = headers.join(',') + '\n';
+        let csv = `# Reference Build: ${build.name} (${currentBuild})\n`;
+        csv += headers.join(',') + '\n';
 
         markerData.forEach(row => {
             const values = [
@@ -6493,6 +6670,19 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
         console.log('시각화 옵션 창 닫힘');
     }
 
+    // 게놈 빌드 상세정보 플로팅 창
+    function openGenomeBuildInfoWindow() {
+        const win = document.getElementById('genomeBuildInfoWindow');
+        win.classList.add('open');
+        console.log('게놈 빌드 상세정보 창 열림');
+    }
+
+    function closeGenomeBuildInfoWindow() {
+        const win = document.getElementById('genomeBuildInfoWindow');
+        win.classList.remove('open');
+        console.log('게놈 빌드 상세정보 창 닫힘');
+    }
+
     // ESC 키로 옵션 창 닫기
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
@@ -6500,32 +6690,46 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
             if (win && win.classList.contains('open')) {
                 closeVizSettingsWindow();
             }
+            const buildWin = document.getElementById('genomeBuildInfoWindow');
+            if (buildWin && buildWin.classList.contains('open')) {
+                closeGenomeBuildInfoWindow();
+            }
         }
     });
 
-    // 타이틀바 드래그로 창 이동
+    // 타이틀바 드래그로 플로팅 창 이동 (범용)
     (function() {
         let isDragging = false;
+        let dragWin = null;
         let startX, startY, startLeft, startTop;
 
+        // 드래그 가능한 타이틀바-창 쌍 정의
+        const draggablePairs = [
+            { titlebarId: 'vizSettingsTitlebar', windowId: 'vizSettingsWindow' },
+            { titlebarId: 'genomeBuildInfoTitlebar', windowId: 'genomeBuildInfoWindow' }
+        ];
+
         document.addEventListener('mousedown', function(e) {
-            const titlebar = document.getElementById('vizSettingsTitlebar');
-            if (!titlebar || !titlebar.contains(e.target)) return;
             if (e.target.closest('.viz-window-btn')) return;
 
-            const win = document.getElementById('vizSettingsWindow');
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            const rect = win.getBoundingClientRect();
-            startLeft = rect.left;
-            startTop = rect.top;
-            e.preventDefault();
+            for (const pair of draggablePairs) {
+                const titlebar = document.getElementById(pair.titlebarId);
+                if (titlebar && titlebar.contains(e.target)) {
+                    dragWin = document.getElementById(pair.windowId);
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    const rect = dragWin.getBoundingClientRect();
+                    startLeft = rect.left;
+                    startTop = rect.top;
+                    e.preventDefault();
+                    return;
+                }
+            }
         });
 
         document.addEventListener('mousemove', function(e) {
-            if (!isDragging) return;
-            const win = document.getElementById('vizSettingsWindow');
+            if (!isDragging || !dragWin) return;
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
             let newLeft = startLeft + dx;
@@ -6533,13 +6737,14 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
             newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - 100));
             newTop = Math.max(0, Math.min(newTop, window.innerHeight - 50));
 
-            win.style.left = newLeft + 'px';
-            win.style.top = newTop + 'px';
-            win.style.right = 'auto';
+            dragWin.style.left = newLeft + 'px';
+            dragWin.style.top = newTop + 'px';
+            dragWin.style.right = 'auto';
         });
 
         document.addEventListener('mouseup', function() {
             isDragging = false;
+            dragWin = null;
         });
     })();
 
@@ -6607,20 +6812,20 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
         vizOptions.mapUnit = select.value;
         console.log('맵 단위 변경:', vizOptions.mapUnit);
 
-        // cM 모드일 때 게놈 빌드 드롭다운 비활성화
+        // cM 모드일 때 게놈 빌드 드롭다운 비활성화 (빌드 섹션만)
         const genomeBuildSelect = document.getElementById('genomeBuild');
-        const genomeBuildCard = genomeBuildSelect?.closest('.card');
+        const genomeBuildSection = genomeBuildSelect?.closest('div[style*="border-bottom"]');
         if (vizOptions.mapUnit === 'cM') {
             genomeBuildSelect.disabled = true;
-            if (genomeBuildCard) {
-                genomeBuildCard.style.opacity = '0.5';
-                genomeBuildCard.style.pointerEvents = 'none';
+            if (genomeBuildSection) {
+                genomeBuildSection.style.opacity = '0.5';
+                genomeBuildSection.style.pointerEvents = 'none';
             }
         } else {
             genomeBuildSelect.disabled = false;
-            if (genomeBuildCard) {
-                genomeBuildCard.style.opacity = '1';
-                genomeBuildCard.style.pointerEvents = 'auto';
+            if (genomeBuildSection) {
+                genomeBuildSection.style.opacity = '1';
+                genomeBuildSection.style.pointerEvents = 'auto';
             }
         }
 
@@ -6708,11 +6913,14 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
         overlay.style.cssText = `position:absolute;left:${offsetLeft}px;top:${offsetTop}px;width:${containerWidth}px;height:${containerHeight}px;pointer-events:none;overflow:visible;z-index:5;`;
 
-        // 4) 컴팩트 라벨 배치 - 짧은 연결선, 밀집 배치
-        const ROW_H = 10;         // 라벨 행 높이
-        const MAX_ROWS = 4;       // 최대 행 수 (연결선 길이 제한)
-        const CHAR_W = 4.8;       // 글자당 근사 픽셀폭
-        const usedSlots = [];     // {row, leftPx, rightPx}
+        // 4) 엘보우 커넥터 라벨 배치 - 수직선 + 수평선 + 라벨
+        const FONT_SIZE = 9;       // 마커 라벨 폰트 크기 (px)
+        const ROW_H = 14;          // 라벨 행 높이 (폰트 크기 + 간격)
+        const MAX_ROWS = 5;        // 최대 행 수
+        const CHAR_W = 5.5;        // 글자당 근사 픽셀폭 (폰트 크기 증가로 조정)
+        const ELBOW_H_LEN = 8;     // 수평 엘보우 길이 (px)
+        const V_GAP = 6;           // 바 아래 → 첫 엘보우까지 간격
+        const usedSlots = [];      // {row, leftPx, rightPx}
 
         markerPositions.forEach((mp, idx) => {
             const xPx = mp.xPx;
@@ -6728,17 +6936,21 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
             // 방향 결정: 오른쪽 65% 이상이면 왼쪽으로
             const isRight = xPx <= containerWidth * 0.65;
-            const approxW = labelText.length * CHAR_W;
+            const approxW = labelText.length * CHAR_W + ELBOW_H_LEN;
+
+            // 라벨이 놓일 실제 X 좌표 계산 (엘보우 끝)
+            const labelLeft = isRight ? xPx + ELBOW_H_LEN : xPx - ELBOW_H_LEN - (labelText.length * CHAR_W);
+            const labelRight = isRight ? labelLeft + (labelText.length * CHAR_W) : xPx - ELBOW_H_LEN;
 
             // 행 배치 (겹침 방지, 최대 MAX_ROWS까지)
             let bestRow = 0;
             let placed = false;
             for (let r = 0; r < MAX_ROWS; r++) {
-                const testLeft = isRight ? xPx : xPx - approxW;
-                const testRight = isRight ? xPx + approxW : xPx;
+                const testLeft = labelLeft;
+                const testRight = isRight ? labelRight : xPx - ELBOW_H_LEN;
                 let overlap = false;
                 for (const slot of usedSlots) {
-                    if (slot.row === r && !(testRight < slot.leftPx - 3 || testLeft > slot.rightPx + 3)) {
+                    if (slot.row === r && !(testRight < slot.leftPx - 4 || testLeft > slot.rightPx + 4)) {
                         overlap = true;
                         break;
                     }
@@ -6746,31 +6958,45 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
                 if (!overlap) {
                     bestRow = r;
                     placed = true;
-                    usedSlots.push({ row: r, leftPx: isRight ? xPx : xPx - approxW, rightPx: isRight ? xPx + approxW : xPx });
+                    usedSlots.push({ row: r, leftPx: testLeft, rightPx: testRight });
                     break;
                 }
             }
             if (!placed) {
                 bestRow = idx % MAX_ROWS;
-                usedSlots.push({ row: bestRow, leftPx: isRight ? xPx : xPx - approxW, rightPx: isRight ? xPx + approxW : xPx });
+                usedSlots.push({ row: bestRow, leftPx: labelLeft, rightPx: isRight ? labelRight : xPx - ELBOW_H_LEN });
             }
 
-            // 수직 연결선: 염색체 바 아래에서 라벨 행까지 (짧게)
-            const lineTop = containerHeight;
-            const lineH = 4 + bestRow * ROW_H;
+            // 엘보우 커넥터: 수직선(바 아래) → 꺾임 → 수평선 → 라벨
+            const vLineTop = containerHeight;
+            const vLineH = V_GAP + bestRow * ROW_H;
+            const elbowY = vLineTop + vLineH;  // 꺾이는 지점 Y
+
+            // 수직선 (바 아래에서 꺾이는 지점까지)
             const vLine = document.createElement('div');
-            vLine.style.cssText = `position:absolute;left:${Math.round(xPx)}px;top:${lineTop}px;width:1px;height:${lineH}px;background:${vizStyles.label};opacity:0.35;`;
+            vLine.className = 'marker-label-elbow-v';
+            vLine.style.cssText = `position:absolute;left:${Math.round(xPx)}px;top:${vLineTop}px;width:1px;height:${vLineH}px;background:${vizStyles.label};opacity:0.45;`;
             overlay.appendChild(vLine);
+
+            // 수평선 (꺾이는 지점에서 라벨까지)
+            const hLine = document.createElement('div');
+            hLine.className = 'marker-label-elbow-h';
+            if (isRight) {
+                hLine.style.cssText = `position:absolute;left:${Math.round(xPx)}px;top:${Math.round(elbowY)}px;width:${ELBOW_H_LEN}px;height:1px;background:${vizStyles.label};opacity:0.45;`;
+            } else {
+                hLine.style.cssText = `position:absolute;left:${Math.round(xPx - ELBOW_H_LEN)}px;top:${Math.round(elbowY)}px;width:${ELBOW_H_LEN}px;height:1px;background:${vizStyles.label};opacity:0.45;`;
+            }
+            overlay.appendChild(hLine);
 
             // 텍스트 라벨
             const label = document.createElement('div');
-            const labelY = lineTop + lineH;
-            label.style.cssText = `position:absolute;top:${labelY}px;font-size:7.5px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1;`;
+            const labelY = elbowY - Math.round(FONT_SIZE / 2);
+            label.style.cssText = `position:absolute;top:${labelY}px;font-size:${FONT_SIZE}px;font-family:'JetBrains Mono',monospace;color:${vizStyles.label};white-space:nowrap;line-height:1;`;
 
             if (isRight) {
-                label.style.left = `${Math.round(xPx + 2)}px`;
+                label.style.left = `${Math.round(xPx + ELBOW_H_LEN + 2)}px`;
             } else {
-                label.style.right = `${Math.round(containerWidth - xPx + 2)}px`;
+                label.style.right = `${Math.round(containerWidth - xPx + ELBOW_H_LEN + 2)}px`;
             }
             label.textContent = labelText;
             overlay.appendChild(label);
@@ -6795,21 +7021,36 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
 
             seg.innerHTML = '';
 
-            // 적절한 눈금 간격 계산 (라벨 간격: 단위에 따라 조절)
-            const labelGap = (vizOptions.positionUnit === 'bp' || vizOptions.positionUnit === 'Kb') ? 75 : 55;
-            const maxLabels = Math.max(Math.floor(width / labelGap), 2);
-            const rawInterval = length / maxLabels;
-            const majorInterval = niceInterval(rawInterval, isCmMode);
+            let majorInterval;
+            if (vizOptions.gridIntervalMode === 'manual' && vizOptions.gridManualInterval > 0) {
+                // 수동 설정: Mb 단위 → bp 변환 (cM 모드면 그대로 cM)
+                majorInterval = isCmMode
+                    ? vizOptions.gridManualInterval
+                    : vizOptions.gridManualInterval * 1000000;
+            } else {
+                // 자동 계산
+                const labelGap = (vizOptions.positionUnit === 'bp' || vizOptions.positionUnit === 'Kb') ? 75 : 55;
+                const maxLabels = Math.max(Math.floor(width / labelGap), 2);
+                const rawInterval = length / maxLabels;
+                majorInterval = niceInterval(rawInterval, isCmMode);
+            }
+
             const minorInterval = majorInterval / 5;
+            const showMinor = vizOptions.showMinorGrid !== false;
 
             // 시작 위치
-            const firstMinor = Math.ceil(start / minorInterval) * minorInterval;
+            const firstTick = showMinor
+                ? Math.ceil(start / minorInterval) * minorInterval
+                : Math.ceil(start / majorInterval) * majorInterval;
+            const tickStep = showMinor ? minorInterval : majorInterval;
 
-            for (let pos = firstMinor; pos <= end; pos += minorInterval) {
+            for (let pos = firstTick; pos <= end; pos += tickStep) {
                 const pct = ((pos - start) / length * 100);
                 if (pct < 0 || pct > 100.5) continue;
 
                 const isMajor = Math.abs(pos % majorInterval) < minorInterval * 0.3;
+
+                if (!showMinor && !isMajor) continue;
 
                 const tick = document.createElement('div');
                 tick.className = 'chr-axis-tick ' + (isMajor ? 'major' : 'minor');
@@ -6826,7 +7067,7 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
                 }
             }
         });
-        console.log('X축 눈금 렌더링:', segments.length, '개 세그먼트');
+        console.log('X축 눈금 렌더링:', segments.length, '개 세그먼트, 간격모드:', vizOptions.gridIntervalMode);
     }
 
     function niceInterval(rawInterval, isCmMode) {
