@@ -857,6 +857,135 @@
         font-size: 0.7rem;
         color: #e65100;
     }
+
+    /* ===== Floating Viz Settings Panel ===== */
+    .viz-float-wrap {
+        position: relative;
+    }
+    .viz-float-toggle {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 10px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--accent-darker);
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        transition: all 0.2s;
+        user-select: none;
+    }
+    .viz-float-toggle:hover {
+        background: var(--accent-light);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .viz-float-toggle svg { flex-shrink: 0; }
+
+    .viz-float-panel {
+        position: absolute;
+        top: 40px;
+        right: 8px;
+        z-index: 25;
+        width: 260px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+        overflow: hidden;
+        transition: opacity 0.2s, transform 0.2s;
+    }
+    .viz-float-panel.collapsed {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px) scale(0.97);
+    }
+    .viz-float-panel .vfp-header {
+        padding: 0.625rem 0.875rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--accent-darker);
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+    .viz-float-panel .vfp-body {
+        padding: 0.75rem 0.875rem;
+        max-height: 420px;
+        overflow-y: auto;
+    }
+    .viz-float-panel .vfp-body::-webkit-scrollbar { width: 4px; }
+    .viz-float-panel .vfp-body::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 2px;
+    }
+    .viz-float-panel .vfp-section {
+        margin-bottom: 0.625rem;
+    }
+    .viz-float-panel .vfp-section:last-child { margin-bottom: 0; }
+    .viz-float-panel .vfp-label {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+    .viz-float-panel select {
+        width: 100%;
+        padding: 0.375rem 0.5rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+    }
+    .viz-float-panel .vfp-check {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        padding: 0.2rem 0;
+    }
+    .viz-float-panel .vfp-check input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+    }
+    .viz-float-panel .vfp-sub {
+        padding-left: 1.25rem;
+        border-left: 2px solid var(--border-color);
+        margin: 0.25rem 0 0.25rem 0.375rem;
+    }
+    .viz-float-panel .vfp-divider {
+        height: 1px;
+        background: var(--border-color);
+        margin: 0.5rem 0;
+    }
+    .viz-float-panel .vfp-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.375rem;
+        width: 100%;
+        padding: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-secondary);
+        color: var(--accent-darker);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .viz-float-panel .vfp-btn:hover {
+        background: var(--accent-light);
+    }
 </style>
 
 </head> <body> <header> <h1><img src="files/ssallogo.png" alt="" style="height:1.2em;vertical-align:middle;margin-right:0.3em;">백그라운드 셀렉션 분석기</h1> <p>유전체 회복률 분석 및 시각화</p> </header>
@@ -973,53 +1102,6 @@
                 </div>
             </div>
             
-            <!-- Visualization Settings (moved up) -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>🎨 시각화 설정</h2>
-                </div>
-                <div class="card-body">
-                    <div class="form-group-sm">
-                        <label>맵 단위</label>
-                        <select id="mapUnitSelect" onchange="onMapUnitChange()">
-                            <option value="physical">물리적 위치 (Genome Build 기반)</option>
-                            <option value="cM">유전 거리 (cM)</option>
-                        </select>
-                    </div>
-                    <div class="form-group-sm">
-                        <label>위치 표시 단위</label>
-                        <select id="positionUnitSelect" onchange="applyVizStyles()">
-                            <option value="auto">자동</option>
-                            <option value="bp">bp</option>
-                            <option value="Kb">Kb</option>
-                            <option value="Mb">Mb</option>
-                        </select>
-                    </div>
-                    <div class="divider" style="margin: 0.5rem 0;"></div>
-                    <div class="form-group-sm">
-                        <label style="display:flex;align-items:center;gap:0.5rem;">
-                            <input type="checkbox" id="vizShowMarkers" onchange="applyVizStyles()"> 마커 위치 표시 (선)
-                        </label>
-                    </div>
-                    <div id="markerLabelOptions" style="display:none;padding-left:1rem;">
-                        <div class="form-group-sm">
-                            <label style="display:flex;align-items:center;gap:0.5rem;">
-                                <input type="checkbox" id="vizShowMarkerNames" checked onchange="applyVizStyles()"> 마커 이름 표시
-                            </label>
-                        </div>
-                        <div class="form-group-sm">
-                            <label style="display:flex;align-items:center;gap:0.5rem;">
-                                <input type="checkbox" id="vizShowMarkerPos" onchange="applyVizStyles()"> 마커 위치 표시
-                            </label>
-                        </div>
-                    </div>
-                    <div class="divider" style="margin: 0.5rem 0;"></div>
-                    <button class="btn btn-secondary btn-block" onclick="openStyleModal()" style="font-size:0.8rem;">
-                        🎨 색상/스타일 상세 설정
-                    </button>
-                </div>
-            </div>
-
             <!-- Export -->
             <div class="card">
                 <div class="card-header">
@@ -1064,11 +1146,60 @@
                 
                 <!-- Visualization Panel -->
                 <div class="panel-content active" id="panel-visualization">
-                    <div class="card-body">
+                    <div class="card-body viz-float-wrap">
+                        <!-- Floating Viz Settings Toggle -->
+                        <button class="viz-float-toggle" onclick="toggleVizPanel()" id="vizFloatToggle" title="시각화 설정">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <span id="vizFloatToggleText">설정</span>
+                        </button>
+
+                        <!-- Floating Viz Settings Panel -->
+                        <div class="viz-float-panel collapsed" id="vizFloatPanel">
+                            <div class="vfp-header">🎨 시각화 설정</div>
+                            <div class="vfp-body">
+                                <div class="vfp-section">
+                                    <span class="vfp-label">맵 단위</span>
+                                    <select id="mapUnitSelect" onchange="onMapUnitChange()">
+                                        <option value="physical">물리적 위치 (Genome Build)</option>
+                                        <option value="cM">유전 거리 (cM)</option>
+                                    </select>
+                                </div>
+                                <div class="vfp-section">
+                                    <span class="vfp-label">위치 표시 단위</span>
+                                    <select id="positionUnitSelect" onchange="applyVizStyles()">
+                                        <option value="auto">자동</option>
+                                        <option value="bp">bp</option>
+                                        <option value="Kb">Kb</option>
+                                        <option value="Mb">Mb</option>
+                                    </select>
+                                </div>
+                                <div class="vfp-divider"></div>
+                                <div class="vfp-section">
+                                    <label class="vfp-check">
+                                        <input type="checkbox" id="vizShowMarkers" onchange="applyVizStyles()"> 마커 위치 표시 (선)
+                                    </label>
+                                    <div id="markerLabelOptions" style="display:none;">
+                                        <div class="vfp-sub">
+                                            <label class="vfp-check">
+                                                <input type="checkbox" id="vizShowMarkerNames" checked onchange="applyVizStyles()"> 마커 이름
+                                            </label>
+                                            <label class="vfp-check">
+                                                <input type="checkbox" id="vizShowMarkerPos" onchange="applyVizStyles()"> 위치 수치
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="vfp-divider"></div>
+                                <button class="vfp-btn" onclick="openStyleModal()">
+                                    🎨 색상/스타일 상세 설정
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="sample-tabs" id="sampleTabs">
                             <!-- Sample tabs will be populated here -->
                         </div>
-                        
+
                         <div class="legend">
                             <div class="legend-item">
                                 <div class="legend-color donor"></div>
@@ -5554,6 +5685,26 @@ Chr02_3000000,02,3000000,A,A,A,A,A`;
     function closeConversionResultModal() {
         document.getElementById('conversionResultModal').classList.remove('active');
     }
+
+    // =====================================================
+    // 플로팅 시각화 설정 패널
+    // =====================================================
+    function toggleVizPanel() {
+        const panel = document.getElementById('vizFloatPanel');
+        panel.classList.toggle('collapsed');
+        console.log('시각화 설정 패널:', panel.classList.contains('collapsed') ? '접힘' : '펼침');
+    }
+
+    // 패널 바깥 클릭 시 닫기
+    document.addEventListener('click', function(e) {
+        const panel = document.getElementById('vizFloatPanel');
+        const toggle = document.getElementById('vizFloatToggle');
+        if (!panel || !toggle) return;
+        if (panel.classList.contains('collapsed')) return;
+        if (!panel.contains(e.target) && !toggle.contains(e.target)) {
+            panel.classList.add('collapsed');
+        }
+    });
 
     // =====================================================
     // 염색체 필터 기능
