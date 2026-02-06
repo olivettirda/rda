@@ -1010,7 +1010,7 @@
                             파일 선택
                         </label>
                         <input type="file" id="markerFile" accept=".csv,.tsv,.txt,.xlsx,.xls">
-                        <div id="fileName" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
+                        <div id="fileName" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem; padding-left: 2px;"></div>
                     </div>
                     
                     <div class="form-group">
@@ -1096,8 +1096,11 @@
                         </div>
                     </div>
                     
-                    <button class="btn btn-primary btn-block" onclick="runAnalysis()">
+                    <button class="btn btn-primary btn-block" onclick="requestRunAnalysis()">
                         🔬 분석 실행
+                    </button>
+                    <button class="btn btn-secondary btn-block" onclick="resetAnalysis()" style="margin-top: 0.5rem;" id="resetAnalysisBtn" disabled>
+                        🔄 초기화
                     </button>
                 </div>
             </div>
@@ -1465,7 +1468,7 @@
 <div class="modal-overlay" id="styleModal">
     <div class="modal">
         <div class="modal-header">
-            <h3>🎨 시각화 설정</h3>
+            <h3>🎨 시각화 색상/스타일 설정</h3>
             <button class="modal-close" onclick="closeStyleModal()">&times;</button>
         </div>
         <div class="modal-body">
@@ -1473,104 +1476,131 @@
                 <button class="preset-btn active" onclick="applyPreset('color',this)">컬러</button>
                 <button class="preset-btn" onclick="applyPreset('grayscale',this)">흑백</button>
             </div>
+
+            <!-- 미리보기 -->
+            <div id="stylePreviewSwatches" style="padding:0.5rem 0;"></div>
+
             <div class="divider"></div>
-            
+
             <!-- 염색체 구조 옵션 -->
             <div class="form-group-sm">
                 <label style="display:flex;align-items:center;gap:0.5rem;">
-                    <input type="checkbox" id="vizSplitArms" checked onchange="applyVizStyles()"> 단완/장완 분리 (실제 염색체 형태)
+                    <input type="checkbox" id="vizSplitArms" checked onchange="onStyleInputChange()"> 단완/장완 분리 (실제 염색체 형태)
                 </label>
             </div>
             <div class="form-group-sm">
                 <label style="display:flex;align-items:center;gap:0.5rem;">
-                    <input type="checkbox" id="vizShowCentromere" checked onchange="applyVizStyles()"> 동원체 표시
+                    <input type="checkbox" id="vizShowCentromere" checked onchange="onStyleInputChange()"> 동원체 표시
                 </label>
             </div>
             <div class="form-group-sm">
                 <label>배경 투명도</label>
                 <div style="display:flex;align-items:center;gap:0.5rem;">
-                    <input type="range" id="vizBgOpacity" min="0" max="100" value="100" style="flex:1" oninput="updateOpacityLabel();applyVizStyles()">
+                    <input type="range" id="vizBgOpacity" min="0" max="100" value="100" style="flex:1" oninput="updateOpacityLabel();onStyleInputChange()">
                     <span id="vizBgOpacityLabel" style="width:40px;text-align:right;font-size:0.75rem;">100%</span>
                 </div>
             </div>
-            
+
             <div class="divider"></div>
-            
+
             <div class="form-group-sm">
                 <label>공여친(Donor) 색상</label>
                 <div class="color-row">
-                    <input type="text" id="vizDonor" value="rgba(1, 127, 151, 0.7)" onchange="applyVizStyles()">
+                    <input type="text" id="vizDonor" value="rgba(1, 127, 151, 0.7)" onchange="onStyleInputChange()">
                     <input type="color" id="vizDonorPicker" value="#017f97" onchange="syncPicker('Donor')">
                 </div>
             </div>
             <div class="form-group-sm">
                 <label>반복친(Recurrent) 색상</label>
                 <div class="color-row">
-                    <input type="text" id="vizRecurrent" value="rgba(204, 227, 221, 0.9)" onchange="applyVizStyles()">
+                    <input type="text" id="vizRecurrent" value="rgba(204, 227, 221, 0.9)" onchange="onStyleInputChange()">
                     <input type="color" id="vizRecurrentPicker" value="#cce3dd" onchange="syncPicker('Recurrent')">
                 </div>
             </div>
             <div class="form-group-sm">
                 <label>이형접합(Het) 색상</label>
                 <div class="color-row">
-                    <input type="text" id="vizHet" value="rgba(184, 134, 11, 0.7)" onchange="applyVizStyles()">
+                    <input type="text" id="vizHet" value="rgba(184, 134, 11, 0.7)" onchange="onStyleInputChange()">
                     <input type="color" id="vizHetPicker" value="#b8860b" onchange="syncPicker('Het')">
                 </div>
             </div>
             <div class="form-group-sm">
                 <label>동원체(Centromere) 색상</label>
                 <div class="color-row">
-                    <input type="text" id="vizCentromere" value="#0c3026" onchange="applyVizStyles()">
+                    <input type="text" id="vizCentromere" value="#0c3026" onchange="onStyleInputChange()">
                     <input type="color" id="vizCentromerePicker" value="#0c3026" onchange="syncPicker('Centromere')">
                 </div>
             </div>
-            
+
             <div class="divider"></div>
-            
+
             <div class="two-col">
                 <div class="form-group-sm">
                     <label>동원체 너비 (px)</label>
-                    <input type="number" id="vizCentromereW" value="8" min="2" max="20" onchange="applyVizStyles()">
+                    <input type="number" id="vizCentromereW" value="8" min="2" max="20" onchange="onStyleInputChange()">
                 </div>
                 <div class="form-group-sm">
                     <label>염색체 높이 (px)</label>
-                    <input type="number" id="vizChrH" value="28" min="16" max="48" onchange="applyVizStyles()">
+                    <input type="number" id="vizChrH" value="28" min="16" max="48" onchange="onStyleInputChange()">
                 </div>
             </div>
             <div class="two-col">
                 <div class="form-group-sm">
                     <label>모서리 반경 (px)</label>
-                    <input type="number" id="vizChrRadius" value="4" min="0" max="20" onchange="applyVizStyles()">
+                    <input type="number" id="vizChrRadius" value="4" min="0" max="20" onchange="onStyleInputChange()">
                 </div>
                 <div class="form-group-sm">
                     <label>테두리 너비 (px)</label>
-                    <input type="number" id="vizChrBorder" value="0" min="0" max="5" onchange="applyVizStyles()">
+                    <input type="number" id="vizChrBorder" value="0" min="0" max="5" onchange="onStyleInputChange()">
                 </div>
             </div>
             <div class="form-group-sm">
                 <label>테두리 색상</label>
                 <div class="color-row">
-                    <input type="text" id="vizBorderColor" value="#0c3026" onchange="applyVizStyles()">
+                    <input type="text" id="vizBorderColor" value="#0c3026" onchange="onStyleInputChange()">
                     <input type="color" id="vizBorderColorPicker" value="#0c3026" onchange="syncPicker('BorderColor')">
                 </div>
             </div>
             <div class="form-group-sm">
                 <label>트랙 배경색</label>
                 <div class="color-row">
-                    <input type="text" id="vizTrack" value="#e8eeec" onchange="applyVizStyles()">
+                    <input type="text" id="vizTrack" value="#e8eeec" onchange="onStyleInputChange()">
                     <input type="color" id="vizTrackPicker" value="#e8eeec" onchange="syncPicker('Track')">
                 </div>
             </div>
             <div class="form-group-sm">
                 <label>라벨 색상</label>
                 <div class="color-row">
-                    <input type="text" id="vizLabel" value="#0c3026" onchange="applyVizStyles()">
+                    <input type="text" id="vizLabel" value="#0c3026" onchange="onStyleInputChange()">
                     <input type="color" id="vizLabelPicker" value="#0c3026" onchange="syncPicker('Label')">
                 </div>
             </div>
-            
+
             <div class="divider"></div>
-            <button class="btn btn-secondary btn-block" onclick="resetVizStyles()">🔄 기본값 복원</button>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="resetVizStyles()">🔄 기본값 복원</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="applyStyleModal()">✅ 변경사항 적용</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 분석 확인 모달 -->
+<div class="modal-overlay" id="analysisConfirmModal">
+    <div class="modal" style="max-width: 420px;">
+        <div class="modal-header">
+            <h3>⚠️ 기존 분석 결과 덮어쓰기</h3>
+            <button class="modal-close" onclick="closeAnalysisConfirmModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="text-align:center;">
+            <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                현재 분석 결과가 존재합니다.<br>새로 분석을 실행하면 <strong>기존 결과가 사라집니다</strong>.
+            </p>
+            <p style="margin-bottom: 1.25rem; font-size: 0.85rem;">진행하시겠습니까?</p>
+            <div style="display:flex;gap:0.75rem;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="closeAnalysisConfirmModal()">취소</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="confirmRunAnalysis()">새 파일로 분석 진행</button>
+            </div>
         </div>
     </div>
 </div>
@@ -2391,34 +2421,56 @@ SSIIa,6,6749554"></textarea>
     // =====================================================
     // 분석 실행
     // =====================================================
-    function runAnalysis() {
+    // 분석 실행 요청 (기존 결과 있으면 확인 모달)
+    function requestRunAnalysis() {
         const donor = document.getElementById('donorParent').value;
         const recurrent = document.getElementById('recurrentParent').value;
-        
+
         if (!donor || !recurrent) {
             showNotification('공여친과 반복친을 선택해주세요', 'error');
             return;
         }
-        
         if (markerData.length === 0) {
             showNotification('마커 데이터를 먼저 로드해주세요', 'error');
             return;
         }
-        
+
+        // 기존 분석 결과가 있으면 확인
+        if (Object.keys(analysisResults).length > 0) {
+            document.getElementById('analysisConfirmModal').classList.add('active');
+            return;
+        }
+
+        runAnalysis();
+    }
+
+    function confirmRunAnalysis() {
+        closeAnalysisConfirmModal();
+        runAnalysis();
+    }
+
+    function closeAnalysisConfirmModal() {
+        document.getElementById('analysisConfirmModal').classList.remove('active');
+    }
+
+    function runAnalysis() {
+        const donor = document.getElementById('donorParent').value;
+        const recurrent = document.getElementById('recurrentParent').value;
+
         // 분석 대상 샘플 (부모 제외)
         const targetSamples = sampleNames.filter(s => s !== donor && s !== recurrent);
-        
+
         if (targetSamples.length === 0) {
             showNotification('분석할 샘플이 없습니다', 'error');
             return;
         }
-        
+
         analysisResults = {};
-        
+
         targetSamples.forEach(sample => {
             analysisResults[sample] = analyzeRecovery(sample, donor, recurrent);
         });
-        
+
         // 샘플 탭 생성
         createSampleTabs(targetSamples);
 
@@ -2428,14 +2480,28 @@ SSIIa,6,6749554"></textarea>
         // 첫 번째 샘플 시각화
         currentSample = targetSamples[0];
         visualizeChromosome(currentSample);
-        
+
         // 통계 업데이트
         updateStatistics();
-        
+
         // 비교 차트 업데이트
         updateComparisonChart(targetSamples);
-        
+
+        // 초기화 버튼 활성화
+        document.getElementById('resetAnalysisBtn').disabled = false;
+
         showNotification('분석 완료', 'success');
+    }
+
+    function resetAnalysis() {
+        console.log('분석 초기화');
+        analysisResults = {};
+        currentSample = null;
+        document.getElementById('chromosomeViz').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07"/></svg><h3>데이터를 불러와주세요</h3><p>마커 데이터 파일을 업로드하거나 데모 데이터를 로드하세요</p></div>';
+        document.getElementById('sampleTabs').innerHTML = '';
+        document.getElementById('chrFilterBar').style.display = 'none';
+        document.getElementById('resetAnalysisBtn').disabled = true;
+        showNotification('분석 결과가 초기화되었습니다', 'info');
     }
     
     function analyzeRecovery(sample, donor, recurrent) {
@@ -3166,22 +3232,93 @@ SSIIa,6,6749554"></textarea>
     // =====================================================
     // 시각화 설정
     // =====================================================
+    // =====================================================
+    // 스타일 모달 (스냅샷 방식: 열 때 저장, 적용 or 취소)
+    // =====================================================
+    let _savedVizStyles = null;   // 모달 열 때 저장
+    let _savedVizOptions = null;
+    let _styleModalDirty = false; // 변경 여부
+
     function openStyleModal() {
+        // 현재 상태를 스냅샷으로 저장
+        _savedVizStyles = { ...vizStyles };
+        _savedVizOptions = { ...vizOptions };
+        _styleModalDirty = false;
+        syncUIFromViz();
+        updateStylePreview();
         document.getElementById('styleModal').classList.add('active');
+        console.log('스타일 모달 열림 - 스냅샷 저장');
     }
-    
+
     function closeStyleModal() {
+        if (_styleModalDirty) {
+            // 변경사항 있으면 확인
+            if (!confirm('변경사항이 저장되지 않았습니다. 닫으시겠습니까?')) {
+                return;
+            }
+            // 되돌리기
+            revertStyleChanges();
+        }
         document.getElementById('styleModal').classList.remove('active');
     }
-    
+
+    function revertStyleChanges() {
+        if (_savedVizStyles) vizStyles = { ..._savedVizStyles };
+        if (_savedVizOptions) {
+            vizOptions.splitArms = _savedVizOptions.splitArms;
+            vizOptions.showCentromere = _savedVizOptions.showCentromere;
+            vizOptions.bgOpacity = _savedVizOptions.bgOpacity;
+        }
+        pushStylesToCSS();
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
+        console.log('스타일 되돌림');
+    }
+
+    // 모달 내 적용 버튼
+    function applyStyleModal() {
+        readStyleInputs();
+        pushStylesToCSS();
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
+        _savedVizStyles = { ...vizStyles };
+        _savedVizOptions = { ...vizOptions };
+        _styleModalDirty = false;
+        document.getElementById('styleModal').classList.remove('active');
+        showNotification('시각화 설정이 적용되었습니다', 'success');
+        console.log('스타일 적용 완료');
+    }
+
     function applyPreset(name, btn) {
         vizStyles = { ...PRESETS[name] };
         document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         syncUIFromViz();
-        applyVizStyles();
+        _styleModalDirty = true;
+        updateStylePreview();
     }
-    
+
+    // 모달 UI → vizStyles 읽기 (모달 내부용)
+    function readStyleInputs() {
+        vizStyles.donor = document.getElementById('vizDonor').value;
+        vizStyles.recurrent = document.getElementById('vizRecurrent').value;
+        vizStyles.het = document.getElementById('vizHet').value;
+        vizStyles.centromere = document.getElementById('vizCentromere').value;
+        vizStyles.centromereW = parseInt(document.getElementById('vizCentromereW').value) || 8;
+        vizStyles.chrH = parseInt(document.getElementById('vizChrH').value) || 28;
+        vizStyles.chrRadius = parseInt(document.getElementById('vizChrRadius').value) || 4;
+        vizStyles.chrBorder = parseInt(document.getElementById('vizChrBorder').value) || 0;
+        vizStyles.borderColor = document.getElementById('vizBorderColor').value;
+        vizStyles.track = document.getElementById('vizTrack').value;
+        vizStyles.label = document.getElementById('vizLabel').value;
+        vizOptions.splitArms = document.getElementById('vizSplitArms').checked;
+        vizOptions.showCentromere = document.getElementById('vizShowCentromere').checked;
+        vizOptions.bgOpacity = parseInt(document.getElementById('vizBgOpacity').value) || 100;
+    }
+
+    // vizStyles → 모달 UI 동기화
     function syncUIFromViz() {
         document.getElementById('vizDonor').value = vizStyles.donor;
         document.getElementById('vizRecurrent').value = vizStyles.recurrent;
@@ -3194,39 +3331,113 @@ SSIIa,6,6749554"></textarea>
         document.getElementById('vizBorderColor').value = vizStyles.borderColor;
         document.getElementById('vizTrack').value = vizStyles.track;
         document.getElementById('vizLabel').value = vizStyles.label;
+        document.getElementById('vizSplitArms').checked = vizOptions.splitArms;
+        document.getElementById('vizShowCentromere').checked = vizOptions.showCentromere;
+        document.getElementById('vizBgOpacity').value = vizOptions.bgOpacity;
+        document.getElementById('vizBgOpacityLabel').textContent = vizOptions.bgOpacity + '%';
 
-        document.getElementById('vizCentromerePicker').value = vizStyles.centromere;
-        document.getElementById('vizBorderColorPicker').value = vizStyles.borderColor;
-        document.getElementById('vizTrackPicker').value = vizStyles.track;
-        document.getElementById('vizLabelPicker').value = vizStyles.label;
+        // 컬러 피커 동기화 (rgba → hex 변환)
+        document.getElementById('vizDonorPicker').value = colorToHex(vizStyles.donor);
+        document.getElementById('vizRecurrentPicker').value = colorToHex(vizStyles.recurrent);
+        document.getElementById('vizHetPicker').value = colorToHex(vizStyles.het);
+        document.getElementById('vizCentromerePicker').value = colorToHex(vizStyles.centromere);
+        document.getElementById('vizBorderColorPicker').value = colorToHex(vizStyles.borderColor);
+        document.getElementById('vizTrackPicker').value = colorToHex(vizStyles.track);
+        document.getElementById('vizLabelPicker').value = colorToHex(vizStyles.label);
     }
-    
+
+    // rgba/hex 문자열 → #hex 변환 (피커용)
+    function colorToHex(color) {
+        if (!color) return '#000000';
+        if (color.startsWith('#') && (color.length === 7 || color.length === 4)) return color;
+        // rgba 파싱
+        const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+        if (m) {
+            const r = parseInt(m[1]).toString(16).padStart(2, '0');
+            const g = parseInt(m[2]).toString(16).padStart(2, '0');
+            const b = parseInt(m[3]).toString(16).padStart(2, '0');
+            return `#${r}${g}${b}`;
+        }
+        // 이름 → 임시 엘리먼트로 변환
+        try {
+            const tmp = document.createElement('div');
+            tmp.style.color = color;
+            document.body.appendChild(tmp);
+            const computed = getComputedStyle(tmp).color;
+            document.body.removeChild(tmp);
+            const m2 = computed.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+            if (m2) {
+                return `#${parseInt(m2[1]).toString(16).padStart(2,'0')}${parseInt(m2[2]).toString(16).padStart(2,'0')}${parseInt(m2[3]).toString(16).padStart(2,'0')}`;
+            }
+        } catch(e) {}
+        return '#000000';
+    }
+
     function syncPicker(type) {
         const picker = document.getElementById(`viz${type}Picker`);
         const input = document.getElementById(`viz${type}`);
         input.value = picker.value;
-        applyVizStyles();
+        onStyleInputChange();
     }
-    
+
+    // 모달 내 입력 변경 시 미리보기 갱신 + dirty 표시
+    function onStyleInputChange() {
+        _styleModalDirty = true;
+        readStyleInputs();
+        updateStylePreview();
+    }
+
+    // 미리보기 색상 스와치 업데이트
+    function updateStylePreview() {
+        const preview = document.getElementById('stylePreviewSwatches');
+        if (!preview) return;
+        preview.innerHTML = `
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.donor};border:1px solid rgba(0,0,0,0.15);"></div>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">Donor</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.recurrent};border:1px solid rgba(0,0,0,0.15);"></div>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">Recurrent</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.het};border:1px solid rgba(0,0,0,0.15);"></div>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">Het</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="width:14px;height:14px;border-radius:50%;background:${vizStyles.centromere};border:1px solid rgba(0,0,0,0.15);"></div>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">Cen</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="width:24px;height:16px;border-radius:3px;background:${vizStyles.track};border:1px solid rgba(0,0,0,0.15);"></div>
+                    <span style="font-size:0.7rem;color:var(--text-secondary);">Track</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // CSS 변수에 반영 (실제 화면 적용)
+    function pushStylesToCSS() {
+        const root = document.documentElement;
+        root.style.setProperty('--viz-donor', vizStyles.donor);
+        root.style.setProperty('--viz-recurrent', vizStyles.recurrent);
+        root.style.setProperty('--viz-het', vizStyles.het);
+        root.style.setProperty('--viz-centromere', vizStyles.centromere);
+        root.style.setProperty('--viz-centromere-w', vizStyles.centromereW + 'px');
+        root.style.setProperty('--viz-chr-h', vizStyles.chrH + 'px');
+        root.style.setProperty('--viz-chr-radius', vizStyles.chrRadius + 'px');
+        root.style.setProperty('--viz-chr-border', vizStyles.chrBorder + 'px');
+        root.style.setProperty('--viz-chr-border-color', vizStyles.borderColor);
+        root.style.setProperty('--viz-track', vizStyles.track);
+        root.style.setProperty('--viz-label', vizStyles.label);
+        const bgOpacityValue = vizOptions.bgOpacity / 100;
+        root.style.setProperty('--viz-bg', `rgba(255, 255, 255, ${bgOpacityValue})`);
+    }
+
+    // 플로팅 패널에서 호출되는 applyVizStyles (마커 옵션 등)
     function applyVizStyles() {
-        vizStyles.donor = document.getElementById('vizDonor').value;
-        vizStyles.recurrent = document.getElementById('vizRecurrent').value;
-        vizStyles.het = document.getElementById('vizHet').value;
-        vizStyles.centromere = document.getElementById('vizCentromere').value;
-        vizStyles.centromereW = parseInt(document.getElementById('vizCentromereW').value) || 8;
-        vizStyles.chrH = parseInt(document.getElementById('vizChrH').value) || 28;
-        vizStyles.chrRadius = parseInt(document.getElementById('vizChrRadius').value) || 4;
-        vizStyles.chrBorder = parseInt(document.getElementById('vizChrBorder').value) || 0;
-        vizStyles.borderColor = document.getElementById('vizBorderColor').value;
-        vizStyles.track = document.getElementById('vizTrack').value;
-        vizStyles.label = document.getElementById('vizLabel').value;
-
-        // 추가 옵션
-        vizOptions.splitArms = document.getElementById('vizSplitArms').checked;
-        vizOptions.showCentromere = document.getElementById('vizShowCentromere').checked;
-        vizOptions.bgOpacity = parseInt(document.getElementById('vizBgOpacity').value) || 100;
-
-        // 마커 표시 옵션
+        // 마커 표시 옵션 (플로팅 패널)
         const showMarkersEl = document.getElementById('vizShowMarkers');
         if (showMarkersEl) {
             vizOptions.showMarkers = showMarkersEl.checked;
@@ -3240,43 +3451,31 @@ SSIIa,6,6749554"></textarea>
         const posUnitEl = document.getElementById('positionUnitSelect');
         if (posUnitEl) vizOptions.positionUnit = posUnitEl.value;
 
-        const root = document.documentElement;
-        root.style.setProperty('--viz-donor', vizStyles.donor);
-        root.style.setProperty('--viz-recurrent', vizStyles.recurrent);
-        root.style.setProperty('--viz-het', vizStyles.het);
-        root.style.setProperty('--viz-centromere', vizStyles.centromere);
-        root.style.setProperty('--viz-centromere-w', vizStyles.centromereW + 'px');
-        root.style.setProperty('--viz-chr-h', vizStyles.chrH + 'px');
-        root.style.setProperty('--viz-chr-radius', vizStyles.chrRadius + 'px');
-        root.style.setProperty('--viz-chr-border', vizStyles.chrBorder + 'px');
-        root.style.setProperty('--viz-chr-border-color', vizStyles.borderColor);
-        root.style.setProperty('--viz-track', vizStyles.track);
-        root.style.setProperty('--viz-label', vizStyles.label);
-
-        // 배경 투명도 적용
-        const bgOpacityValue = vizOptions.bgOpacity / 100;
-        root.style.setProperty('--viz-bg', `rgba(255, 255, 255, ${bgOpacityValue})`);
+        pushStylesToCSS();
 
         // 분석 결과가 있으면 다시 그리기
         if (currentSample && analysisResults[currentSample]) {
             visualizeChromosome(currentSample);
         }
     }
-    
+
     function updateOpacityLabel() {
         const value = document.getElementById('vizBgOpacity').value;
         document.getElementById('vizBgOpacityLabel').textContent = value + '%';
     }
-    
+
     function resetVizStyles() {
         vizStyles = { ...PRESETS.color };
-        vizOptions = { splitArms: true, showCentromere: true, bgOpacity: 100, showMarkers: false, showMarkerNames: true, showMarkerPos: false, mapUnit: 'physical', positionUnit: 'auto' };
+        vizOptions.splitArms = true;
+        vizOptions.showCentromere = true;
+        vizOptions.bgOpacity = 100;
+        vizOptions.showMarkers = false;
+        vizOptions.showMarkerNames = true;
+        vizOptions.showMarkerPos = false;
+        vizOptions.mapUnit = 'physical';
+        vizOptions.positionUnit = 'auto';
         document.querySelectorAll('.preset-btn').forEach((b,i) => b.classList.toggle('active', i===0));
-        document.getElementById('vizSplitArms').checked = true;
-        document.getElementById('vizShowCentromere').checked = true;
-        document.getElementById('vizBgOpacity').value = 100;
-        document.getElementById('vizBgOpacityLabel').textContent = '100%';
-        // 마커 표시 옵션 초기화
+        // 플로팅 패널 초기화
         const showMarkersEl = document.getElementById('vizShowMarkers');
         if (showMarkersEl) showMarkersEl.checked = false;
         const showMarkerNamesEl = document.getElementById('vizShowMarkerNames');
@@ -3289,13 +3488,18 @@ SSIIa,6,6749554"></textarea>
         if (mapUnitEl) mapUnitEl.value = 'physical';
         const posUnitEl = document.getElementById('positionUnitSelect');
         if (posUnitEl) posUnitEl.value = 'auto';
-        // 게놈 빌드 다시 활성화
         const genomeBuildSelect = document.getElementById('genomeBuild');
         if (genomeBuildSelect) genomeBuildSelect.disabled = false;
         const genomeBuildCard = genomeBuildSelect?.closest('.card');
         if (genomeBuildCard) { genomeBuildCard.style.opacity = '1'; genomeBuildCard.style.pointerEvents = 'auto'; }
+        // 모달 UI 동기화
         syncUIFromViz();
-        applyVizStyles();
+        _styleModalDirty = true;
+        updateStylePreview();
+        pushStylesToCSS();
+        if (currentSample && analysisResults[currentSample]) {
+            visualizeChromosome(currentSample);
+        }
     }
     
     // =====================================================
