@@ -881,6 +881,23 @@
         </div>
     </div>
 
+    <!-- 비밀번호 확인 (암호화 키 복구) -->
+    <div id="encKeyContainer" class="login-container" style="display: none;">
+        <div class="login-card">
+            <div class="login-logo">🔒</div>
+            <h1 class="login-title">비밀번호 확인</h1>
+            <p class="login-subtitle">메모 보안을 위해 비밀번호를 입력해주세요</p>
+            <form id="encKeyForm" class="login-form">
+                <div class="form-group">
+                    <label class="form-label">비밀번호</label>
+                    <input type="password" id="encKeyPassword" class="form-input" placeholder="비밀번호 입력" required>
+                </div>
+                <div id="encKeyError" class="form-error"></div>
+                <button type="submit" class="login-btn">확인</button>
+            </form>
+        </div>
+    </div>
+
     <!-- 메인 앱 -->
     <div id="app" class="hidden">
         <!-- 헤더 -->
@@ -962,6 +979,125 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         console.log('Supabase 클라이언트 초기화 완료');
+
+        // ============================================
+        // 클라이언트 사이드 암호화 (E2EE)
+        // ============================================
+        const ENCRYPTION_PREFIX = 'ENC:v1:';
+        const PBKDF2_ITERATIONS = 100000;
+        let encryptionKey = null;
+        let isLoginInProgress = false;
+
+        async function deriveEncryptionKey(password, username) {
+            console.log('암호화 키 생성 시작');
+            const encoder = new TextEncoder();
+            const salt = encoder.encode('sticky_notes_salt_' + username.toLowerCase());
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw', encoder.encode(password), 'PBKDF2', false, ['deriveKey']
+            );
+            const key = await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+            console.log('암호화 키 생성 완료');
+            return key;
+        }
+
+        async function encryptContent(text, key) {
+            if (!text || !key) return text || '';
+            try {
+                const encoder = new TextEncoder();
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const encrypted = await crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv }, key, encoder.encode(text)
+                );
+                const ivB64 = btoa(String.fromCharCode(...iv));
+                const encB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+                return ENCRYPTION_PREFIX + ivB64 + ':' + encB64;
+            } catch (e) {
+                console.error('암호화 실패:', e);
+                return text;
+            }
+        }
+
+        async function decryptContent(encryptedText, key) {
+            if (!encryptedText || !key) return encryptedText || '';
+            if (!encryptedText.startsWith(ENCRYPTION_PREFIX)) return encryptedText;
+            try {
+                const payload = encryptedText.slice(ENCRYPTION_PREFIX.length);
+                const sepIdx = payload.indexOf(':');
+                const iv = Uint8Array.from(atob(payload.substring(0, sepIdx)), c => c.charCodeAt(0));
+                const data = Uint8Array.from(atob(payload.substring(sepIdx + 1)), c => c.charCodeAt(0));
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv }, key, data
+                );
+                return new TextDecoder().decode(decrypted);
+            } catch (e) {
+                console.error('복호화 실패:', e);
+                return '[암호화된 메모 - 복호화 실패]';
+            }
+        }
+
+        async function saveEncryptionKeyToStorage(key) {
+            try {
+                const exported = await crypto.subtle.exportKey('raw', key);
+                const b64 = btoa(String.fromCharCode(...new Uint8Array(exported)));
+                localStorage.setItem('sticky_notes_enc_key', b64);
+                console.log('암호화 키 저장 완료');
+            } catch (e) {
+                console.error('암호화 키 저장 실패:', e);
+            }
+        }
+
+        async function loadEncryptionKeyFromStorage() {
+            try {
+                const b64 = localStorage.getItem('sticky_notes_enc_key');
+                if (!b64) return null;
+                const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                const key = await crypto.subtle.importKey(
+                    'raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']
+                );
+                console.log('저장된 암호화 키 로드 완료');
+                return key;
+            } catch (e) {
+                console.error('저장된 암호화 키 로드 실패:', e);
+                return null;
+            }
+        }
+
+        function clearEncryptionKeyStorage() {
+            encryptionKey = null;
+            localStorage.removeItem('sticky_notes_enc_key');
+            console.log('암호화 키 삭제');
+        }
+
+        async function migrateUnencryptedNotes(noteIds) {
+            if (!encryptionKey || isGuest || noteIds.length === 0) return;
+            console.log('미암호화 노트 마이그레이션 시작:', noteIds.length + '개');
+            for (const noteId of noteIds) {
+                const note = notes.find(n => n.id === noteId);
+                if (note && note.content) {
+                    const encrypted = await encryptContent(note.content, encryptionKey);
+                    const { error } = await supabase
+                        .from('sticky_notes')
+                        .update({ content: encrypted })
+                        .eq('id', noteId);
+                    if (error) {
+                        console.error('마이그레이션 에러:', noteId, JSON.stringify(error, null, 2));
+                    }
+                }
+            }
+            console.log('미암호화 노트 마이그레이션 완료');
+        }
+
+        function showEncKeyPrompt() {
+            loginContainer.classList.add('hidden');
+            app.classList.add('hidden');
+            document.getElementById('encKeyContainer').style.display = 'flex';
+        }
 
         // ============================================
         // 앱 상태
@@ -1046,9 +1182,16 @@
 
             if (session) {
                 currentUser = session.user;
-                showApp();
-                await loadNotes();
-                setupRealtimeSync();
+                // 암호화 키 로드 시도
+                encryptionKey = await loadEncryptionKeyFromStorage();
+                if (encryptionKey) {
+                    showApp();
+                    await loadNotes();
+                    setupRealtimeSync();
+                } else {
+                    // 비밀번호 재입력 필요
+                    showEncKeyPrompt();
+                }
             } else {
                 // 게스트 모드 확인
                 const guestNotes = localStorage.getItem('sticky_notes_guest');
@@ -1066,12 +1209,17 @@
                 if (event === 'SIGNED_IN' && session) {
                     currentUser = session.user;
                     isGuest = false;
-                    showApp();
-                    loadNotes();
-                    setupRealtimeSync();
+                    if (!isLoginInProgress) {
+                        showApp();
+                        if (encryptionKey) {
+                            loadNotes();
+                            setupRealtimeSync();
+                        }
+                    }
                 } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
                     notes = [];
+                    clearEncryptionKeyStorage();
                     showLogin();
                 }
             });
@@ -1111,6 +1259,7 @@
 
             showLoading();
             loginError.classList.remove('show');
+            isLoginInProgress = true;
 
             try {
                 const email = usernameToEmail(username);
@@ -1125,6 +1274,7 @@
 
                 if (error) {
                     hideLoading();
+                    isLoginInProgress = false;
                     if (error.message.includes('Invalid login credentials')) {
                         showFormError(loginError, '아이디 또는 비밀번호가 올바르지 않습니다');
                     } else {
@@ -1133,7 +1283,16 @@
                     return;
                 }
 
-                // 성공 - onAuthStateChange에서 처리됨
+                // 암호화 키 생성 및 저장
+                encryptionKey = await deriveEncryptionKey(password, username);
+                await saveEncryptionKeyToStorage(encryptionKey);
+                console.log('로그인 시 암호화 키 생성 완료');
+
+                currentUser = data.user;
+                showApp();
+                await loadNotes();
+                setupRealtimeSync();
+                isLoginInProgress = false;
                 hideLoading();
             } catch (err) {
                 console.error('로그인 에러:', err);
@@ -1211,6 +1370,10 @@
 
                 // 바로 로그인 처리
                 if (data.user && data.session) {
+                    // 암호화 키 생성 및 저장
+                    encryptionKey = await deriveEncryptionKey(password, username);
+                    await saveEncryptionKeyToStorage(encryptionKey);
+                    console.log('회원가입 시 암호화 키 생성 완료');
                     showToast('가입이 완료되었습니다!');
                 } else {
                     showToast('가입이 완료되었습니다! 로그인해주세요.');
@@ -1237,6 +1400,7 @@
         logoutBtn.addEventListener('click', async () => {
             console.log('로그아웃');
             userMenu.classList.remove('show');
+            clearEncryptionKeyStorage();
 
             if (isGuest) {
                 isGuest = false;
@@ -1308,8 +1472,29 @@
 
                 console.log('로드된 노트:', data);
                 notes = data || [];
+
+                // 노트 내용 복호화 및 미암호화 노트 추적
+                const unencryptedNoteIds = [];
+                if (encryptionKey) {
+                    for (let i = 0; i < notes.length; i++) {
+                        if (notes[i].content) {
+                            if (notes[i].content.startsWith(ENCRYPTION_PREFIX)) {
+                                notes[i].content = await decryptContent(notes[i].content, encryptionKey);
+                            } else {
+                                unencryptedNoteIds.push(notes[i].id);
+                            }
+                        }
+                    }
+                    console.log('노트 복호화 완료, 미암호화:', unencryptedNoteIds.length + '개');
+                }
+
                 renderNotes();
                 setSyncStatus('synced');
+
+                // 미암호화 노트 백그라운드 마이그레이션
+                if (unencryptedNoteIds.length > 0) {
+                    migrateUnencryptedNotes(unencryptedNoteIds);
+                }
             } catch (error) {
                 console.error('노트 로드 실패:', error);
                 showToast('노트를 불러오는데 실패했습니다');
@@ -1384,9 +1569,16 @@
                 setSyncStatus('syncing');
 
                 try {
+                    // 내용 암호화
+                    const dbUpdates = { ...updates };
+                    if (dbUpdates.content !== undefined && encryptionKey) {
+                        dbUpdates.content = await encryptContent(dbUpdates.content, encryptionKey);
+                        console.log('노트 내용 암호화 완료');
+                    }
+
                     const { error } = await supabase
                         .from('sticky_notes')
-                        .update(updates)
+                        .update(dbUpdates)
                         .eq('id', noteId);
 
                     if (error) throw error;
@@ -1708,8 +1900,13 @@
                         table: 'sticky_notes',
                         filter: `user_id=eq.${currentUser.id}`
                     },
-                    (payload) => {
+                    async (payload) => {
                         console.log('실시간 변경 감지:', payload);
+
+                        // 수신 데이터 복호화
+                        if (payload.new && payload.new.content && encryptionKey) {
+                            payload.new.content = await decryptContent(payload.new.content, encryptionKey);
+                        }
 
                         if (payload.eventType === 'INSERT') {
                             const exists = notes.find(n => n.id === payload.new.id);
@@ -1840,6 +2037,49 @@
                     e.preventDefault();
                     createNote();
                 }
+            }
+        });
+
+        // 비밀번호 확인 폼 (암호화 키 복구)
+        document.getElementById('encKeyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('encKeyPassword').value;
+            const encKeyError = document.getElementById('encKeyError');
+
+            if (!password) {
+                showFormError(encKeyError, '비밀번호를 입력해주세요');
+                return;
+            }
+
+            showLoading();
+            try {
+                // 비밀번호 검증 (Supabase 재인증)
+                const username = currentUser.email.replace(EMAIL_DOMAIN, '');
+                const { error } = await supabase.auth.signInWithPassword({
+                    email: currentUser.email,
+                    password: password
+                });
+
+                if (error) {
+                    hideLoading();
+                    showFormError(encKeyError, '비밀번호가 올바르지 않습니다');
+                    return;
+                }
+
+                // 암호화 키 생성 및 저장
+                encryptionKey = await deriveEncryptionKey(password, username);
+                await saveEncryptionKeyToStorage(encryptionKey);
+                console.log('비밀번호 확인 후 암호화 키 복구 완료');
+
+                document.getElementById('encKeyContainer').style.display = 'none';
+                showApp();
+                await loadNotes();
+                setupRealtimeSync();
+                hideLoading();
+            } catch (err) {
+                console.error('암호화 키 복구 에러:', err);
+                hideLoading();
+                showFormError(encKeyError, '오류가 발생했습니다');
             }
         });
 
