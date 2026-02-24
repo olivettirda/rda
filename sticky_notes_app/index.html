@@ -2512,7 +2512,67 @@
         <div class="loading-spinner"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Supabase CDN 로드 실패 대비: 오류 핸들러를 먼저 정의 -->
+    <script>
+        // ============================================
+        // Supabase CDN 로드 실패 처리 (부팅 시 네트워크 미연결 대응)
+        // ============================================
+        var supabaseCdnRetryCount = 0;
+        var SUPABASE_CDN_MAX_RETRIES = 10;
+        var SUPABASE_CDN_RETRY_DELAY = 3000;
+        var SUPABASE_CDN_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+
+        function handleSupabaseLoadError() {
+            supabaseCdnRetryCount++;
+            console.error('Supabase CDN 로드 실패 (시도 ' + supabaseCdnRetryCount + '/' + SUPABASE_CDN_MAX_RETRIES + ')');
+
+            if (supabaseCdnRetryCount <= SUPABASE_CDN_MAX_RETRIES) {
+                console.log('Supabase CDN 재로드 예약: ' + SUPABASE_CDN_RETRY_DELAY + 'ms 후');
+                setTimeout(function() {
+                    console.log('Supabase CDN 재로드 시도:', supabaseCdnRetryCount);
+                    var script = document.createElement('script');
+                    script.src = SUPABASE_CDN_URL + '?retry=' + supabaseCdnRetryCount;
+                    script.onerror = handleSupabaseLoadError;
+                    script.onload = function() {
+                        console.log('Supabase CDN 재로드 성공 (시도 ' + supabaseCdnRetryCount + ')');
+                        // CDN 복구 후 Supabase 초기화 및 앱 재시작
+                        if (typeof initializeSupabase === 'function') {
+                            initializeSupabase();
+                        }
+                        if (typeof init === 'function' && typeof supabaseClient !== 'undefined' && supabaseClient) {
+                            init();
+                        }
+                    };
+                    document.head.appendChild(script);
+                }, SUPABASE_CDN_RETRY_DELAY);
+            } else {
+                console.error('Supabase CDN 로드 최대 재시도 초과 - 오프라인 상태 표시');
+                showOfflineMessage();
+            }
+        }
+
+        function showOfflineMessage() {
+            // 네트워크 연결 실패 시 사용자에게 안내
+            var overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.classList.remove('hidden');
+                overlay.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">' +
+                    '<div style="font-size:48px;margin-bottom:16px;">&#127760;</div>' +
+                    '<div style="font-size:16px;font-weight:bold;margin-bottom:8px;">네트워크 연결을 확인해주세요</div>' +
+                    '<div style="font-size:14px;margin-bottom:16px;">인터넷 연결 후 자동으로 재시도합니다</div>' +
+                    '<button onclick="location.reload()" style="padding:8px 24px;border:1px solid #017f97;background:#017f97;color:white;border-radius:6px;cursor:pointer;font-size:14px;">다시 시도</button>' +
+                    '</div>';
+            }
+
+            // 온라인 복구 시 자동 새로고침
+            window.addEventListener('online', function onBackOnline() {
+                console.log('네트워크 복구 감지 - 페이지 새로고침');
+                window.removeEventListener('online', onBackOnline);
+                location.reload();
+            });
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="handleSupabaseLoadError()"></script>
     <script>
         // ============================================
         // 앱 버전 정보
@@ -2530,12 +2590,22 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZnZzaGF2bmlvbWZ5a3ZxbndtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNTMzMjMsImV4cCI6MjA4MzcyOTMyM30.HfZudwH6vKbsukg_K3wZGxQ1oEiEvJ1kGoxPnp1-2FA';
 
         let supabaseClient = null;
-        try {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log('Supabase 초기화 성공');
-        } catch (e) {
-            console.error('Supabase 초기화 실패:', e);
+
+        function initializeSupabase() {
+            if (supabaseClient) return; // 이미 초기화됨
+            try {
+                if (window.supabase) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log('Supabase 초기화 성공');
+                } else {
+                    console.warn('Supabase CDN 미로드 - 초기화 대기');
+                }
+            } catch (e) {
+                console.error('Supabase 초기화 실패:', e);
+            }
         }
+
+        initializeSupabase();
 
         // ============================================
         // 클라이언트 사이드 암호화 (E2EE)
@@ -2715,6 +2785,13 @@
 
             // 게스트 버튼
             document.getElementById('guestBtn').addEventListener('click', handleGuest);
+
+            // Supabase 미로드 시 (네트워크 미연결) 안내
+            if (!supabaseClient) {
+                console.warn('Supabase 미초기화 - 네트워크 미연결 상태');
+                showOfflineMessage();
+                return;
+            }
 
             // 세션 확인
             if (supabaseClient) {

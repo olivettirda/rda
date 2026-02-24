@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, globalShortcut, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -362,8 +362,34 @@ function createWindow() {
         }
     });
 
+    // 페이지 로드 실패 시 재시도 (부팅 시 네트워크 미연결 대응)
+    let loadRetryCount = 0;
+    const MAX_LOAD_RETRIES = 10;
+    const RETRY_DELAY_MS = 3000;
+
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        console.log('페이지 로드 실패:', { errorCode, errorDescription, validatedURL, retryCount: loadRetryCount });
+
+        // ERR_INTERNET_DISCONNECTED, ERR_NAME_NOT_RESOLVED, ERR_NETWORK_CHANGED 등
+        if (loadRetryCount < MAX_LOAD_RETRIES) {
+            loadRetryCount++;
+            console.log(`페이지 재로드 예약 (${loadRetryCount}/${MAX_LOAD_RETRIES}) - ${RETRY_DELAY_MS}ms 후`);
+            setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    console.log('페이지 재로드 시도:', loadRetryCount);
+                    mainWindow.loadFile('index.html');
+                }
+            }, RETRY_DELAY_MS);
+        } else {
+            console.error('페이지 로드 최대 재시도 횟수 초과');
+        }
+    });
+
     // 창이 준비되면 저장된 자격 증명 전송
     mainWindow.webContents.on('did-finish-load', () => {
+        console.log('페이지 로드 완료 (재시도 횟수:', loadRetryCount + ')');
+        loadRetryCount = 0; // 성공 시 재시도 카운트 초기화
+
         const credentials = loadCredentials();
         if (credentials && credentials.autoLogin) {
             mainWindow.webContents.send('auto-login', credentials);
@@ -405,8 +431,40 @@ function createTray() {
     });
 }
 
+// 네트워크 연결 대기 (부팅 시 자동실행 대응)
+function waitForNetwork(timeoutMs = 30000) {
+    return new Promise((resolve) => {
+        if (net.isOnline()) {
+            console.log('네트워크 연결 확인됨 (즉시)');
+            resolve(true);
+            return;
+        }
+
+        console.log('네트워크 미연결 - 연결 대기 시작');
+        const startTime = Date.now();
+        const checkInterval = setInterval(() => {
+            if (net.isOnline()) {
+                clearInterval(checkInterval);
+                console.log('네트워크 연결 확인됨 (' + (Date.now() - startTime) + 'ms 대기)');
+                resolve(true);
+            } else if (Date.now() - startTime > timeoutMs) {
+                clearInterval(checkInterval);
+                console.log('네트워크 연결 대기 타임아웃 (' + timeoutMs + 'ms) - 오프라인 상태로 시작');
+                resolve(false);
+            }
+        }, 1000);
+    });
+}
+
 // 앱 준비 완료
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+    // 부팅 시 자동실행인 경우 네트워크 연결 대기
+    const credentials = loadCredentials();
+    if (credentials && credentials.autoLogin) {
+        console.log('자동 로그인 모드 - 네트워크 연결 대기');
+        await waitForNetwork(30000);
+    }
+
     createWindow();
     createTray();
 
