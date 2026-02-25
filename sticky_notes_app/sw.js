@@ -1,5 +1,5 @@
 // 스티키 노트 서비스 워커
-const CACHE_NAME = 'sticky-notes-v14';
+const CACHE_NAME = 'sticky-notes-v15';
 const urlsToCache = [
   './stickynote.html',
   './assets/icon.png',
@@ -55,20 +55,35 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML 파일은 항상 네트워크 우선 (업데이트 즉시 반영)
+  // HTML 파일은 네트워크 우선, 실패/404 시 캐시 폴백
   if (event.request.url.includes('.html')) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // 네트워크 응답을 캐시에 저장
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
+          // 200 OK 응답만 캐시에 저장 (404 등 에러 응답은 캐시하지 않음)
+          if (response.ok) {
+            console.log('[SW] HTML 네트워크 성공, 캐시 업데이트:', event.request.url);
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+            return response;
+          }
+          // 404 등 에러 응답이면 캐시에서 반환 시도
+          console.log('[SW] HTML 네트워크 응답 에러 (status:', response.status, '), 캐시 폴백 시도:', event.request.url);
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              console.log('[SW] 캐시에서 HTML 반환 성공:', event.request.url);
+              return cachedResponse;
+            }
+            // 캐시에도 없으면 원래 에러 응답 반환
+            console.log('[SW] 캐시에도 없음, 에러 응답 그대로 반환:', event.request.url);
+            return response;
           });
-          return response;
         })
         .catch(() => {
-          // 네트워크 실패 시 캐시에서 반환
+          // 네트워크 완전 실패 시 캐시에서 반환
+          console.log('[SW] HTML 네트워크 실패, 캐시 폴백:', event.request.url);
           return caches.match(event.request);
         })
     );
