@@ -1,5 +1,5 @@
 // 스티키 노트 Service Worker
-const CACHE_NAME = 'sticky-notes-v1';
+const CACHE_NAME = 'sticky-notes-v2';
 const OFFLINE_URL = 'sticky_notes.html';
 
 // 캐시할 파일들
@@ -14,16 +14,30 @@ const CACHE_FILES = [
 // 설치 이벤트
 self.addEventListener('install', (event) => {
     console.log('[SW] 설치 중...');
+    self.skipWaiting();
 
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then((cache) => {
+            .then(async (cache) => {
                 console.log('[SW] 캐시 저장 중...');
-                return cache.addAll(CACHE_FILES);
+                // 각 리소스를 개별적으로 캐시 (하나가 실패해도 나머지는 캐시됨)
+                const cachePromises = CACHE_FILES.map(async (url) => {
+                    try {
+                        const response = await fetch(url);
+                        if (response.ok) {
+                            await cache.put(url, response);
+                            console.log('[SW] 캐시 성공:', url);
+                        } else {
+                            console.log('[SW] 캐시 건너뜀 (status:', response.status, '):', url);
+                        }
+                    } catch (err) {
+                        console.log('[SW] 캐시 실패:', url, err);
+                    }
+                });
+                return Promise.all(cachePromises);
             })
             .then(() => {
                 console.log('[SW] 설치 완료');
-                return self.skipWaiting();
             })
             .catch((error) => {
                 console.error('[SW] 캐시 저장 실패:', error);
@@ -77,6 +91,42 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // HTML 요청은 네트워크 우선, 404 시 캐시 폴백
+    if (request.headers.get('accept') && request.headers.get('accept').includes('text/html')) {
+        event.respondWith(
+            fetch(request)
+                .then((response) => {
+                    if (response.ok) {
+                        // 200 OK만 캐시에 저장
+                        console.log('[SW] HTML 네트워크 성공, 캐시 업데이트:', request.url);
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
+                            cache.put(request, responseToCache);
+                        });
+                        return response;
+                    }
+                    // 404 등 에러 응답이면 캐시에서 반환 시도
+                    console.log('[SW] HTML 에러 응답 (status:', response.status, '), 캐시 폴백 시도:', request.url);
+                    return caches.match(request).then((cachedResponse) => {
+                        if (cachedResponse) {
+                            console.log('[SW] 캐시에서 HTML 반환 성공:', request.url);
+                            return cachedResponse;
+                        }
+                        return caches.match(OFFLINE_URL).then((offlineResponse) => {
+                            return offlineResponse || response;
+                        });
+                    });
+                })
+                .catch(() => {
+                    console.log('[SW] HTML 네트워크 실패, 캐시 폴백:', request.url);
+                    return caches.match(request).then((cachedResponse) => {
+                        return cachedResponse || caches.match(OFFLINE_URL);
+                    });
+                })
+        );
+        return;
+    }
+
     // 그 외 요청은 캐시 우선, 네트워크 폴백
     event.respondWith(
         caches.match(request)
@@ -100,10 +150,8 @@ self.addEventListener('fetch', (event) => {
                         return response;
                     })
                     .catch(() => {
-                        // HTML 요청인 경우 오프라인 페이지 반환
-                        if (request.headers.get('accept').includes('text/html')) {
-                            return caches.match(OFFLINE_URL);
-                        }
+                        console.log('[SW] 네트워크 실패:', request.url);
+                        return new Response('오프라인 상태입니다', { status: 503 });
                     });
             })
     );
