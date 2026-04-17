@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="gene_metadata_layer.js"></script>
+    <script src="demo_data_miryang.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -285,6 +286,20 @@
         <div class="result-card" style="background: linear-gradient(135deg, #0c3026 0%, #017f97 100%); color: white;">
             <h3 style="color: white;">📋 데이터 입력 양식</h3>
             <button class="btn" onclick="downloadTemplate()" style="background: white; color: #0c3026; margin-top: 10px;">📥 엑셀 양식 다운로드</button>
+        </div>
+
+        <!-- 데모 데이터 (밀양 육성 품종) -->
+        <div class="result-card" style="background: linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%); color: white;">
+            <h3 style="color: white;">🌾 밀양 육성 품종 데모 데이터</h3>
+            <p style="opacity:0.95; margin:6px 0 10px; font-size:0.9em;">
+                자포니카 중만생(영호진미·미소진품), 조생(해담쌀·늘담·윤담), 찰벼(백옥찰·wx),
+                반찰(백진주·Wx-mq), 통일계열 Wxa(다산·금강1호·새고아미·새미면) 총 <strong>11품종</strong>.
+                전 12염색체에 걸친 유명 벼 유전자 <strong>31개</strong>(sd1·Wx·Hd1·Pi-ta·Xa21 등) + 표현형 9개.
+            </p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="btn" onclick="loadMiryangDemoData()" style="background:white; color:#2e7d32;">🚀 데모 데이터 로드 (즉시)</button>
+                <button class="btn btn-sm" onclick="DemoMiryang.toExcel()" style="background:rgba(255,255,255,0.25); color:white;">📥 엑셀로 받기</button>
+            </div>
         </div>
         <div class="upload-area" id="uploadArea">
             <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
@@ -12303,6 +12318,52 @@ async function grbClearCache() {
     document.getElementById('grbExportBtn').disabled = true;
     grbRefreshStats();
     alert('캐시가 삭제되었습니다.');
+}
+
+// ==================== 🌾 밀양 데모 데이터 로드 ====================
+function loadMiryangDemoData() {
+    if (!window.DemoMiryang) {
+        alert('DemoMiryang 모듈이 로드되지 않았습니다. 페이지 새로고침 후 다시 시도하세요.');
+        return;
+    }
+    if (dataLoaded) {
+        if (!confirm('이미 데이터가 로드되어 있습니다. 밀양 데모 데이터로 덮어쓸까요?')) return;
+    }
+    console.log('밀양 데모 데이터 로드 시작');
+    const bundle = window.DemoMiryang.build();
+
+    // let 선언 변수이므로 메인 스크립트에서 직접 할당
+    varietyInfoData = bundle.varietyInfo;
+    genotypeData = bundle.genotype;
+    phenotypeData = bundle.phenotype;
+    linkageData = bundle.linkage;
+
+    // 기존 DB 증강 (마커 위치 + 형질-유전자 매핑)
+    for (const [name, pos] of Object.entries(bundle.markerPositionMap)) {
+        defaultMarkerPositions[name] = pos;
+    }
+    for (const [trait, genes] of Object.entries(bundle.traitGeneMap)) {
+        if (!traitGeneDatabase[trait]) {
+            traitGeneDatabase[trait] = { genes: [], description: `데모: ${trait}` };
+        }
+        const existing = new Set(traitGeneDatabase[trait].genes || []);
+        for (const g of genes) existing.add(g);
+        traitGeneDatabase[trait].genes = Array.from(existing);
+    }
+
+    console.log('밀양 데모 주입 완료:', JSON.stringify({
+        varieties: varietyInfoData.length,
+        genotypeRows: genotypeData.length,
+        phenotypeRows: phenotypeData.length,
+        markers: linkageData.length,
+        markerPositionMapKeys: Object.keys(defaultMarkerPositions).length
+    }, null, 2));
+
+    // 시뮬레이터 후처리 파이프라인 실행 (processData가 varietyNames/geneNames 등 구축)
+    processData();
+
+    log('🌾 밀양 육성 품종 데모 데이터 로드 완료 (11품종, 31유전자, 전 12염색체)', 'success');
+    alert('🌾 밀양 데모 데이터 로드 완료!\n\n11품종 × 31유전자 × 9표현형이 시뮬레이터에 주입되었습니다.\n이제 모든 탭에서 분석·시뮬레이션을 시험해볼 수 있습니다.');
 }
 
 // ==================== 🎨 염색체 페인팅 (Tab 16) ====================
