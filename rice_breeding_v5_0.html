@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="gene_metadata_layer.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -275,6 +276,7 @@
         <button class="tab new-feature" onclick="switchTab(12)">📊 SHAP 해석</button>
         <button class="tab new-feature" onclick="switchTab(13)">🌍 환경 데이터</button>
         <button class="tab new-feature" onclick="switchTab(14)">🤖 RL 교배 전략</button>
+        <button class="tab new-feature" onclick="switchTab(15)">🔬 연구 브라우저</button>
     </div>
     <!-- Tab 0: 데이터 업로드 -->
     <div class="tab-content active">
@@ -1535,6 +1537,58 @@
             <div id="rlQTablePlot" style="width: 100%; height: 400px;"></div>
         </div>
     </div>
+
+    <!-- Tab 15: 연구 브라우저 -->
+    <div class="tab-content">
+        <div class="info-box success">
+            <h3>🔬 유전자 연구 브라우저 (v5.0 신기능)</h3>
+            <p>Europe PMC · NCBI · UniProt 에서 실시간으로 유전자 관련 논문/기능 정보를 불러오고 IndexedDB에 캐싱합니다. 한 번 조회한 유전자는 오프라인에서도 즉시 조회 가능합니다.</p>
+        </div>
+
+        <!-- 단일 검색 -->
+        <div class="result-card">
+            <h3>🔎 유전자 단일 조회</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:10px;">심볼(예: <code>sd1</code>, <code>Xa21</code>, <code>Hd1</code>), RAP ID, 또는 MSU ID 입력</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <input type="text" id="grbSingleInput" placeholder="예: sd1" style="flex:1; min-width:200px; padding:10px; border:1px solid var(--dmrt-border); border-radius:8px; font-size:1em;" onkeydown="if(event.key==='Enter') grbSingleSearch()">
+                <button class="btn" onclick="grbSingleSearch()">조회</button>
+                <button class="btn btn-secondary" onclick="grbSingleSearch(true)">강제 재조회</button>
+            </div>
+            <div id="grbSingleResult" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- 배치 조회 -->
+        <div class="result-card">
+            <h3>📚 배치 조회 (여러 유전자)</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:10px;">한 줄에 하나씩 심볼을 입력하거나 쉼표로 구분. 최대 30개 권장 (Europe PMC + NCBI 호출).</p>
+            <textarea id="grbBatchInput" rows="6" style="width:100%; padding:10px; border:1px solid var(--dmrt-border); border-radius:8px; font-family:monospace; font-size:0.9em;" placeholder="sd1&#10;Wx&#10;Hd1&#10;Xa21&#10;Pi-ta"></textarea>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+                <button class="btn" onclick="grbBatchSearch()">🚀 배치 조회</button>
+                <button class="btn btn-success" onclick="grbExportExcel()" id="grbExportBtn" disabled>📥 결과 Excel 내보내기</button>
+                <span id="grbBatchProgress" style="font-size:0.85em; color:#666;"></span>
+            </div>
+            <div id="grbBatchResult" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- 캐시 검색 -->
+        <div class="result-card">
+            <h3>🗄️ 캐시 내 키워드 검색</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:10px;">이미 조회한 유전자 중에서 키워드(형질·기능·논문 제목)로 검색.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <input type="text" id="grbCacheQuery" placeholder="예: drought, semi-dwarf, blast" style="flex:1; min-width:200px; padding:10px; border:1px solid var(--dmrt-border); border-radius:8px;" onkeydown="if(event.key==='Enter') grbCacheSearch()">
+                <button class="btn btn-warning" onclick="grbCacheSearch()">검색</button>
+            </div>
+            <div id="grbCacheResult" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- 캐시 관리 -->
+        <div class="result-card">
+            <h3>⚙️ 캐시 관리</h3>
+            <div id="grbStats" style="margin-bottom:10px; font-size:0.9em;"></div>
+            <button class="btn btn-sm" onclick="grbRefreshStats()">📊 통계 새로고침</button>
+            <button class="btn btn-sm btn-warning" onclick="grbClearCache()">🗑️ 전체 캐시 삭제</button>
+        </div>
+    </div>
 </div>
 <script>
 // ==================== 전역 변수 ====================
@@ -1857,7 +1911,7 @@ function createGeneInfoPopup(geneName) {
     const pos = defaultMarkerPositions[geneName];
     const detail = geneDetailDatabase[geneName];
 
-    if (!pos && !detail) return `<div class="gene-popup">유전자 정보를 찾을 수 없습니다.</div>`;
+    // 로컬 DB에 없어도 팝업을 띄우고 외부 메타데이터로 보강 (v5.0 연구 레이어)
 
     // 관련 형질 찾기
     const relatedTraits = [];
@@ -1868,7 +1922,7 @@ function createGeneInfoPopup(geneName) {
     }
 
     return `
-        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; width: 480px; max-width: 95vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${geneName}</h4>
                 <button onclick="closeGenePopup()" style="background: none; border: none; font-size: 1.2em; cursor: pointer;">✕</button>
@@ -1893,6 +1947,17 @@ function createGeneInfoPopup(geneName) {
                     </div>
                 </div>
             ` : ''}
+            <div id="geneMetaSection-${geneName}" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--dmrt-border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <strong>📚 관련 연구</strong>
+                    <button class="btn btn-sm btn-secondary" onclick="loadGeneMetadata('${geneName}', true)" style="font-size:0.75em; padding:3px 8px;">🔄</button>
+                </div>
+                <div id="geneMetaContent-${geneName}" style="font-size: 0.85em; color: var(--dmrt-text-light);">
+                    <span style="display:inline-flex; align-items:center; gap:6px;">
+                        <span class="spinner" style="width:12px; height:12px; border-width:2px;"></span> 연구 결과 불러오는 중...
+                    </span>
+                </div>
+            </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
                 ${pos ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=Os${String(pos.chr).padStart(2,'0')}g${String(Math.floor(pos.start_bp/10000)).padStart(7,'0')}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
                 <a href="https://funricegenes.github.io/genes/${geneName}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
@@ -1957,6 +2022,11 @@ function showGeneInfoPopup(geneName, x, y) {
     currentPopup = popup;
 
     log(`유전자 정보 조회: ${geneName}`, 'info');
+
+    // 연구 결과는 lazy-load (팝업 렌더 직후 비동기 조회)
+    if (window.GeneMetadata) {
+        loadGeneMetadata(geneName, false);
+    }
 }
 
 function closeGenePopup() {
@@ -1964,6 +2034,102 @@ function closeGenePopup() {
         currentPopup.remove();
         currentPopup = null;
     }
+}
+
+// 유전자 메타데이터 fetch 후 팝업 내 섹션 렌더
+async function loadGeneMetadata(geneName, bypassCache) {
+    const container = document.getElementById(`geneMetaContent-${geneName}`);
+    if (!container) {
+        console.log('loadGeneMetadata: 컨테이너 없음 (팝업 닫힘?)', geneName);
+        return;
+    }
+    if (!window.GeneMetadata) {
+        container.innerHTML = '<span style="color:#999;">메타데이터 모듈 미로드</span>';
+        return;
+    }
+    container.innerHTML = `<span style="display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:12px; height:12px; border-width:2px;"></span> ${bypassCache ? '재조회 중...' : '연구 결과 불러오는 중...'}</span>`;
+
+    try {
+        console.log('유전자 메타데이터 요청:', geneName, '(bypass:', !!bypassCache, ')');
+        const meta = await window.GeneMetadata.get(geneName, { bypassCache: !!bypassCache });
+        console.log('메타데이터 수신:', JSON.stringify({
+            symbol: meta.symbol,
+            sources: meta.sources,
+            pubCount: meta.publications?.length || 0,
+            traits: meta.traits,
+            evidence: meta.evidence
+        }, null, 2));
+        container.innerHTML = renderGeneMetaHTML(meta);
+    } catch (err) {
+        console.error('메타데이터 에러:', JSON.stringify({ geneName, message: err.message }, null, 2));
+        container.innerHTML = `<span style="color:var(--dmrt-danger);">조회 실패: ${err.message}</span>`;
+    }
+}
+
+function renderGeneMetaHTML(meta) {
+    if (!meta) return '<span style="color:#999;">결과 없음</span>';
+    const pubs = meta.publications || [];
+    const ev = meta.evidence || { level: 'unknown', tags: [] };
+
+    const evColor = { strong: '#00b894', moderate: '#fdcb6e', weak: '#b2bec3', unknown: '#dfe6e9' }[ev.level] || '#dfe6e9';
+    const evLabel = { strong: '강', moderate: '중', weak: '약', unknown: '?' }[ev.level] || '?';
+
+    const summaryBlock = meta.summary
+        ? `<div style="margin-bottom:8px; padding:8px; background:var(--dmrt-bg-light); border-radius:6px; line-height:1.4;">
+             ${escapeHTML(meta.summary.substring(0, 280))}${meta.summary.length > 280 ? '…' : ''}
+           </div>`
+        : '';
+
+    const tagsBlock = ev.tags && ev.tags.length
+        ? `<div style="margin-bottom:8px;">
+             <span style="display:inline-block; background:${evColor}; color:#fff; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:600; margin-right:4px;">증거 ${evLabel}</span>
+             ${ev.tags.map(t => `<span style="display:inline-block; background:#fff; border:1px solid var(--dmrt-border); color:var(--dmrt-text); padding:2px 8px; border-radius:10px; font-size:0.75em; margin-right:3px;">${t}</span>`).join('')}
+           </div>`
+        : '';
+
+    const traitsBlock = meta.traits && meta.traits.length
+        ? `<div style="margin-bottom:8px; font-size:0.85em;">
+             <strong>자동 태깅 형질:</strong> ${meta.traits.map(t => `<span class="gene-chip" style="margin:0 2px;">${t}</span>`).join('')}
+           </div>`
+        : '';
+
+    const pubList = pubs.slice(0, 5).map(p => {
+        const link = p.pmid
+            ? `https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/`
+            : p.doi
+            ? `https://doi.org/${p.doi}`
+            : `https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`;
+        const authors = (p.authors || '').split(',').slice(0, 3).join(',') + ((p.authors || '').split(',').length > 3 ? ' et al.' : '');
+        const absSnippet = (p.abstract || '').substring(0, 180);
+        const pevTags = (p.evidence && p.evidence.tags || []).slice(0, 2).map(t => `<span style="background:#eef; color:#335; padding:1px 5px; border-radius:4px; font-size:0.7em; margin-left:3px;">${t}</span>`).join('');
+        return `
+            <li style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted var(--dmrt-border); list-style:none;">
+                <div style="font-weight:500;">
+                    <a href="${link}" target="_blank" style="color:var(--dmrt-secondary); text-decoration:none;">${escapeHTML(p.title || '(제목 없음)')}</a>
+                    ${pevTags}
+                </div>
+                <div style="font-size:0.8em; color:var(--dmrt-text-light); margin-top:2px;">
+                    ${escapeHTML(authors)} · ${escapeHTML(p.journal || '')} ${p.year ? `(${p.year})` : ''} ${p.citedByCount ? `· 인용 ${p.citedByCount}` : ''}
+                </div>
+                ${absSnippet ? `<div style="font-size:0.8em; color:#666; margin-top:3px; line-height:1.4;">${escapeHTML(absSnippet)}${p.abstract.length > 180 ? '…' : ''}</div>` : ''}
+            </li>`;
+    }).join('');
+
+    const pubBlock = pubs.length
+        ? `<ul style="padding:0; margin:0;">${pubList}</ul>
+           ${pubs.length > 5 ? `<div style="font-size:0.8em; color:#888; margin-top:4px;">+ ${pubs.length - 5}편 더</div>` : ''}`
+        : '<div style="color:#999; font-style:italic;">Europe PMC / NCBI에서 관련 논문을 찾지 못했습니다.</div>';
+
+    const sourceBlock = meta.sources && meta.sources.length
+        ? `<div style="font-size:0.7em; color:#aaa; margin-top:6px; text-align:right;">출처: ${meta.sources.join(' + ')}</div>`
+        : '';
+
+    return summaryBlock + tagsBlock + traitsBlock + pubBlock + sourceBlock;
+}
+
+function escapeHTML(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // ==================== UI 연결 함수 ====================
@@ -2373,6 +2539,7 @@ function switchTab(idx) {
             if (dataLoaded) generateAllVisualizations();
         }, 100);
     }
+    if (idx === 15) grbRefreshStats(); // 연구 브라우저 탭 진입 시 통계 업데이트
 }
 
 // URL 해시 기반 탭 전환 (프레젠테이션 시스템 연동용)
@@ -11856,6 +12023,214 @@ function saveRLPolicy() {
     const blob = new Blob([JSON.stringify(policy, null, 2)], { type: 'application/json' });
     saveAs(blob, `RL_정책_${new Date().toISOString().slice(0, 10)}.json`);
     log('💾 RL 정책 저장 완료', 'success');
+}
+
+// ==================== 유전자 연구 브라우저 (Tab 15) ====================
+
+let _grbBatchResults = []; // 최근 배치 조회 결과 (Excel 내보내기용)
+
+async function grbSingleSearch(bypassCache) {
+    const input = document.getElementById('grbSingleInput');
+    const result = document.getElementById('grbSingleResult');
+    const symbol = (input.value || '').trim();
+    if (!symbol) { result.innerHTML = '<span style="color:#e74c3c;">유전자 심볼을 입력하세요.</span>'; return; }
+    if (!window.GeneMetadata) { result.innerHTML = '<span style="color:#e74c3c;">메타데이터 모듈 미로드</span>'; return; }
+
+    result.innerHTML = `<div class="spinner"></div> 조회 중...`;
+    console.log('단일 조회 요청:', JSON.stringify({ symbol, bypassCache: !!bypassCache }));
+    try {
+        const meta = await window.GeneMetadata.get(symbol, { bypassCache: !!bypassCache });
+        console.log('단일 조회 결과:', JSON.stringify({ symbol: meta.symbol, pubs: meta.publications.length, traits: meta.traits, sources: meta.sources }, null, 2));
+        result.innerHTML = `
+            <div style="background:white; border:1px solid var(--dmrt-border); border-radius:8px; padding:16px;">
+                <h4 style="color:var(--dmrt-primary); margin-top:0;">🧬 ${escapeHTML(meta.symbol)}</h4>
+                ${meta.proteinName ? `<p style="color:var(--dmrt-secondary); font-weight:500;">${escapeHTML(meta.proteinName)}</p>` : ''}
+                ${renderGeneMetaHTML(meta)}
+            </div>`;
+    } catch (e) {
+        console.error('단일 조회 실패:', JSON.stringify({ symbol, message: e.message }, null, 2));
+        result.innerHTML = `<span style="color:var(--dmrt-danger);">조회 실패: ${e.message}</span>`;
+    }
+}
+
+async function grbBatchSearch() {
+    const input = document.getElementById('grbBatchInput');
+    const result = document.getElementById('grbBatchResult');
+    const progress = document.getElementById('grbBatchProgress');
+    const exportBtn = document.getElementById('grbExportBtn');
+    const raw = input.value || '';
+    const symbols = raw.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+    console.log('배치 조회 요청:', JSON.stringify({ count: symbols.length, symbols }));
+
+    if (!symbols.length) { result.innerHTML = '<span style="color:#e74c3c;">유전자 심볼을 한 줄에 하나씩 입력하세요.</span>'; return; }
+    if (symbols.length > 50) { result.innerHTML = '<span style="color:#e74c3c;">최대 50개까지만 지원합니다.</span>'; return; }
+    if (!window.GeneMetadata) { result.innerHTML = '<span style="color:#e74c3c;">메타데이터 모듈 미로드</span>'; return; }
+
+    exportBtn.disabled = true;
+    result.innerHTML = `<div class="spinner"></div> 배치 조회 중... (처음 조회하는 유전자는 수 초 소요)`;
+    progress.textContent = `0 / ${symbols.length}`;
+
+    try {
+        const results = await window.GeneMetadata.batchLookup(symbols, {
+            concurrency: 3,
+            onProgress: (done, total, sym) => {
+                progress.textContent = `${done} / ${total} (최근: ${sym})`;
+            }
+        });
+        _grbBatchResults = results;
+        console.log('배치 조회 완료:', JSON.stringify({ total: results.length, withPubs: results.filter(r => r.publications && r.publications.length).length }));
+
+        const rows = results.map(r => {
+            if (r.error) {
+                return `<tr><td><strong>${escapeHTML(r.symbol)}</strong></td><td colspan="5" style="color:var(--dmrt-danger);">${escapeHTML(r.error)}</td></tr>`;
+            }
+            const pubCount = r.publications?.length || 0;
+            const latestYear = r.publications?.reduce((m, p) => Math.max(m, p.year || 0), 0) || '';
+            const topCite = r.publications?.reduce((m, p) => Math.max(m, p.citedByCount || 0), 0) || 0;
+            const evLevel = r.evidence?.level || 'unknown';
+            const evColor = { strong: '#00b894', moderate: '#fdcb6e', weak: '#b2bec3', unknown: '#dfe6e9' }[evLevel];
+            return `
+                <tr>
+                    <td><strong style="cursor:pointer; color:var(--dmrt-secondary);" onclick="grbShowDetail('${escapeHTML(r.symbol)}')">${escapeHTML(r.symbol)}</strong></td>
+                    <td>${pubCount}</td>
+                    <td>${latestYear || '-'}</td>
+                    <td>${topCite}</td>
+                    <td>${(r.traits || []).map(t => `<span class="gene-chip">${t}</span>`).join(' ') || '-'}</td>
+                    <td><span style="background:${evColor}; color:#fff; padding:2px 8px; border-radius:10px; font-size:0.75em;">${evLevel}</span></td>
+                </tr>`;
+        }).join('');
+
+        result.innerHTML = `
+            <table class="data-table">
+                <thead><tr><th>유전자</th><th>논문수</th><th>최근 연도</th><th>최다 인용</th><th>자동 태깅 형질</th><th>증거</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div id="grbDetailSlot" style="margin-top:15px;"></div>`;
+        progress.textContent = `완료: ${results.length}개`;
+        exportBtn.disabled = false;
+    } catch (e) {
+        console.error('배치 조회 에러:', JSON.stringify({ message: e.message }, null, 2));
+        result.innerHTML = `<span style="color:var(--dmrt-danger);">배치 조회 실패: ${e.message}</span>`;
+    }
+}
+
+function grbShowDetail(symbol) {
+    console.log('상세 보기:', symbol);
+    const meta = _grbBatchResults.find(r => r.symbol === symbol || (r.symbol && r.symbol.toLowerCase() === symbol.toLowerCase()));
+    const slot = document.getElementById('grbDetailSlot');
+    if (!slot) return;
+    if (!meta || meta.error) { slot.innerHTML = `<span style="color:#999;">${symbol} 상세 정보 없음</span>`; return; }
+    slot.innerHTML = `
+        <div style="background:white; border:2px solid var(--dmrt-secondary); border-radius:8px; padding:16px;">
+            <h4 style="color:var(--dmrt-primary); margin-top:0;">🧬 ${escapeHTML(meta.symbol)} ${meta.proteinName ? `<small style="color:#666; font-weight:normal;">- ${escapeHTML(meta.proteinName)}</small>` : ''}</h4>
+            ${renderGeneMetaHTML(meta)}
+        </div>`;
+    slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function grbExportExcel() {
+    if (!_grbBatchResults.length) { alert('먼저 배치 조회를 실행하세요.'); return; }
+    console.log('Excel 내보내기 시작:', _grbBatchResults.length);
+
+    const sheetGenes = _grbBatchResults.map(r => ({
+        '심볼': r.symbol,
+        '단백질명': r.proteinName || '',
+        '요약': (r.summary || '').substring(0, 500),
+        '논문수': r.publications?.length || 0,
+        '최근연도': r.publications?.reduce((m, p) => Math.max(m, p.year || 0), 0) || '',
+        '최다인용': r.publications?.reduce((m, p) => Math.max(m, p.citedByCount || 0), 0) || 0,
+        '자동태깅형질': (r.traits || []).join(', '),
+        '증거수준': r.evidence?.level || '',
+        '증거태그': (r.evidence?.tags || []).join(', '),
+        'NCBI_ID': r.ncbiId || '',
+        '출처': (r.sources || []).join('+'),
+        '에러': r.error || ''
+    }));
+
+    const sheetPubs = [];
+    for (const r of _grbBatchResults) {
+        for (const p of (r.publications || [])) {
+            sheetPubs.push({
+                '심볼': r.symbol,
+                'PMID': p.pmid || '',
+                'DOI': p.doi || '',
+                '제목': p.title || '',
+                '저자': p.authors || '',
+                '저널': p.journal || '',
+                '연도': p.year || '',
+                '인용수': p.citedByCount || 0,
+                '증거': (p.evidence?.tags || []).join(','),
+                '초록': (p.abstract || '').substring(0, 1500)
+            });
+        }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetGenes), '유전자요약');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetPubs), '논문목록');
+    const filename = `유전자연구_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    console.log('Excel 저장:', filename);
+}
+
+async function grbCacheSearch() {
+    const q = (document.getElementById('grbCacheQuery').value || '').trim();
+    const out = document.getElementById('grbCacheResult');
+    if (!q) { out.innerHTML = '<span style="color:#e74c3c;">키워드를 입력하세요.</span>'; return; }
+    if (!window.GeneMetadata) { out.innerHTML = '<span style="color:#e74c3c;">메타데이터 모듈 미로드</span>'; return; }
+    console.log('캐시 검색:', q);
+    const hits = await window.GeneMetadata.search(q);
+    console.log('캐시 검색 결과:', hits.length, '건');
+    if (!hits.length) {
+        out.innerHTML = `<div style="color:#999; font-style:italic;">"${escapeHTML(q)}" 와 일치하는 캐시 항목 없음. 먼저 배치 조회나 단일 조회로 유전자를 캐시에 적재하세요.</div>`;
+        return;
+    }
+    out.innerHTML = `
+        <table class="data-table">
+            <thead><tr><th>유전자</th><th>단백질명</th><th>논문수</th><th>자동 태깅</th><th>액션</th></tr></thead>
+            <tbody>
+                ${hits.slice(0, 50).map(g => `
+                    <tr>
+                        <td><strong>${escapeHTML(g.symbolOriginal || g.symbol)}</strong></td>
+                        <td style="font-size:0.85em;">${escapeHTML((g.proteinName || '').substring(0, 60))}</td>
+                        <td>${g.publications?.length || 0}</td>
+                        <td>${(g.traits || []).map(t => `<span class="gene-chip">${t}</span>`).join(' ')}</td>
+                        <td><button class="btn btn-sm" onclick="showGeneInfoPopup('${escapeHTML(g.symbolOriginal || g.symbol)}')">🔍 팝업</button></td>
+                    </tr>`).join('')}
+            </tbody>
+        </table>
+        ${hits.length > 50 ? `<div style="font-size:0.85em; color:#888; margin-top:8px;">+ ${hits.length - 50}건 더 (상위 50건만 표시)</div>` : ''}`;
+}
+
+async function grbRefreshStats() {
+    const out = document.getElementById('grbStats');
+    if (!out || !window.GeneMetadata) return;
+    const s = await window.GeneMetadata.stats();
+    const traitRows = Object.entries(s.byTrait || {})
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([t, n]) => `<span class="gene-chip">${t}: ${n}</span>`)
+        .join(' ') || '<em style="color:#999;">아직 캐시 없음</em>';
+    out.innerHTML = `
+        <div class="stats-grid" style="margin-bottom:10px;">
+            <div class="stat-box"><div class="stat-label">캐시된 유전자</div><div class="stat-value">${s.totalGenes}</div></div>
+            <div class="stat-box"><div class="stat-label">수집된 논문</div><div class="stat-value">${s.totalPublications}</div></div>
+        </div>
+        <div><strong>형질 분포:</strong> ${traitRows}</div>`;
+}
+
+async function grbClearCache() {
+    if (!confirm('캐시된 모든 유전자 메타데이터를 삭제합니다. 계속하시겠습니까?')) return;
+    console.log('캐시 전체 삭제 요청');
+    await window.GeneMetadata.clearCache();
+    _grbBatchResults = [];
+    document.getElementById('grbSingleResult').innerHTML = '';
+    document.getElementById('grbBatchResult').innerHTML = '';
+    document.getElementById('grbCacheResult').innerHTML = '';
+    document.getElementById('grbBatchProgress').textContent = '';
+    document.getElementById('grbExportBtn').disabled = true;
+    grbRefreshStats();
+    alert('캐시가 삭제되었습니다.');
 }
 </script>
 
