@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="gene_metadata_layer.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -275,6 +276,8 @@
         <button class="tab new-feature" onclick="switchTab(12)">📊 SHAP 해석</button>
         <button class="tab new-feature" onclick="switchTab(13)">🌍 환경 데이터</button>
         <button class="tab new-feature" onclick="switchTab(14)">🤖 RL 교배 전략</button>
+        <button class="tab new-feature" onclick="switchTab(15)">🔬 연구 브라우저</button>
+        <button class="tab new-feature" onclick="switchTab(16)">🎨 염색체 페인팅</button>
     </div>
     <!-- Tab 0: 데이터 업로드 -->
     <div class="tab-content active">
@@ -1535,6 +1538,128 @@
             <div id="rlQTablePlot" style="width: 100%; height: 400px;"></div>
         </div>
     </div>
+
+    <!-- Tab 15: 연구 브라우저 -->
+    <div class="tab-content">
+        <div class="info-box success">
+            <h3>🔬 유전자 연구 브라우저 (v5.0 신기능)</h3>
+            <p>Europe PMC · NCBI · UniProt 에서 실시간으로 유전자 관련 논문/기능 정보를 불러오고 IndexedDB에 캐싱합니다. 한 번 조회한 유전자는 오프라인에서도 즉시 조회 가능합니다.</p>
+        </div>
+
+        <!-- 단일 검색 -->
+        <div class="result-card">
+            <h3>🔎 유전자 단일 조회</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:10px;">심볼(예: <code>sd1</code>, <code>Xa21</code>, <code>Hd1</code>), RAP ID, 또는 MSU ID 입력</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <input type="text" id="grbSingleInput" placeholder="예: sd1" style="flex:1; min-width:200px; padding:10px; border:1px solid var(--dmrt-border); border-radius:8px; font-size:1em;" onkeydown="if(event.key==='Enter') grbSingleSearch()">
+                <button class="btn" onclick="grbSingleSearch()">조회</button>
+                <button class="btn btn-secondary" onclick="grbSingleSearch(true)">강제 재조회</button>
+            </div>
+            <div id="grbSingleResult" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- 배치 조회 -->
+        <div class="result-card">
+            <h3>📚 배치 조회 (여러 유전자)</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:10px;">한 줄에 하나씩 심볼을 입력하거나 쉼표로 구분. 최대 30개 권장 (Europe PMC + NCBI 호출).</p>
+            <textarea id="grbBatchInput" rows="6" style="width:100%; padding:10px; border:1px solid var(--dmrt-border); border-radius:8px; font-family:monospace; font-size:0.9em;" placeholder="sd1&#10;Wx&#10;Hd1&#10;Xa21&#10;Pi-ta"></textarea>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+                <button class="btn" onclick="grbBatchSearch()">🚀 배치 조회</button>
+                <button class="btn btn-success" onclick="grbExportExcel()" id="grbExportBtn" disabled>📥 결과 Excel 내보내기</button>
+                <span id="grbBatchProgress" style="font-size:0.85em; color:#666;"></span>
+            </div>
+            <div id="grbBatchResult" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- 캐시 검색 -->
+        <div class="result-card">
+            <h3>🗄️ 캐시 내 키워드 검색</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:10px;">이미 조회한 유전자 중에서 키워드(형질·기능·논문 제목)로 검색.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <input type="text" id="grbCacheQuery" placeholder="예: drought, semi-dwarf, blast" style="flex:1; min-width:200px; padding:10px; border:1px solid var(--dmrt-border); border-radius:8px;" onkeydown="if(event.key==='Enter') grbCacheSearch()">
+                <button class="btn btn-warning" onclick="grbCacheSearch()">검색</button>
+            </div>
+            <div id="grbCacheResult" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- 캐시 관리 -->
+        <div class="result-card">
+            <h3>⚙️ 캐시 관리</h3>
+            <div id="grbStats" style="margin-bottom:10px; font-size:0.9em;"></div>
+            <button class="btn btn-sm" onclick="grbRefreshStats()">📊 통계 새로고침</button>
+            <button class="btn btn-sm btn-warning" onclick="grbClearCache()">🗑️ 전체 캐시 삭제</button>
+        </div>
+    </div>
+
+    <!-- Tab 16: 염색체 페인팅 -->
+    <div class="tab-content">
+        <div class="info-box success">
+            <h3>🎨 염색체 페인팅 — 세대별 게놈 재조합 양상 (v5.0 신기능)</h3>
+            <p>F1 교배 후 자가수정(SSD) 세대 진전에서 부모 게놈이 어떻게 모자이크 조각으로 쪼개지는지 시각화합니다. 물리적 염색체 크기·동원체 재조합 억제·Kosambi 지도함수를 모두 반영.</p>
+        </div>
+
+        <!-- 파라미터 -->
+        <div class="result-card">
+            <h3>⚙️ 시뮬레이션 파라미터</h3>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-top:10px;">
+                <div>
+                    <label><strong>최종 세대:</strong></label>
+                    <input type="number" id="paintFinalGen" value="6" min="2" max="12" style="width:100%; padding:8px; margin-top:4px;">
+                    <small style="color:#666;">F2 ~ F12</small>
+                </div>
+                <div>
+                    <label><strong>집단 크기 (SSD 계통수):</strong></label>
+                    <input type="number" id="paintPopSize" value="30" min="5" max="100" style="width:100%; padding:8px; margin-top:4px;">
+                </div>
+                <div>
+                    <label><strong>마커 간격 (Mb):</strong></label>
+                    <input type="number" id="paintMarkerSpacing" value="1" min="0.5" max="5" step="0.5" style="width:100%; padding:8px; margin-top:4px;">
+                    <small style="color:#666;">작을수록 고해상도</small>
+                </div>
+                <div>
+                    <label><strong>그리드 표시 개체수:</strong></label>
+                    <input type="number" id="paintSampleSize" value="10" min="3" max="30" style="width:100%; padding:8px; margin-top:4px;">
+                </div>
+            </div>
+            <div style="margin-top:15px;">
+                <button class="btn" onclick="runChromosomePainting()">🚀 시뮬레이션 실행</button>
+                <span id="paintStatus" style="margin-left:10px; font-size:0.85em; color:#666;"></span>
+            </div>
+        </div>
+
+        <!-- 세대 선택 + 페인팅 그리드 -->
+        <div class="result-card" id="paintGridCard" style="display:none;">
+            <h3>🧬 세대별 염색체 페인팅</h3>
+            <p style="font-size:0.85em; color:#666; margin-bottom:8px;">파란색 = 부모 A 유래, 빨간색 = 부모 B 유래. 개체 1명당 12염색체 × 2가닥(haplotype) 표시.</p>
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                <label><strong>세대:</strong></label>
+                <input type="range" id="paintGenSlider" min="1" max="10" value="2" style="flex:1; min-width:200px;" oninput="updatePaintingGen()">
+                <span id="paintGenLabel" style="font-weight:600; color:var(--dmrt-primary); min-width:60px;">F2</span>
+            </div>
+            <div id="paintGrid" style="overflow-x:auto;"></div>
+        </div>
+
+        <!-- 요약 차트 -->
+        <div class="result-card" id="paintChartsCard" style="display:none;">
+            <h3>📈 세대별 요약 지표</h3>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:15px;">
+                <div>
+                    <h4 style="margin-bottom:5px;">이형접합률 (Heterozygosity)</h4>
+                    <div id="paintHetChart" style="height:320px;"></div>
+                </div>
+                <div>
+                    <h4 style="margin-bottom:5px;">평균 donor segment 길이 (cM)</h4>
+                    <div id="paintSegChart" style="height:320px;"></div>
+                </div>
+            </div>
+            <div style="margin-top:15px; padding:10px; background:var(--dmrt-bg-light); border-radius:8px; font-size:0.85em;">
+                <strong>💡 해석:</strong><br>
+                · <strong>이형접합률</strong>: 자가수정 1세대마다 절반으로 줄어듭니다 (이론 곡선: 0.5ⁿ⁻¹). F6에서 ~3%, F7에서 ~1.5%, F8+에서 고정.<br>
+                · <strong>평균 segment 길이</strong>: 세대가 늘수록 재조합이 누적되어 조각이 짧아집니다. 근사 이론: 100/(2(n-1)) cM.<br>
+                · 동원체 주변은 재조합이 억제되어 긴 조각이 오래 유지됩니다 (페인팅 그리드에서 확인 가능).
+            </div>
+        </div>
+    </div>
 </div>
 <script>
 // ==================== 전역 변수 ====================
@@ -1857,7 +1982,7 @@ function createGeneInfoPopup(geneName) {
     const pos = defaultMarkerPositions[geneName];
     const detail = geneDetailDatabase[geneName];
 
-    if (!pos && !detail) return `<div class="gene-popup">유전자 정보를 찾을 수 없습니다.</div>`;
+    // 로컬 DB에 없어도 팝업을 띄우고 외부 메타데이터로 보강 (v5.0 연구 레이어)
 
     // 관련 형질 찾기
     const relatedTraits = [];
@@ -1868,7 +1993,7 @@ function createGeneInfoPopup(geneName) {
     }
 
     return `
-        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; max-width: 400px; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+        <div class="gene-popup" style="background: white; border: 2px solid var(--dmrt-secondary); border-radius: 12px; padding: 16px; width: 480px; max-width: 95vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h4 style="color: var(--dmrt-primary); margin: 0;">🧬 ${geneName}</h4>
                 <button onclick="closeGenePopup()" style="background: none; border: none; font-size: 1.2em; cursor: pointer;">✕</button>
@@ -1893,6 +2018,17 @@ function createGeneInfoPopup(geneName) {
                     </div>
                 </div>
             ` : ''}
+            <div id="geneMetaSection-${geneName}" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--dmrt-border);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <strong>📚 관련 연구</strong>
+                    <button class="btn btn-sm btn-secondary" onclick="loadGeneMetadata('${geneName}', true)" style="font-size:0.75em; padding:3px 8px;">🔄</button>
+                </div>
+                <div id="geneMetaContent-${geneName}" style="font-size: 0.85em; color: var(--dmrt-text-light);">
+                    <span style="display:inline-flex; align-items:center; gap:6px;">
+                        <span class="spinner" style="width:12px; height:12px; border-width:2px;"></span> 연구 결과 불러오는 중...
+                    </span>
+                </div>
+            </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;">
                 ${pos ? `<a href="https://rapdb.dna.affrc.go.jp/locus/?name=Os${String(pos.chr).padStart(2,'0')}g${String(Math.floor(pos.start_bp/10000)).padStart(7,'0')}" target="_blank" class="btn btn-sm" style="text-decoration: none;">📖 RAP-DB</a>` : ''}
                 <a href="https://funricegenes.github.io/genes/${geneName}/" target="_blank" class="btn btn-sm btn-success" style="text-decoration: none;">🌾 FunRiceGenes</a>
@@ -1957,6 +2093,11 @@ function showGeneInfoPopup(geneName, x, y) {
     currentPopup = popup;
 
     log(`유전자 정보 조회: ${geneName}`, 'info');
+
+    // 연구 결과는 lazy-load (팝업 렌더 직후 비동기 조회)
+    if (window.GeneMetadata) {
+        loadGeneMetadata(geneName, false);
+    }
 }
 
 function closeGenePopup() {
@@ -1964,6 +2105,102 @@ function closeGenePopup() {
         currentPopup.remove();
         currentPopup = null;
     }
+}
+
+// 유전자 메타데이터 fetch 후 팝업 내 섹션 렌더
+async function loadGeneMetadata(geneName, bypassCache) {
+    const container = document.getElementById(`geneMetaContent-${geneName}`);
+    if (!container) {
+        console.log('loadGeneMetadata: 컨테이너 없음 (팝업 닫힘?)', geneName);
+        return;
+    }
+    if (!window.GeneMetadata) {
+        container.innerHTML = '<span style="color:#999;">메타데이터 모듈 미로드</span>';
+        return;
+    }
+    container.innerHTML = `<span style="display:inline-flex; align-items:center; gap:6px;"><span class="spinner" style="width:12px; height:12px; border-width:2px;"></span> ${bypassCache ? '재조회 중...' : '연구 결과 불러오는 중...'}</span>`;
+
+    try {
+        console.log('유전자 메타데이터 요청:', geneName, '(bypass:', !!bypassCache, ')');
+        const meta = await window.GeneMetadata.get(geneName, { bypassCache: !!bypassCache });
+        console.log('메타데이터 수신:', JSON.stringify({
+            symbol: meta.symbol,
+            sources: meta.sources,
+            pubCount: meta.publications?.length || 0,
+            traits: meta.traits,
+            evidence: meta.evidence
+        }, null, 2));
+        container.innerHTML = renderGeneMetaHTML(meta);
+    } catch (err) {
+        console.error('메타데이터 에러:', JSON.stringify({ geneName, message: err.message }, null, 2));
+        container.innerHTML = `<span style="color:var(--dmrt-danger);">조회 실패: ${err.message}</span>`;
+    }
+}
+
+function renderGeneMetaHTML(meta) {
+    if (!meta) return '<span style="color:#999;">결과 없음</span>';
+    const pubs = meta.publications || [];
+    const ev = meta.evidence || { level: 'unknown', tags: [] };
+
+    const evColor = { strong: '#00b894', moderate: '#fdcb6e', weak: '#b2bec3', unknown: '#dfe6e9' }[ev.level] || '#dfe6e9';
+    const evLabel = { strong: '강', moderate: '중', weak: '약', unknown: '?' }[ev.level] || '?';
+
+    const summaryBlock = meta.summary
+        ? `<div style="margin-bottom:8px; padding:8px; background:var(--dmrt-bg-light); border-radius:6px; line-height:1.4;">
+             ${escapeHTML(meta.summary.substring(0, 280))}${meta.summary.length > 280 ? '…' : ''}
+           </div>`
+        : '';
+
+    const tagsBlock = ev.tags && ev.tags.length
+        ? `<div style="margin-bottom:8px;">
+             <span style="display:inline-block; background:${evColor}; color:#fff; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:600; margin-right:4px;">증거 ${evLabel}</span>
+             ${ev.tags.map(t => `<span style="display:inline-block; background:#fff; border:1px solid var(--dmrt-border); color:var(--dmrt-text); padding:2px 8px; border-radius:10px; font-size:0.75em; margin-right:3px;">${t}</span>`).join('')}
+           </div>`
+        : '';
+
+    const traitsBlock = meta.traits && meta.traits.length
+        ? `<div style="margin-bottom:8px; font-size:0.85em;">
+             <strong>자동 태깅 형질:</strong> ${meta.traits.map(t => `<span class="gene-chip" style="margin:0 2px;">${t}</span>`).join('')}
+           </div>`
+        : '';
+
+    const pubList = pubs.slice(0, 5).map(p => {
+        const link = p.pmid
+            ? `https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/`
+            : p.doi
+            ? `https://doi.org/${p.doi}`
+            : `https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`;
+        const authors = (p.authors || '').split(',').slice(0, 3).join(',') + ((p.authors || '').split(',').length > 3 ? ' et al.' : '');
+        const absSnippet = (p.abstract || '').substring(0, 180);
+        const pevTags = (p.evidence && p.evidence.tags || []).slice(0, 2).map(t => `<span style="background:#eef; color:#335; padding:1px 5px; border-radius:4px; font-size:0.7em; margin-left:3px;">${t}</span>`).join('');
+        return `
+            <li style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px dotted var(--dmrt-border); list-style:none;">
+                <div style="font-weight:500;">
+                    <a href="${link}" target="_blank" style="color:var(--dmrt-secondary); text-decoration:none;">${escapeHTML(p.title || '(제목 없음)')}</a>
+                    ${pevTags}
+                </div>
+                <div style="font-size:0.8em; color:var(--dmrt-text-light); margin-top:2px;">
+                    ${escapeHTML(authors)} · ${escapeHTML(p.journal || '')} ${p.year ? `(${p.year})` : ''} ${p.citedByCount ? `· 인용 ${p.citedByCount}` : ''}
+                </div>
+                ${absSnippet ? `<div style="font-size:0.8em; color:#666; margin-top:3px; line-height:1.4;">${escapeHTML(absSnippet)}${p.abstract.length > 180 ? '…' : ''}</div>` : ''}
+            </li>`;
+    }).join('');
+
+    const pubBlock = pubs.length
+        ? `<ul style="padding:0; margin:0;">${pubList}</ul>
+           ${pubs.length > 5 ? `<div style="font-size:0.8em; color:#888; margin-top:4px;">+ ${pubs.length - 5}편 더</div>` : ''}`
+        : '<div style="color:#999; font-style:italic;">Europe PMC / NCBI에서 관련 논문을 찾지 못했습니다.</div>';
+
+    const sourceBlock = meta.sources && meta.sources.length
+        ? `<div style="font-size:0.7em; color:#aaa; margin-top:6px; text-align:right;">출처: ${meta.sources.join(' + ')}</div>`
+        : '';
+
+    return summaryBlock + tagsBlock + traitsBlock + pubBlock + sourceBlock;
+}
+
+function escapeHTML(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 // ==================== UI 연결 함수 ====================
@@ -2373,6 +2610,8 @@ function switchTab(idx) {
             if (dataLoaded) generateAllVisualizations();
         }, 100);
     }
+    if (idx === 15) grbRefreshStats(); // 연구 브라우저 탭 진입 시 통계 업데이트
+    // Tab 16: 염색체 페인팅 (진입 시 자동 실행 없음 — 사용자가 버튼 클릭)
 }
 
 // URL 해시 기반 탭 전환 (프레젠테이션 시스템 연동용)
@@ -11857,6 +12096,511 @@ function saveRLPolicy() {
     saveAs(blob, `RL_정책_${new Date().toISOString().slice(0, 10)}.json`);
     log('💾 RL 정책 저장 완료', 'success');
 }
+
+// ==================== 유전자 연구 브라우저 (Tab 15) ====================
+
+let _grbBatchResults = []; // 최근 배치 조회 결과 (Excel 내보내기용)
+
+async function grbSingleSearch(bypassCache) {
+    const input = document.getElementById('grbSingleInput');
+    const result = document.getElementById('grbSingleResult');
+    const symbol = (input.value || '').trim();
+    if (!symbol) { result.innerHTML = '<span style="color:#e74c3c;">유전자 심볼을 입력하세요.</span>'; return; }
+    if (!window.GeneMetadata) { result.innerHTML = '<span style="color:#e74c3c;">메타데이터 모듈 미로드</span>'; return; }
+
+    result.innerHTML = `<div class="spinner"></div> 조회 중...`;
+    console.log('단일 조회 요청:', JSON.stringify({ symbol, bypassCache: !!bypassCache }));
+    try {
+        const meta = await window.GeneMetadata.get(symbol, { bypassCache: !!bypassCache });
+        console.log('단일 조회 결과:', JSON.stringify({ symbol: meta.symbol, pubs: meta.publications.length, traits: meta.traits, sources: meta.sources }, null, 2));
+        result.innerHTML = `
+            <div style="background:white; border:1px solid var(--dmrt-border); border-radius:8px; padding:16px;">
+                <h4 style="color:var(--dmrt-primary); margin-top:0;">🧬 ${escapeHTML(meta.symbol)}</h4>
+                ${meta.proteinName ? `<p style="color:var(--dmrt-secondary); font-weight:500;">${escapeHTML(meta.proteinName)}</p>` : ''}
+                ${renderGeneMetaHTML(meta)}
+            </div>`;
+    } catch (e) {
+        console.error('단일 조회 실패:', JSON.stringify({ symbol, message: e.message }, null, 2));
+        result.innerHTML = `<span style="color:var(--dmrt-danger);">조회 실패: ${e.message}</span>`;
+    }
+}
+
+async function grbBatchSearch() {
+    const input = document.getElementById('grbBatchInput');
+    const result = document.getElementById('grbBatchResult');
+    const progress = document.getElementById('grbBatchProgress');
+    const exportBtn = document.getElementById('grbExportBtn');
+    const raw = input.value || '';
+    const symbols = raw.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+    console.log('배치 조회 요청:', JSON.stringify({ count: symbols.length, symbols }));
+
+    if (!symbols.length) { result.innerHTML = '<span style="color:#e74c3c;">유전자 심볼을 한 줄에 하나씩 입력하세요.</span>'; return; }
+    if (symbols.length > 50) { result.innerHTML = '<span style="color:#e74c3c;">최대 50개까지만 지원합니다.</span>'; return; }
+    if (!window.GeneMetadata) { result.innerHTML = '<span style="color:#e74c3c;">메타데이터 모듈 미로드</span>'; return; }
+
+    exportBtn.disabled = true;
+    result.innerHTML = `<div class="spinner"></div> 배치 조회 중... (처음 조회하는 유전자는 수 초 소요)`;
+    progress.textContent = `0 / ${symbols.length}`;
+
+    try {
+        const results = await window.GeneMetadata.batchLookup(symbols, {
+            concurrency: 3,
+            onProgress: (done, total, sym) => {
+                progress.textContent = `${done} / ${total} (최근: ${sym})`;
+            }
+        });
+        _grbBatchResults = results;
+        console.log('배치 조회 완료:', JSON.stringify({ total: results.length, withPubs: results.filter(r => r.publications && r.publications.length).length }));
+
+        const rows = results.map(r => {
+            if (r.error) {
+                return `<tr><td><strong>${escapeHTML(r.symbol)}</strong></td><td colspan="5" style="color:var(--dmrt-danger);">${escapeHTML(r.error)}</td></tr>`;
+            }
+            const pubCount = r.publications?.length || 0;
+            const latestYear = r.publications?.reduce((m, p) => Math.max(m, p.year || 0), 0) || '';
+            const topCite = r.publications?.reduce((m, p) => Math.max(m, p.citedByCount || 0), 0) || 0;
+            const evLevel = r.evidence?.level || 'unknown';
+            const evColor = { strong: '#00b894', moderate: '#fdcb6e', weak: '#b2bec3', unknown: '#dfe6e9' }[evLevel];
+            return `
+                <tr>
+                    <td><strong style="cursor:pointer; color:var(--dmrt-secondary);" onclick="grbShowDetail('${escapeHTML(r.symbol)}')">${escapeHTML(r.symbol)}</strong></td>
+                    <td>${pubCount}</td>
+                    <td>${latestYear || '-'}</td>
+                    <td>${topCite}</td>
+                    <td>${(r.traits || []).map(t => `<span class="gene-chip">${t}</span>`).join(' ') || '-'}</td>
+                    <td><span style="background:${evColor}; color:#fff; padding:2px 8px; border-radius:10px; font-size:0.75em;">${evLevel}</span></td>
+                </tr>`;
+        }).join('');
+
+        result.innerHTML = `
+            <table class="data-table">
+                <thead><tr><th>유전자</th><th>논문수</th><th>최근 연도</th><th>최다 인용</th><th>자동 태깅 형질</th><th>증거</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div id="grbDetailSlot" style="margin-top:15px;"></div>`;
+        progress.textContent = `완료: ${results.length}개`;
+        exportBtn.disabled = false;
+    } catch (e) {
+        console.error('배치 조회 에러:', JSON.stringify({ message: e.message }, null, 2));
+        result.innerHTML = `<span style="color:var(--dmrt-danger);">배치 조회 실패: ${e.message}</span>`;
+    }
+}
+
+function grbShowDetail(symbol) {
+    console.log('상세 보기:', symbol);
+    const meta = _grbBatchResults.find(r => r.symbol === symbol || (r.symbol && r.symbol.toLowerCase() === symbol.toLowerCase()));
+    const slot = document.getElementById('grbDetailSlot');
+    if (!slot) return;
+    if (!meta || meta.error) { slot.innerHTML = `<span style="color:#999;">${symbol} 상세 정보 없음</span>`; return; }
+    slot.innerHTML = `
+        <div style="background:white; border:2px solid var(--dmrt-secondary); border-radius:8px; padding:16px;">
+            <h4 style="color:var(--dmrt-primary); margin-top:0;">🧬 ${escapeHTML(meta.symbol)} ${meta.proteinName ? `<small style="color:#666; font-weight:normal;">- ${escapeHTML(meta.proteinName)}</small>` : ''}</h4>
+            ${renderGeneMetaHTML(meta)}
+        </div>`;
+    slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function grbExportExcel() {
+    if (!_grbBatchResults.length) { alert('먼저 배치 조회를 실행하세요.'); return; }
+    console.log('Excel 내보내기 시작:', _grbBatchResults.length);
+
+    const sheetGenes = _grbBatchResults.map(r => ({
+        '심볼': r.symbol,
+        '단백질명': r.proteinName || '',
+        '요약': (r.summary || '').substring(0, 500),
+        '논문수': r.publications?.length || 0,
+        '최근연도': r.publications?.reduce((m, p) => Math.max(m, p.year || 0), 0) || '',
+        '최다인용': r.publications?.reduce((m, p) => Math.max(m, p.citedByCount || 0), 0) || 0,
+        '자동태깅형질': (r.traits || []).join(', '),
+        '증거수준': r.evidence?.level || '',
+        '증거태그': (r.evidence?.tags || []).join(', '),
+        'NCBI_ID': r.ncbiId || '',
+        '출처': (r.sources || []).join('+'),
+        '에러': r.error || ''
+    }));
+
+    const sheetPubs = [];
+    for (const r of _grbBatchResults) {
+        for (const p of (r.publications || [])) {
+            sheetPubs.push({
+                '심볼': r.symbol,
+                'PMID': p.pmid || '',
+                'DOI': p.doi || '',
+                '제목': p.title || '',
+                '저자': p.authors || '',
+                '저널': p.journal || '',
+                '연도': p.year || '',
+                '인용수': p.citedByCount || 0,
+                '증거': (p.evidence?.tags || []).join(','),
+                '초록': (p.abstract || '').substring(0, 1500)
+            });
+        }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetGenes), '유전자요약');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetPubs), '논문목록');
+    const filename = `유전자연구_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    console.log('Excel 저장:', filename);
+}
+
+async function grbCacheSearch() {
+    const q = (document.getElementById('grbCacheQuery').value || '').trim();
+    const out = document.getElementById('grbCacheResult');
+    if (!q) { out.innerHTML = '<span style="color:#e74c3c;">키워드를 입력하세요.</span>'; return; }
+    if (!window.GeneMetadata) { out.innerHTML = '<span style="color:#e74c3c;">메타데이터 모듈 미로드</span>'; return; }
+    console.log('캐시 검색:', q);
+    const hits = await window.GeneMetadata.search(q);
+    console.log('캐시 검색 결과:', hits.length, '건');
+    if (!hits.length) {
+        out.innerHTML = `<div style="color:#999; font-style:italic;">"${escapeHTML(q)}" 와 일치하는 캐시 항목 없음. 먼저 배치 조회나 단일 조회로 유전자를 캐시에 적재하세요.</div>`;
+        return;
+    }
+    out.innerHTML = `
+        <table class="data-table">
+            <thead><tr><th>유전자</th><th>단백질명</th><th>논문수</th><th>자동 태깅</th><th>액션</th></tr></thead>
+            <tbody>
+                ${hits.slice(0, 50).map(g => `
+                    <tr>
+                        <td><strong>${escapeHTML(g.symbolOriginal || g.symbol)}</strong></td>
+                        <td style="font-size:0.85em;">${escapeHTML((g.proteinName || '').substring(0, 60))}</td>
+                        <td>${g.publications?.length || 0}</td>
+                        <td>${(g.traits || []).map(t => `<span class="gene-chip">${t}</span>`).join(' ')}</td>
+                        <td><button class="btn btn-sm" onclick="showGeneInfoPopup('${escapeHTML(g.symbolOriginal || g.symbol)}')">🔍 팝업</button></td>
+                    </tr>`).join('')}
+            </tbody>
+        </table>
+        ${hits.length > 50 ? `<div style="font-size:0.85em; color:#888; margin-top:8px;">+ ${hits.length - 50}건 더 (상위 50건만 표시)</div>` : ''}`;
+}
+
+async function grbRefreshStats() {
+    const out = document.getElementById('grbStats');
+    if (!out || !window.GeneMetadata) return;
+    const s = await window.GeneMetadata.stats();
+    const traitRows = Object.entries(s.byTrait || {})
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([t, n]) => `<span class="gene-chip">${t}: ${n}</span>`)
+        .join(' ') || '<em style="color:#999;">아직 캐시 없음</em>';
+    out.innerHTML = `
+        <div class="stats-grid" style="margin-bottom:10px;">
+            <div class="stat-box"><div class="stat-label">캐시된 유전자</div><div class="stat-value">${s.totalGenes}</div></div>
+            <div class="stat-box"><div class="stat-label">수집된 논문</div><div class="stat-value">${s.totalPublications}</div></div>
+        </div>
+        <div><strong>형질 분포:</strong> ${traitRows}</div>`;
+}
+
+async function grbClearCache() {
+    if (!confirm('캐시된 모든 유전자 메타데이터를 삭제합니다. 계속하시겠습니까?')) return;
+    console.log('캐시 전체 삭제 요청');
+    await window.GeneMetadata.clearCache();
+    _grbBatchResults = [];
+    document.getElementById('grbSingleResult').innerHTML = '';
+    document.getElementById('grbBatchResult').innerHTML = '';
+    document.getElementById('grbCacheResult').innerHTML = '';
+    document.getElementById('grbBatchProgress').textContent = '';
+    document.getElementById('grbExportBtn').disabled = true;
+    grbRefreshStats();
+    alert('캐시가 삭제되었습니다.');
+}
+
+// ==================== 🎨 염색체 페인팅 (Tab 16) ====================
+//
+// F1 교배 후 자가수정(SSD) 세대 진전에서 부모 게놈이 어떻게 모자이크로 쪼개지는지 시각화.
+// 기존 markerInfo/meiosis 대신 "합성 균등 마커 그리드" + 로컬 페인팅용 meiosis 사용 (데이터 로드 불필요).
+//
+// 개체 자료구조: { haps: [hap1, hap2] } where hapK is Uint8Array of origin (0=A, 1=B) per marker idx
+
+let _paintPops = [];       // [gen][indIdx] = {haps: [hap1, hap2]}
+let _paintMarkers = [];    // 합성 마커 배열
+let _paintChrGroups = {};  // chr → markers[]
+
+function paintingGenerateMarkers(spacing_mb) {
+    const markers = [];
+    const chrGroups = {};
+    let idx = 0;
+    const spacing_bp = Math.max(500000, Math.round(spacing_mb * 1e6));
+    for (let chr = 1; chr <= 12; chr++) {
+        const info = chromosomeInfo[chr];
+        if (!info) continue;
+        chrGroups[chr] = [];
+        for (let bp = spacing_bp / 2; bp < info.size_bp; bp += spacing_bp) {
+            const m = {
+                idx,
+                chr,
+                position_bp: bp,
+                position_cM: convertBpToCm(chr, bp)
+            };
+            markers.push(m);
+            chrGroups[chr].push(m);
+            idx++;
+        }
+    }
+    console.log('페인팅 마커 생성:', JSON.stringify({
+        total: markers.length,
+        spacing_mb,
+        byChr: Object.fromEntries(Object.entries(chrGroups).map(([c, m]) => [c, m.length]))
+    }));
+    return { markers, chrGroups };
+}
+
+// 페인팅 전용 meiosis — markerInfo 전역 의존 없이 파라미터화
+function paintingMeiosis(haps, markers, chrGroups) {
+    const [hap1, hap2] = haps;
+    const gamete = new Uint8Array(markers.length);
+
+    for (const chrNum of Object.keys(chrGroups)) {
+        const chr = parseInt(chrNum);
+        const chrInfo = chromosomeInfo[chr];
+        const ms = chrGroups[chr]; // 이미 bp 순
+
+        let currentHap = Math.random() < 0.5 ? 0 : 1;
+        gamete[ms[0].idx] = currentHap === 0 ? hap1[ms[0].idx] : hap2[ms[0].idx];
+
+        for (let i = 1; i < ms.length; i++) {
+            const prev = ms[i - 1], curr = ms[i];
+            const distance_cM = Math.abs(curr.position_cM - prev.position_cM);
+            let recombRate = 0.5 * Math.tanh(2 * distance_cM / 100);
+            if (chrInfo) {
+                const crosses = (prev.position_bp < chrInfo.centromere_start && curr.position_bp > chrInfo.centromere_end) ||
+                               (curr.position_bp < chrInfo.centromere_start && prev.position_bp > chrInfo.centromere_end);
+                if (crosses) recombRate *= 0.5;
+            }
+            if (Math.random() < recombRate) currentHap = 1 - currentHap;
+            gamete[curr.idx] = currentHap === 0 ? hap1[curr.idx] : hap2[curr.idx];
+        }
+    }
+    return gamete;
+}
+
+function paintingSelf(haps, markers, chrGroups) {
+    return [
+        paintingMeiosis(haps, markers, chrGroups),
+        paintingMeiosis(haps, markers, chrGroups)
+    ];
+}
+
+// 집단 시뮬레이션 (SSD: 각 계통당 세대마다 1개체)
+function runChromosomePainting() {
+    const finalGen = parseInt(document.getElementById('paintFinalGen').value) || 6;
+    const popSize = parseInt(document.getElementById('paintPopSize').value) || 30;
+    const spacing = parseFloat(document.getElementById('paintMarkerSpacing').value) || 1;
+    const status = document.getElementById('paintStatus');
+
+    console.log('염색체 페인팅 시뮬레이션 시작:', JSON.stringify({ finalGen, popSize, spacing }));
+    status.textContent = '시뮬레이션 중...';
+
+    // 1) 마커 그리드 생성
+    const { markers, chrGroups } = paintingGenerateMarkers(spacing);
+    _paintMarkers = markers;
+    _paintChrGroups = chrGroups;
+
+    // 2) F1: 모든 개체가 동일. hap1 = 전부 0 (A), hap2 = 전부 1 (B)
+    const hap1 = new Uint8Array(markers.length); // 0
+    const hap2 = new Uint8Array(markers.length).fill(1);
+    const f1 = { haps: [hap1, hap2] };
+
+    // generations[0] = F1, generations[1] = F2, ...
+    _paintPops = [];
+    _paintPops.push(Array(popSize).fill(null).map(() => ({
+        haps: [new Uint8Array(hap1), new Uint8Array(hap2)]
+    })));
+
+    // 3) F2 ~ F_final: 각 계통은 이전 세대 본인을 selfing
+    for (let g = 1; g < finalGen; g++) {
+        const prev = _paintPops[g - 1];
+        const next = prev.map((ind) => ({
+            haps: paintingSelf(ind.haps, markers, chrGroups)
+        }));
+        _paintPops.push(next);
+    }
+
+    console.log('시뮬레이션 완료:', JSON.stringify({
+        generations: _paintPops.length,
+        perGen: _paintPops.map(p => p.length)
+    }));
+
+    // 4) 렌더
+    document.getElementById('paintGridCard').style.display = 'block';
+    document.getElementById('paintChartsCard').style.display = 'block';
+    const slider = document.getElementById('paintGenSlider');
+    slider.max = finalGen;
+    slider.value = Math.min(2, finalGen);
+    updatePaintingGen();
+    renderPaintingCharts();
+
+    status.textContent = `✅ F1~F${finalGen}, 계통 ${popSize}개, 마커 ${markers.length}개`;
+    log(`🎨 염색체 페인팅 시뮬레이션 완료: F${finalGen}, ${popSize}계통`, 'success');
+}
+
+function updatePaintingGen() {
+    const slider = document.getElementById('paintGenSlider');
+    const gen = parseInt(slider.value);
+    document.getElementById('paintGenLabel').textContent = `F${gen}`;
+    if (!_paintPops.length) return;
+    renderPaintingGrid(gen);
+}
+
+// SVG 페인팅 그리드 렌더 (10개체 샘플)
+function renderPaintingGrid(gen) {
+    const pop = _paintPops[gen - 1];
+    if (!pop) return;
+    const sampleSize = Math.min(parseInt(document.getElementById('paintSampleSize').value) || 10, pop.length);
+    const sampled = pop.slice(0, sampleSize);
+
+    const chrList = Object.keys(_paintChrGroups).map(Number).sort((a, b) => a - b);
+    const maxBp = Math.max(...chrList.map(c => chromosomeInfo[c].size_bp));
+
+    const INDIVIDUAL_LABEL_W = 40;
+    const CHR_LABEL_W = 28;
+    const BAR_H = 8;
+    const BAR_GAP = 2;
+    const CHR_GROUP_GAP = 6;
+    const INDIVIDUAL_GAP = 14;
+    const BAR_W = 700; // 물리 길이 기준 픽셀 폭
+
+    const perIndividualH = chrList.length * (2 * BAR_H + BAR_GAP + CHR_GROUP_GAP);
+    const totalH = sampleSize * (perIndividualH + INDIVIDUAL_GAP) + 40;
+    const totalW = INDIVIDUAL_LABEL_W + CHR_LABEL_W + BAR_W + 20;
+
+    const parts = [];
+    parts.push(`<svg width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg" style="background:#fafafa; border:1px solid var(--dmrt-border); border-radius:8px;">`);
+
+    // 범례
+    parts.push(`<g transform="translate(${INDIVIDUAL_LABEL_W + CHR_LABEL_W}, 8)">`);
+    parts.push(`<rect x="0" y="0" width="14" height="10" fill="#1976d2"/><text x="18" y="9" font-size="10" fill="#333">부모 A</text>`);
+    parts.push(`<rect x="80" y="0" width="14" height="10" fill="#d32f2f"/><text x="98" y="9" font-size="10" fill="#333">부모 B</text>`);
+    parts.push(`</g>`);
+
+    for (let i = 0; i < sampled.length; i++) {
+        const ind = sampled[i];
+        const indY = 30 + i * (perIndividualH + INDIVIDUAL_GAP);
+        // 개체 라벨
+        parts.push(`<text x="5" y="${indY + 12}" font-size="11" font-weight="600" fill="#333">#${i + 1}</text>`);
+
+        for (let c = 0; c < chrList.length; c++) {
+            const chr = chrList[c];
+            const chrInfo = chromosomeInfo[chr];
+            const chrY = indY + c * (2 * BAR_H + BAR_GAP + CHR_GROUP_GAP);
+            const chrBarW = BAR_W * (chrInfo.size_bp / maxBp);
+
+            // 염색체 라벨
+            parts.push(`<text x="${INDIVIDUAL_LABEL_W}" y="${chrY + BAR_H + 1}" font-size="9" fill="#666">Chr${chr}</text>`);
+
+            // 두 가닥 (hap1, hap2)
+            for (let h = 0; h < 2; h++) {
+                const hap = ind.haps[h];
+                const barY = chrY + h * (BAR_H + BAR_GAP);
+                // 배경 프레임
+                parts.push(`<rect x="${INDIVIDUAL_LABEL_W + CHR_LABEL_W}" y="${barY}" width="${chrBarW}" height="${BAR_H}" fill="#fff" stroke="#ccc" stroke-width="0.5"/>`);
+                // 세그먼트
+                const ms = _paintChrGroups[chr];
+                for (let m = 0; m < ms.length; m++) {
+                    const mk = ms[m];
+                    const origin = hap[mk.idx];
+                    // 이 마커가 커버하는 bp 범위 (인접 마커 중점)
+                    const prevBp = m === 0 ? 0 : (ms[m - 1].position_bp + mk.position_bp) / 2;
+                    const nextBp = m === ms.length - 1 ? chrInfo.size_bp : (mk.position_bp + ms[m + 1].position_bp) / 2;
+                    const x = INDIVIDUAL_LABEL_W + CHR_LABEL_W + BAR_W * (prevBp / maxBp);
+                    const w = BAR_W * ((nextBp - prevBp) / maxBp);
+                    const color = origin === 0 ? '#1976d2' : '#d32f2f';
+                    parts.push(`<rect x="${x.toFixed(2)}" y="${barY}" width="${w.toFixed(2)}" height="${BAR_H}" fill="${color}"/>`);
+                }
+                // 동원체 위치 표시
+                const centX = INDIVIDUAL_LABEL_W + CHR_LABEL_W + BAR_W * ((chrInfo.centromere_start + chrInfo.centromere_end) / 2 / maxBp);
+                parts.push(`<line x1="${centX.toFixed(2)}" y1="${barY - 1}" x2="${centX.toFixed(2)}" y2="${barY + BAR_H + 1}" stroke="#000" stroke-width="1" stroke-dasharray="2,1"/>`);
+            }
+        }
+    }
+    parts.push('</svg>');
+    document.getElementById('paintGrid').innerHTML = parts.join('');
+}
+
+// 세대별 통계 계산
+function computePaintingStats() {
+    const chrList = Object.keys(_paintChrGroups).map(Number).sort((a, b) => a - b);
+    const genCount = _paintPops.length;
+    const hetRates = [];
+    const segLengths = [];
+
+    for (let g = 0; g < genCount; g++) {
+        const pop = _paintPops[g];
+        let hetSum = 0, hetN = 0;
+        let segTotalCm = 0, segCount = 0;
+        for (const ind of pop) {
+            const [h1, h2] = ind.haps;
+            for (let i = 0; i < h1.length; i++) {
+                if (h1[i] !== h2[i]) hetSum++;
+                hetN++;
+            }
+            // 세그먼트 길이: 각 haplotype의 각 chr에서 동일 origin 연속 구간
+            for (const chr of chrList) {
+                const ms = _paintChrGroups[chr];
+                for (let hapIdx = 0; hapIdx < 2; hapIdx++) {
+                    const hap = ind.haps[hapIdx];
+                    let segStart_cM = ms[0].position_cM;
+                    let segOrigin = hap[ms[0].idx];
+                    for (let m = 1; m < ms.length; m++) {
+                        const mk = ms[m];
+                        if (hap[mk.idx] !== segOrigin) {
+                            segTotalCm += (ms[m - 1].position_cM - segStart_cM);
+                            segCount++;
+                            segStart_cM = mk.position_cM;
+                            segOrigin = hap[mk.idx];
+                        }
+                    }
+                    segTotalCm += (ms[ms.length - 1].position_cM - segStart_cM);
+                    segCount++;
+                }
+            }
+        }
+        hetRates.push(hetN > 0 ? hetSum / hetN : 0);
+        segLengths.push(segCount > 0 ? segTotalCm / segCount : 0);
+    }
+    console.log('페인팅 통계:', JSON.stringify({ hetRates, segLengths }, null, 2));
+    return { hetRates, segLengths };
+}
+
+function renderPaintingCharts() {
+    const stats = computePaintingStats();
+    const gens = stats.hetRates.map((_, i) => `F${i + 1}`);
+
+    // 이론 곡선: het = 0.5^(n-1) for selfing starting from F1 heterozygous
+    const hetTheory = stats.hetRates.map((_, i) => Math.pow(0.5, i));
+    // 이론 근사: avg segment length = total_cM / (2(n-1)+1) for n >= 2. F1 = 큰 값(1개 구간)
+    const totalCm = Object.values(_paintChrGroups).reduce((s, ms) => {
+        return s + (ms[ms.length - 1].position_cM - ms[0].position_cM);
+    }, 0);
+    const avgChrCm = totalCm / Object.keys(_paintChrGroups).length;
+    const segTheory = stats.segLengths.map((_, i) => {
+        if (i === 0) return avgChrCm; // F1은 온전
+        return avgChrCm / (2 * i - 1 + 1); // 근사
+    });
+
+    const hetLayout = {
+        margin: { l: 50, r: 20, t: 20, b: 40 },
+        xaxis: { title: '세대' },
+        yaxis: { title: '이형접합률', range: [0, 1.05], tickformat: '.0%' },
+        legend: { orientation: 'h', y: -0.2 }
+    };
+    Plotly.newPlot('paintHetChart', [
+        { x: gens, y: stats.hetRates, mode: 'lines+markers', name: '시뮬 측정', line: { color: '#017f97', width: 3 }, marker: { size: 8 } },
+        { x: gens, y: hetTheory, mode: 'lines', name: '이론 (0.5ⁿ⁻¹)', line: { color: '#888', dash: 'dot', width: 2 } }
+    ], hetLayout, { responsive: true, displaylogo: false });
+
+    const segLayout = {
+        margin: { l: 60, r: 20, t: 20, b: 40 },
+        xaxis: { title: '세대' },
+        yaxis: { title: '평균 segment 길이 (cM)', rangemode: 'tozero' },
+        legend: { orientation: 'h', y: -0.2 }
+    };
+    Plotly.newPlot('paintSegChart', [
+        { x: gens, y: stats.segLengths, mode: 'lines+markers', name: '시뮬 측정', line: { color: '#0c3026', width: 3 }, marker: { size: 8 } },
+        { x: gens, y: segTheory, mode: 'lines', name: '이론 근사', line: { color: '#888', dash: 'dot', width: 2 } }
+    ], segLayout, { responsive: true, displaylogo: false });
+}
+
 </script>
 
 <!-- Floating Log Panel -->
