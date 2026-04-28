@@ -16,8 +16,8 @@
 ## 시행착오 사례 (PR)
 
 - [#247 절대→상대 경로](https://github.com/olivettirda/rda/pull/247)
-- [#234 외부 라이브러리 폴백](https://github.com/olivettirda/rda/pull/234)
 - [#267~#271 시각화 패널 위치 변경](https://github.com/olivettirda/rda/pull/271)
 - [#272 마커 좌표 알고리즘 교체](https://github.com/olivettirda/rda/pull/272)
+- [#245 BDSS 모듈 분리 → 인라인 통합](https://github.com/olivettirda/rda/pull/245)
 - [#280 PR 머지 규칙 분기](https://github.com/olivettirda/rda/pull/280)
 
