@@ -21,7 +21,3 @@
 - [#272 마커 좌표 알고리즘 교체](https://github.com/olivettirda/rda/pull/272)
 - [#280 PR 머지 규칙 분기](https://github.com/olivettirda/rda/pull/280)
 
-## 본 저장소 안내
-
-본 저장소는 출품 자료 외에도 작성자의 다양한 개인 작업·실험 코드를 포함합니다.
-출품 평가는 위에 정리된 자료를 중심으로 진행해주시기 바랍니다.
