@@ -555,8 +555,36 @@ let appData = {
   geno: null,    // {data, filename, raw}
   map: null,
   pheno: null,
-  diagnosis: null
+  diagnosis: null,
+  rules: null,             // qtl_tool_rules.json
+  paramDescriptions: null, // qtl_tool_param_descriptions.json
+  paramOverrides: {}       // 사용자가 수정한 파라미터 (조각 4에서 사용)
 };
+
+// ============================================================
+// JSON 룰셋/설명 로드 (Pyodide 부팅 시 호출)
+// ============================================================
+async function loadRulesAndDescriptions() {
+  const tryFetch = async (path) => {
+    try {
+      const res = await fetch(path, {cache: 'no-store'});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      log(`${path} 로드 실패 (${e.message}). 추천 파라미터 기능이 비활성화됩니다.`, 'warn');
+      return null;
+    }
+  };
+  const [rules, descs] = await Promise.all([
+    tryFetch('./data/qtl_tool_rules.json'),
+    tryFetch('./data/qtl_tool_param_descriptions.json')
+  ]);
+  appData.rules = rules;
+  appData.paramDescriptions = descs;
+  if (rules && descs) {
+    log(`룰셋 로드 완료 (rules: ${Object.keys(rules).length} keys, params: ${Object.keys(descs).filter(k=>!k.startsWith('_')).length}개)`, 'ok');
+  }
+}
 
 // ============================================================
 // 로깅
@@ -589,26 +617,41 @@ document.querySelectorAll('.tab').forEach(tab => {
 async function bootPyodide() {
   log('Pyodide 다운로드 시작 (약 10초)...', 'info');
   try {
-    pyodide = await loadPyodide();
-    log('Pyodide 코어 로드 완료', 'ok');
-    log('과학 계산 패키지 로드 중 (numpy, scipy, pandas)...', 'info');
-    await pyodide.loadPackage(['numpy','scipy','pandas']);
-    log('패키지 로드 완료', 'ok');
+    // 룰셋과 Pyodide를 병렬 로드
+    const [_, __] = await Promise.all([
+      (async () => {
+        pyodide = await loadPyodide();
+        log('Pyodide 코어 로드 완료', 'ok');
+        log('과학 계산 패키지 로드 중 (numpy, scipy, pandas)...', 'info');
+        await pyodide.loadPackage(['numpy','scipy','pandas']);
+        log('패키지 로드 완료', 'ok');
+      })(),
+      loadRulesAndDescriptions()
+    ]);
 
     // Python 진단 모듈 로드
     pyodide.runPython(getDiagnosticPyCode());
+
+    // 룰셋을 Python globals에 등록 (recommend_parameters에서 사용)
+    if (appData.rules) {
+      pyodide.globals.set('_RULES_JSON', JSON.stringify(appData.rules));
+      pyodide.runPython('import json\nRULES = json.loads(_RULES_JSON)');
+      log('Python 측에 룰셋 등록 완료', 'ok');
+    } else {
+      pyodide.runPython('RULES = None')
+    }
     log('진단 엔진 초기화 완료', 'ok');
 
     document.getElementById('pyodide-status-dot').classList.add('ready');
     document.getElementById('pyodide-status-text').textContent = '준비됨';
 
-    // 샘플 버튼 활성화
     document.querySelectorAll('.sample-btn').forEach(b => b.disabled = false);
 
     log('━━━ 준비 완료. 데이터를 업로드하시거나 샘플을 사용해 보세요 ━━━', 'ok');
   } catch (e) {
     log('Pyodide 로드 실패: ' + e.message, 'err');
     document.getElementById('pyodide-status-text').textContent = '오류';
+    console.error(e);
   }
 }
 
