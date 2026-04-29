@@ -840,6 +840,131 @@ def recommend_analyses(diag):
 
     return recs
 
+def recommend_parameters(diag, rules):
+    """진단 결과 + 룰셋으로 5개 핵심 파라미터 + 보조 정보 추천"""
+    if rules is None:
+        return None
+
+    pop_type = diag['population']['type']
+    n_markers = diag['markers']['n_markers']
+    n_indiv = diag['markers']['n_indiv']
+    trait_names = diag['phenotype']['trait_names']
+
+    # 마커 밀도 룰 선택
+    if n_markers < 100:
+        density_key = 'low_SSR_RFLP_lt_100'
+        density_label = '저밀도 (<100)'
+    elif n_markers <= 500:
+        density_key = 'medium_100_to_500_SSR_KASP'
+        density_label = '중밀도 (100-500)'
+    else:
+        density_key = 'high_gt_500_SNP_GBS'
+        density_label = '고밀도 (>500)'
+
+    density_rule = rules['marker_density_rules'][density_key]
+    icim_add = rules['ICIM_defaults']['ICIM_ADD']
+
+    # 5개 핵심 파라미터
+    params = []
+    params.append({
+        'key': 'walking_step_cM',
+        'name': 'Walking step',
+        'value': density_rule['walking_step_cM'],
+        'unit': 'cM',
+        'reason': f'마커 {n_markers}개 — {density_label}'
+    })
+    params.append({
+        'key': 'ICIM_PIN',
+        'name': 'ICIM PIN',
+        'value': icim_add['PIN'],
+        'unit': 'P-value',
+        'reason': 'ICIM-ADD 표준 (Wang 2009 / IciMapping default)'
+    })
+    params.append({
+        'key': 'LOD_threshold',
+        'name': 'LOD threshold',
+        'value': 'permutation 자동',
+        'unit': '',
+        'reason': f'1000회 perm으로 α=0.05 자동 계산 권장. 수동 floor {icim_add["LOD_floor"]} (Lander&Botstein 1989)'
+    })
+    params.append({
+        'key': 'permutations',
+        'name': 'Permutation 횟수',
+        'value': icim_add['permutations'],
+        'unit': '회',
+        'reason': '탐색용 1000회, 출판용 10000회 (Churchill&Doerge 1994)'
+    })
+    params.append({
+        'key': 'CI_method',
+        'name': '신뢰구간',
+        'value': icim_add['CI_method'].replace('_', '-'),
+        'unit': '',
+        'reason': 'IciMapping default. 출판용은 1.5-LOD drop 권장 (Manichaikul 2006)'
+    })
+
+    # 보조 경고
+    warnings_out = []
+    if n_indiv < 500:
+        beavis = rules.get('beavis_correction_factors', {})
+        if n_indiv <= 100: factor = beavis.get('N_100', 2.0)
+        elif n_indiv <= 200: factor = beavis.get('N_200', 1.5)
+        elif n_indiv <= 300: factor = beavis.get('N_300', 1.3)
+        elif n_indiv <= 500: factor = beavis.get('N_500', 1.15)
+        else: factor = beavis.get('N_1000', 1.05)
+        warnings_out.append({
+            'level': 'warning',
+            'title': 'Beavis effect (PVE 부풀림)',
+            'detail': f'N={n_indiv} → 검출 QTL의 PVE가 약 {factor}× 부풀려져 보고될 수 있습니다. 결과 단계에서 자동 보정됩니다.'
+        })
+
+    if 'RIL' in pop_type or 'DH' in pop_type:
+        pop_rule = rules['population_rules'].get('RIL_F6plus' if 'RIL' in pop_type else 'DH', {})
+        warnings_out.append({
+            'level': 'info',
+            'title': f'{pop_type} 코딩 안내',
+            'detail': f"코딩: {pop_rule.get('coding','A=0,B=2')} / 권장 N: {pop_rule.get('preferred_N','—')} / 헤테로 임계: {pop_rule.get('het_outlier_threshold','—')}"
+        })
+
+    # 형질별 사전 정보 (한국 RDA 후보유전자)
+    keywords_map = {
+        'heading_date': ['heading','dth','dts','출수','heading_date'],
+        'plant_height': ['plantheight','height','ph','초장'],
+        'grain_yield': ['yield','grain_yield','수량'],
+        'thousand_grain_weight': ['tgw','grainweight','천립'],
+        'tiller_number': ['tiller','분얼'],
+        'spikelet_fertility': ['fertility','등숙','임실'],
+        'BLB_resistance': ['blb','xa','bacterial'],
+        'blast_resistance': ['blast','pi','도열'],
+        'salt_tolerance': ['salt','saltol','내염'],
+        'cold_tolerance': ['cold','ltg','내냉'],
+        'drought_root': ['drought','dro','root','내건']
+    }
+    trait_priors = []
+    priors = rules.get('trait_specific_priors', {})
+    for trait in trait_names:
+        tl = trait.lower()
+        matched = None
+        for prior_key, kws in keywords_map.items():
+            if any(kw in tl for kw in kws):
+                matched = prior_key; break
+        if matched and matched in priors:
+            pv = priors[matched]
+            trait_priors.append({
+                'trait': trait,
+                'matched_prior': matched,
+                'H2_typical': pv.get('H2_typical') or pv.get('H2_per_trial', '—'),
+                'expected_QTL_count': pv.get('expected_QTL_count', '—'),
+                'candidate_genes': pv.get('candidate_genes', [])
+            })
+
+    return {
+        'parameters': params,
+        'warnings': warnings_out,
+        'trait_priors': trait_priors,
+        'density_label': density_label,
+        'density_key': density_key
+    }
+
 def run_full_diagnosis(geno_json, map_json, pheno_json):
     """전체 진단 실행"""
     geno_df = pd.DataFrame(geno_json)
@@ -852,6 +977,13 @@ def run_full_diagnosis(geno_json, map_json, pheno_json):
         'phenotype': analyze_phenotype(pheno_df)
     }
     diag['recommendations'] = recommend_analyses(diag)
+
+    # 파라미터 추천 (RULES는 JS측에서 globals로 주입됨)
+    try:
+        diag['parameter_recommendation'] = recommend_parameters(diag, RULES)
+    except NameError:
+        diag['parameter_recommendation'] = None
+
     return json.dumps(diag)
 
 # ============== 시뮬레이션 데이터 생성기 ==============
