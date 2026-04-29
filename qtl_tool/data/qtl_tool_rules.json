@@ -1,0 +1,271 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "created": "2026-04-29",
+    "purpose": "QTL Mapping Tool 파라미터 추천 룰셋",
+    "references": [
+      "Lander & Botstein 1989 Genetics 121:185",
+      "Churchill & Doerge 1994 Genetics 138:963",
+      "Zeng 1994 Genetics 136:1457",
+      "Li, Ye, Wang 2007 Genetics 175:361",
+      "Li, Ribaut, Li, Wang 2008 TAG 116:243",
+      "Wang 2009 Acta Agronomica Sinica 35:239",
+      "Manichaikul, Sen, Broman 2006 Genetics 174:481",
+      "Manichaikul et al. 2009 Genetics 181:1077",
+      "Li, Wang, Zhang 2015 PLOS ONE 10:e0132414"
+    ]
+  },
+  "global_defaults": {
+    "missing_rate_marker": 0.10,
+    "missing_rate_individual": 0.20,
+    "MAF_GWAS": 0.05,
+    "segregation_distortion_p": 0.001,
+    "permutations_alpha05": 1000,
+    "permutations_alpha01": 10000,
+    "map_function": "Kosambi",
+    "imputation_tool": "Beagle_5.4",
+    "allele_coding_reference": "Nipponbare_IRGSP1.0_REF=0_ALT=2"
+  },
+  "population_rules": {
+    "F2": {
+      "min_N": 150,
+      "preferred_N": "200-300",
+      "expected_heterozygosity": 0.50,
+      "het_outlier_threshold": "abs(H-0.50) > 0.10",
+      "coding": "A=0,H=1,B=2",
+      "LOD_analytical_floor_dense": 4.3,
+      "LOD_analytical_floor_sparse": 3.3,
+      "imputation_Ne_japonica": 200,
+      "imputation_Ne_indicaXjaponica": 500,
+      "stepwiseqtl_penalty_Tm_default": 3.52,
+      "stepwiseqtl_penalty_Th_default": 4.28,
+      "stepwiseqtl_penalty_Tl_default": 2.69
+    },
+    "BC1F1": {
+      "min_N": 100,
+      "preferred_N": "100-200",
+      "coding": "0/2",
+      "LOD_analytical_floor_dense": 3.0,
+      "stepwiseqtl_penalty_Tm_default": 2.69,
+      "stepwiseqtl_penalty_Th_default": 2.62,
+      "stepwiseqtl_penalty_Tl_default": 1.19
+    },
+    "RIL_F6plus": {
+      "min_N": 150,
+      "preferred_N": "200-300",
+      "expected_het_max": 0.05,
+      "het_outlier_threshold": "H > 0.10",
+      "coding": "A=0,B=2",
+      "imputation_tool_preferred": "FILLIN",
+      "missing_rate_marker": 0.15
+    },
+    "DH": {
+      "min_N": 100,
+      "preferred_N": "150-200",
+      "expected_het": 0.0,
+      "het_outlier_threshold": "H > 0.05",
+      "coding": "A=0,B=2"
+    },
+    "CSSL_NIL": {
+      "min_N_per_QTL": 30,
+      "preferred_N": 50,
+      "ICIM_method": "RSTEP-LRT-ADD",
+      "PIN": 0.0001,
+      "multicollinearity": -1
+    },
+    "MAGIC": {
+      "min_N": 300,
+      "preferred_N": "600-1000",
+      "imputation_Ne": 5000,
+      "ICIM_method": "founder_probabilities"
+    },
+    "GWAS_panel": {
+      "min_N": 200,
+      "preferred_N": "300-500",
+      "missing_rate_marker": 0.20,
+      "imputation_Ne": 10000,
+      "MAF": 0.05,
+      "het_per_individual_max": 0.02
+    }
+  },
+  "marker_density_rules": {
+    "low_SSR_RFLP_lt_100": {
+      "applies_when_marker_count": "<100",
+      "walking_step_cM": 2.0,
+      "CIM_window_cM": 10,
+      "max_cofactors": 3,
+      "alpha_SMA": 0.05,
+      "multiple_testing": "permutation"
+    },
+    "medium_100_to_500_SSR_KASP": {
+      "applies_when_marker_count": "100-500",
+      "walking_step_cM": 1.0,
+      "CIM_window_cM": 10,
+      "max_cofactors": 5,
+      "alpha_SMA": 0.01,
+      "multiple_testing": "permutation"
+    },
+    "high_gt_500_SNP_GBS": {
+      "applies_when_marker_count": ">500",
+      "walking_step_cM": 0.5,
+      "CIM_window_cM": "5_to_10",
+      "max_cofactors_formula": "min(15, floor(2*sqrt(N)))",
+      "alpha_SMA": 0.001,
+      "multiple_testing": "FDR_BH_q05"
+    }
+  },
+  "ICIM_defaults": {
+    "ICIM_ADD": {
+      "step_cM": 1.0,
+      "PIN": 0.001,
+      "POUT": 0.002,
+      "LOD_floor": 2.5,
+      "permutations": 1000,
+      "alpha": 0.05,
+      "CI_method": "1_LOD_drop"
+    },
+    "ICIM_EPI": {
+      "step_cM_2D": 5.0,
+      "PIN": 0.0001,
+      "POUT": 0.0002,
+      "LOD_floor": 5.0,
+      "permutations": 1000
+    },
+    "ICIM_MET_QEI": {
+      "step_cM": 1.0,
+      "PIN": 0.001,
+      "LOD_QEI_2env_BCDHRIL": 5.67,
+      "LOD_QEI_4env_RIL": "7-8",
+      "min_environments": 3
+    }
+  },
+  "GWAS_model_rules": {
+    "if_N_lt_200_no_structure": "GLM",
+    "if_N_lt_200_with_structure": "GLM+Q",
+    "if_N_200_to_500_typical_japonica": "MLM(Q+K)_P3D_default",
+    "if_N_gt_500_admixed_indica_japonica": "MLM_or_CMLM",
+    "if_polygenic_oligogenic_suspected": "FarmCPU_or_BLINK",
+    "if_massive_dataset_gt_5000": "BLINK",
+    "consensus_2020s": "Run_MLM_AND_FarmCPU_report_intersection",
+    "kinship_default": "VanRaden_GAPIT_or_CenteredIBS_TASSEL",
+    "PCA_japonica_only": "0_to_2_PCs",
+    "PCA_indica_japonica_aus": "3_to_5_PCs",
+    "K_method_panel_admixed": "ADMIXTURE_5fold_CV",
+    "Bonferroni_threshold_44K_chip": 1.14e-6,
+    "FDR_BH_q_suggestive": 0.05
+  },
+  "LD_window_rules": {
+    "temperate_japonica_panel": {
+      "LD_window_kb": 1000,
+      "GWAS_merge_window_kb": 300
+    },
+    "tropical_japonica": {
+      "LD_window_kb": 500,
+      "GWAS_merge_window_kb": 200
+    },
+    "indica_panel": {
+      "LD_window_kb": 300,
+      "GWAS_merge_window_kb": 150
+    },
+    "mixed_subspecies": "compute_LD_within_each_subpop_separately",
+    "PLINK_default_prune": "--indep-pairwise 50 5 0.2"
+  },
+  "trait_specific_priors": {
+    "heading_date": {
+      "H2_typical": "0.85-0.97",
+      "expected_QTL_count": "4-10",
+      "LOD_floor": 3.0,
+      "expected_max_PVE": 50,
+      "candidate_genes": ["Hd1", "Hd3a", "Hd6", "Hd16", "Ghd7", "DTH8", "Ehd1", "DTH7"]
+    },
+    "plant_height": {
+      "H2_typical": "0.80-0.95",
+      "expected_QTL_count": "3-8",
+      "LOD_floor": 3.0,
+      "candidate_genes": ["SD1"]
+    },
+    "grain_yield": {
+      "H2_per_trial": "0.30-0.65",
+      "H2_entry_mean": "0.70-0.85",
+      "min_envs_recommended": 3,
+      "min_reps": 2,
+      "min_N": 250,
+      "candidate_genes": ["DEP1", "Ghd7", "IPA1", "Gn1a"]
+    },
+    "thousand_grain_weight": {
+      "H2_typical": "0.85-0.96",
+      "expected_QTL_count": "4-12",
+      "LOD_floor": 3.0,
+      "candidate_genes": ["GW2", "GS3", "GS5", "GW5", "GW8", "TGW6", "GL7"]
+    },
+    "tiller_number": {
+      "H2_typical": "0.55-0.80",
+      "candidate_genes": ["MOC1", "OsTB1", "IPA1", "TAC1"]
+    },
+    "spikelet_fertility": {
+      "H2_typical": "0.50-0.85",
+      "min_envs_recommended": 3,
+      "warn_overlap_with_sterility_loci": ["S5", "Sa", "hsa1"]
+    },
+    "BLB_resistance": {
+      "trait_class": "qualitative_or_oligogenic",
+      "LOD_floor": 5.0,
+      "candidate_genes": ["Xa4", "xa5", "Xa7", "Xa21", "Xa23", "Xa3/Xa26", "Xa40"]
+    },
+    "blast_resistance": {
+      "trait_class": "mixed_qual_quant",
+      "LOD_floor": 4.0,
+      "candidate_genes": ["Pita", "Pib", "Pi9/Pigm", "Pi54", "Pi-k", "Pi21"]
+    },
+    "salt_tolerance": {
+      "H2_typical": "0.50-0.80",
+      "candidate_genes": ["Saltol/SKC1/OsHKT1;5", "OsHKT1;4"]
+    },
+    "cold_tolerance": {
+      "H2_typical": "0.50-0.80",
+      "candidate_genes": ["qLTG3-1", "COLD1", "CTB4a", "bZIP73"]
+    },
+    "drought_root": {
+      "H2_typical": "0.50-0.80",
+      "candidate_genes": ["DRO1", "DRO2", "qSOR1"]
+    }
+  },
+  "rice_segregation_distortion_known_regions_DO_NOT_DELETE": [
+    {"locus": "S5", "chr": 6, "position_Mb": "5-14", "crosses": "indicaXjaponica"},
+    {"locus": "Sa", "chr": 1, "crosses": "indicaXjaponica_male_sterility"},
+    {"locus": "Sb", "chr": 5},
+    {"locus": "Sc", "chr": 3},
+    {"locus": "S1", "chr": 6, "crosses": "sativaXglaberrima"},
+    {"locus": "hsa1", "chr": 12, "crosses": "japonicaXindica"},
+    {"locus": "S7", "chr": 7},
+    {"locus": "S8", "chr": 6}
+  ],
+  "warnings_to_display": {
+    "if_N_lt_500": "Beavis_effect_PVE_inflation_warning_with_factor",
+    "if_H2_lt_0.4": "Recommend_more_envs_or_reps",
+    "if_LOD_threshold_lt_2.5": "Use_floor_2.5_to_avoid_liberal_calls",
+    "if_QTL_in_known_SD_region": "Flag_but_retain_consult_S5_Sa_S1_hsa1",
+    "if_genetic_map_total_outside_1140_1900_cM": "Map_construction_quality_warning"
+  },
+  "default_workflow_RDA_Korean_japonica_RIL": {
+    "QC": "missing<=10%, MAF_polym, chi2_p<0.001_Bonferroni, het<5% RIL",
+    "imputation": "Beagle_5.4_Ne=200_window=40cM",
+    "linkage_map": "IciMapping_MAP_module_Kosambi",
+    "primary_QTL_engine": "ICIM-ADD step=1cM PIN=0.001",
+    "threshold": "1000_perms_alpha=0.05_floor=2.5",
+    "epistasis": "ICIM-EPI step=5cM PIN=0.0001 LOD=5.0",
+    "CI_default": "1-LOD_drop",
+    "CI_publication": "ALSO_compute_1.5-LOD_and_95%_Bayes_credible",
+    "comparison": "Auto_query_Q-TARO_Gramene_funRiceGenes",
+    "report_PVE_with_Beavis_factor_if_N_lt_500": true
+  },
+  "beavis_correction_factors": {
+    "_note": "Beavis 1998 / Xu 2003 PVE inflation factor by N",
+    "N_100": 2.0,
+    "N_200": 1.5,
+    "N_300": 1.3,
+    "N_500": 1.15,
+    "N_1000": 1.05,
+    "N_gt_1000": 1.0
+  }
+}

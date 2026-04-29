@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QTL Mapping Tool — PoC v0.1</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+
+<!-- KoPub Dotum (Korean) -->
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/wizfree/free-fonts/KoPubWorld%20Dotum%20Light/KoPubWorld%20Dotum%20Light.css');
+</style>
+
+<!-- 외부 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- 본 앱 스타일 -->
+<style id="qtl-styles">
+:root {
+  /* DMRT Style System — 다크 + #017f97 청록 계열 */
+  --bg-primary: #0c3026;
+  --bg-card: #0d3a2d;
+  --bg-card-hover: #134a3a;
+  --bg-input: #1a5040;
+
+  --primary-dark: #0c3026;     /* accent-7 */
+  --primary-main: #017f97;     /* accent-6 */
+  --accent-5: #00a1b8;
+  --accent-4: #54b7c6;
+  --accent-3: #8dccd3;
+  --accent-2: #b2d9d8;
+  --accent-1: #cce3dd;
+
+  --error: #dc3545;
+  --warning: #d97706;          /* DMRT 팔레트와 어우러지는 차분한 호박색 (override 강조용) */
+  --warning-bg: #fef3c7;
+  --success: #4caf50;
+
+  --text-primary: #e8f5f2;
+  --text-secondary: #94b8aa;
+  --text-muted: #6b8a7e;
+  --border-color: #1a5040;
+  --shadow: 0 4px 12px rgba(0,0,0,0.25);
+  --shadow-teal: 0 4px 16px rgba(1, 127, 151, 0.18);
+
+  --font-base: 'KoPub Dotum Light', 'KoPubDotum Light', '맑은 고딕', sans-serif;
+  --font-medium: 'KoPub Dotum Medium', 'KoPubDotum Medium', '맑은 고딕', sans-serif;
+  --font-bold: 'KoPub Dotum Bold', 'KoPubDotum Bold', '맑은 고딕', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-base);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #0a2620 0%, #0c3026 100%);
+  border-bottom: 1px solid var(--border-color);
+  padding: 18px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  position: sticky;
+}
+.header::after {
+  /* 헤더 하단 #017f97 강조 라인 */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--primary-main) 30%, var(--accent-5) 50%, var(--primary-main) 70%, transparent 100%);
+  opacity: 0.6;
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-title {
+  font-family: var(--font-bold);
+  font-size: 18px;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.header-title .ver {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-family: var(--font-medium);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: pulse 1.5s infinite;
+}
+.status-dot.ready { background: var(--success); animation: none; }
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 32px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  padding: 14px 20px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-medium);
+  font-size: 13px;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.tab:hover { color: var(--text-primary); }
+.tab.active {
+  color: var(--accent-3);
+  border-bottom-color: var(--primary-main);
+}
+.tab.active::after {
+  /* 활성 탭 하단 #00a1b8 그라데이션 강조 */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -2px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary-main), var(--accent-5), var(--primary-main));
+}
+.tab .num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-input);
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+.tab.active .num { background: var(--primary-main); color: white; }
+.tab.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+/* Main */
+.main { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+.tab-content { display: none; animation: fadeIn 0.3s; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s;
+}
+.card:hover { box-shadow: var(--shadow-teal); }
+.card-title {
+  font-family: var(--font-bold);
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.2px;
+}
+.card-title::before {
+  content: '';
+  width: 3px; height: 14px;
+  background: linear-gradient(180deg, var(--primary-main), var(--accent-5));
+  border-radius: 2px;
+}
+.card-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+/* Upload zones */
+.upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.upload-zone {
+  background: var(--bg-input);
+  border: 2px dashed var(--border-color);
+  border-radius: 6px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.upload-zone:hover {
+  border-color: var(--primary-main);
+  background: var(--bg-card-hover);
+}
+.upload-zone.uploaded {
+  border-style: solid;
+  border-color: var(--success);
+  background: rgba(76, 175, 80, 0.08);
+}
+.upload-zone .label { font-family: var(--font-medium); font-size: 13px; margin-bottom: 4px; }
+.upload-zone .hint { font-size: 11px; color: var(--text-muted); }
+.upload-zone .filename {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-3);
+  margin-top: 6px;
+  word-break: break-all;
+}
+
+/* Buttons */
+.btn {
+  background: var(--primary-main);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: var(--font-medium);
+  font-size: 13px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover { background: var(--accent-5); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-secondary { background: var(--bg-input); color: var(--text-primary); }
+.btn-secondary:hover { background: var(--bg-card-hover); }
+.btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Diagnostic Grid */
+.diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.diag-card {
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 16px;
+  border-left: 3px solid var(--primary-main);
+}
+.diag-card.warning { border-left-color: var(--warning); }
+.diag-card.error { border-left-color: var(--error); }
+.diag-card.success { border-left-color: var(--success); }
+.diag-card-title {
+  font-family: var(--font-medium);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.diag-card-value {
+  font-family: var(--font-bold);
+  font-size: 22px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.diag-card-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+/* Recommendation */
+.rec-list { display: flex; flex-direction: column; gap: 8px; }
+.rec-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border-radius: 5px;
+  border-left: 3px solid transparent;
+}
+.rec-item.primary {
+  border-left-color: var(--accent-5);
+  background: rgba(0, 161, 184, 0.08);
+}
+.rec-item.secondary { border-left-color: var(--accent-3); }
+.rec-item.unsuitable { opacity: 0.5; border-left-color: var(--error); }
+.rec-rank {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-card);
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 60px;
+  text-align: center;
+}
+.rec-name { font-family: var(--font-medium); font-size: 13px; flex: 1; }
+.rec-reason { font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th {
+  background: var(--bg-input);
+  padding: 8px 12px;
+  text-align: left;
+  font-family: var(--font-medium);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-primary);
+}
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* Console */
+.console {
+  background: #06201a;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 14px;
+  line-height: 1.7;
+}
+.console .log-info { color: var(--accent-3); }
+.console .log-ok { color: var(--success); }
+.console .log-warn { color: var(--warning); }
+.console .log-err { color: var(--error); }
+.console .log-time { color: var(--text-muted); margin-right: 8px; }
+
+/* Empty state */
+.empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-title { font-family: var(--font-medium); font-size: 15px; margin-bottom: 6px; color: var(--text-secondary); }
+.empty-hint { font-size: 12px; }
+
+/* Loader */
+.loader {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-5);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Sample data buttons */
+.sample-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-color);
+}
+.sample-label { font-size: 11px; color: var(--text-muted); margin-right: 4px; }
+
+/* Section divider */
+.section-divider { display: flex; align-items: center; gap: 12px; margin: 24px 0 14px; }
+.section-divider .line { flex: 1; height: 1px; background: var(--border-color); }
+.section-divider .label {
+  font-family: var(--font-medium); font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-family: var(--font-medium);
+  letter-spacing: 0.3px;
+}
+.badge-success { background: rgba(76, 175, 80, 0.2); color: var(--success); }
+.badge-warning { background: rgba(217, 119, 6, 0.2); color: var(--warning); }
+.badge-error { background: rgba(220, 53, 69, 0.2); color: var(--error); }
+.badge-info { background: rgba(0, 161, 184, 0.2); color: var(--accent-5); }
+.badge-override {
+  /* 사용자 override 시 노랑 강조 (조각 4에서 활용) */
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+/* Parameter Recommendation Table (조각 3) */
+.param-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+}
+.param-table th {
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+}
+.param-row {
+  background: var(--bg-input);
+  transition: background 0.2s;
+}
+.param-row:hover { background: var(--bg-card-hover); }
+.param-row td {
+  padding: 12px 10px;
+  border: none;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+}
+.param-row td:first-child {
+  border-left: 3px solid var(--primary-main);
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  padding-left: 14px;
+}
+.param-row td:last-child {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+.param-row.overridden td:first-child {
+  border-left-color: var(--warning);
+  background: linear-gradient(90deg, rgba(217, 119, 6, 0.12), transparent 60%);
+}
+.param-name {
+  font-family: var(--font-medium);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.param-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--accent-3);
+  font-weight: 600;
+}
+.param-value-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--accent-3);
+  padding: 5px 8px;
+  border-radius: 4px;
+  width: 110px;
+}
+.param-value-input.modified {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: rgba(217, 119, 6, 0.08);
+}
+.param-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+.param-reason {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+}
+.param-help-btn {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--accent-5);
+  border: 1px solid var(--accent-5);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+.param-help-btn:hover {
+  background: var(--accent-5);
+  color: var(--bg-card);
+}
+.param-reset-btn {
+  background: transparent;
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all 0.15s;
+}
+.param-reset-btn:hover {
+  background: var(--warning);
+  color: white;
+}
+.param-warning {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 5px;
+  background: rgba(217, 119, 6, 0.08);
+  border-left: 3px solid var(--warning);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.param-warning.info {
+  background: rgba(0, 161, 184, 0.08);
+  border-left-color: var(--accent-5);
+}
+.param-warning .title {
+  font-family: var(--font-medium);
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+.param-warning .detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.trait-prior-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 161, 184, 0.06);
+  border-left: 3px solid var(--accent-5);
+  border-radius: 5px;
+  font-size: 12px;
+}
+.trait-prior-box .trait-name {
+  font-family: var(--font-medium);
+  color: var(--accent-3);
+}
+.trait-prior-box .gene-list {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Modal — Parameter Coach (조각 4) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 32, 26, 0.78);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s;
+}
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(1, 127, 151, 0.2);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, rgba(1, 127, 151, 0.12), transparent 70%);
+}
+.modal-title {
+  font-family: var(--font-bold);
+  font-size: 17px;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+.modal-subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.modal-close {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.modal-close:hover {
+  background: var(--error);
+  border-color: var(--error);
+  color: white;
+}
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.coach-section {
+  margin-bottom: 18px;
+}
+.coach-section-title {
+  font-family: var(--font-medium);
+  font-size: 11px;
+  color: var(--accent-5);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+.coach-section-body {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.coach-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.coach-grid-item {
+  background: var(--bg-input);
+  padding: 12px 14px;
+  border-radius: 6px;
+  border-left: 2px solid var(--primary-main);
+}
+.coach-grid-item.warn { border-left-color: var(--warning); }
+.coach-grid-item .label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.coach-grid-item .text {
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.coach-rice-note {
+  background: rgba(0, 161, 184, 0.08);
+  border-left: 3px solid var(--accent-5);
+  padding: 12px 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.coach-references {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  padding: 10px 14px;
+  border-radius: 5px;
+}
+.coach-references li {
+  margin: 3px 0;
+  list-style: none;
+}
+.coach-references li::before {
+  content: '› ';
+  color: var(--accent-5);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .upload-grid, .diagnostic-grid { grid-template-columns: 1fr; }
+  .header { padding: 14px 18px; }
+  .main { padding: 18px; }
+  .coach-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">
+      QTL Mapping Tool <span class="ver">PoC v0.1</span>
+    </div>
+  </div>
+  <div class="status-badge">
+    <span class="status-dot" id="pyodide-status-dot"></span>
+    <span id="pyodide-status-text">Pyodide 로딩 중...</span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" data-tab="input"><span class="num">0</span>데이터 입력 &amp; 진단</button>
+  <button class="tab disabled" data-tab="qc"><span class="num">1</span>QC &amp; Linkage</button>
+  <button class="tab disabled" data-tab="tier12"><span class="num">2</span>빠른 분석</button>
+  <button class="tab disabled" data-tab="tier3"><span class="num">3</span>표준 분석</button>
+  <button class="tab disabled" data-tab="tier4"><span class="num">4</span>고급 분석</button>
+  <button class="tab disabled" data-tab="result"><span class="num">5</span>결과 통합</button>
+  <button class="tab disabled" data-tab="workflow"><span class="num">6</span>워크플로 연결</button>
+</div>
+
+<div class="main">
+
+<!-- ============ TAB 0: 데이터 입력 & 진단 ============ -->
+<div class="tab-content active" id="tab-input">
+
+  <div class="card">
+    <div class="card-title">데이터 업로드</div>
+    <div class="card-subtitle">유전자형, 마커 위치, 표현형 3종 파일을 업로드하시면 자동 진단합니다.</div>
+
+    <div class="upload-grid">
+      <div class="upload-zone" id="upload-geno" onclick="document.getElementById('file-geno').click()">
+        <div class="label">유전자형 행렬</div>
+        <div class="hint">.xlsx / .csv (A/B/H/-)</div>
+        <div class="filename" id="filename-geno"></div>
+        <input type="file" id="file-geno" accept=".xlsx,.csv,.xls" style="display:none" onchange="handleFile(event,'geno')">
+      </div>
+      <div class="upload-zone" id="upload-map" onclick="document.getElementById('file-map').click()">
+        <div class="label">마커 위치</div>
+        <div class="hint">.xlsx / .csv (Chr, bp, cM)</div>
+        <div class="filename" id="filename-map"></div>
+        <input type="file" id="file-map" accept=".xlsx,.csv,.xls" style="display:none" onchange="handleFile(event,'map')">
+      </div>
+      <div class="upload-zone" id="upload-pheno" onclick="document.getElementById('file-pheno').click()">
+        <div class="label">표현형 데이터</div>
+        <div class="hint">.xlsx / .csv (개체별, 환경별)</div>
+        <div class="filename" id="filename-pheno"></div>
+        <input type="file" id="file-pheno" accept=".xlsx,.csv,.xls" style="display:none" onchange="handleFile(event,'pheno')">
+      </div>
+    </div>
+
+    <div class="sample-row">
+      <span class="sample-label">샘플 데이터:</span>
+      <button class="btn btn-secondary sample-btn" onclick="loadSample('f2')" disabled>F2 (시뮬레이션 N=200)</button>
+      <button class="btn btn-secondary sample-btn" onclick="loadSample('ril')" disabled>RIL (시뮬레이션 N=150)</button>
+      <button class="btn btn-secondary sample-btn" onclick="loadSample('ril_multi')" disabled>RIL 다환경 (3환경)</button>
+      <button class="btn" onclick="runDiagnostic()" id="btn-diagnose" style="margin-left:auto" disabled>
+        <span id="diag-btn-icon">▶</span> 진단 실행
+      </button>
+    </div>
+  </div>
+
+  <!-- Diagnostic Results -->
+  <div id="diagnostic-output" style="display:none">
+    <div class="card">
+      <div class="card-title">데이터 진단 결과</div>
+      <div class="card-subtitle">집단 유형, 마커, 표현형 자동 분석. 이 결과를 바탕으로 분석 방법이 추천됩니다.</div>
+      <div class="diagnostic-grid" id="diag-grid"></div>
+    </div>
+
+    <!-- 추천 파라미터 카드 (조각 3) -->
+    <div class="card" id="param-rec-card" style="display:none">
+      <div class="card-title">추천 파라미터</div>
+      <div class="card-subtitle">데이터 특성과 룰셋(qtl_tool_rules.json)을 바탕으로 5개 핵심 파라미터를 자동 결정했습니다. (?) 버튼으로 각 파라미터의 의미를 확인하실 수 있습니다.</div>
+      <div id="param-rec-list"></div>
+      <div id="param-rec-warnings"></div>
+      <div id="param-rec-trait-priors"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">추천 분석</div>
+      <div class="card-subtitle">데이터 특성에 맞는 분석 방법을 우선순위로 제시합니다.</div>
+      <div class="rec-list" id="rec-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">상세 통계</div>
+      <div id="detailed-stats"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">실행 로그</div>
+    <div class="console" id="console-log">
+      <div><span class="log-time">[init]</span><span class="log-info">QTL Mapping Tool PoC v0.1 준비 중...</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 비활성 탭들 (PoC) -->
+<div class="tab-content" id="tab-qc">
+  <div class="card"><div class="empty">
+    <div class="empty-title">QC &amp; Linkage Map 검증</div>
+    <div class="empty-hint">단계 G(작업서)에서 구현됩니다.</div>
+  </div></div>
+</div>
+<div class="tab-content" id="tab-tier12"><div class="card"><div class="empty"><div class="empty-title">빠른 분석 (SMA + IM)</div><div class="empty-hint">단계 B 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier3"><div class="card"><div class="empty"><div class="empty-title">표준 분석 (ICIM-ADD + CIM + MQM)</div><div class="empty-hint">단계 C 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier4"><div class="card"><div class="empty"><div class="empty-title">고급 분석 (Epistasis + QTL × Environment)</div><div class="empty-hint">단계 E 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
+
+</div>
+
+<!-- Parameter Coach 모달 (조각 4) -->
+<div class="modal-backdrop" id="param-coach-modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="coach-display-name"></div>
+        <div class="modal-subtitle" id="coach-key"></div>
+      </div>
+      <button class="modal-close" onclick="closeParamCoach()">&times;</button>
+    </div>
+    <div class="modal-body" id="coach-body"></div>
+  </div>
+</div>
+
+<!-- 본 앱 스크립트 -->
+<script id="qtl-script">
+// ============================================================
+// 전역 상태
+// ============================================================
+let pyodide = null;
+let appData = {
+  geno: null,    // {data, filename, raw}
+  map: null,
+  pheno: null,
+  diagnosis: null,
+  rules: null,             // qtl_tool_rules.json
+  paramDescriptions: null, // qtl_tool_param_descriptions.json
+  paramOverrides: {}       // 사용자가 수정한 파라미터 (조각 4에서 사용)
+};
+
+// ============================================================
+// JSON 룰셋/설명 로드 (Pyodide 부팅 시 호출)
+// ============================================================
+async function loadRulesAndDescriptions() {
+  const tryFetch = async (path) => {
+    try {
+      const res = await fetch(path, {cache: 'no-store'});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      log(`${path} 로드 실패 (${e.message}). 추천 파라미터 기능이 비활성화됩니다.`, 'warn');
+      return null;
+    }
+  };
+  const [rules, descs] = await Promise.all([
+    tryFetch('./data/qtl_tool_rules.json'),
+    tryFetch('./data/qtl_tool_param_descriptions.json')
+  ]);
+  appData.rules = rules;
+  appData.paramDescriptions = descs;
+  if (rules && descs) {
+    log(`룰셋 로드 완료 (rules: ${Object.keys(rules).length} keys, params: ${Object.keys(descs).filter(k=>!k.startsWith('_')).length}개)`, 'ok');
+  }
+}
+
+// ============================================================
+// 로깅
+// ============================================================
+function log(msg, type='info') {
+  const el = document.getElementById('console-log');
+  const time = new Date().toTimeString().slice(0,8);
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ============================================================
+// 탭 전환
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.classList.contains('disabled')) return;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// Pyodide 부팅
+// ============================================================
+async function bootPyodide() {
+  log('Pyodide 다운로드 시작 (약 10초)...', 'info');
+  try {
+    // 룰셋과 Pyodide를 병렬 로드
+    const [_, __] = await Promise.all([
+      (async () => {
+        pyodide = await loadPyodide();
+        log('Pyodide 코어 로드 완료', 'ok');
+        log('과학 계산 패키지 로드 중 (numpy, scipy, pandas)...', 'info');
+        await pyodide.loadPackage(['numpy','scipy','pandas']);
+        log('패키지 로드 완료', 'ok');
+      })(),
+      loadRulesAndDescriptions()
+    ]);
+
+    // Python 진단 모듈 로드
+    pyodide.runPython(getDiagnosticPyCode());
+
+    // 룰셋을 Python globals에 등록 (recommend_parameters에서 사용)
+    if (appData.rules) {
+      pyodide.globals.set('_RULES_JSON', JSON.stringify(appData.rules));
+      pyodide.runPython('import json\nRULES = json.loads(_RULES_JSON)');
+      log('Python 측에 룰셋 등록 완료', 'ok');
+    } else {
+      pyodide.runPython('RULES = None')
+    }
+    log('진단 엔진 초기화 완료', 'ok');
+
+    document.getElementById('pyodide-status-dot').classList.add('ready');
+    document.getElementById('pyodide-status-text').textContent = '준비됨';
+
+    document.querySelectorAll('.sample-btn').forEach(b => b.disabled = false);
+
+    log('━━━ 준비 완료. 데이터를 업로드하시거나 샘플을 사용해 보세요 ━━━', 'ok');
+  } catch (e) {
+    log('Pyodide 로드 실패: ' + e.message, 'err');
+    document.getElementById('pyodide-status-text').textContent = '오류';
+    console.error(e);
+  }
+}
+
+// ============================================================
+// Python 진단 코드 (Pyodide 내부에서 실행됨)
+// ============================================================
+function getDiagnosticPyCode() {
+  return `
+import numpy as np
+import pandas as pd
+from scipy import stats
+import json
+
+def diagnose_population(geno_df):
+    """집단 유형 추정: 헤테로 비율 + 분리비 chi2 검정"""
+    # 마커명, 개체ID 컬럼 제외하고 유전자형 행렬만
+    geno = geno_df.iloc[:, 1:].values  # 첫 컬럼은 마커명 가정
+    valid = np.isin(geno, ['A','B','H'])
+    total = valid.sum()
+    if total == 0:
+        return {'type': 'Unknown', 'confidence': 0, 'reason': '유효한 유전자형 없음',
+                'n_a':0, 'n_b':0, 'n_h':0, 'het_ratio':0, 'a_ratio':0, 'b_ratio':0}
+
+    n_a = (geno == 'A').sum()
+    n_b = (geno == 'B').sum()
+    n_h = (geno == 'H').sum()
+
+    het_ratio = n_h / total
+    a_ratio = n_a / total
+    b_ratio = n_b / total
+
+    # 집단 유형 판정 (BC1 분기를 F2 분기보다 먼저 검사)
+    if het_ratio < 0.05:
+        if abs(a_ratio - 0.5) < 0.1:
+            pop_type = 'RIL/DH'
+            conf = 0.85
+            chi2, p = stats.chisquare([n_a, n_b], [(n_a+n_b)/2]*2)
+            reason = f'헤테로 {het_ratio*100:.1f}% < 5%, A:B = {a_ratio:.2f}:{b_ratio:.2f}, chi2={chi2:.2f} p={p:.3f}'
+        else:
+            pop_type = 'RIL/DH (편향)'
+            conf = 0.6
+            reason = f'헤테로 낮음이나 A:B 편향 ({a_ratio:.2f}:{b_ratio:.2f})'
+    elif 0.4 < het_ratio < 0.6 and abs(a_ratio - b_ratio) < 0.15:
+        # F2: 1:2:1 검정
+        pop_type = 'F2'
+        n_total = n_a + n_b + n_h
+        expected = [n_total*0.25, n_total*0.5, n_total*0.25]
+        chi2, p = stats.chisquare([n_a, n_h, n_b], expected)
+        conf = 0.95 if p > 0.05 else 0.7
+        reason = f'1:2:1 검정 chi2={chi2:.2f} p={p:.3f}, 헤테로 {het_ratio*100:.1f}%'
+    elif 0.4 < het_ratio < 0.6:
+        # 한쪽으로 편중 + 헤테로 ~50% → BC
+        pop_type = 'BC1'
+        conf = 0.75
+        reason = f'BC1 패턴: 헤테로 {het_ratio*100:.1f}%, 편향 ({a_ratio:.2f}:{b_ratio:.2f})'
+    else:
+        pop_type = 'F2 (변형)'
+        conf = 0.5
+        reason = f'헤테로 {het_ratio*100:.1f}% — 비표준 패턴'
+
+    return {
+        'type': pop_type, 'confidence': float(conf), 'reason': reason,
+        'n_a': int(n_a), 'n_b': int(n_b), 'n_h': int(n_h),
+        'het_ratio': float(het_ratio),
+        'a_ratio': float(a_ratio), 'b_ratio': float(b_ratio)
+    }
+
+def analyze_markers(geno_df, map_df=None):
+    """마커 통계: 결측률, 염색체 분포, 간격"""
+    geno = geno_df.iloc[:, 1:].values
+    n_markers = geno.shape[0]
+    n_indiv = geno.shape[1]
+
+    missing = (geno == '-').sum(axis=1) / n_indiv
+    avg_missing = missing.mean()
+    max_missing = missing.max()
+    high_missing_markers = int((missing > 0.2).sum())
+
+    result = {
+        'n_markers': int(n_markers),
+        'n_indiv': int(n_indiv),
+        'avg_missing': float(avg_missing),
+        'max_missing': float(max_missing),
+        'high_missing_count': high_missing_markers
+    }
+
+    if map_df is not None:
+        # Chr 컬럼 자동 탐색
+        chr_col = None
+        for c in map_df.columns:
+            if str(c).lower() in ['chr','chromosome','chrom']:
+                chr_col = c; break
+        if chr_col:
+            chrs = map_df[chr_col].astype(str).unique()
+            result['n_chr'] = int(len(chrs))
+            result['chr_list'] = sorted(chrs.tolist())
+
+        # cM 컬럼
+        cm_col = None
+        for c in map_df.columns:
+            if str(c).lower() in ['cm','position_cm','genetic']:
+                cm_col = c; break
+        if cm_col and chr_col:
+            intervals = []
+            for ch in chrs:
+                pos = sorted(map_df[map_df[chr_col]==ch][cm_col].dropna().values)
+                if len(pos) > 1:
+                    diffs = np.diff(pos)
+                    intervals.extend(diffs.tolist())
+            if intervals:
+                result['avg_interval_cM'] = float(np.mean(intervals))
+                result['max_interval_cM'] = float(np.max(intervals))
+
+    return result
+
+def analyze_phenotype(pheno_df):
+    """표현형 통계: 정규성, CV, 극단값, 다환경 여부"""
+    pheno_data = pheno_df.iloc[:, 1:]
+
+    results = {}
+    n_traits = pheno_data.shape[1]
+    results['n_traits'] = int(n_traits)
+    results['trait_names'] = pheno_data.columns.tolist()
+
+    trait_stats = []
+    for col in pheno_data.columns:
+        vals = pheno_data[col].dropna().values.astype(float)
+        if len(vals) < 3:
+            continue
+        try:
+            sw_stat, sw_p = stats.shapiro(vals)
+        except Exception:
+            sw_stat, sw_p = np.nan, np.nan
+
+        mean = vals.mean()
+        std = vals.std()
+        cv = (std/mean)*100 if mean != 0 else 0
+
+        q1, q3 = np.percentile(vals, [25, 75])
+        iqr = q3 - q1
+        outliers = int(((vals < q1 - 3*iqr) | (vals > q3 + 3*iqr)).sum())
+
+        trait_stats.append({
+            'name': col, 'n': int(len(vals)),
+            'mean': float(mean), 'std': float(std), 'cv': float(cv),
+            'shapiro_p': float(sw_p) if not np.isnan(sw_p) else None,
+            'normal': bool(sw_p > 0.05) if not np.isnan(sw_p) else False,
+            'outliers': outliers,
+            'min': float(vals.min()), 'max': float(vals.max())
+        })
+    results['traits'] = trait_stats
+
+    # 다환경 추정
+    env_pattern_cols = [c for c in pheno_data.columns if any(p in str(c).lower() for p in ['_e1','_e2','_e3','_env','_2023','_2024','_2025','_2026','_loc'])]
+    results['multi_env'] = bool(len(env_pattern_cols) >= 2)
+
+    return results
+
+def recommend_analyses(diag):
+    """진단 결과 기반 분석 추천"""
+    recs = []
+    pop = diag['population']
+    pop_type = pop['type']
+    n_indiv = diag['markers'].get('n_indiv', 0)
+    multi_env = diag['phenotype'].get('multi_env', False)
+
+    if 'F2' in pop_type or 'RIL' in pop_type or 'DH' in pop_type or 'BC' in pop_type:
+        recs.append({'rank':'1순위','tier':'primary','name':'ICIM-ADD',
+                     'reason':f'{pop_type} 분리집단 + 배경 cofactor 자동 제어로 false positive 최소화'})
+        recs.append({'rank':'2순위','tier':'secondary','name':'Composite Interval Mapping (CIM)',
+                     'reason':'cofactor 수동 지정 가능, 출판용 표준 방법'})
+        recs.append({'rank':'가능','tier':'secondary','name':'Single Marker ANOVA + Interval Mapping',
+                     'reason':'빠른 1차 스크린'})
+        if multi_env:
+            recs.append({'rank':'추가','tier':'primary','name':'QTL × Environment 분석',
+                         'reason':'다환경 데이터 감지 — 환경 안정성 QTL 탐색 가능'})
+        recs.append({'rank':'부적합','tier':'unsuitable','name':'GWAS-MLM',
+                     'reason':'분리집단에는 부적합 (자연집단용)'})
+    else:
+        recs.append({'rank':'경고','tier':'unsuitable','name':'집단 유형 불확실',
+                     'reason':'입력 데이터 재확인 권장'})
+
+    if n_indiv < 100:
+        recs.append({'rank':'경고','tier':'unsuitable','name':f'개체 수 부족 (N={n_indiv})',
+                     'reason':'Power 부족, 큰 효과 QTL만 검출 가능'})
+
+    return recs
+
+def recommend_parameters(diag, rules):
+    """진단 결과 + 룰셋으로 5개 핵심 파라미터 + 보조 정보 추천"""
+    if rules is None:
+        return None
+
+    pop_type = diag['population']['type']
+    n_markers = diag['markers']['n_markers']
+    n_indiv = diag['markers']['n_indiv']
+    trait_names = diag['phenotype']['trait_names']
+
+    # 마커 밀도 룰 선택
+    if n_markers < 100:
+        density_key = 'low_SSR_RFLP_lt_100'
+        density_label = '저밀도 (<100)'
+    elif n_markers <= 500:
+        density_key = 'medium_100_to_500_SSR_KASP'
+        density_label = '중밀도 (100-500)'
+    else:
+        density_key = 'high_gt_500_SNP_GBS'
+        density_label = '고밀도 (>500)'
+
+    density_rule = rules['marker_density_rules'][density_key]
+    icim_add = rules['ICIM_defaults']['ICIM_ADD']
+
+    # 5개 핵심 파라미터
+    params = []
+    params.append({
+        'key': 'walking_step_cM',
+        'name': 'Walking step',
+        'value': density_rule['walking_step_cM'],
+        'unit': 'cM',
+        'reason': f'마커 {n_markers}개 — {density_label}'
+    })
+    params.append({
+        'key': 'ICIM_PIN',
+        'name': 'ICIM PIN',
+        'value': icim_add['PIN'],
+        'unit': 'P-value',
+        'reason': 'ICIM-ADD 표준 (Wang 2009 / IciMapping default)'
+    })
+    params.append({
+        'key': 'LOD_threshold',
+        'name': 'LOD threshold',
+        'value': 'permutation 자동',
+        'unit': '',
+        'reason': f'1000회 perm으로 α=0.05 자동 계산 권장. 수동 floor {icim_add["LOD_floor"]} (Lander&Botstein 1989)'
+    })
+    params.append({
+        'key': 'permutations',
+        'name': 'Permutation 횟수',
+        'value': icim_add['permutations'],
+        'unit': '회',
+        'reason': '탐색용 1000회, 출판용 10000회 (Churchill&Doerge 1994)'
+    })
+    params.append({
+        'key': 'CI_method',
+        'name': '신뢰구간',
+        'value': icim_add['CI_method'].replace('_', '-'),
+        'unit': '',
+        'reason': 'IciMapping default. 출판용은 1.5-LOD drop 권장 (Manichaikul 2006)'
+    })
+
+    # 보조 경고
+    warnings_out = []
+    if n_indiv < 500:
+        beavis = rules.get('beavis_correction_factors', {})
+        if n_indiv <= 100: factor = beavis.get('N_100', 2.0)
+        elif n_indiv <= 200: factor = beavis.get('N_200', 1.5)
+        elif n_indiv <= 300: factor = beavis.get('N_300', 1.3)
+        elif n_indiv <= 500: factor = beavis.get('N_500', 1.15)
+        else: factor = beavis.get('N_1000', 1.05)
+        warnings_out.append({
+            'level': 'warning',
+            'title': 'Beavis effect (PVE 부풀림)',
+            'detail': f'N={n_indiv} → 검출 QTL의 PVE가 약 {factor}× 부풀려져 보고될 수 있습니다. 결과 단계에서 자동 보정됩니다.'
+        })
+
+    if 'RIL' in pop_type or 'DH' in pop_type:
+        pop_rule = rules['population_rules'].get('RIL_F6plus' if 'RIL' in pop_type else 'DH', {})
+        warnings_out.append({
+            'level': 'info',
+            'title': f'{pop_type} 코딩 안내',
+            'detail': f"코딩: {pop_rule.get('coding','A=0,B=2')} / 권장 N: {pop_rule.get('preferred_N','—')} / 헤테로 임계: {pop_rule.get('het_outlier_threshold','—')}"
+        })
+
+    # 형질별 사전 정보 (한국 RDA 후보유전자)
+    keywords_map = {
+        'heading_date': ['heading','dth','dts','출수','heading_date'],
+        'plant_height': ['plantheight','height','ph','초장'],
+        'grain_yield': ['yield','grain_yield','수량'],
+        'thousand_grain_weight': ['tgw','grainweight','천립'],
+        'tiller_number': ['tiller','분얼'],
+        'spikelet_fertility': ['fertility','등숙','임실'],
+        'BLB_resistance': ['blb','xa','bacterial'],
+        'blast_resistance': ['blast','pi','도열'],
+        'salt_tolerance': ['salt','saltol','내염'],
+        'cold_tolerance': ['cold','ltg','내냉'],
+        'drought_root': ['drought','dro','root','내건']
+    }
+    trait_priors = []
+    priors = rules.get('trait_specific_priors', {})
+    for trait in trait_names:
+        tl = trait.lower()
+        matched = None
+        for prior_key, kws in keywords_map.items():
+            if any(kw in tl for kw in kws):
+                matched = prior_key; break
+        if matched and matched in priors:
+            pv = priors[matched]
+            trait_priors.append({
+                'trait': trait,
+                'matched_prior': matched,
+                'H2_typical': pv.get('H2_typical') or pv.get('H2_per_trial', '—'),
+                'expected_QTL_count': pv.get('expected_QTL_count', '—'),
+                'candidate_genes': pv.get('candidate_genes', [])
+            })
+
+    return {
+        'parameters': params,
+        'warnings': warnings_out,
+        'trait_priors': trait_priors,
+        'density_label': density_label,
+        'density_key': density_key
+    }
+
+def run_full_diagnosis(geno_json, map_json, pheno_json):
+    """전체 진단 실행"""
+    geno_df = pd.DataFrame(geno_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    map_df = pd.DataFrame(map_json) if map_json else None
+
+    diag = {
+        'population': diagnose_population(geno_df),
+        'markers': analyze_markers(geno_df, map_df),
+        'phenotype': analyze_phenotype(pheno_df)
+    }
+    diag['recommendations'] = recommend_analyses(diag)
+
+    # 파라미터 추천 (RULES는 JS측에서 globals로 주입됨)
+    try:
+        diag['parameter_recommendation'] = recommend_parameters(diag, RULES)
+    except NameError:
+        diag['parameter_recommendation'] = None
+
+    return json.dumps(diag)
+
+# ============== 시뮬레이션 데이터 생성기 ==============
+def generate_sample_f2(n_indiv=200, n_markers_per_chr=50, n_chr=12, seed=42):
+    """F2 분리집단 시뮬레이션. QTL 1개를 Chr3 30cM 부근에 배치."""
+    np.random.seed(seed)
+    markers, chrs, cms, bps = [], [], [], []
+    for chrom in range(1, n_chr+1):
+        for i in range(n_markers_per_chr):
+            cm_pos = i * 2.0
+            markers.append(f'M{chrom:02d}_{i+1:03d}')
+            chrs.append(chrom)
+            cms.append(cm_pos)
+            bps.append(int(cm_pos * 250000))
+
+    geno_arr = np.random.choice(['A','H','B'], size=(len(markers), n_indiv), p=[0.25, 0.5, 0.25])
+    miss_mask = np.random.random(geno_arr.shape) < 0.03
+    geno_arr[miss_mask] = '-'
+
+    qtl_marker_idx = next(i for i, (c, p) in enumerate(zip(chrs, cms)) if c==3 and p>=28 and p<=32)
+    qtl_geno = geno_arr[qtl_marker_idx]
+    pheno = np.random.normal(100, 10, n_indiv)
+    pheno[qtl_geno == 'A'] -= 8
+    pheno[qtl_geno == 'B'] += 8
+    pheno[qtl_geno == '-'] = np.nan
+
+    geno_df = pd.DataFrame(geno_arr, columns=[f'Ind{i+1:03d}' for i in range(n_indiv)])
+    geno_df.insert(0, 'Marker', markers)
+    map_df = pd.DataFrame({'Marker': markers, 'Chr': chrs, 'bp': bps, 'cM': cms})
+    pheno_df = pd.DataFrame({
+        'Indiv': [f'Ind{i+1:03d}' for i in range(n_indiv)],
+        'PlantHeight': pheno
+    })
+    return (geno_df.to_dict('list'), map_df.to_dict('list'), pheno_df.to_dict('list'))
+
+def generate_sample_ril(n_indiv=150, n_markers_per_chr=40, n_chr=12, seed=42):
+    """RIL: 헤테로 거의 없음 (1:1 A:B)"""
+    np.random.seed(seed)
+    markers, chrs, cms, bps = [], [], [], []
+    for chrom in range(1, n_chr+1):
+        for i in range(n_markers_per_chr):
+            cm_pos = i * 2.5
+            markers.append(f'M{chrom:02d}_{i+1:03d}')
+            chrs.append(chrom)
+            cms.append(cm_pos)
+            bps.append(int(cm_pos * 250000))
+
+    geno_arr = np.random.choice(['A','B','H'], size=(len(markers), n_indiv), p=[0.49, 0.49, 0.02])
+    miss_mask = np.random.random(geno_arr.shape) < 0.04
+    geno_arr[miss_mask] = '-'
+
+    qtl_idx = next(i for i,(c,p) in enumerate(zip(chrs,cms)) if c==5 and p>=48 and p<=52)
+    qtl_geno = geno_arr[qtl_idx]
+    pheno = np.random.normal(50, 5, n_indiv)
+    pheno[qtl_geno == 'A'] -= 4
+    pheno[qtl_geno == 'B'] += 4
+    pheno[qtl_geno == '-'] = np.nan
+
+    geno_df = pd.DataFrame(geno_arr, columns=[f'RIL{i+1:03d}' for i in range(n_indiv)])
+    geno_df.insert(0, 'Marker', markers)
+    map_df = pd.DataFrame({'Marker': markers, 'Chr': chrs, 'bp': bps, 'cM': cms})
+    pheno_df = pd.DataFrame({
+        'Indiv': [f'RIL{i+1:03d}' for i in range(n_indiv)],
+        'GrainYield': pheno
+    })
+    return (geno_df.to_dict('list'), map_df.to_dict('list'), pheno_df.to_dict('list'))
+
+def generate_sample_ril_multi(n_indiv=150, seed=42):
+    """RIL + 다환경(3 env)"""
+    np.random.seed(seed)
+    g, m, p = generate_sample_ril(n_indiv, seed=seed)
+    base = pd.DataFrame(p)['GrainYield'].values
+    p_multi = pd.DataFrame({
+        'Indiv': [f'RIL{i+1:03d}' for i in range(n_indiv)],
+        'Yield_E1_Suwon_2024': base + np.random.normal(0, 1.5, n_indiv),
+        'Yield_E2_Milyang_2024': base + np.random.normal(2, 1.8, n_indiv),
+        'Yield_E3_Iksan_2024': base + np.random.normal(-1, 2.2, n_indiv) + (np.random.random(n_indiv)>0.5)*1.5
+    })
+    return (g, m, p_multi.to_dict('list'))
+
+def get_sample(kind):
+    if kind == 'f2':
+        return generate_sample_f2()
+    elif kind == 'ril':
+        return generate_sample_ril()
+    elif kind == 'ril_multi':
+        return generate_sample_ril_multi()
+    return None
+`;
+}
+
+// ============================================================
+// 파일 처리
+// ============================================================
+async function handleFile(event, type) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  log(`${type} 파일 읽는 중: ${file.name}`, 'info');
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet, {defval:null});
+
+    if (data.length === 0) throw new Error('빈 파일');
+
+    // 컬럼 단위로 변환 (DataFrame.to_dict('list') 형식)
+    const cols = Object.keys(data[0]);
+    const colData = {};
+    cols.forEach(c => colData[c] = data.map(r => r[c]));
+
+    appData[type] = {data: colData, filename: file.name, raw: data};
+    document.getElementById(`upload-${type}`).classList.add('uploaded');
+    document.getElementById(`filename-${type}`).textContent = `✓ ${file.name} (${data.length}행)`;
+    log(`${type} 로드 완료: ${data.length}행, ${cols.length}열`, 'ok');
+
+    checkReady();
+  } catch (e) {
+    log(`${type} 로드 실패: ${e.message}`, 'err');
+  }
+}
+
+function checkReady() {
+  const btn = document.getElementById('btn-diagnose');
+  const ready = appData.geno && appData.pheno;
+  btn.disabled = !(ready && pyodide);
+}
+
+// ============================================================
+// 샘플 데이터 로드
+// ============================================================
+async function loadSample(kind) {
+  if (!pyodide) {
+    log('Pyodide 아직 준비 안 됨. 우상단 배지가 초록색이 될 때까지 기다려주세요.', 'warn');
+    return;
+  }
+
+  // 진단 엔진(get_sample 함수) 등록 여부 확인
+  const hasFunc = pyodide.runPython(`'get_sample' in dir()`);
+  if (!hasFunc) {
+    log('진단 엔진 초기화 미완료. 잠시 후 다시 시도해주세요.', 'warn');
+    return;
+  }
+
+  log(`샘플 데이터 생성: ${kind}`, 'info');
+  try {
+    pyodide.globals.set('_kind', kind);
+    const result = pyodide.runPython('get_sample(_kind)');
+    if (!result) {
+      log('샘플 생성 함수가 아직 미구현입니다 (조각 2-f 대기).', 'warn');
+      return;
+    }
+    const [geno, map, pheno] = result.toJs({dict_converter: Object.fromEntries});
+
+    appData.geno = {data: geno, filename: `sample_${kind}_geno.csv`, raw: null};
+    appData.map = {data: map, filename: `sample_${kind}_map.csv`, raw: null};
+    appData.pheno = {data: pheno, filename: `sample_${kind}_pheno.csv`, raw: null};
+
+    ['geno','map','pheno'].forEach(t => {
+      document.getElementById(`upload-${t}`).classList.add('uploaded');
+      document.getElementById(`filename-${t}`).textContent = `✓ ${appData[t].filename}`;
+    });
+
+    log(`샘플 로드 완료 (${kind})`, 'ok');
+    checkReady();
+  } catch (e) {
+    log('샘플 로드 실패: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+// ============================================================
+// 진단 실행
+// ============================================================
+async function runDiagnostic() {
+  if (!pyodide || !appData.geno || !appData.pheno) {
+    log('데이터 또는 Pyodide 준비 안 됨', 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('btn-diagnose');
+  btn.disabled = true;
+  document.getElementById('diag-btn-icon').innerHTML = '<span class="loader"></span>';
+  log('진단 실행 시작', 'info');
+
+  try {
+    pyodide.globals.set('_geno_json', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_map_json', appData.map ? pyodide.toPy(appData.map.data) : null);
+    pyodide.globals.set('_pheno_json', pyodide.toPy(appData.pheno.data));
+
+    const t0 = performance.now();
+    const resultStr = pyodide.runPython('run_full_diagnosis(_geno_json, _map_json, _pheno_json)');
+    const result = JSON.parse(resultStr);
+    const t1 = performance.now();
+
+    log(`진단 완료 (${(t1-t0).toFixed(0)}ms)`, 'ok');
+    appData.diagnosis = result;
+    renderDiagnosis(result);
+  } catch (e) {
+    log('진단 실패: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('diag-btn-icon').innerHTML = '▶';
+  }
+}
+
+// ============================================================
+// 진단 결과 렌더링
+// ============================================================
+function renderDiagnosis(d) {
+  const out = document.getElementById('diagnostic-output');
+  out.style.display = 'block';
+
+  const pop = d.population;
+  const mk = d.markers;
+  const ph = d.phenotype;
+
+  // Diagnostic Cards
+  const grid = document.getElementById('diag-grid');
+  grid.innerHTML = '';
+
+  // 집단 유형
+  const popLevel = pop.confidence > 0.8 ? 'success' : pop.confidence > 0.6 ? 'warning' : 'error';
+  grid.innerHTML += `
+    <div class="diag-card ${popLevel}">
+      <div class="diag-card-title">집단 유형 추정</div>
+      <div class="diag-card-value">${pop.type}</div>
+      <div class="diag-card-detail">
+        신뢰도: ${(pop.confidence*100).toFixed(0)}%<br>
+        ${pop.reason}<br>
+        A:H:B = ${pop.n_a} : ${pop.n_h} : ${pop.n_b}
+      </div>
+    </div>`;
+
+  // 마커
+  const markerLevel = mk.avg_missing < 0.05 ? 'success' : mk.avg_missing < 0.15 ? 'warning' : 'error';
+  let mkDetail = `총 ${mk.n_markers}개 마커, ${mk.n_indiv}개체<br>`;
+  mkDetail += `평균 결측률 ${(mk.avg_missing*100).toFixed(1)}% (최대 ${(mk.max_missing*100).toFixed(1)}%)<br>`;
+  if (mk.high_missing_count > 0) mkDetail += `<span style="color:var(--warning)">결측 20%↑ 마커: ${mk.high_missing_count}개</span><br>`;
+  if (mk.n_chr) mkDetail += `염색체: ${mk.n_chr}개`;
+  if (mk.avg_interval_cM) mkDetail += ` / 평균 간격 ${mk.avg_interval_cM.toFixed(2)} cM`;
+
+  grid.innerHTML += `
+    <div class="diag-card ${markerLevel}">
+      <div class="diag-card-title">마커 정보</div>
+      <div class="diag-card-value">${mk.n_markers.toLocaleString()} <span style="font-size:13px;color:var(--text-secondary)">markers</span></div>
+      <div class="diag-card-detail">${mkDetail}</div>
+    </div>`;
+
+  // 표현형
+  const traitsHtml = (ph.traits || []).map(t => {
+    const normBadge = t.normal ? '<span class="badge badge-success">정규</span>' : '<span class="badge badge-warning">비정규</span>';
+    const cvBadge = t.cv < 30 ? '<span class="badge badge-success">CV 적정</span>' : '<span class="badge badge-warning">CV 높음</span>';
+    return `<div style="margin:6px 0;font-size:12px"><strong>${t.name}</strong> (N=${t.n}): mean ${t.mean.toFixed(2)} ± ${t.std.toFixed(2)}, CV ${t.cv.toFixed(1)}%, 극단값 ${t.outliers} ${normBadge} ${cvBadge}</div>`;
+  }).join('');
+
+  const envBadge = ph.multi_env ? '<span class="badge badge-info">다환경 감지</span>' : '<span class="badge badge-warning">단환경</span>';
+  grid.innerHTML += `
+    <div class="diag-card success">
+      <div class="diag-card-title">표현형 ${envBadge}</div>
+      <div class="diag-card-value">${ph.n_traits} <span style="font-size:13px;color:var(--text-secondary)">trait${ph.n_traits>1?'s':''}</span></div>
+      <div class="diag-card-detail">${traitsHtml}</div>
+    </div>`;
+
+  // 종합 판정
+  const overallReady = pop.confidence > 0.6 && mk.avg_missing < 0.2 && mk.n_indiv >= 50;
+  grid.innerHTML += `
+    <div class="diag-card ${overallReady ? 'success' : 'warning'}">
+      <div class="diag-card-title">분석 가능 여부</div>
+      <div class="diag-card-value">${overallReady ? '✓ 가능' : '⚠ 주의'}</div>
+      <div class="diag-card-detail">
+        ${overallReady ? '데이터 품질이 표준 분석에 적합합니다.' : '일부 지표가 권장 범위를 벗어납니다. 상세 통계를 확인해주세요.'}
+      </div>
+    </div>`;
+
+  // Recommendations
+  const recList = document.getElementById('rec-list');
+  recList.innerHTML = (d.recommendations || []).map(r => `
+    <div class="rec-item ${r.tier}">
+      <div class="rec-rank">${r.rank}</div>
+      <div class="rec-name">${r.name}</div>
+      <div class="rec-reason">${r.reason}</div>
+    </div>
+  `).join('');
+
+  // Detailed stats table
+  const detail = document.getElementById('detailed-stats');
+  detail.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>지표</th><th>값</th><th>상태</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>집단 유형</td><td>${pop.type}</td><td>${pop.confidence > 0.8 ? '<span class="badge badge-success">확정</span>' : '<span class="badge badge-warning">추정</span>'}</td></tr>
+        <tr><td>유전자형 분포 (A/H/B)</td><td>${(pop.a_ratio*100).toFixed(1)}% / ${(pop.het_ratio*100).toFixed(1)}% / ${(pop.b_ratio*100).toFixed(1)}%</td><td>—</td></tr>
+        <tr><td>마커 수</td><td>${mk.n_markers}</td><td>${mk.n_markers > 100 ? '<span class="badge badge-success">충분</span>' : '<span class="badge badge-warning">부족</span>'}</td></tr>
+        <tr><td>개체 수</td><td>${mk.n_indiv}</td><td>${mk.n_indiv >= 100 ? '<span class="badge badge-success">충분</span>' : '<span class="badge badge-warning">부족</span>'}</td></tr>
+        <tr><td>평균 결측률</td><td>${(mk.avg_missing*100).toFixed(2)}%</td><td>${mk.avg_missing < 0.05 ? '<span class="badge badge-success">우수</span>' : mk.avg_missing < 0.15 ? '<span class="badge badge-warning">주의</span>' : '<span class="badge badge-error">불량</span>'}</td></tr>
+        <tr><td>형질 수</td><td>${ph.n_traits} (${(ph.trait_names||[]).join(', ')})</td><td>—</td></tr>
+        <tr><td>다환경 데이터</td><td>${ph.multi_env ? '예' : '아니오'}</td><td>${ph.multi_env ? '<span class="badge badge-info">QTL×E 가능</span>' : '—'}</td></tr>
+      </tbody>
+    </table>
+  `;
+
+  // 추천 파라미터 카드 렌더 (조각 3)
+  renderParameterRecommendation(d.parameter_recommendation);
+
+  // 다음 탭 활성화
+  document.querySelectorAll('.tab.disabled').forEach(t => t.classList.remove('disabled'));
+  log('진단 결과 표시 완료. 다음 탭은 단계 B 이후에 구현됩니다.', 'ok');
+
+  out.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// 추천 파라미터 카드 렌더러 (조각 3)
+// ============================================================
+function renderParameterRecommendation(rec) {
+  const card = document.getElementById('param-rec-card');
+  if (!rec) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+
+  // 5개 핵심 파라미터 테이블 (값은 override 가능한 input)
+  const list = document.getElementById('param-rec-list');
+  const rows = rec.parameters.map(p => {
+    const overridden = (p.key in appData.paramOverrides);
+    const currentVal = overridden ? appData.paramOverrides[p.key] : p.value;
+    return `
+      <tr class="param-row${overridden ? ' overridden' : ''}" data-param-key="${p.key}">
+        <td>
+          <div class="param-name">${p.name}</div>
+          <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px">${p.key}</div>
+        </td>
+        <td>${renderParamInput(p, currentVal)}</td>
+        <td>
+          <div class="param-reason">${p.reason}</div>
+          <div class="param-recommended-orig" id="orig-${p.key}" style="font-size:10px;color:var(--text-muted);margin-top:3px;display:${overridden ? 'block' : 'none'}">
+            추천값: <code>${p.value} ${p.unit||''}</code>
+            <button class="param-reset-btn" onclick="resetParam('${p.key}')" title="추천값으로 복원">↶ 복원</button>
+          </div>
+        </td>
+        <td style="width:40px;text-align:center">
+          <button class="param-help-btn" onclick="showParamCoach('${p.key}')" title="이 파라미터 설명">?</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // 원본 추천값을 JS 측에 보관 (resetParam에서 사용)
+  appData._currentRecommendation = rec;
+
+  const overrideCount = Object.keys(appData.paramOverrides).length;
+  list.innerHTML = `
+    <table class="param-table">
+      <thead><tr>
+        <th style="width:25%">파라미터</th>
+        <th style="width:22%">추천값 (수정 가능)</th>
+        <th>근거</th>
+        <th style="width:60px"></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">
+      <span>마커 밀도 분류: <span style="color:var(--accent-3)">${rec.density_label}</span> (${rec.density_key})</span>
+      ${overrideCount > 0 ? `<span class="badge badge-override">사용자 수정 ${overrideCount}개</span>` : ''}
+    </div>
+  `;
+
+  // 보조 경고 (Beavis 등)
+  const warnEl = document.getElementById('param-rec-warnings');
+  if (rec.warnings && rec.warnings.length > 0) {
+    warnEl.innerHTML = rec.warnings.map(w => `
+      <div class="param-warning ${w.level === 'info' ? 'info' : ''}">
+        <div class="title">${w.title}</div>
+        <div class="detail">${w.detail}</div>
+      </div>
+    `).join('');
+  } else {
+    warnEl.innerHTML = '';
+  }
+
+  // 형질별 priors
+  const priorEl = document.getElementById('param-rec-trait-priors');
+  if (rec.trait_priors && rec.trait_priors.length > 0) {
+    priorEl.innerHTML = rec.trait_priors.map(tp => `
+      <div class="trait-prior-box">
+        <div><span class="trait-name">${tp.trait}</span> → 매칭: <code style="color:var(--accent-3)">${tp.matched_prior}</code></div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">
+          유전력 (H²): ${tp.H2_typical} / 예상 QTL 수: ${tp.expected_QTL_count}
+        </div>
+        ${tp.candidate_genes.length ? `<div class="gene-list">후보유전자: ${tp.candidate_genes.join(', ')}</div>` : ''}
+      </div>
+    `).join('');
+  } else {
+    priorEl.innerHTML = '';
+  }
+}
+
+// ============================================================
+// 파라미터 input 렌더링 + override 처리 (조각 4-c)
+// ============================================================
+function renderParamInput(p, currentVal) {
+  const unit = p.unit ? `<span class="param-unit">${p.unit}</span>` : '';
+
+  // CI_method: select
+  if (p.key === 'CI_method') {
+    const options = ['1-LOD-drop', '1.5-LOD-drop', '95%-Bayes', 'Bootstrap'];
+    return `
+      <select class="param-value-input" data-param-key="${p.key}" onchange="onParamChange('${p.key}', this.value, ${JSON.stringify(p.value)})">
+        ${options.map(o => `<option value="${o}" ${currentVal === o ? 'selected' : ''}>${o}</option>`).join('')}
+      </select>
+    `;
+  }
+
+  // LOD_threshold: text input (permutation 자동 또는 숫자)
+  if (p.key === 'LOD_threshold') {
+    return `
+      <input type="text" class="param-value-input" data-param-key="${p.key}"
+             value="${currentVal}"
+             onchange="onParamChange('${p.key}', this.value, ${JSON.stringify(p.value)})">
+      ${unit}
+    `;
+  }
+
+  // 숫자형: walking_step_cM, ICIM_PIN, permutations
+  const stepMap = { walking_step_cM: 0.1, ICIM_PIN: 0.0001, permutations: 100 };
+  const step = stepMap[p.key] || 0.01;
+  return `
+    <input type="number" class="param-value-input" data-param-key="${p.key}"
+           value="${currentVal}" step="${step}" min="0"
+           onchange="onParamChange('${p.key}', this.value, ${JSON.stringify(p.value)})">
+    ${unit}
+  `;
+}
+
+function onParamChange(key, newValStr, originalVal) {
+  // 타입 복원 (숫자 input은 항상 string으로 옴)
+  let newVal = newValStr;
+  if (typeof originalVal === 'number') {
+    const parsed = parseFloat(newValStr);
+    if (!isNaN(parsed)) newVal = parsed;
+  }
+
+  const isModified = (newVal !== originalVal && newVal !== String(originalVal));
+  const input = document.querySelector(`input[data-param-key="${key}"], select[data-param-key="${key}"]`);
+  const row = document.querySelector(`tr.param-row[data-param-key="${key}"]`);
+  const origDisplay = document.getElementById(`orig-${key}`);
+
+  if (isModified) {
+    appData.paramOverrides[key] = newVal;
+    input.classList.add('modified');
+    row.classList.add('overridden');
+    if (origDisplay) origDisplay.style.display = 'block';
+    log(`파라미터 수정: ${key} = ${newVal} (추천값: ${originalVal})`, 'warn');
+  } else {
+    delete appData.paramOverrides[key];
+    input.classList.remove('modified');
+    row.classList.remove('overridden');
+    if (origDisplay) origDisplay.style.display = 'none';
+    log(`파라미터 복원: ${key} = ${originalVal}`, 'info');
+  }
+
+  // 카드 하단 override 카운트 업데이트
+  refreshOverrideBadge();
+}
+
+function resetParam(key) {
+  if (!appData._currentRecommendation) return;
+  const p = appData._currentRecommendation.parameters.find(x => x.key === key);
+  if (!p) return;
+
+  delete appData.paramOverrides[key];
+  const input = document.querySelector(`input[data-param-key="${key}"], select[data-param-key="${key}"]`);
+  if (input) {
+    input.value = p.value;
+    input.classList.remove('modified');
+  }
+  const row = document.querySelector(`tr.param-row[data-param-key="${key}"]`);
+  if (row) row.classList.remove('overridden');
+  const origDisplay = document.getElementById(`orig-${key}`);
+  if (origDisplay) origDisplay.style.display = 'none';
+
+  log(`파라미터 복원: ${key} = ${p.value}`, 'info');
+  refreshOverrideBadge();
+}
+
+function refreshOverrideBadge() {
+  // 카드 하단 영역의 badge 갱신을 위해 추천 카드를 부분 재렌더링
+  // (전체 재렌더 대신 카운트만)
+  const overrideCount = Object.keys(appData.paramOverrides).length;
+  const list = document.getElementById('param-rec-list');
+  if (!list) return;
+  const footer = list.querySelector('div[style*="space-between"]');
+  if (!footer) return;
+  let badge = footer.querySelector('.badge-override');
+  if (overrideCount > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'badge badge-override';
+      footer.appendChild(badge);
+    }
+    badge.textContent = `사용자 수정 ${overrideCount}개`;
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+// ============================================================
+// Parameter Coach 모달 (조각 4)
+// ============================================================
+function showParamCoach(key) {
+  const descs = appData.paramDescriptions;
+  if (!descs) {
+    log('Parameter Coach 데이터가 로드되지 않았습니다.', 'warn');
+    return;
+  }
+  const d = descs[key];
+  if (!d) {
+    log(`'${key}'에 대한 설명을 찾을 수 없습니다.`, 'warn');
+    return;
+  }
+
+  document.getElementById('coach-display-name').textContent = d.display_name || key;
+  document.getElementById('coach-key').textContent = key + (d.category ? ` · ${d.category}` : '');
+
+  const refs = (d.references || []).map(r => `<li>${r}</li>`).join('');
+
+  document.getElementById('coach-body').innerHTML = `
+    <div class="coach-section">
+      <div class="coach-section-title">정의</div>
+      <div class="coach-section-body">${d.definition || '—'}</div>
+    </div>
+
+    <div class="coach-section">
+      <div class="coach-grid">
+        <div class="coach-grid-item">
+          <div class="label">단위</div>
+          <div class="text">${d.unit || '—'}</div>
+        </div>
+        <div class="coach-grid-item">
+          <div class="label">일반 범위</div>
+          <div class="text">${d.typical_range || '—'}</div>
+        </div>
+        <div class="coach-grid-item" style="grid-column: 1 / -1">
+          <div class="label">기본값 결정 로직</div>
+          <div class="text">${d.default_logic || '—'}</div>
+        </div>
+        <div class="coach-grid-item warn">
+          <div class="label">너무 작으면</div>
+          <div class="text">${d.what_if_too_small || '—'}</div>
+        </div>
+        <div class="coach-grid-item warn">
+          <div class="label">너무 크면</div>
+          <div class="text">${d.what_if_too_large || '—'}</div>
+        </div>
+      </div>
+    </div>
+
+    ${d.rice_specific_note ? `
+    <div class="coach-section">
+      <div class="coach-section-title">한국 RDA 관행 / 벼 특이 사항</div>
+      <div class="coach-rice-note">${d.rice_specific_note}</div>
+    </div>` : ''}
+
+    ${refs ? `
+    <div class="coach-section">
+      <div class="coach-section-title">참고문헌</div>
+      <ul class="coach-references">${refs}</ul>
+    </div>` : ''}
+  `;
+
+  document.getElementById('param-coach-modal').style.display = 'flex';
+}
+
+function closeParamCoach() {
+  document.getElementById('param-coach-modal').style.display = 'none';
+}
+
+// ESC로 닫기 + backdrop 클릭 닫기
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeParamCoach();
+});
+document.getElementById('param-coach-modal').addEventListener('click', e => {
+  if (e.target.id === 'param-coach-modal') closeParamCoach();
+});
+
+// ============================================================
+// 시작
+// ============================================================
+window.addEventListener('load', bootPyodide);
+</script>
+
+</body>
+</html>
