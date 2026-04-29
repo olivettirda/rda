@@ -579,6 +579,44 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   margin-top: 4px;
 }
 
+/* Tier 2 분석 옵션 (단계 B) */
+.tier2-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 24px;
+  margin-top: 4px;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.opt-label {
+  font-family: var(--font-medium);
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 130px;
+}
+.opt-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.opt-input:focus {
+  outline: none;
+  border-color: var(--primary-main);
+}
+.opt-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 /* Modal — Parameter Coach (조각 4) */
 .modal-backdrop {
   position: fixed;
@@ -837,7 +875,91 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     <div class="empty-hint">단계 G(작업서)에서 구현됩니다.</div>
   </div></div>
 </div>
-<div class="tab-content" id="tab-tier12"><div class="card"><div class="empty"><div class="empty-title">빠른 분석 (SMA + IM)</div><div class="empty-hint">단계 B 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier12">
+  <div class="card">
+    <div class="card-title">빠른 분석 (Tier 1-2)</div>
+    <div class="card-subtitle">SMA(단일 마커 ANOVA) → IM(Interval Mapping, Haley-Knott) → Permutation으로 LOD threshold 자동 계산.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">형질</label>
+        <select id="tier2-trait" class="opt-input"></select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">집단 유형</label>
+        <select id="tier2-pop" class="opt-input">
+          <option value="F2">F2</option>
+          <option value="RIL">RIL</option>
+          <option value="DH">DH</option>
+          <option value="BC1">BC1</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Walking step (cM)</label>
+        <input type="number" id="tier2-step" class="opt-input" value="1.0" min="0.1" step="0.1">
+        <button class="param-help-btn" onclick="showParamCoach('walking_step_cM')" title="설명">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Map function</label>
+        <select id="tier2-mapfunc" class="opt-input">
+          <option value="kosambi" selected>Kosambi</option>
+          <option value="haldane">Haldane</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Permutation 횟수</label>
+        <select id="tier2-nperm" class="opt-input">
+          <option value="0">건너뛰기 (수동 LOD 사용)</option>
+          <option value="100">100회 (~30초)</option>
+          <option value="200" selected>200회 (~1분)</option>
+          <option value="500">500회 (~3분)</option>
+          <option value="1000">1000회 (~6분, 출판용)</option>
+        </select>
+        <button class="param-help-btn" onclick="showParamCoach('permutations')" title="설명">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">수동 LOD threshold</label>
+        <input type="number" id="tier2-manual-lod" class="opt-input" value="2.5" min="0" step="0.1">
+        <span class="opt-hint">perm 건너뛸 때만 사용</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">신뢰구간</label>
+        <select id="tier2-ci" class="opt-input">
+          <option value="1.0">1-LOD drop</option>
+          <option value="1.5" selected>1.5-LOD drop (출판 권장)</option>
+        </select>
+        <button class="param-help-btn" onclick="showParamCoach('CI_method')" title="설명">?</button>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runTier2()" id="btn-tier2-run">
+        <span id="tier2-btn-icon">▶</span> 분석 실행
+      </button>
+      <div id="tier2-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <!-- 결과 영역 (B-3에서 시각화 추가) -->
+  <div id="tier2-results" style="display:none">
+    <div class="card">
+      <div class="card-title">LOD 곡선 + 검출 QTL</div>
+      <div id="tier2-lod-plot" style="min-height:380px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Permutation null distribution</div>
+      <div id="tier2-perm-plot" style="min-height:300px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">검출 QTL 표</div>
+      <div id="tier2-qtl-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">SMA Top 마커 (Bonferroni 통과)</div>
+      <div id="tier2-sma-table"></div>
+    </div>
+  </div>
+</div>
 <div class="tab-content" id="tab-tier3"><div class="card"><div class="empty"><div class="empty-title">표준 분석 (ICIM-ADD + CIM + MQM)</div><div class="empty-hint">단계 C 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-tier4"><div class="card"><div class="empty"><div class="empty-title">고급 분석 (Epistasis + QTL × Environment)</div><div class="empty-hint">단계 E 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
@@ -1932,6 +2054,180 @@ async function runDiagnostic() {
 }
 
 // ============================================================
+// Tier 2 분석 wiring (단계 B)
+// ============================================================
+function populateTier2Options() {
+  // 진단 결과의 형질 목록을 dropdown에 채우기
+  if (!appData.diagnosis) return;
+  const traitSel = document.getElementById('tier2-trait');
+  const traits = appData.diagnosis.phenotype.trait_names || [];
+  traitSel.innerHTML = traits.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  // 집단 유형 자동 선택
+  const popSel = document.getElementById('tier2-pop');
+  const popType = (appData.diagnosis.population.type || '').toUpperCase();
+  if (popType.includes('F2')) popSel.value = 'F2';
+  else if (popType.includes('RIL')) popSel.value = 'RIL';
+  else if (popType.includes('DH')) popSel.value = 'DH';
+  else if (popType.includes('BC')) popSel.value = 'BC1';
+
+  // 추천 파라미터로 walking step 자동 채우기
+  const rec = appData.diagnosis.parameter_recommendation;
+  if (rec) {
+    const stepRec = rec.parameters.find(p => p.key === 'walking_step_cM');
+    if (stepRec) document.getElementById('tier2-step').value = stepRec.value;
+  }
+}
+
+async function runTier2() {
+  if (!pyodide || !appData.geno || !appData.pheno || !appData.map) {
+    log('Tier 2 분석 시작 전 데이터/맵을 준비해주세요. (마커 위치 파일 필수)', 'warn');
+    return;
+  }
+  const btn = document.getElementById('btn-tier2-run');
+  const icon = document.getElementById('tier2-btn-icon');
+  const status = document.getElementById('tier2-status');
+
+  const trait = document.getElementById('tier2-trait').value;
+  const popType = document.getElementById('tier2-pop').value;
+  const step = parseFloat(document.getElementById('tier2-step').value);
+  const mapFunc = document.getElementById('tier2-mapfunc').value;
+  const nPerm = parseInt(document.getElementById('tier2-nperm').value);
+  const manualLOD = parseFloat(document.getElementById('tier2-manual-lod').value);
+  const ciDrop = parseFloat(document.getElementById('tier2-ci').value);
+
+  // override가 있으면 우선
+  if ('walking_step_cM' in appData.paramOverrides) {
+    log(`사용자 override 사용: walking_step = ${appData.paramOverrides.walking_step_cM}`, 'warn');
+  }
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = nPerm > 0 ? `Permutation ${nPerm}회 진행 중... 페이지가 잠시 멈출 수 있습니다.` : '분석 진행 중...';
+  log(`Tier 2 분석 시작: trait=${trait}, pop=${popType}, step=${step}, perm=${nPerm}`, 'info');
+
+  try {
+    pyodide.globals.set('_geno', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_map', pyodide.toPy(appData.map.data));
+    pyodide.globals.set('_pheno', pyodide.toPy(appData.pheno.data));
+    pyodide.globals.set('_trait', trait);
+    pyodide.globals.set('_pop', popType);
+    pyodide.globals.set('_step', step);
+    pyodide.globals.set('_mapf', mapFunc);
+    pyodide.globals.set('_nperm', nPerm);
+    pyodide.globals.set('_runperm', nPerm > 0);
+    pyodide.globals.set('_ci', ciDrop);
+
+    // 다음 frame에서 실행하여 status 텍스트 표시 보장
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_tier2_analysis(_geno, _map, _pheno, trait_name=_trait, step=_step, pop_type=_pop, n_perm=_nperm, run_perm=_runperm, map_function=_mapf, ci_drop=_ci)`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`Tier 2 완료 (${((t1-t0)/1000).toFixed(1)}s) — 검출 QTL ${result.peaks.length}개`, 'ok');
+    appData.tier2 = result;
+    if (nPerm <= 0) {
+      result.threshold_used = manualLOD;
+      // peaks를 manual threshold로 다시 필터
+      // (Python에서 이미 default 2.5로 계산됐으므로 manual >= 2.5면 추가 필터)
+      if (manualLOD > result.threshold_used) {
+        result.peaks = result.peaks.filter(p => p.LOD >= manualLOD);
+        result.threshold_used = manualLOD;
+      }
+    }
+    renderTier2Results(result);
+    status.textContent = `완료: ${result.peaks.length}개 QTL 검출 (threshold ${result.threshold_used.toFixed(2)})`;
+  } catch (e) {
+    log('Tier 2 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+// 결과 렌더링은 조각 B-3에서 시각화와 함께 채워집니다.
+function renderTier2Results(result) {
+  document.getElementById('tier2-results').style.display = 'block';
+
+  // 임시 렌더 (B-3에서 Plotly로 교체)
+  const lodEl = document.getElementById('tier2-lod-plot');
+  lodEl.innerHTML = `<div class="empty"><div class="empty-title">LOD 곡선 시각화</div><div class="empty-hint">조각 B-3에서 Plotly로 구현됩니다. 현재는 데이터만 보유 중 (${result.im.n_positions} positions).</div></div>`;
+
+  const permEl = document.getElementById('tier2-perm-plot');
+  if (result.perm) {
+    permEl.innerHTML = `<div class="empty"><div class="empty-title">Permutation null distribution</div><div class="empty-hint">${result.perm.n_perm}회 perm: mean=${result.perm.mean.toFixed(2)}, std=${result.perm.std.toFixed(2)}, max=${result.perm.max.toFixed(2)}. Histogram은 B-3에서.</div></div>`;
+  } else {
+    permEl.innerHTML = `<div class="empty"><div class="empty-hint">Permutation 건너뜀 (수동 threshold ${result.threshold_used.toFixed(2)} 사용).</div></div>`;
+  }
+
+  // QTL 표 (간단 렌더 — B-3에서 강화)
+  const qtlEl = document.getElementById('tier2-qtl-table');
+  if (result.peaks.length === 0) {
+    qtlEl.innerHTML = `<div class="empty"><div class="empty-hint">Threshold ${result.threshold_used.toFixed(2)} 통과 QTL 없음.</div></div>`;
+  } else {
+    qtlEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Chr</th><th>Position (cM)</th><th>LOD</th><th>가산효과 a</th><th>우성효과 d</th>
+          <th>CI (${result.ci_drop}-LOD drop)</th><th>CI 폭 (cM)</th>
+        </tr></thead>
+        <tbody>
+          ${result.peaks.map(p => `
+            <tr>
+              <td>${p.chr}</td>
+              <td>${p.cM.toFixed(1)}</td>
+              <td><strong style="color:var(--accent-3)">${p.LOD.toFixed(2)}</strong></td>
+              <td>${p.add_a !== null ? p.add_a.toFixed(2) : '—'}</td>
+              <td>${p.dom_d !== null ? p.dom_d.toFixed(2) : '—'}</td>
+              <td>${p.ci_lower_cM !== undefined ? `${p.ci_lower_cM.toFixed(1)} ~ ${p.ci_upper_cM.toFixed(1)}` : '—'}</td>
+              <td>${p.ci_width_cM !== undefined ? p.ci_width_cM.toFixed(1) : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // SMA top 마커
+  const smaEl = document.getElementById('tier2-sma-table');
+  const sma = result.sma;
+  const sigMarkers = sma.results.filter(r => r.neg_log10_p && r.neg_log10_p > sma.bonferroni_neg_log10);
+  sigMarkers.sort((a,b) => b.neg_log10_p - a.neg_log10_p);
+  if (sigMarkers.length === 0) {
+    smaEl.innerHTML = `<div class="empty"><div class="empty-hint">Bonferroni 임계 -log10(p) > ${sma.bonferroni_neg_log10.toFixed(2)} 통과 마커 없음.</div></div>`;
+  } else {
+    smaEl.innerHTML = `
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Bonferroni 임계: -log10(p) > ${sma.bonferroni_neg_log10.toFixed(2)} (α=${sma.alpha}, ${sma.n_markers}마커)</div>
+      <table>
+        <thead><tr>
+          <th>마커</th><th>F</th><th>-log10(p)</th><th>가산효과 a</th><th>mean AA / AB / BB</th><th>n</th>
+        </tr></thead>
+        <tbody>
+          ${sigMarkers.slice(0, 20).map(r => `
+            <tr>
+              <td><code>${r.marker}</code></td>
+              <td>${r.F !== null ? r.F.toFixed(2) : '—'}</td>
+              <td><strong>${r.neg_log10_p.toFixed(2)}</strong></td>
+              <td>${r.additive_a !== null ? r.additive_a.toFixed(2) : '—'}</td>
+              <td>${[r.mean_AA, r.mean_AB, r.mean_BB].map(v => v !== null ? v.toFixed(1) : '—').join(' / ')}</td>
+              <td>${r.n}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      ${sigMarkers.length > 20 ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">상위 20개 표시 (전체 ${sigMarkers.length}개)</div>` : ''}
+    `;
+  }
+
+  // Tab 2로 자동 스크롤
+  document.getElementById('tier2-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
 // 진단 결과 렌더링
 // ============================================================
 function renderDiagnosis(d) {
@@ -2031,6 +2327,9 @@ function renderDiagnosis(d) {
 
   // 추천 파라미터 카드 렌더 (조각 3)
   renderParameterRecommendation(d.parameter_recommendation);
+
+  // Tab 2 옵션 자동 채우기 (단계 B)
+  populateTier2Options();
 
   // 다음 탭 활성화
   document.querySelectorAll('.tab.disabled').forEach(t => t.classList.remove('disabled'));
