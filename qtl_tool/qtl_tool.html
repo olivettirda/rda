@@ -1670,10 +1670,84 @@ function renderParameterRecommendation(rec) {
   }
 }
 
-// 조각 4 placeholder — Parameter Coach 모달
+// ============================================================
+// Parameter Coach 모달 (조각 4)
+// ============================================================
 function showParamCoach(key) {
-  alert(`Parameter Coach 모달은 조각 4에서 구현됩니다.\n\n선택된 키: ${key}`);
+  const descs = appData.paramDescriptions;
+  if (!descs) {
+    log('Parameter Coach 데이터가 로드되지 않았습니다.', 'warn');
+    return;
+  }
+  const d = descs[key];
+  if (!d) {
+    log(`'${key}'에 대한 설명을 찾을 수 없습니다.`, 'warn');
+    return;
+  }
+
+  document.getElementById('coach-display-name').textContent = d.display_name || key;
+  document.getElementById('coach-key').textContent = key + (d.category ? ` · ${d.category}` : '');
+
+  const refs = (d.references || []).map(r => `<li>${r}</li>`).join('');
+
+  document.getElementById('coach-body').innerHTML = `
+    <div class="coach-section">
+      <div class="coach-section-title">정의</div>
+      <div class="coach-section-body">${d.definition || '—'}</div>
+    </div>
+
+    <div class="coach-section">
+      <div class="coach-grid">
+        <div class="coach-grid-item">
+          <div class="label">단위</div>
+          <div class="text">${d.unit || '—'}</div>
+        </div>
+        <div class="coach-grid-item">
+          <div class="label">일반 범위</div>
+          <div class="text">${d.typical_range || '—'}</div>
+        </div>
+        <div class="coach-grid-item" style="grid-column: 1 / -1">
+          <div class="label">기본값 결정 로직</div>
+          <div class="text">${d.default_logic || '—'}</div>
+        </div>
+        <div class="coach-grid-item warn">
+          <div class="label">너무 작으면</div>
+          <div class="text">${d.what_if_too_small || '—'}</div>
+        </div>
+        <div class="coach-grid-item warn">
+          <div class="label">너무 크면</div>
+          <div class="text">${d.what_if_too_large || '—'}</div>
+        </div>
+      </div>
+    </div>
+
+    ${d.rice_specific_note ? `
+    <div class="coach-section">
+      <div class="coach-section-title">한국 RDA 관행 / 벼 특이 사항</div>
+      <div class="coach-rice-note">${d.rice_specific_note}</div>
+    </div>` : ''}
+
+    ${refs ? `
+    <div class="coach-section">
+      <div class="coach-section-title">참고문헌</div>
+      <ul class="coach-references">${refs}</ul>
+    </div>` : ''}
+  `;
+
+  document.getElementById('param-coach-modal').style.display = 'flex';
 }
+
+function closeParamCoach() {
+  document.getElementById('param-coach-modal').style.display = 'none';
+}
+
+// ESC로 닫기 + backdrop 클릭 닫기
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeParamCoach();
+});
+document.getElementById('param-coach-modal').addEventListener('click', e => {
+  if (e.target.id === 'param-coach-modal') closeParamCoach();
+});
 
 // ============================================================
 // 시작
