@@ -563,11 +563,148 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   margin-top: 4px;
 }
 
+/* Modal — Parameter Coach (조각 4) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 32, 26, 0.78);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s;
+}
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(1, 127, 151, 0.2);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(135deg, rgba(1, 127, 151, 0.12), transparent 70%);
+}
+.modal-title {
+  font-family: var(--font-bold);
+  font-size: 17px;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+.modal-subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.modal-close {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.modal-close:hover {
+  background: var(--error);
+  border-color: var(--error);
+  color: white;
+}
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.coach-section {
+  margin-bottom: 18px;
+}
+.coach-section-title {
+  font-family: var(--font-medium);
+  font-size: 11px;
+  color: var(--accent-5);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+.coach-section-body {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.coach-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.coach-grid-item {
+  background: var(--bg-input);
+  padding: 12px 14px;
+  border-radius: 6px;
+  border-left: 2px solid var(--primary-main);
+}
+.coach-grid-item.warn { border-left-color: var(--warning); }
+.coach-grid-item .label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.coach-grid-item .text {
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.coach-rice-note {
+  background: rgba(0, 161, 184, 0.08);
+  border-left: 3px solid var(--accent-5);
+  padding: 12px 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.coach-references {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  padding: 10px 14px;
+  border-radius: 5px;
+}
+.coach-references li {
+  margin: 3px 0;
+  list-style: none;
+}
+.coach-references li::before {
+  content: '› ';
+  color: var(--accent-5);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .upload-grid, .diagnostic-grid { grid-template-columns: 1fr; }
   .header { padding: 14px 18px; }
   .main { padding: 18px; }
+  .coach-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -690,6 +827,20 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
 
+</div>
+
+<!-- Parameter Coach 모달 (조각 4) -->
+<div class="modal-backdrop" id="param-coach-modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="coach-display-name"></div>
+        <div class="modal-subtitle" id="coach-key"></div>
+      </div>
+      <button class="modal-close" onclick="closeParamCoach()">&times;</button>
+    </div>
+    <div class="modal-body" id="coach-body"></div>
+  </div>
 </div>
 
 <!-- 본 앱 스크립트 -->
