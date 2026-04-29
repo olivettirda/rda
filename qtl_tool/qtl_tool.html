@@ -945,6 +945,8 @@ async function bootPyodide() {
 
     // Python 진단 모듈 로드
     pyodide.runPython(getDiagnosticPyCode());
+    // Tier 1-2 통계 모듈 로드 (단계 B)
+    pyodide.runPython(getStatsPyCode());
 
     // 룰셋을 Python globals에 등록 (recommend_parameters에서 사용)
     if (appData.rules) {
@@ -1390,8 +1392,108 @@ def get_sample(kind):
 }
 
 // ============================================================
-// 파일 처리
+// Tier 1-2 통계 코드 (단계 B) — SMA + IM + Permutation
 // ============================================================
+function getStatsPyCode() {
+  return `
+# ============== Tier 1-2: 단일 마커 ANOVA ==============
+def _encode_geno_to_numeric(geno_row, pop_type='F2'):
+    """유전자형 문자(A/H/B/-) → 숫자 (F2: 0/1/2, RIL/DH: 0/2)"""
+    out = np.full(len(geno_row), np.nan)
+    if 'RIL' in pop_type or 'DH' in pop_type:
+        out[geno_row == 'A'] = 0.0
+        out[geno_row == 'B'] = 2.0
+        # RIL의 잔여 헤테로는 1로 (희소함)
+        out[geno_row == 'H'] = 1.0
+    else:  # F2, BC1
+        out[geno_row == 'A'] = 0.0
+        out[geno_row == 'H'] = 1.0
+        out[geno_row == 'B'] = 2.0
+    return out
+
+def single_marker_anova(geno_df, pheno_df, trait_name=None, pop_type='F2', alpha=0.05):
+    """
+    각 마커별 ANOVA F-test (Single Marker Analysis)
+
+    Returns:
+        marker, F, p, neg_log10_p, n, mean_AA, mean_AB, mean_BB, additive_a, dominance_d
+    """
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+
+    # 표현형 선택
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+
+    n_markers = geno.shape[0]
+    results = []
+
+    for i in range(n_markers):
+        g_row = geno[i]
+        # 유전자형별로 분리
+        groups = {'A': [], 'H': [], 'B': []}
+        for j, code in enumerate(g_row):
+            if code in groups and not np.isnan(pheno[j]):
+                groups[code].append(pheno[j])
+
+        # 유효 그룹만 사용
+        nonempty_groups = [v for v in groups.values() if len(v) >= 2]
+        if len(nonempty_groups) < 2:
+            results.append({'marker': str(marker_names[i]), 'F': np.nan, 'p': np.nan,
+                           'neg_log10_p': np.nan, 'n': 0,
+                           'mean_AA': np.nan, 'mean_AB': np.nan, 'mean_BB': np.nan,
+                           'additive_a': np.nan, 'dominance_d': np.nan})
+            continue
+
+        try:
+            F, p = stats.f_oneway(*nonempty_groups)
+        except Exception:
+            F, p = np.nan, np.nan
+
+        mean_AA = float(np.mean(groups['A'])) if len(groups['A']) >= 1 else np.nan
+        mean_AB = float(np.mean(groups['H'])) if len(groups['H']) >= 1 else np.nan
+        mean_BB = float(np.mean(groups['B'])) if len(groups['B']) >= 1 else np.nan
+
+        # 가산효과 a = (BB - AA) / 2, 우성효과 d = AB - (AA+BB)/2
+        if not np.isnan(mean_AA) and not np.isnan(mean_BB):
+            add_a = (mean_BB - mean_AA) / 2.0
+        else:
+            add_a = np.nan
+        if not np.isnan(mean_AA) and not np.isnan(mean_AB) and not np.isnan(mean_BB):
+            dom_d = mean_AB - (mean_AA + mean_BB) / 2.0
+        else:
+            dom_d = np.nan
+
+        n_total = sum(len(v) for v in groups.values())
+        nlp = -np.log10(p) if p > 0 else np.nan
+
+        results.append({
+            'marker': str(marker_names[i]),
+            'F': float(F) if not np.isnan(F) else None,
+            'p': float(p) if not np.isnan(p) else None,
+            'neg_log10_p': float(nlp) if not np.isnan(nlp) else None,
+            'n': int(n_total),
+            'mean_AA': mean_AA if not np.isnan(mean_AA) else None,
+            'mean_AB': mean_AB if not np.isnan(mean_AB) else None,
+            'mean_BB': mean_BB if not np.isnan(mean_BB) else None,
+            'additive_a': add_a if not np.isnan(add_a) else None,
+            'dominance_d': dom_d if not np.isnan(dom_d) else None,
+        })
+
+    # Bonferroni 임계값
+    bonferroni = alpha / n_markers
+    return {
+        'method': 'SMA',
+        'trait': str(trait_name),
+        'n_markers': int(n_markers),
+        'alpha': float(alpha),
+        'bonferroni_p': float(bonferroni),
+        'bonferroni_neg_log10': float(-np.log10(bonferroni)),
+        'results': results
+    }
+`;
+}
 async function handleFile(event, type) {
   const file = event.target.files[0];
   if (!file) return;
