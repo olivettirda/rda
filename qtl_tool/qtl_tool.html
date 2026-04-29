@@ -436,12 +436,113 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 <body>
 
-<div id="qtl-app">
-  <div class="placeholder">
-    <h2>QTL Mapping Tool — 빌드 중</h2>
-    <p>이 페이지는 단계별로 채워집니다. 현재: 조각 2-b (골격).</p>
-    <p>다음: CSS → body UI → JS → Python 진단 코드.</p>
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">
+      QTL Mapping Tool <span class="ver">PoC v0.1</span>
+    </div>
   </div>
+  <div class="status-badge">
+    <span class="status-dot" id="pyodide-status-dot"></span>
+    <span id="pyodide-status-text">Pyodide 로딩 중...</span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" data-tab="input"><span class="num">0</span>데이터 입력 &amp; 진단</button>
+  <button class="tab disabled" data-tab="qc"><span class="num">1</span>QC &amp; Linkage</button>
+  <button class="tab disabled" data-tab="tier12"><span class="num">2</span>빠른 분석</button>
+  <button class="tab disabled" data-tab="tier3"><span class="num">3</span>표준 분석</button>
+  <button class="tab disabled" data-tab="tier4"><span class="num">4</span>고급 분석</button>
+  <button class="tab disabled" data-tab="result"><span class="num">5</span>결과 통합</button>
+  <button class="tab disabled" data-tab="workflow"><span class="num">6</span>워크플로 연결</button>
+</div>
+
+<div class="main">
+
+<!-- ============ TAB 0: 데이터 입력 & 진단 ============ -->
+<div class="tab-content active" id="tab-input">
+
+  <div class="card">
+    <div class="card-title">데이터 업로드</div>
+    <div class="card-subtitle">유전자형, 마커 위치, 표현형 3종 파일을 업로드하시면 자동 진단합니다.</div>
+
+    <div class="upload-grid">
+      <div class="upload-zone" id="upload-geno" onclick="document.getElementById('file-geno').click()">
+        <div class="label">유전자형 행렬</div>
+        <div class="hint">.xlsx / .csv (A/B/H/-)</div>
+        <div class="filename" id="filename-geno"></div>
+        <input type="file" id="file-geno" accept=".xlsx,.csv,.xls" style="display:none" onchange="handleFile(event,'geno')">
+      </div>
+      <div class="upload-zone" id="upload-map" onclick="document.getElementById('file-map').click()">
+        <div class="label">마커 위치</div>
+        <div class="hint">.xlsx / .csv (Chr, bp, cM)</div>
+        <div class="filename" id="filename-map"></div>
+        <input type="file" id="file-map" accept=".xlsx,.csv,.xls" style="display:none" onchange="handleFile(event,'map')">
+      </div>
+      <div class="upload-zone" id="upload-pheno" onclick="document.getElementById('file-pheno').click()">
+        <div class="label">표현형 데이터</div>
+        <div class="hint">.xlsx / .csv (개체별, 환경별)</div>
+        <div class="filename" id="filename-pheno"></div>
+        <input type="file" id="file-pheno" accept=".xlsx,.csv,.xls" style="display:none" onchange="handleFile(event,'pheno')">
+      </div>
+    </div>
+
+    <div class="sample-row">
+      <span class="sample-label">샘플 데이터:</span>
+      <button class="btn btn-secondary sample-btn" onclick="loadSample('f2')" disabled>F2 (시뮬레이션 N=200)</button>
+      <button class="btn btn-secondary sample-btn" onclick="loadSample('ril')" disabled>RIL (시뮬레이션 N=150)</button>
+      <button class="btn btn-secondary sample-btn" onclick="loadSample('ril_multi')" disabled>RIL 다환경 (3환경)</button>
+      <button class="btn" onclick="runDiagnostic()" id="btn-diagnose" style="margin-left:auto" disabled>
+        <span id="diag-btn-icon">▶</span> 진단 실행
+      </button>
+    </div>
+  </div>
+
+  <!-- Diagnostic Results -->
+  <div id="diagnostic-output" style="display:none">
+    <div class="card">
+      <div class="card-title">데이터 진단 결과</div>
+      <div class="card-subtitle">집단 유형, 마커, 표현형 자동 분석. 이 결과를 바탕으로 분석 방법이 추천됩니다.</div>
+      <div class="diagnostic-grid" id="diag-grid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">추천 분석</div>
+      <div class="card-subtitle">데이터 특성에 맞는 분석 방법을 우선순위로 제시합니다.</div>
+      <div class="rec-list" id="rec-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">상세 통계</div>
+      <div id="detailed-stats"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">실행 로그</div>
+    <div class="console" id="console-log">
+      <div><span class="log-time">[init]</span><span class="log-info">QTL Mapping Tool PoC v0.1 준비 중...</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 비활성 탭들 (PoC) -->
+<div class="tab-content" id="tab-qc">
+  <div class="card"><div class="empty">
+    <div class="empty-title">QC &amp; Linkage Map 검증</div>
+    <div class="empty-hint">단계 G(작업서)에서 구현됩니다.</div>
+  </div></div>
+</div>
+<div class="tab-content" id="tab-tier12"><div class="card"><div class="empty"><div class="empty-title">빠른 분석 (SMA + IM)</div><div class="empty-hint">단계 B 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier3"><div class="card"><div class="empty"><div class="empty-title">표준 분석 (ICIM-ADD + CIM + MQM)</div><div class="empty-hint">단계 C 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier4"><div class="card"><div class="empty"><div class="empty-title">고급 분석 (Epistasis + QTL × Environment)</div><div class="empty-hint">단계 E 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
+
 </div>
 
 <!-- 본 앱 스크립트 (조각 2-e/2-f에서 채움) -->
