@@ -425,6 +425,144 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   border: 1px solid var(--warning);
 }
 
+/* Parameter Recommendation Table (조각 3) */
+.param-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+}
+.param-table th {
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+}
+.param-row {
+  background: var(--bg-input);
+  transition: background 0.2s;
+}
+.param-row:hover { background: var(--bg-card-hover); }
+.param-row td {
+  padding: 12px 10px;
+  border: none;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+}
+.param-row td:first-child {
+  border-left: 3px solid var(--primary-main);
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  padding-left: 14px;
+}
+.param-row td:last-child {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+.param-row.overridden td:first-child {
+  border-left-color: var(--warning);
+  background: linear-gradient(90deg, rgba(217, 119, 6, 0.12), transparent 60%);
+}
+.param-name {
+  font-family: var(--font-medium);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.param-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--accent-3);
+  font-weight: 600;
+}
+.param-value-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--accent-3);
+  padding: 5px 8px;
+  border-radius: 4px;
+  width: 110px;
+}
+.param-value-input.modified {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: rgba(217, 119, 6, 0.08);
+}
+.param-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+.param-reason {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+}
+.param-help-btn {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--accent-5);
+  border: 1px solid var(--accent-5);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+.param-help-btn:hover {
+  background: var(--accent-5);
+  color: var(--bg-card);
+}
+.param-warning {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 5px;
+  background: rgba(217, 119, 6, 0.08);
+  border-left: 3px solid var(--warning);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.param-warning.info {
+  background: rgba(0, 161, 184, 0.08);
+  border-left-color: var(--accent-5);
+}
+.param-warning .title {
+  font-family: var(--font-medium);
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+.param-warning .detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.trait-prior-box {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 161, 184, 0.06);
+  border-left: 3px solid var(--accent-5);
+  border-radius: 5px;
+  font-size: 12px;
+}
+.trait-prior-box .trait-name {
+  font-family: var(--font-medium);
+  color: var(--accent-3);
+}
+.trait-prior-box .gene-list {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .upload-grid, .diagnostic-grid { grid-template-columns: 1fr; }
@@ -507,6 +645,15 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div class="card-title">데이터 진단 결과</div>
       <div class="card-subtitle">집단 유형, 마커, 표현형 자동 분석. 이 결과를 바탕으로 분석 방법이 추천됩니다.</div>
       <div class="diagnostic-grid" id="diag-grid"></div>
+    </div>
+
+    <!-- 추천 파라미터 카드 (조각 3) -->
+    <div class="card" id="param-rec-card" style="display:none">
+      <div class="card-title">추천 파라미터</div>
+      <div class="card-subtitle">데이터 특성과 룰셋(qtl_tool_rules.json)을 바탕으로 5개 핵심 파라미터를 자동 결정했습니다. (?) 버튼으로 각 파라미터의 의미를 확인하실 수 있습니다.</div>
+      <div id="param-rec-list"></div>
+      <div id="param-rec-warnings"></div>
+      <div id="param-rec-trait-priors"></div>
     </div>
 
     <div class="card">
@@ -1290,11 +1437,91 @@ function renderDiagnosis(d) {
     </table>
   `;
 
+  // 추천 파라미터 카드 렌더 (조각 3)
+  renderParameterRecommendation(d.parameter_recommendation);
+
   // 다음 탭 활성화
   document.querySelectorAll('.tab.disabled').forEach(t => t.classList.remove('disabled'));
   log('진단 결과 표시 완료. 다음 탭은 단계 B 이후에 구현됩니다.', 'ok');
 
   out.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// 추천 파라미터 카드 렌더러 (조각 3)
+// ============================================================
+function renderParameterRecommendation(rec) {
+  const card = document.getElementById('param-rec-card');
+  if (!rec) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+
+  // 5개 핵심 파라미터 테이블
+  const list = document.getElementById('param-rec-list');
+  const rows = rec.parameters.map(p => {
+    const valDisp = (typeof p.value === 'number' || typeof p.value === 'string')
+      ? `<span class="param-value">${p.value}</span><span class="param-unit">${p.unit||''}</span>`
+      : `<span class="param-value">${JSON.stringify(p.value)}</span>`;
+    return `
+      <tr class="param-row" data-param-key="${p.key}">
+        <td><div class="param-name">${p.name}</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px">${p.key}</div></td>
+        <td>${valDisp}</td>
+        <td><div class="param-reason">${p.reason}</div></td>
+        <td style="width:40px;text-align:center"><button class="param-help-btn" onclick="showParamCoach('${p.key}')" title="이 파라미터 설명">?</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  list.innerHTML = `
+    <table class="param-table">
+      <thead><tr>
+        <th style="width:25%">파라미터</th>
+        <th style="width:18%">추천값</th>
+        <th>근거</th>
+        <th style="width:60px"></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:10px;font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">
+      마커 밀도 분류: <span style="color:var(--accent-3)">${rec.density_label}</span> (${rec.density_key})
+    </div>
+  `;
+
+  // 보조 경고 (Beavis 등)
+  const warnEl = document.getElementById('param-rec-warnings');
+  if (rec.warnings && rec.warnings.length > 0) {
+    warnEl.innerHTML = rec.warnings.map(w => `
+      <div class="param-warning ${w.level === 'info' ? 'info' : ''}">
+        <div class="title">${w.title}</div>
+        <div class="detail">${w.detail}</div>
+      </div>
+    `).join('');
+  } else {
+    warnEl.innerHTML = '';
+  }
+
+  // 형질별 priors
+  const priorEl = document.getElementById('param-rec-trait-priors');
+  if (rec.trait_priors && rec.trait_priors.length > 0) {
+    priorEl.innerHTML = rec.trait_priors.map(tp => `
+      <div class="trait-prior-box">
+        <div><span class="trait-name">${tp.trait}</span> → 매칭: <code style="color:var(--accent-3)">${tp.matched_prior}</code></div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:3px">
+          유전력 (H²): ${tp.H2_typical} / 예상 QTL 수: ${tp.expected_QTL_count}
+        </div>
+        ${tp.candidate_genes.length ? `<div class="gene-list">후보유전자: ${tp.candidate_genes.join(', ')}</div>` : ''}
+      </div>
+    `).join('');
+  } else {
+    priorEl.innerHTML = '';
+  }
+}
+
+// 조각 4 placeholder — Parameter Coach 모달
+function showParamCoach(key) {
+  alert(`Parameter Coach 모달은 조각 4에서 구현됩니다.\n\n선택된 키: ${key}`);
 }
 
 // ============================================================
