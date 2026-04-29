@@ -1492,6 +1492,164 @@ def single_marker_anova(geno_df, pheno_df, trait_name=None, pop_type='F2', alpha
         'bonferroni_neg_log10': float(-np.log10(bonferroni)),
         'results': results
     }
+
+# ============== Tier 2: Interval Mapping (Haley-Knott) ==============
+def kosambi_to_r(d_cM):
+    """Kosambi map function: cM → recombination fraction"""
+    d_M = d_cM / 100.0
+    return 0.5 * np.tanh(2.0 * d_M)
+
+def haldane_to_r(d_cM):
+    """Haldane map function: cM → recombination fraction"""
+    d_M = d_cM / 100.0
+    return 0.5 * (1.0 - np.exp(-2.0 * d_M))
+
+def _r_func(d, fn='kosambi'):
+    return kosambi_to_r(d) if fn == 'kosambi' else haldane_to_r(d)
+
+def _build_marker_index(geno_df, map_df):
+    """마커명을 키로 (chr, cM) 매핑 구축"""
+    chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+    cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+    name_col = map_df.columns[0]
+    if not chr_col or not cm_col:
+        raise ValueError('map_df에 Chr/cM 컬럼이 필요합니다.')
+    idx = {}
+    for _, row in map_df.iterrows():
+        idx[str(row[name_col])] = (row[chr_col], float(row[cm_col]))
+    return idx, chr_col, cm_col
+
+def interval_mapping(geno_df, map_df, pheno_df, trait_name=None, step=1.0,
+                     pop_type='F2', map_function='kosambi'):
+    """
+    Haley-Knott regression Interval Mapping (Haley & Knott 1992).
+    1 cM 간격으로 walking하면서 회귀 LOD 계산.
+
+    F2: y = mu + a*X + d*Z + e   (X: -1/0/+1, Z: 0/1/0 dominance indicator)
+    RIL/DH: y = mu + a*X + e    (X: -1/+1)
+
+    LOD = (n/2) * log10(RSS_null / RSS_full)
+    """
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+    n_indiv = len(pheno)
+
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+
+    map_idx, chr_col, cm_col = _build_marker_index(geno_df, map_df)
+
+    # 각 마커의 chr, cM
+    marker_chr = np.array([map_idx.get(str(m), (None, np.nan))[0] for m in marker_names])
+    marker_cm = np.array([map_idx.get(str(m), (None, np.nan))[1] for m in marker_names])
+
+    # 유전자형 숫자 변환
+    geno_num = np.full(geno.shape, np.nan)
+    geno_num[geno == 'A'] = 0.0
+    geno_num[geno == 'H'] = 1.0
+    geno_num[geno == 'B'] = 2.0
+
+    is_inbred = ('RIL' in pop_type) or ('DH' in pop_type)
+
+    lod_curve = []
+    chrs_unique = sorted([c for c in set(marker_chr) if c is not None and not pd.isnull(c)],
+                         key=lambda x: int(x) if str(x).isdigit() else 99)
+
+    for ch in chrs_unique:
+        chr_mask = (marker_chr == ch)
+        if chr_mask.sum() < 2:
+            continue
+        idx_arr = np.where(chr_mask)[0]
+        order = np.argsort(marker_cm[idx_arr])
+        idx_arr = idx_arr[order]
+        cms_chr = marker_cm[idx_arr]
+
+        positions = np.arange(cms_chr[0], cms_chr[-1] + step / 2, step)
+
+        for pos in positions:
+            # 양쪽 마커
+            left_local = np.searchsorted(cms_chr, pos, side='right') - 1
+            right_local = left_local + 1
+            if left_local < 0:
+                left_local = 0
+            if right_local >= len(cms_chr):
+                right_local = len(cms_chr) - 1
+
+            i_l = idx_arr[left_local]
+            i_r = idx_arr[right_local]
+            d1 = abs(pos - cms_chr[left_local])
+            d2 = abs(cms_chr[right_local] - pos)
+
+            # 거리 가중 평균으로 expected genotype
+            X = np.full(n_indiv, np.nan)
+            Z = np.full(n_indiv, np.nan)
+            for j in range(n_indiv):
+                lg = geno_num[i_l, j]
+                rg = geno_num[i_r, j]
+                if not np.isnan(lg) and not np.isnan(rg):
+                    total_d = d1 + d2
+                    if total_d == 0:
+                        wg = lg
+                    else:
+                        wg = (lg * d2 + rg * d1) / total_d
+                    X[j] = wg - 1.0
+                    Z[j] = 1.0 if abs(wg - 1.0) < 0.5 else 0.0
+                elif not np.isnan(lg):
+                    X[j] = lg - 1.0
+                    Z[j] = 1.0 if lg == 1.0 else 0.0
+                elif not np.isnan(rg):
+                    X[j] = rg - 1.0
+                    Z[j] = 1.0 if rg == 1.0 else 0.0
+
+            mask = ~np.isnan(X) & ~np.isnan(pheno)
+            if mask.sum() < 10:
+                lod_curve.append({'chr': str(ch), 'cM': float(pos), 'LOD': 0.0,
+                                  'add_a': None, 'dom_d': None})
+                continue
+
+            ym = pheno[mask]
+            Xm = X[mask]
+            Zm = Z[mask]
+
+            if is_inbred:
+                A = np.column_stack([np.ones(len(ym)), Xm])
+            else:
+                A = np.column_stack([np.ones(len(ym)), Xm, Zm])
+
+            try:
+                coef, _, _, _ = np.linalg.lstsq(A, ym, rcond=None)
+                yhat = A @ coef
+                rss_full = float(np.sum((ym - yhat) ** 2))
+                rss_null = float(np.sum((ym - ym.mean()) ** 2))
+                if rss_full <= 0 or rss_null <= 0 or rss_full > rss_null:
+                    lod = 0.0
+                else:
+                    lod = (len(ym) / 2.0) * np.log10(rss_null / rss_full)
+                add_a = float(coef[1])
+                dom_d = float(coef[2]) if len(coef) > 2 else None
+            except Exception:
+                lod = 0.0
+                add_a = None
+                dom_d = None
+
+            lod_curve.append({
+                'chr': str(ch),
+                'cM': float(pos),
+                'LOD': float(max(lod, 0.0)),
+                'add_a': add_a,
+                'dom_d': dom_d
+            })
+
+    return {
+        'method': 'IM (Haley-Knott)',
+        'trait': str(trait_name),
+        'step_cM': float(step),
+        'map_function': map_function,
+        'pop_type': pop_type,
+        'n_positions': len(lod_curve),
+        'lod_curve': lod_curve
+    }
 `;
 }
 async function handleFile(event, type) {
