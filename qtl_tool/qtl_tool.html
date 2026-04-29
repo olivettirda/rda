@@ -521,6 +521,22 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   background: var(--accent-5);
   color: var(--bg-card);
 }
+.param-reset-btn {
+  background: transparent;
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: all 0.15s;
+}
+.param-reset-btn:hover {
+  background: var(--warning);
+  color: white;
+}
 .param-warning {
   margin-top: 14px;
   padding: 12px 14px;
@@ -1609,34 +1625,49 @@ function renderParameterRecommendation(rec) {
   }
   card.style.display = 'block';
 
-  // 5개 핵심 파라미터 테이블
+  // 5개 핵심 파라미터 테이블 (값은 override 가능한 input)
   const list = document.getElementById('param-rec-list');
   const rows = rec.parameters.map(p => {
-    const valDisp = (typeof p.value === 'number' || typeof p.value === 'string')
-      ? `<span class="param-value">${p.value}</span><span class="param-unit">${p.unit||''}</span>`
-      : `<span class="param-value">${JSON.stringify(p.value)}</span>`;
+    const overridden = (p.key in appData.paramOverrides);
+    const currentVal = overridden ? appData.paramOverrides[p.key] : p.value;
     return `
-      <tr class="param-row" data-param-key="${p.key}">
-        <td><div class="param-name">${p.name}</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px">${p.key}</div></td>
-        <td>${valDisp}</td>
-        <td><div class="param-reason">${p.reason}</div></td>
-        <td style="width:40px;text-align:center"><button class="param-help-btn" onclick="showParamCoach('${p.key}')" title="이 파라미터 설명">?</button></td>
+      <tr class="param-row${overridden ? ' overridden' : ''}" data-param-key="${p.key}">
+        <td>
+          <div class="param-name">${p.name}</div>
+          <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px">${p.key}</div>
+        </td>
+        <td>${renderParamInput(p, currentVal)}</td>
+        <td>
+          <div class="param-reason">${p.reason}</div>
+          <div class="param-recommended-orig" id="orig-${p.key}" style="font-size:10px;color:var(--text-muted);margin-top:3px;display:${overridden ? 'block' : 'none'}">
+            추천값: <code>${p.value} ${p.unit||''}</code>
+            <button class="param-reset-btn" onclick="resetParam('${p.key}')" title="추천값으로 복원">↶ 복원</button>
+          </div>
+        </td>
+        <td style="width:40px;text-align:center">
+          <button class="param-help-btn" onclick="showParamCoach('${p.key}')" title="이 파라미터 설명">?</button>
+        </td>
       </tr>
     `;
   }).join('');
 
+  // 원본 추천값을 JS 측에 보관 (resetParam에서 사용)
+  appData._currentRecommendation = rec;
+
+  const overrideCount = Object.keys(appData.paramOverrides).length;
   list.innerHTML = `
     <table class="param-table">
       <thead><tr>
         <th style="width:25%">파라미터</th>
-        <th style="width:18%">추천값</th>
+        <th style="width:22%">추천값 (수정 가능)</th>
         <th>근거</th>
         <th style="width:60px"></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div style="margin-top:10px;font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">
-      마커 밀도 분류: <span style="color:var(--accent-3)">${rec.density_label}</span> (${rec.density_key})
+    <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">
+      <span>마커 밀도 분류: <span style="color:var(--accent-3)">${rec.density_label}</span> (${rec.density_key})</span>
+      ${overrideCount > 0 ? `<span class="badge badge-override">사용자 수정 ${overrideCount}개</span>` : ''}
     </div>
   `;
 
@@ -1667,6 +1698,115 @@ function renderParameterRecommendation(rec) {
     `).join('');
   } else {
     priorEl.innerHTML = '';
+  }
+}
+
+// ============================================================
+// 파라미터 input 렌더링 + override 처리 (조각 4-c)
+// ============================================================
+function renderParamInput(p, currentVal) {
+  const unit = p.unit ? `<span class="param-unit">${p.unit}</span>` : '';
+
+  // CI_method: select
+  if (p.key === 'CI_method') {
+    const options = ['1-LOD-drop', '1.5-LOD-drop', '95%-Bayes', 'Bootstrap'];
+    return `
+      <select class="param-value-input" data-param-key="${p.key}" onchange="onParamChange('${p.key}', this.value, ${JSON.stringify(p.value)})">
+        ${options.map(o => `<option value="${o}" ${currentVal === o ? 'selected' : ''}>${o}</option>`).join('')}
+      </select>
+    `;
+  }
+
+  // LOD_threshold: text input (permutation 자동 또는 숫자)
+  if (p.key === 'LOD_threshold') {
+    return `
+      <input type="text" class="param-value-input" data-param-key="${p.key}"
+             value="${currentVal}"
+             onchange="onParamChange('${p.key}', this.value, ${JSON.stringify(p.value)})">
+      ${unit}
+    `;
+  }
+
+  // 숫자형: walking_step_cM, ICIM_PIN, permutations
+  const stepMap = { walking_step_cM: 0.1, ICIM_PIN: 0.0001, permutations: 100 };
+  const step = stepMap[p.key] || 0.01;
+  return `
+    <input type="number" class="param-value-input" data-param-key="${p.key}"
+           value="${currentVal}" step="${step}" min="0"
+           onchange="onParamChange('${p.key}', this.value, ${JSON.stringify(p.value)})">
+    ${unit}
+  `;
+}
+
+function onParamChange(key, newValStr, originalVal) {
+  // 타입 복원 (숫자 input은 항상 string으로 옴)
+  let newVal = newValStr;
+  if (typeof originalVal === 'number') {
+    const parsed = parseFloat(newValStr);
+    if (!isNaN(parsed)) newVal = parsed;
+  }
+
+  const isModified = (newVal !== originalVal && newVal !== String(originalVal));
+  const input = document.querySelector(`input[data-param-key="${key}"], select[data-param-key="${key}"]`);
+  const row = document.querySelector(`tr.param-row[data-param-key="${key}"]`);
+  const origDisplay = document.getElementById(`orig-${key}`);
+
+  if (isModified) {
+    appData.paramOverrides[key] = newVal;
+    input.classList.add('modified');
+    row.classList.add('overridden');
+    if (origDisplay) origDisplay.style.display = 'block';
+    log(`파라미터 수정: ${key} = ${newVal} (추천값: ${originalVal})`, 'warn');
+  } else {
+    delete appData.paramOverrides[key];
+    input.classList.remove('modified');
+    row.classList.remove('overridden');
+    if (origDisplay) origDisplay.style.display = 'none';
+    log(`파라미터 복원: ${key} = ${originalVal}`, 'info');
+  }
+
+  // 카드 하단 override 카운트 업데이트
+  refreshOverrideBadge();
+}
+
+function resetParam(key) {
+  if (!appData._currentRecommendation) return;
+  const p = appData._currentRecommendation.parameters.find(x => x.key === key);
+  if (!p) return;
+
+  delete appData.paramOverrides[key];
+  const input = document.querySelector(`input[data-param-key="${key}"], select[data-param-key="${key}"]`);
+  if (input) {
+    input.value = p.value;
+    input.classList.remove('modified');
+  }
+  const row = document.querySelector(`tr.param-row[data-param-key="${key}"]`);
+  if (row) row.classList.remove('overridden');
+  const origDisplay = document.getElementById(`orig-${key}`);
+  if (origDisplay) origDisplay.style.display = 'none';
+
+  log(`파라미터 복원: ${key} = ${p.value}`, 'info');
+  refreshOverrideBadge();
+}
+
+function refreshOverrideBadge() {
+  // 카드 하단 영역의 badge 갱신을 위해 추천 카드를 부분 재렌더링
+  // (전체 재렌더 대신 카운트만)
+  const overrideCount = Object.keys(appData.paramOverrides).length;
+  const list = document.getElementById('param-rec-list');
+  if (!list) return;
+  const footer = list.querySelector('div[style*="space-between"]');
+  if (!footer) return;
+  let badge = footer.querySelector('.badge-override');
+  if (overrideCount > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'badge badge-override';
+      footer.appendChild(badge);
+    }
+    badge.textContent = `사용자 수정 ${overrideCount}개`;
+  } else if (badge) {
+    badge.remove();
   }
 }
 
