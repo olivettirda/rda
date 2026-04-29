@@ -613,16 +613,290 @@ async function bootPyodide() {
 }
 
 // ============================================================
-// Python 진단 코드 (조각 2-f에서 채워집니다)
+// Python 진단 코드 (Pyodide 내부에서 실행됨)
 // ============================================================
 function getDiagnosticPyCode() {
   return `
-# 조각 2-f에서 채워집니다.
+import numpy as np
+import pandas as pd
+from scipy import stats
+import json
+
+def diagnose_population(geno_df):
+    """집단 유형 추정: 헤테로 비율 + 분리비 chi2 검정"""
+    # 마커명, 개체ID 컬럼 제외하고 유전자형 행렬만
+    geno = geno_df.iloc[:, 1:].values  # 첫 컬럼은 마커명 가정
+    valid = np.isin(geno, ['A','B','H'])
+    total = valid.sum()
+    if total == 0:
+        return {'type': 'Unknown', 'confidence': 0, 'reason': '유효한 유전자형 없음',
+                'n_a':0, 'n_b':0, 'n_h':0, 'het_ratio':0, 'a_ratio':0, 'b_ratio':0}
+
+    n_a = (geno == 'A').sum()
+    n_b = (geno == 'B').sum()
+    n_h = (geno == 'H').sum()
+
+    het_ratio = n_h / total
+    a_ratio = n_a / total
+    b_ratio = n_b / total
+
+    # 집단 유형 판정 (BC1 분기를 F2 분기보다 먼저 검사)
+    if het_ratio < 0.05:
+        if abs(a_ratio - 0.5) < 0.1:
+            pop_type = 'RIL/DH'
+            conf = 0.85
+            chi2, p = stats.chisquare([n_a, n_b], [(n_a+n_b)/2]*2)
+            reason = f'헤테로 {het_ratio*100:.1f}% < 5%, A:B = {a_ratio:.2f}:{b_ratio:.2f}, chi2={chi2:.2f} p={p:.3f}'
+        else:
+            pop_type = 'RIL/DH (편향)'
+            conf = 0.6
+            reason = f'헤테로 낮음이나 A:B 편향 ({a_ratio:.2f}:{b_ratio:.2f})'
+    elif 0.4 < het_ratio < 0.6 and abs(a_ratio - b_ratio) < 0.15:
+        # F2: 1:2:1 검정
+        pop_type = 'F2'
+        n_total = n_a + n_b + n_h
+        expected = [n_total*0.25, n_total*0.5, n_total*0.25]
+        chi2, p = stats.chisquare([n_a, n_h, n_b], expected)
+        conf = 0.95 if p > 0.05 else 0.7
+        reason = f'1:2:1 검정 chi2={chi2:.2f} p={p:.3f}, 헤테로 {het_ratio*100:.1f}%'
+    elif 0.4 < het_ratio < 0.6:
+        # 한쪽으로 편중 + 헤테로 ~50% → BC
+        pop_type = 'BC1'
+        conf = 0.75
+        reason = f'BC1 패턴: 헤테로 {het_ratio*100:.1f}%, 편향 ({a_ratio:.2f}:{b_ratio:.2f})'
+    else:
+        pop_type = 'F2 (변형)'
+        conf = 0.5
+        reason = f'헤테로 {het_ratio*100:.1f}% — 비표준 패턴'
+
+    return {
+        'type': pop_type, 'confidence': float(conf), 'reason': reason,
+        'n_a': int(n_a), 'n_b': int(n_b), 'n_h': int(n_h),
+        'het_ratio': float(het_ratio),
+        'a_ratio': float(a_ratio), 'b_ratio': float(b_ratio)
+    }
+
+def analyze_markers(geno_df, map_df=None):
+    """마커 통계: 결측률, 염색체 분포, 간격"""
+    geno = geno_df.iloc[:, 1:].values
+    n_markers = geno.shape[0]
+    n_indiv = geno.shape[1]
+
+    missing = (geno == '-').sum(axis=1) / n_indiv
+    avg_missing = missing.mean()
+    max_missing = missing.max()
+    high_missing_markers = int((missing > 0.2).sum())
+
+    result = {
+        'n_markers': int(n_markers),
+        'n_indiv': int(n_indiv),
+        'avg_missing': float(avg_missing),
+        'max_missing': float(max_missing),
+        'high_missing_count': high_missing_markers
+    }
+
+    if map_df is not None:
+        # Chr 컬럼 자동 탐색
+        chr_col = None
+        for c in map_df.columns:
+            if str(c).lower() in ['chr','chromosome','chrom']:
+                chr_col = c; break
+        if chr_col:
+            chrs = map_df[chr_col].astype(str).unique()
+            result['n_chr'] = int(len(chrs))
+            result['chr_list'] = sorted(chrs.tolist())
+
+        # cM 컬럼
+        cm_col = None
+        for c in map_df.columns:
+            if str(c).lower() in ['cm','position_cm','genetic']:
+                cm_col = c; break
+        if cm_col and chr_col:
+            intervals = []
+            for ch in chrs:
+                pos = sorted(map_df[map_df[chr_col]==ch][cm_col].dropna().values)
+                if len(pos) > 1:
+                    diffs = np.diff(pos)
+                    intervals.extend(diffs.tolist())
+            if intervals:
+                result['avg_interval_cM'] = float(np.mean(intervals))
+                result['max_interval_cM'] = float(np.max(intervals))
+
+    return result
+
+def analyze_phenotype(pheno_df):
+    """표현형 통계: 정규성, CV, 극단값, 다환경 여부"""
+    pheno_data = pheno_df.iloc[:, 1:]
+
+    results = {}
+    n_traits = pheno_data.shape[1]
+    results['n_traits'] = int(n_traits)
+    results['trait_names'] = pheno_data.columns.tolist()
+
+    trait_stats = []
+    for col in pheno_data.columns:
+        vals = pheno_data[col].dropna().values.astype(float)
+        if len(vals) < 3:
+            continue
+        try:
+            sw_stat, sw_p = stats.shapiro(vals)
+        except Exception:
+            sw_stat, sw_p = np.nan, np.nan
+
+        mean = vals.mean()
+        std = vals.std()
+        cv = (std/mean)*100 if mean != 0 else 0
+
+        q1, q3 = np.percentile(vals, [25, 75])
+        iqr = q3 - q1
+        outliers = int(((vals < q1 - 3*iqr) | (vals > q3 + 3*iqr)).sum())
+
+        trait_stats.append({
+            'name': col, 'n': int(len(vals)),
+            'mean': float(mean), 'std': float(std), 'cv': float(cv),
+            'shapiro_p': float(sw_p) if not np.isnan(sw_p) else None,
+            'normal': bool(sw_p > 0.05) if not np.isnan(sw_p) else False,
+            'outliers': outliers,
+            'min': float(vals.min()), 'max': float(vals.max())
+        })
+    results['traits'] = trait_stats
+
+    # 다환경 추정
+    env_pattern_cols = [c for c in pheno_data.columns if any(p in str(c).lower() for p in ['_e1','_e2','_e3','_env','_2023','_2024','_2025','_2026','_loc'])]
+    results['multi_env'] = bool(len(env_pattern_cols) >= 2)
+
+    return results
+
+def recommend_analyses(diag):
+    """진단 결과 기반 분석 추천"""
+    recs = []
+    pop = diag['population']
+    pop_type = pop['type']
+    n_indiv = diag['markers'].get('n_indiv', 0)
+    multi_env = diag['phenotype'].get('multi_env', False)
+
+    if 'F2' in pop_type or 'RIL' in pop_type or 'DH' in pop_type or 'BC' in pop_type:
+        recs.append({'rank':'1순위','tier':'primary','name':'ICIM-ADD',
+                     'reason':f'{pop_type} 분리집단 + 배경 cofactor 자동 제어로 false positive 최소화'})
+        recs.append({'rank':'2순위','tier':'secondary','name':'Composite Interval Mapping (CIM)',
+                     'reason':'cofactor 수동 지정 가능, 출판용 표준 방법'})
+        recs.append({'rank':'가능','tier':'secondary','name':'Single Marker ANOVA + Interval Mapping',
+                     'reason':'빠른 1차 스크린'})
+        if multi_env:
+            recs.append({'rank':'추가','tier':'primary','name':'QTL × Environment 분석',
+                         'reason':'다환경 데이터 감지 — 환경 안정성 QTL 탐색 가능'})
+        recs.append({'rank':'부적합','tier':'unsuitable','name':'GWAS-MLM',
+                     'reason':'분리집단에는 부적합 (자연집단용)'})
+    else:
+        recs.append({'rank':'경고','tier':'unsuitable','name':'집단 유형 불확실',
+                     'reason':'입력 데이터 재확인 권장'})
+
+    if n_indiv < 100:
+        recs.append({'rank':'경고','tier':'unsuitable','name':f'개체 수 부족 (N={n_indiv})',
+                     'reason':'Power 부족, 큰 효과 QTL만 검출 가능'})
+
+    return recs
+
+def run_full_diagnosis(geno_json, map_json, pheno_json):
+    """전체 진단 실행"""
+    geno_df = pd.DataFrame(geno_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    map_df = pd.DataFrame(map_json) if map_json else None
+
+    diag = {
+        'population': diagnose_population(geno_df),
+        'markers': analyze_markers(geno_df, map_df),
+        'phenotype': analyze_phenotype(pheno_df)
+    }
+    diag['recommendations'] = recommend_analyses(diag)
+    return json.dumps(diag)
+
+# ============== 시뮬레이션 데이터 생성기 ==============
+def generate_sample_f2(n_indiv=200, n_markers_per_chr=50, n_chr=12, seed=42):
+    """F2 분리집단 시뮬레이션. QTL 1개를 Chr3 30cM 부근에 배치."""
+    np.random.seed(seed)
+    markers, chrs, cms, bps = [], [], [], []
+    for chrom in range(1, n_chr+1):
+        for i in range(n_markers_per_chr):
+            cm_pos = i * 2.0
+            markers.append(f'M{chrom:02d}_{i+1:03d}')
+            chrs.append(chrom)
+            cms.append(cm_pos)
+            bps.append(int(cm_pos * 250000))
+
+    geno_arr = np.random.choice(['A','H','B'], size=(len(markers), n_indiv), p=[0.25, 0.5, 0.25])
+    miss_mask = np.random.random(geno_arr.shape) < 0.03
+    geno_arr[miss_mask] = '-'
+
+    qtl_marker_idx = next(i for i, (c, p) in enumerate(zip(chrs, cms)) if c==3 and p>=28 and p<=32)
+    qtl_geno = geno_arr[qtl_marker_idx]
+    pheno = np.random.normal(100, 10, n_indiv)
+    pheno[qtl_geno == 'A'] -= 8
+    pheno[qtl_geno == 'B'] += 8
+    pheno[qtl_geno == '-'] = np.nan
+
+    geno_df = pd.DataFrame(geno_arr, columns=[f'Ind{i+1:03d}' for i in range(n_indiv)])
+    geno_df.insert(0, 'Marker', markers)
+    map_df = pd.DataFrame({'Marker': markers, 'Chr': chrs, 'bp': bps, 'cM': cms})
+    pheno_df = pd.DataFrame({
+        'Indiv': [f'Ind{i+1:03d}' for i in range(n_indiv)],
+        'PlantHeight': pheno
+    })
+    return (geno_df.to_dict('list'), map_df.to_dict('list'), pheno_df.to_dict('list'))
+
+def generate_sample_ril(n_indiv=150, n_markers_per_chr=40, n_chr=12, seed=42):
+    """RIL: 헤테로 거의 없음 (1:1 A:B)"""
+    np.random.seed(seed)
+    markers, chrs, cms, bps = [], [], [], []
+    for chrom in range(1, n_chr+1):
+        for i in range(n_markers_per_chr):
+            cm_pos = i * 2.5
+            markers.append(f'M{chrom:02d}_{i+1:03d}')
+            chrs.append(chrom)
+            cms.append(cm_pos)
+            bps.append(int(cm_pos * 250000))
+
+    geno_arr = np.random.choice(['A','B','H'], size=(len(markers), n_indiv), p=[0.49, 0.49, 0.02])
+    miss_mask = np.random.random(geno_arr.shape) < 0.04
+    geno_arr[miss_mask] = '-'
+
+    qtl_idx = next(i for i,(c,p) in enumerate(zip(chrs,cms)) if c==5 and p>=48 and p<=52)
+    qtl_geno = geno_arr[qtl_idx]
+    pheno = np.random.normal(50, 5, n_indiv)
+    pheno[qtl_geno == 'A'] -= 4
+    pheno[qtl_geno == 'B'] += 4
+    pheno[qtl_geno == '-'] = np.nan
+
+    geno_df = pd.DataFrame(geno_arr, columns=[f'RIL{i+1:03d}' for i in range(n_indiv)])
+    geno_df.insert(0, 'Marker', markers)
+    map_df = pd.DataFrame({'Marker': markers, 'Chr': chrs, 'bp': bps, 'cM': cms})
+    pheno_df = pd.DataFrame({
+        'Indiv': [f'RIL{i+1:03d}' for i in range(n_indiv)],
+        'GrainYield': pheno
+    })
+    return (geno_df.to_dict('list'), map_df.to_dict('list'), pheno_df.to_dict('list'))
+
+def generate_sample_ril_multi(n_indiv=150, seed=42):
+    """RIL + 다환경(3 env)"""
+    np.random.seed(seed)
+    g, m, p = generate_sample_ril(n_indiv, seed=seed)
+    base = pd.DataFrame(p)['GrainYield'].values
+    p_multi = pd.DataFrame({
+        'Indiv': [f'RIL{i+1:03d}' for i in range(n_indiv)],
+        'Yield_E1_Suwon_2024': base + np.random.normal(0, 1.5, n_indiv),
+        'Yield_E2_Milyang_2024': base + np.random.normal(2, 1.8, n_indiv),
+        'Yield_E3_Iksan_2024': base + np.random.normal(-1, 2.2, n_indiv) + (np.random.random(n_indiv)>0.5)*1.5
+    })
+    return (g, m, p_multi.to_dict('list'))
+
 def get_sample(kind):
+    if kind == 'f2':
+        return generate_sample_f2()
+    elif kind == 'ril':
+        return generate_sample_ril()
+    elif kind == 'ril_multi':
+        return generate_sample_ril_multi()
     return None
-def run_full_diagnosis(g, m, p):
-    import json
-    return json.dumps({'population':{'type':'placeholder','confidence':0,'reason':'2-f 미구현','n_a':0,'n_b':0,'n_h':0,'het_ratio':0,'a_ratio':0,'b_ratio':0},'markers':{'n_markers':0,'n_indiv':0,'avg_missing':0,'max_missing':0,'high_missing_count':0},'phenotype':{'n_traits':0,'trait_names':[],'traits':[],'multi_env':False},'recommendations':[]})
 `;
 }
 
