@@ -579,6 +579,44 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   margin-top: 4px;
 }
 
+/* Tier 2 분석 옵션 (단계 B) */
+.tier2-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 24px;
+  margin-top: 4px;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.opt-label {
+  font-family: var(--font-medium);
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 130px;
+}
+.opt-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.opt-input:focus {
+  outline: none;
+  border-color: var(--primary-main);
+}
+.opt-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 /* Modal — Parameter Coach (조각 4) */
 .modal-backdrop {
   position: fixed;
@@ -837,7 +875,91 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     <div class="empty-hint">단계 G(작업서)에서 구현됩니다.</div>
   </div></div>
 </div>
-<div class="tab-content" id="tab-tier12"><div class="card"><div class="empty"><div class="empty-title">빠른 분석 (SMA + IM)</div><div class="empty-hint">단계 B 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier12">
+  <div class="card">
+    <div class="card-title">빠른 분석 (Tier 1-2)</div>
+    <div class="card-subtitle">SMA(단일 마커 ANOVA) → IM(Interval Mapping, Haley-Knott) → Permutation으로 LOD threshold 자동 계산.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">형질</label>
+        <select id="tier2-trait" class="opt-input"></select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">집단 유형</label>
+        <select id="tier2-pop" class="opt-input">
+          <option value="F2">F2</option>
+          <option value="RIL">RIL</option>
+          <option value="DH">DH</option>
+          <option value="BC1">BC1</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Walking step (cM)</label>
+        <input type="number" id="tier2-step" class="opt-input" value="1.0" min="0.1" step="0.1">
+        <button class="param-help-btn" onclick="showParamCoach('walking_step_cM')" title="설명">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Map function</label>
+        <select id="tier2-mapfunc" class="opt-input">
+          <option value="kosambi" selected>Kosambi</option>
+          <option value="haldane">Haldane</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Permutation 횟수</label>
+        <select id="tier2-nperm" class="opt-input">
+          <option value="0">건너뛰기 (수동 LOD 사용)</option>
+          <option value="100">100회 (~30초)</option>
+          <option value="200" selected>200회 (~1분)</option>
+          <option value="500">500회 (~3분)</option>
+          <option value="1000">1000회 (~6분, 출판용)</option>
+        </select>
+        <button class="param-help-btn" onclick="showParamCoach('permutations')" title="설명">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">수동 LOD threshold</label>
+        <input type="number" id="tier2-manual-lod" class="opt-input" value="2.5" min="0" step="0.1">
+        <span class="opt-hint">perm 건너뛸 때만 사용</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">신뢰구간</label>
+        <select id="tier2-ci" class="opt-input">
+          <option value="1.0">1-LOD drop</option>
+          <option value="1.5" selected>1.5-LOD drop (출판 권장)</option>
+        </select>
+        <button class="param-help-btn" onclick="showParamCoach('CI_method')" title="설명">?</button>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runTier2()" id="btn-tier2-run">
+        <span id="tier2-btn-icon">▶</span> 분석 실행
+      </button>
+      <div id="tier2-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <!-- 결과 영역 (B-3에서 시각화 추가) -->
+  <div id="tier2-results" style="display:none">
+    <div class="card">
+      <div class="card-title">LOD 곡선 + 검출 QTL</div>
+      <div id="tier2-lod-plot" style="min-height:380px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Permutation null distribution</div>
+      <div id="tier2-perm-plot" style="min-height:300px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">검출 QTL 표</div>
+      <div id="tier2-qtl-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">SMA Top 마커 (Bonferroni 통과)</div>
+      <div id="tier2-sma-table"></div>
+    </div>
+  </div>
+</div>
 <div class="tab-content" id="tab-tier3"><div class="card"><div class="empty"><div class="empty-title">표준 분석 (ICIM-ADD + CIM + MQM)</div><div class="empty-hint">단계 C 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-tier4"><div class="card"><div class="empty"><div class="empty-title">고급 분석 (Epistasis + QTL × Environment)</div><div class="empty-hint">단계 E 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
@@ -945,6 +1067,8 @@ async function bootPyodide() {
 
     // Python 진단 모듈 로드
     pyodide.runPython(getDiagnosticPyCode());
+    // Tier 1-2 통계 모듈 로드 (단계 B)
+    pyodide.runPython(getStatsPyCode());
 
     // 룰셋을 Python globals에 등록 (recommend_parameters에서 사용)
     if (appData.rules) {
@@ -1390,8 +1514,431 @@ def get_sample(kind):
 }
 
 // ============================================================
-// 파일 처리
+// Tier 1-2 통계 코드 (단계 B) — SMA + IM + Permutation
 // ============================================================
+function getStatsPyCode() {
+  return `
+# ============== Tier 1-2: 단일 마커 ANOVA ==============
+def _encode_geno_to_numeric(geno_row, pop_type='F2'):
+    """유전자형 문자(A/H/B/-) → 숫자 (F2: 0/1/2, RIL/DH: 0/2)"""
+    out = np.full(len(geno_row), np.nan)
+    if 'RIL' in pop_type or 'DH' in pop_type:
+        out[geno_row == 'A'] = 0.0
+        out[geno_row == 'B'] = 2.0
+        # RIL의 잔여 헤테로는 1로 (희소함)
+        out[geno_row == 'H'] = 1.0
+    else:  # F2, BC1
+        out[geno_row == 'A'] = 0.0
+        out[geno_row == 'H'] = 1.0
+        out[geno_row == 'B'] = 2.0
+    return out
+
+def single_marker_anova(geno_df, pheno_df, trait_name=None, pop_type='F2', alpha=0.05):
+    """
+    각 마커별 ANOVA F-test (Single Marker Analysis)
+
+    Returns:
+        marker, F, p, neg_log10_p, n, mean_AA, mean_AB, mean_BB, additive_a, dominance_d
+    """
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+
+    # 표현형 선택
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+
+    n_markers = geno.shape[0]
+    results = []
+
+    for i in range(n_markers):
+        g_row = geno[i]
+        # 유전자형별로 분리
+        groups = {'A': [], 'H': [], 'B': []}
+        for j, code in enumerate(g_row):
+            if code in groups and not np.isnan(pheno[j]):
+                groups[code].append(pheno[j])
+
+        # 유효 그룹만 사용
+        nonempty_groups = [v for v in groups.values() if len(v) >= 2]
+        if len(nonempty_groups) < 2:
+            results.append({'marker': str(marker_names[i]), 'F': np.nan, 'p': np.nan,
+                           'neg_log10_p': np.nan, 'n': 0,
+                           'mean_AA': np.nan, 'mean_AB': np.nan, 'mean_BB': np.nan,
+                           'additive_a': np.nan, 'dominance_d': np.nan})
+            continue
+
+        try:
+            F, p = stats.f_oneway(*nonempty_groups)
+        except Exception:
+            F, p = np.nan, np.nan
+
+        mean_AA = float(np.mean(groups['A'])) if len(groups['A']) >= 1 else np.nan
+        mean_AB = float(np.mean(groups['H'])) if len(groups['H']) >= 1 else np.nan
+        mean_BB = float(np.mean(groups['B'])) if len(groups['B']) >= 1 else np.nan
+
+        # 가산효과 a = (BB - AA) / 2, 우성효과 d = AB - (AA+BB)/2
+        if not np.isnan(mean_AA) and not np.isnan(mean_BB):
+            add_a = (mean_BB - mean_AA) / 2.0
+        else:
+            add_a = np.nan
+        if not np.isnan(mean_AA) and not np.isnan(mean_AB) and not np.isnan(mean_BB):
+            dom_d = mean_AB - (mean_AA + mean_BB) / 2.0
+        else:
+            dom_d = np.nan
+
+        n_total = sum(len(v) for v in groups.values())
+        nlp = -np.log10(p) if p > 0 else np.nan
+
+        results.append({
+            'marker': str(marker_names[i]),
+            'F': float(F) if not np.isnan(F) else None,
+            'p': float(p) if not np.isnan(p) else None,
+            'neg_log10_p': float(nlp) if not np.isnan(nlp) else None,
+            'n': int(n_total),
+            'mean_AA': mean_AA if not np.isnan(mean_AA) else None,
+            'mean_AB': mean_AB if not np.isnan(mean_AB) else None,
+            'mean_BB': mean_BB if not np.isnan(mean_BB) else None,
+            'additive_a': add_a if not np.isnan(add_a) else None,
+            'dominance_d': dom_d if not np.isnan(dom_d) else None,
+        })
+
+    # Bonferroni 임계값
+    bonferroni = alpha / n_markers
+    return {
+        'method': 'SMA',
+        'trait': str(trait_name),
+        'n_markers': int(n_markers),
+        'alpha': float(alpha),
+        'bonferroni_p': float(bonferroni),
+        'bonferroni_neg_log10': float(-np.log10(bonferroni)),
+        'results': results
+    }
+
+# ============== Tier 2: Interval Mapping (Haley-Knott) ==============
+def kosambi_to_r(d_cM):
+    """Kosambi map function: cM → recombination fraction"""
+    d_M = d_cM / 100.0
+    return 0.5 * np.tanh(2.0 * d_M)
+
+def haldane_to_r(d_cM):
+    """Haldane map function: cM → recombination fraction"""
+    d_M = d_cM / 100.0
+    return 0.5 * (1.0 - np.exp(-2.0 * d_M))
+
+def _r_func(d, fn='kosambi'):
+    return kosambi_to_r(d) if fn == 'kosambi' else haldane_to_r(d)
+
+def _build_marker_index(geno_df, map_df):
+    """마커명을 키로 (chr, cM) 매핑 구축"""
+    chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+    cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+    name_col = map_df.columns[0]
+    if not chr_col or not cm_col:
+        raise ValueError('map_df에 Chr/cM 컬럼이 필요합니다.')
+    idx = {}
+    for _, row in map_df.iterrows():
+        idx[str(row[name_col])] = (row[chr_col], float(row[cm_col]))
+    return idx, chr_col, cm_col
+
+def interval_mapping(geno_df, map_df, pheno_df, trait_name=None, step=1.0,
+                     pop_type='F2', map_function='kosambi'):
+    """
+    Haley-Knott regression Interval Mapping (Haley & Knott 1992).
+    1 cM 간격으로 walking하면서 회귀 LOD 계산.
+
+    F2: y = mu + a*X + d*Z + e   (X: -1/0/+1, Z: 0/1/0 dominance indicator)
+    RIL/DH: y = mu + a*X + e    (X: -1/+1)
+
+    LOD = (n/2) * log10(RSS_null / RSS_full)
+    """
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+    n_indiv = len(pheno)
+
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+
+    map_idx, chr_col, cm_col = _build_marker_index(geno_df, map_df)
+
+    # 각 마커의 chr, cM
+    marker_chr = np.array([map_idx.get(str(m), (None, np.nan))[0] for m in marker_names])
+    marker_cm = np.array([map_idx.get(str(m), (None, np.nan))[1] for m in marker_names])
+
+    # 유전자형 숫자 변환
+    geno_num = np.full(geno.shape, np.nan)
+    geno_num[geno == 'A'] = 0.0
+    geno_num[geno == 'H'] = 1.0
+    geno_num[geno == 'B'] = 2.0
+
+    is_inbred = ('RIL' in pop_type) or ('DH' in pop_type)
+
+    lod_curve = []
+    chrs_unique = sorted([c for c in set(marker_chr) if c is not None and not pd.isnull(c)],
+                         key=lambda x: int(x) if str(x).isdigit() else 99)
+
+    for ch in chrs_unique:
+        chr_mask = (marker_chr == ch)
+        if chr_mask.sum() < 2:
+            continue
+        idx_arr = np.where(chr_mask)[0]
+        order = np.argsort(marker_cm[idx_arr])
+        idx_arr = idx_arr[order]
+        cms_chr = marker_cm[idx_arr]
+
+        positions = np.arange(cms_chr[0], cms_chr[-1] + step / 2, step)
+
+        for pos in positions:
+            # 양쪽 마커
+            left_local = np.searchsorted(cms_chr, pos, side='right') - 1
+            right_local = left_local + 1
+            if left_local < 0:
+                left_local = 0
+            if right_local >= len(cms_chr):
+                right_local = len(cms_chr) - 1
+
+            i_l = idx_arr[left_local]
+            i_r = idx_arr[right_local]
+            d1 = abs(pos - cms_chr[left_local])
+            d2 = abs(cms_chr[right_local] - pos)
+
+            # 거리 가중 평균으로 expected genotype
+            X = np.full(n_indiv, np.nan)
+            Z = np.full(n_indiv, np.nan)
+            for j in range(n_indiv):
+                lg = geno_num[i_l, j]
+                rg = geno_num[i_r, j]
+                if not np.isnan(lg) and not np.isnan(rg):
+                    total_d = d1 + d2
+                    if total_d == 0:
+                        wg = lg
+                    else:
+                        wg = (lg * d2 + rg * d1) / total_d
+                    X[j] = wg - 1.0
+                    Z[j] = 1.0 if abs(wg - 1.0) < 0.5 else 0.0
+                elif not np.isnan(lg):
+                    X[j] = lg - 1.0
+                    Z[j] = 1.0 if lg == 1.0 else 0.0
+                elif not np.isnan(rg):
+                    X[j] = rg - 1.0
+                    Z[j] = 1.0 if rg == 1.0 else 0.0
+
+            mask = ~np.isnan(X) & ~np.isnan(pheno)
+            if mask.sum() < 10:
+                lod_curve.append({'chr': str(ch), 'cM': float(pos), 'LOD': 0.0,
+                                  'add_a': None, 'dom_d': None})
+                continue
+
+            ym = pheno[mask]
+            Xm = X[mask]
+            Zm = Z[mask]
+
+            if is_inbred:
+                A = np.column_stack([np.ones(len(ym)), Xm])
+            else:
+                A = np.column_stack([np.ones(len(ym)), Xm, Zm])
+
+            try:
+                coef, _, _, _ = np.linalg.lstsq(A, ym, rcond=None)
+                yhat = A @ coef
+                rss_full = float(np.sum((ym - yhat) ** 2))
+                rss_null = float(np.sum((ym - ym.mean()) ** 2))
+                if rss_full <= 0 or rss_null <= 0 or rss_full > rss_null:
+                    lod = 0.0
+                else:
+                    lod = (len(ym) / 2.0) * np.log10(rss_null / rss_full)
+                add_a = float(coef[1])
+                dom_d = float(coef[2]) if len(coef) > 2 else None
+            except Exception:
+                lod = 0.0
+                add_a = None
+                dom_d = None
+
+            lod_curve.append({
+                'chr': str(ch),
+                'cM': float(pos),
+                'LOD': float(max(lod, 0.0)),
+                'add_a': add_a,
+                'dom_d': dom_d
+            })
+
+    return {
+        'method': 'IM (Haley-Knott)',
+        'trait': str(trait_name),
+        'step_cM': float(step),
+        'map_function': map_function,
+        'pop_type': pop_type,
+        'n_positions': len(lod_curve),
+        'lod_curve': lod_curve
+    }
+
+# ============== Tier 2: Permutation (Churchill & Doerge 1994) ==============
+def permutation_threshold(geno_df, map_df, pheno_df, trait_name=None, n_perm=1000,
+                          alphas=None, step=1.0, pop_type='F2',
+                          map_function='kosambi', seed=42, progress_callback=None):
+    """
+    Genome-wide permutation: 표현형 셔플 후 IM 재실행 → max LOD 기록
+    Returns thresholds at given alpha levels.
+    """
+    if alphas is None:
+        alphas = [0.05, 0.01]
+    if seed is not None:
+        np.random.seed(int(seed))
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+
+    base_pheno = pheno_df[trait_name].values.copy()
+    pheno_perm = pheno_df.copy()
+
+    max_lods = []
+    for i in range(n_perm):
+        pheno_perm[trait_name] = np.random.permutation(base_pheno)
+        res = interval_mapping(geno_df, map_df, pheno_perm, trait_name=trait_name,
+                              step=step, pop_type=pop_type, map_function=map_function)
+        max_lod = max((p['LOD'] for p in res['lod_curve']), default=0.0)
+        max_lods.append(max_lod)
+        if progress_callback is not None and (i+1) % 50 == 0:
+            try: progress_callback(i+1, n_perm)
+            except Exception: pass
+
+    arr = np.array(max_lods)
+    thresholds = {}
+    for alpha in alphas:
+        thresholds[f'{alpha:.3f}'] = float(np.percentile(arr, 100.0 * (1.0 - alpha)))
+
+    return {
+        'method': 'Permutation (Churchill&Doerge 1994)',
+        'n_perm': int(n_perm),
+        'thresholds': thresholds,
+        'null_distribution': arr.tolist(),
+        'mean': float(arr.mean()),
+        'std': float(arr.std()),
+        'min': float(arr.min()),
+        'max': float(arr.max())
+    }
+
+# ============== Tier 2: QTL peak 검출 ==============
+def find_qtl_peaks(im_result, threshold, min_separation_cM=20.0):
+    """
+    LOD 곡선에서 임계값 이상 peak 추출.
+    같은 염색체 내 min_separation_cM 이내는 하나의 cluster → 최대 LOD 위치만 보고.
+    """
+    curve = im_result['lod_curve']
+    by_chr = {}
+    for p in curve:
+        by_chr.setdefault(p['chr'], []).append(p)
+
+    peaks = []
+    for ch, pts in by_chr.items():
+        pts_sorted = sorted(pts, key=lambda x: x['cM'])
+        above = [p for p in pts_sorted if p['LOD'] >= threshold]
+        if not above:
+            continue
+        clusters = [[above[0]]]
+        for p in above[1:]:
+            if p['cM'] - clusters[-1][-1]['cM'] <= min_separation_cM:
+                clusters[-1].append(p)
+            else:
+                clusters.append([p])
+        for cl in clusters:
+            best = max(cl, key=lambda x: x['LOD'])
+            peaks.append({
+                'chr': str(best['chr']),
+                'cM': float(best['cM']),
+                'LOD': float(best['LOD']),
+                'add_a': best.get('add_a'),
+                'dom_d': best.get('dom_d'),
+                'cluster_width_cM': float(cl[-1]['cM'] - cl[0]['cM'])
+            })
+    peaks.sort(key=lambda x: x['LOD'], reverse=True)
+    return peaks
+
+# ============== Tier 2: LOD drop 신뢰구간 ==============
+def lod_drop_ci(im_result, peak_chr, peak_cM, drop=1.5):
+    """
+    Peak에서 LOD가 drop만큼 떨어진 좌우 양 끝까지를 CI로 정의.
+    drop=1.0 (R/qtl 1-LOD), drop=1.5 (Manichaikul 2006 권장).
+    """
+    chr_curve = sorted([p for p in im_result['lod_curve'] if str(p['chr']) == str(peak_chr)],
+                       key=lambda x: x['cM'])
+    if not chr_curve:
+        return None
+
+    peak_idx = min(range(len(chr_curve)), key=lambda i: abs(chr_curve[i]['cM'] - peak_cM))
+    peak_lod = chr_curve[peak_idx]['LOD']
+    target = peak_lod - drop
+
+    lower = chr_curve[0]['cM']
+    for i in range(peak_idx, -1, -1):
+        if chr_curve[i]['LOD'] < target:
+            lower = chr_curve[i]['cM']
+            break
+    upper = chr_curve[-1]['cM']
+    for i in range(peak_idx, len(chr_curve)):
+        if chr_curve[i]['LOD'] < target:
+            upper = chr_curve[i]['cM']
+            break
+
+    return {
+        'method': f'{drop}-LOD drop',
+        'peak_LOD': float(peak_lod),
+        'target_LOD': float(target),
+        'lower_cM': float(lower),
+        'upper_cM': float(upper),
+        'width_cM': float(upper - lower)
+    }
+
+# ============== Tier 2 통합: 분석 한 번에 ==============
+def run_tier2_analysis(geno_json, map_json, pheno_json, trait_name=None, step=1.0,
+                       pop_type='F2', n_perm=200, run_perm=True,
+                       map_function='kosambi', ci_drop=1.5, seed=42):
+    """
+    Tier 1-2 한 번에:
+    1) SMA
+    2) IM
+    3) (옵션) Permutation
+    4) Peak 검출
+    5) 각 peak에 대해 LOD drop CI
+    """
+    geno_df = pd.DataFrame(geno_json)
+    map_df = pd.DataFrame(map_json)
+    pheno_df = pd.DataFrame(pheno_json)
+
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+
+    sma_res = single_marker_anova(geno_df, pheno_df, trait_name=trait_name, pop_type=pop_type)
+    im_res = interval_mapping(geno_df, map_df, pheno_df, trait_name=trait_name,
+                              step=step, pop_type=pop_type, map_function=map_function)
+
+    perm_res = None
+    threshold = 2.5  # default floor
+    if run_perm and n_perm >= 50:
+        perm_res = permutation_threshold(geno_df, map_df, pheno_df, trait_name=trait_name,
+                                         n_perm=n_perm, step=step, pop_type=pop_type,
+                                         map_function=map_function, seed=seed)
+        threshold = perm_res['thresholds'].get('0.050', threshold)
+
+    peaks = find_qtl_peaks(im_res, threshold)
+    for pk in peaks:
+        ci = lod_drop_ci(im_res, pk['chr'], pk['cM'], drop=ci_drop)
+        if ci:
+            pk['ci_lower_cM'] = ci['lower_cM']
+            pk['ci_upper_cM'] = ci['upper_cM']
+            pk['ci_width_cM'] = ci['width_cM']
+            pk['ci_method'] = ci['method']
+
+    return json.dumps({
+        'sma': sma_res,
+        'im': im_res,
+        'perm': perm_res,
+        'threshold_used': float(threshold),
+        'peaks': peaks,
+        'ci_drop': float(ci_drop)
+    })
+`;
+}
 async function handleFile(event, type) {
   const file = event.target.files[0];
   if (!file) return;
@@ -1507,6 +2054,398 @@ async function runDiagnostic() {
 }
 
 // ============================================================
+// Tier 2 분석 wiring (단계 B)
+// ============================================================
+function populateTier2Options() {
+  // 진단 결과의 형질 목록을 dropdown에 채우기
+  if (!appData.diagnosis) return;
+  const traitSel = document.getElementById('tier2-trait');
+  const traits = appData.diagnosis.phenotype.trait_names || [];
+  traitSel.innerHTML = traits.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  // 집단 유형 자동 선택
+  const popSel = document.getElementById('tier2-pop');
+  const popType = (appData.diagnosis.population.type || '').toUpperCase();
+  if (popType.includes('F2')) popSel.value = 'F2';
+  else if (popType.includes('RIL')) popSel.value = 'RIL';
+  else if (popType.includes('DH')) popSel.value = 'DH';
+  else if (popType.includes('BC')) popSel.value = 'BC1';
+
+  // 추천 파라미터로 walking step 자동 채우기
+  const rec = appData.diagnosis.parameter_recommendation;
+  if (rec) {
+    const stepRec = rec.parameters.find(p => p.key === 'walking_step_cM');
+    if (stepRec) document.getElementById('tier2-step').value = stepRec.value;
+  }
+}
+
+async function runTier2() {
+  if (!pyodide || !appData.geno || !appData.pheno || !appData.map) {
+    log('Tier 2 분석 시작 전 데이터/맵을 준비해주세요. (마커 위치 파일 필수)', 'warn');
+    return;
+  }
+  const btn = document.getElementById('btn-tier2-run');
+  const icon = document.getElementById('tier2-btn-icon');
+  const status = document.getElementById('tier2-status');
+
+  const trait = document.getElementById('tier2-trait').value;
+  const popType = document.getElementById('tier2-pop').value;
+  const step = parseFloat(document.getElementById('tier2-step').value);
+  const mapFunc = document.getElementById('tier2-mapfunc').value;
+  const nPerm = parseInt(document.getElementById('tier2-nperm').value);
+  const manualLOD = parseFloat(document.getElementById('tier2-manual-lod').value);
+  const ciDrop = parseFloat(document.getElementById('tier2-ci').value);
+
+  // override가 있으면 우선
+  if ('walking_step_cM' in appData.paramOverrides) {
+    log(`사용자 override 사용: walking_step = ${appData.paramOverrides.walking_step_cM}`, 'warn');
+  }
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = nPerm > 0 ? `Permutation ${nPerm}회 진행 중... 페이지가 잠시 멈출 수 있습니다.` : '분석 진행 중...';
+  log(`Tier 2 분석 시작: trait=${trait}, pop=${popType}, step=${step}, perm=${nPerm}`, 'info');
+
+  try {
+    pyodide.globals.set('_geno', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_map', pyodide.toPy(appData.map.data));
+    pyodide.globals.set('_pheno', pyodide.toPy(appData.pheno.data));
+    pyodide.globals.set('_trait', trait);
+    pyodide.globals.set('_pop', popType);
+    pyodide.globals.set('_step', step);
+    pyodide.globals.set('_mapf', mapFunc);
+    pyodide.globals.set('_nperm', nPerm);
+    pyodide.globals.set('_runperm', nPerm > 0);
+    pyodide.globals.set('_ci', ciDrop);
+
+    // 다음 frame에서 실행하여 status 텍스트 표시 보장
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_tier2_analysis(_geno, _map, _pheno, trait_name=_trait, step=_step, pop_type=_pop, n_perm=_nperm, run_perm=_runperm, map_function=_mapf, ci_drop=_ci)`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`Tier 2 완료 (${((t1-t0)/1000).toFixed(1)}s) — 검출 QTL ${result.peaks.length}개`, 'ok');
+    appData.tier2 = result;
+    if (nPerm <= 0) {
+      result.threshold_used = manualLOD;
+      // peaks를 manual threshold로 다시 필터
+      // (Python에서 이미 default 2.5로 계산됐으므로 manual >= 2.5면 추가 필터)
+      if (manualLOD > result.threshold_used) {
+        result.peaks = result.peaks.filter(p => p.LOD >= manualLOD);
+        result.threshold_used = manualLOD;
+      }
+    }
+    renderTier2Results(result);
+    status.textContent = `완료: ${result.peaks.length}개 QTL 검출 (threshold ${result.threshold_used.toFixed(2)})`;
+  } catch (e) {
+    log('Tier 2 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+// 결과 렌더링 (조각 B-3: Plotly 시각화 추가)
+function renderTier2Results(result) {
+  document.getElementById('tier2-results').style.display = 'block';
+
+  // LOD plot
+  renderLODPlot(result.im, result.threshold_used, result.peaks, result.perm);
+
+  // Permutation histogram
+  if (result.perm) {
+    renderPermHistogram(result.perm);
+  } else {
+    document.getElementById('tier2-perm-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">Permutation 건너뜀 (수동 threshold ${result.threshold_used.toFixed(2)} 사용).</div></div>`;
+  }
+
+  // QTL 표 (간단 렌더 — B-3에서 강화)
+  const qtlEl = document.getElementById('tier2-qtl-table');
+  if (result.peaks.length === 0) {
+    qtlEl.innerHTML = `<div class="empty"><div class="empty-hint">Threshold ${result.threshold_used.toFixed(2)} 통과 QTL 없음.</div></div>`;
+  } else {
+    qtlEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Chr</th><th>Position (cM)</th><th>LOD</th><th>가산효과 a</th><th>우성효과 d</th>
+          <th>CI (${result.ci_drop}-LOD drop)</th><th>CI 폭 (cM)</th>
+        </tr></thead>
+        <tbody>
+          ${result.peaks.map(p => `
+            <tr>
+              <td>${p.chr}</td>
+              <td>${p.cM.toFixed(1)}</td>
+              <td><strong style="color:var(--accent-3)">${p.LOD.toFixed(2)}</strong></td>
+              <td>${p.add_a !== null ? p.add_a.toFixed(2) : '—'}</td>
+              <td>${p.dom_d !== null ? p.dom_d.toFixed(2) : '—'}</td>
+              <td>${p.ci_lower_cM !== undefined ? `${p.ci_lower_cM.toFixed(1)} ~ ${p.ci_upper_cM.toFixed(1)}` : '—'}</td>
+              <td>${p.ci_width_cM !== undefined ? p.ci_width_cM.toFixed(1) : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // SMA top 마커
+  const smaEl = document.getElementById('tier2-sma-table');
+  const sma = result.sma;
+  const sigMarkers = sma.results.filter(r => r.neg_log10_p && r.neg_log10_p > sma.bonferroni_neg_log10);
+  sigMarkers.sort((a,b) => b.neg_log10_p - a.neg_log10_p);
+  if (sigMarkers.length === 0) {
+    smaEl.innerHTML = `<div class="empty"><div class="empty-hint">Bonferroni 임계 -log10(p) > ${sma.bonferroni_neg_log10.toFixed(2)} 통과 마커 없음.</div></div>`;
+  } else {
+    smaEl.innerHTML = `
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Bonferroni 임계: -log10(p) > ${sma.bonferroni_neg_log10.toFixed(2)} (α=${sma.alpha}, ${sma.n_markers}마커)</div>
+      <table>
+        <thead><tr>
+          <th>마커</th><th>F</th><th>-log10(p)</th><th>가산효과 a</th><th>mean AA / AB / BB</th><th>n</th>
+        </tr></thead>
+        <tbody>
+          ${sigMarkers.slice(0, 20).map(r => `
+            <tr>
+              <td><code>${r.marker}</code></td>
+              <td>${r.F !== null ? r.F.toFixed(2) : '—'}</td>
+              <td><strong>${r.neg_log10_p.toFixed(2)}</strong></td>
+              <td>${r.additive_a !== null ? r.additive_a.toFixed(2) : '—'}</td>
+              <td>${[r.mean_AA, r.mean_AB, r.mean_BB].map(v => v !== null ? v.toFixed(1) : '—').join(' / ')}</td>
+              <td>${r.n}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      ${sigMarkers.length > 20 ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">상위 20개 표시 (전체 ${sigMarkers.length}개)</div>` : ''}
+    `;
+  }
+
+  // Tab 2로 자동 스크롤
+  document.getElementById('tier2-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// Plotly 시각화 (단계 B-3)
+// ============================================================
+const PLOTLY_DARK = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(255,255,255,0.02)',
+  font: {color: '#e8f5f2', family: "'KoPub Dotum Light', '맑은 고딕', sans-serif", size: 11},
+  margin: {l: 55, r: 30, t: 40, b: 50},
+  hoverlabel: {bgcolor: '#0d3a2d', bordercolor: '#017f97', font: {color: '#e8f5f2'}}
+};
+
+const _AXIS_DARK = {
+  gridcolor: 'rgba(255,255,255,0.06)',
+  zerolinecolor: 'rgba(255,255,255,0.1)',
+  color: '#94b8aa',
+  linecolor: 'rgba(255,255,255,0.15)',
+  tickfont: {size: 10}
+};
+
+function renderLODPlot(im, threshold, peaks, perm) {
+  // 염색체별로 그룹화 + 누적 cM 계산
+  const byChr = {};
+  im.lod_curve.forEach(p => { (byChr[p.chr] ||= []).push(p); });
+  const sortedChrs = Object.keys(byChr).sort((a, b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+
+  let offset = 0;
+  const offsets = {};
+  const chrLabels = [];
+  const dividers = [];
+  sortedChrs.forEach((ch, i) => {
+    const pts = byChr[ch].sort((a, b) => a.cM - b.cM);
+    offsets[ch] = offset;
+    const chrLen = pts[pts.length - 1].cM;
+    chrLabels.push({chr: ch, mid: offset + chrLen / 2, end: offset + chrLen});
+    if (i < sortedChrs.length - 1) dividers.push(offset + chrLen + 2.5);
+    offset += chrLen + 5;
+  });
+
+  const traces = [];
+  const altColors = ['#017f97', '#54b7c6'];
+  sortedChrs.forEach((ch, i) => {
+    const pts = byChr[ch];
+    traces.push({
+      x: pts.map(p => offsets[ch] + p.cM),
+      y: pts.map(p => p.LOD),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Chr${ch}`,
+      line: {color: altColors[i % 2], width: 1.6},
+      customdata: pts.map(p => [ch, p.cM, p.add_a, p.dom_d]),
+      hovertemplate: 'Chr%{customdata[0]} cM=%{customdata[1]:.1f}<br>LOD=%{y:.2f}<br>a=%{customdata[2]:.2f}<extra></extra>',
+      showlegend: false
+    });
+  });
+
+  // 검출 QTL peak 마커
+  if (peaks && peaks.length) {
+    const peakX = peaks.map(p => (offsets[p.chr] || 0) + p.cM);
+    traces.push({
+      x: peakX,
+      y: peaks.map(p => p.LOD),
+      type: 'scatter',
+      mode: 'markers+text',
+      marker: {size: 13, color: '#00a1b8', line: {color: '#e8f5f2', width: 1.5}, symbol: 'star'},
+      text: peaks.map((p, i) => `Q${i + 1}`),
+      textposition: 'top center',
+      textfont: {size: 11, color: '#8dccd3'},
+      name: '검출 QTL',
+      customdata: peaks.map(p => [p.chr, p.cM, p.LOD, p.add_a, p.ci_lower_cM, p.ci_upper_cM]),
+      hovertemplate: 'Chr%{customdata[0]} %{customdata[1]:.1f} cM<br>LOD=%{customdata[2]:.2f}<br>a=%{customdata[3]:.2f}<br>CI %{customdata[4]:.1f}~%{customdata[5]:.1f} cM<extra></extra>',
+      showlegend: false
+    });
+
+    // CI 범위 음영 (각 peak마다)
+    peaks.forEach(p => {
+      if (p.ci_lower_cM !== undefined && p.ci_upper_cM !== undefined) {
+        const x0 = (offsets[p.chr] || 0) + p.ci_lower_cM;
+        const x1 = (offsets[p.chr] || 0) + p.ci_upper_cM;
+        traces.push({
+          x: [x0, x1],
+          y: [p.LOD, p.LOD],
+          type: 'scatter',
+          mode: 'lines',
+          line: {color: '#00a1b8', width: 4},
+          opacity: 0.4,
+          showlegend: false,
+          hoverinfo: 'skip'
+        });
+      }
+    });
+  }
+
+  // shapes: threshold + 염색체 구분선
+  const shapes = [];
+  if (perm && perm.thresholds) {
+    Object.entries(perm.thresholds).forEach(([alpha, t]) => {
+      shapes.push({
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
+        y0: t, y1: t,
+        line: {color: alpha === '0.050' ? '#dc3545' : '#d97706', width: 1.4, dash: 'dash'}
+      });
+    });
+  } else if (threshold) {
+    shapes.push({
+      type: 'line', xref: 'paper', x0: 0, x1: 1,
+      y0: threshold, y1: threshold,
+      line: {color: '#dc3545', width: 1.4, dash: 'dash'}
+    });
+  }
+  dividers.forEach(d => {
+    shapes.push({
+      type: 'line', xref: 'x', yref: 'paper',
+      x0: d, x1: d, y0: 0, y1: 1,
+      line: {color: 'rgba(255,255,255,0.06)', width: 1}
+    });
+  });
+
+  // 염색체 라벨 + threshold 라벨
+  const annotations = chrLabels.map(c => ({
+    x: c.mid, y: 1.06, xref: 'x', yref: 'paper',
+    text: c.chr, showarrow: false,
+    font: {size: 11, color: '#94b8aa', family: "'KoPub Dotum Medium', sans-serif"}
+  }));
+  if (perm && perm.thresholds) {
+    Object.entries(perm.thresholds).forEach(([alpha, t]) => {
+      annotations.push({
+        x: 0.985, y: t, xref: 'paper', yref: 'y',
+        text: `α=${alpha} (${t.toFixed(2)})`,
+        showarrow: false, xanchor: 'right',
+        font: {size: 9, color: alpha === '0.050' ? '#dc3545' : '#d97706'},
+        bgcolor: 'rgba(13, 58, 45, 0.8)'
+      });
+    });
+  } else if (threshold) {
+    annotations.push({
+      x: 0.985, y: threshold, xref: 'paper', yref: 'y',
+      text: `threshold ${threshold.toFixed(2)}`,
+      showarrow: false, xanchor: 'right',
+      font: {size: 9, color: '#dc3545'},
+      bgcolor: 'rgba(13, 58, 45, 0.8)'
+    });
+  }
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {
+      text: `LOD 곡선 — ${im.trait} (step ${im.step_cM} cM, ${im.method})`,
+      font: {size: 13, color: '#e8f5f2'}, x: 0.02
+    },
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: '염색체별 cM (누적)', font: {size: 11}},
+      showticklabels: false,
+      range: [-2, offset]
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'LOD score', font: {size: 11}},
+      rangemode: 'tozero'
+    }),
+    shapes: shapes,
+    annotations: annotations,
+    hovermode: 'closest'
+  });
+
+  Plotly.newPlot('tier2-lod-plot', traces, layout, {responsive: true, displaylogo: false});
+}
+
+function renderPermHistogram(perm) {
+  const trace = {
+    x: perm.null_distribution,
+    type: 'histogram',
+    nbinsx: 30,
+    marker: {
+      color: 'rgba(0, 161, 184, 0.55)',
+      line: {color: '#017f97', width: 1}
+    },
+    hovertemplate: 'max LOD: %{x:.2f}<br>count: %{y}<extra></extra>',
+    name: 'Null'
+  };
+
+  const shapes = [];
+  const annotations = [];
+  Object.entries(perm.thresholds).forEach(([alpha, t]) => {
+    const color = alpha === '0.050' ? '#dc3545' : '#d97706';
+    shapes.push({
+      type: 'line', xref: 'x', yref: 'paper',
+      x0: t, x1: t, y0: 0, y1: 1,
+      line: {color: color, width: 2, dash: 'dash'}
+    });
+    annotations.push({
+      x: t, y: 1.04, xref: 'x', yref: 'paper',
+      text: `α=${alpha}<br>${t.toFixed(2)}`,
+      showarrow: false, font: {size: 10, color: color}
+    });
+  });
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {
+      text: `Permutation null distribution (${perm.n_perm}회) — Churchill&Doerge 1994`,
+      font: {size: 12}, x: 0.02
+    },
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'Max LOD per permutation', font: {size: 11}}
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: '빈도', font: {size: 11}}
+    }),
+    shapes: shapes,
+    annotations: annotations,
+    showlegend: false,
+    bargap: 0.05
+  });
+
+  Plotly.newPlot('tier2-perm-plot', [trace], layout, {responsive: true, displaylogo: false});
+}
+
+// ============================================================
 // 진단 결과 렌더링
 // ============================================================
 function renderDiagnosis(d) {
@@ -1606,6 +2545,9 @@ function renderDiagnosis(d) {
 
   // 추천 파라미터 카드 렌더 (조각 3)
   renderParameterRecommendation(d.parameter_recommendation);
+
+  // Tab 2 옵션 자동 채우기 (단계 B)
+  populateTier2Options();
 
   // 다음 탭 활성화
   document.querySelectorAll('.tab.disabled').forEach(t => t.classList.remove('disabled'));
