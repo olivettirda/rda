@@ -1650,6 +1650,171 @@ def interval_mapping(geno_df, map_df, pheno_df, trait_name=None, step=1.0,
         'n_positions': len(lod_curve),
         'lod_curve': lod_curve
     }
+
+# ============== Tier 2: Permutation (Churchill & Doerge 1994) ==============
+def permutation_threshold(geno_df, map_df, pheno_df, trait_name=None, n_perm=1000,
+                          alphas=None, step=1.0, pop_type='F2',
+                          map_function='kosambi', seed=42, progress_callback=None):
+    """
+    Genome-wide permutation: 표현형 셔플 후 IM 재실행 → max LOD 기록
+    Returns thresholds at given alpha levels.
+    """
+    if alphas is None:
+        alphas = [0.05, 0.01]
+    if seed is not None:
+        np.random.seed(int(seed))
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+
+    base_pheno = pheno_df[trait_name].values.copy()
+    pheno_perm = pheno_df.copy()
+
+    max_lods = []
+    for i in range(n_perm):
+        pheno_perm[trait_name] = np.random.permutation(base_pheno)
+        res = interval_mapping(geno_df, map_df, pheno_perm, trait_name=trait_name,
+                              step=step, pop_type=pop_type, map_function=map_function)
+        max_lod = max((p['LOD'] for p in res['lod_curve']), default=0.0)
+        max_lods.append(max_lod)
+        if progress_callback is not None and (i+1) % 50 == 0:
+            try: progress_callback(i+1, n_perm)
+            except Exception: pass
+
+    arr = np.array(max_lods)
+    thresholds = {}
+    for alpha in alphas:
+        thresholds[f'{alpha:.3f}'] = float(np.percentile(arr, 100.0 * (1.0 - alpha)))
+
+    return {
+        'method': 'Permutation (Churchill&Doerge 1994)',
+        'n_perm': int(n_perm),
+        'thresholds': thresholds,
+        'null_distribution': arr.tolist(),
+        'mean': float(arr.mean()),
+        'std': float(arr.std()),
+        'min': float(arr.min()),
+        'max': float(arr.max())
+    }
+
+# ============== Tier 2: QTL peak 검출 ==============
+def find_qtl_peaks(im_result, threshold, min_separation_cM=20.0):
+    """
+    LOD 곡선에서 임계값 이상 peak 추출.
+    같은 염색체 내 min_separation_cM 이내는 하나의 cluster → 최대 LOD 위치만 보고.
+    """
+    curve = im_result['lod_curve']
+    by_chr = {}
+    for p in curve:
+        by_chr.setdefault(p['chr'], []).append(p)
+
+    peaks = []
+    for ch, pts in by_chr.items():
+        pts_sorted = sorted(pts, key=lambda x: x['cM'])
+        above = [p for p in pts_sorted if p['LOD'] >= threshold]
+        if not above:
+            continue
+        clusters = [[above[0]]]
+        for p in above[1:]:
+            if p['cM'] - clusters[-1][-1]['cM'] <= min_separation_cM:
+                clusters[-1].append(p)
+            else:
+                clusters.append([p])
+        for cl in clusters:
+            best = max(cl, key=lambda x: x['LOD'])
+            peaks.append({
+                'chr': str(best['chr']),
+                'cM': float(best['cM']),
+                'LOD': float(best['LOD']),
+                'add_a': best.get('add_a'),
+                'dom_d': best.get('dom_d'),
+                'cluster_width_cM': float(cl[-1]['cM'] - cl[0]['cM'])
+            })
+    peaks.sort(key=lambda x: x['LOD'], reverse=True)
+    return peaks
+
+# ============== Tier 2: LOD drop 신뢰구간 ==============
+def lod_drop_ci(im_result, peak_chr, peak_cM, drop=1.5):
+    """
+    Peak에서 LOD가 drop만큼 떨어진 좌우 양 끝까지를 CI로 정의.
+    drop=1.0 (R/qtl 1-LOD), drop=1.5 (Manichaikul 2006 권장).
+    """
+    chr_curve = sorted([p for p in im_result['lod_curve'] if str(p['chr']) == str(peak_chr)],
+                       key=lambda x: x['cM'])
+    if not chr_curve:
+        return None
+
+    peak_idx = min(range(len(chr_curve)), key=lambda i: abs(chr_curve[i]['cM'] - peak_cM))
+    peak_lod = chr_curve[peak_idx]['LOD']
+    target = peak_lod - drop
+
+    lower = chr_curve[0]['cM']
+    for i in range(peak_idx, -1, -1):
+        if chr_curve[i]['LOD'] < target:
+            lower = chr_curve[i]['cM']
+            break
+    upper = chr_curve[-1]['cM']
+    for i in range(peak_idx, len(chr_curve)):
+        if chr_curve[i]['LOD'] < target:
+            upper = chr_curve[i]['cM']
+            break
+
+    return {
+        'method': f'{drop}-LOD drop',
+        'peak_LOD': float(peak_lod),
+        'target_LOD': float(target),
+        'lower_cM': float(lower),
+        'upper_cM': float(upper),
+        'width_cM': float(upper - lower)
+    }
+
+# ============== Tier 2 통합: 분석 한 번에 ==============
+def run_tier2_analysis(geno_json, map_json, pheno_json, trait_name=None, step=1.0,
+                       pop_type='F2', n_perm=200, run_perm=True,
+                       map_function='kosambi', ci_drop=1.5, seed=42):
+    """
+    Tier 1-2 한 번에:
+    1) SMA
+    2) IM
+    3) (옵션) Permutation
+    4) Peak 검출
+    5) 각 peak에 대해 LOD drop CI
+    """
+    geno_df = pd.DataFrame(geno_json)
+    map_df = pd.DataFrame(map_json)
+    pheno_df = pd.DataFrame(pheno_json)
+
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+
+    sma_res = single_marker_anova(geno_df, pheno_df, trait_name=trait_name, pop_type=pop_type)
+    im_res = interval_mapping(geno_df, map_df, pheno_df, trait_name=trait_name,
+                              step=step, pop_type=pop_type, map_function=map_function)
+
+    perm_res = None
+    threshold = 2.5  # default floor
+    if run_perm and n_perm >= 50:
+        perm_res = permutation_threshold(geno_df, map_df, pheno_df, trait_name=trait_name,
+                                         n_perm=n_perm, step=step, pop_type=pop_type,
+                                         map_function=map_function, seed=seed)
+        threshold = perm_res['thresholds'].get('0.050', threshold)
+
+    peaks = find_qtl_peaks(im_res, threshold)
+    for pk in peaks:
+        ci = lod_drop_ci(im_res, pk['chr'], pk['cM'], drop=ci_drop)
+        if ci:
+            pk['ci_lower_cM'] = ci['lower_cM']
+            pk['ci_upper_cM'] = ci['upper_cM']
+            pk['ci_width_cM'] = ci['width_cM']
+            pk['ci_method'] = ci['method']
+
+    return json.dumps({
+        'sma': sma_res,
+        'im': im_res,
+        'perm': perm_res,
+        'threshold_used': float(threshold),
+        'peaks': peaks,
+        'ci_drop': float(ci_drop)
+    })
 `;
 }
 async function handleFile(event, type) {
