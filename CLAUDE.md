@@ -384,3 +384,132 @@ PR이 생성되었습니다: https://github.com/owner/repo/pull/123
 - 충돌 발생 (`mergeable_state !== "clean"`)
 - CI 실패
 - 사용자가 명시적으로 "머지하지 마" 지시
+
+---
+
+## 벼육종 웹앱 프로젝트 규칙
+
+전역 규칙(`~/.claude/CLAUDE.md`)에 더해 이 프로젝트에 특별히 적용되는 규칙입니다.
+
+### 프로젝트 개요
+
+벼 분자육종 작업 자동화를 위한 웹앱 모음. 단일 HTML 파일 구조(Pyodide + Plotly + XLSX.js).
+
+### 핵심 시스템: 벼 육종 시스템 v4.16/17
+
+- **정확도**: 87.2% (표현형 예측)
+- **구현**: 단일 HTML 파일 (`rice_breeding_v4_16_prediction.html`, `rice_breeding_v5_0.html`)
+- **탭 구조**: Tab 0~9
+  - Tab 0: 데이터 입력
+  - Tab 1: 결측치 예측
+  - Tab 2: 유전 알고리즘
+  - Tab 3: 육종조합 추천
+  - Tab 4: 후대예측
+  - Tab 5: 시각화
+  - Tab 6: 종합 리포트
+  - Tab 7: 연관군 분석
+  - Tab 8: 유전자 상호작용
+  - Tab 9: 세대별 시뮬레이션
+
+#### 핵심 기능
+
+- **연관 기반 교배 시뮬레이션**: Kosambi 함수로 bp→cM 변환, haplotype 추적
+- **동원체 재조합 억제**: IRGSP-1.0 기준 12개 염색체별 동원체 위치 반영
+- **세대별 연관블록 유지율 분석**: F1→F7 세대 진전
+- **멘델 분리**: 1:2:1 분리비, 3가지 선발 전략(자연분리/표현형/MAS)
+- **NSGA-II 다목적 최적화**: Pareto Front 기반 교배조합 추천
+- **RF Feature Importance**: 유전자 상호작용 분석
+
+#### 절대 금지
+
+- **기존 탭 기능 절대 삭제 금지.** 새 탭/기능만 추가.
+- 연관군 데이터: RAP-DB, Gramene 기반.
+- 유전체 좌표: IRGSP-1.0 기준.
+
+### ML 파이프라인 (2025.10~ 진행 중)
+
+```
+형질 데이터 이진화
+   ↓
+유전알고리즘으로 다형질 동시개선 최적 유전자형 탐색
+   ↓
+최적해 도출용 교배조합 계산
+   ↓
+후대계통 유전자형 시뮬레이션
+   ↓
+머신러닝(RF/XGBoost/Gradient Boosting)으로 후대 형질 예측
+```
+
+#### 적용 형질
+- BLB (K1~K3a)
+- SLB (잎집무늬마름병)
+- BPH (벼멸구)
+- PHS (수발아)
+- 도열병 (잎/이삭)
+
+#### 외부 검증
+- 유전자원 430점
+
+#### 알려진 이슈
+- BPH 모델은 qltg3-1 허위 상관(feature importance 0.643) 발견됨. 재검토 필요.
+
+### 농업 조사 통합 도구 사양
+
+#### 라벨 출력 (변경 절대 금지)
+- 컬러칩만 변경 가능. 기능 자체는 동결.
+
+#### DMRT 분석 (`DMRT_분석기_v4_6.html`)
+- Duncan 다중범위 검정: 정확한 임계값 테이블 사용 (α = 0.05, 0.01, 0.001)
+- 그룹별 색상: 같은 그룹 = 같은 색상 (연속적 파란색 그라데이션)
+- SE 계산: pooled SE 사용
+
+#### 시각화 옵션
+- 차트 크기: mm 단위
+- DPI 선택: 72 / 150 / 300 / 600
+- 오차 막대: SE / SD / 없음
+- Y축 범위·간격, 폰트 크기, 그룹문자 표시, 흑백 모드 모두 옵션화
+
+### 웹앱 기술 스택 표준
+
+- 외부 라이브러리: XLSX.js, QRCode.js, Chart.js, NanumSquare 폰트
+- GitHub: `https://github.com/olivettirda/rda`
+- 파비콘: `https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png`
+
+```html
+<link rel="icon" type="image/png"
+  href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+```
+
+#### QRCode.js 중복 방지 (반드시 적용)
+- CSS에서 canvas 숨김
+- innerHTML로 canvas 제거
+- html2canvas 사용 시 onclone에서 canvas 삭제
+
+### SNP 데이터 변환 표준
+
+| 입력 | 출력 |
+|------|------|
+| 반복친(RP) allele | A |
+| 공여친(DP) allele | B |
+| 이형접합 | H |
+| 결측 | - |
+
+마커명 형식: `ChrXX_Position`
+
+### 참조 데이터베이스
+
+- IRGSP-1.0 (벼 참조 게놈)
+- RAP-DB
+- Gramene
+- Rice SNP-Seek
+- IWGSC RefSeq v2.1 (밀)
+
+---
+
+## 코드 자산 참고
+
+`code_assets/` 폴더에 이전 작업에서 추출된 핵심 코드 자산이 보관되어 있습니다.
+각 폴더의 `README.md`에서 블록 구성을 확인하고 필요한 코드만 골라 사용합니다.
+같은 폴더 내 여러 블록은 한 작업의 반복·수정 버전인 경우가 많으므로, 가장 큰 블록 또는 마지막 블록이 최종본일 가능성이 높습니다.
+
+상세 인덱스: `code_assets/INDEX.md`

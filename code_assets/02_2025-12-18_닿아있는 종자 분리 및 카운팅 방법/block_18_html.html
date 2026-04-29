@@ -1,0 +1,133 @@
+<!-- 모드 선택 섹션 추가 -->
+<div class="control-section">
+    <h3>🌾 종자 타입</h3>
+    
+    <div class="mode-selector">
+        <label class="mode-option">
+            <input type="radio" name="seedType" value="rough_rice" id="roughRice">
+            <div class="mode-card">
+                <span class="mode-icon">🌾</span>
+                <span class="mode-name">정조</span>
+                <span class="mode-desc">왕겨 있음, 까락 제거 필요</span>
+            </div>
+        </label>
+        
+        <label class="mode-option">
+            <input type="radio" name="seedType" value="brown_rice" id="brownRice" checked>
+            <div class="mode-card">
+                <span class="mode-icon">🍚</span>
+                <span class="mode-name">현미</span>
+                <span class="mode-desc">왕겨 제거됨, 매끈한 표면</span>
+            </div>
+        </label>
+    </div>
+    
+    <div id="roughRicePresets" class="preset-section" style="display: none;">
+        <label>정조 프리셋:</label>
+        <select id="roughRicePreset">
+            <option value="default">기본</option>
+            <option value="heavy_awn">까락 많음</option>
+            <option value="no_awn">까락 없음</option>
+        </select>
+    </div>
+    
+    <div id="brownRicePresets" class="preset-section">
+        <label>현미 프리셋:</label>
+        <select id="brownRicePreset">
+            <option value="default">기본</option>
+            <option value="touching">밀접 접촉</option>
+            <option value="long_grain">장립종</option>
+            <option value="short_grain">단립종</option>
+        </select>
+    </div>
+</div>
+
+<style>
+.mode-selector {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.mode-option {
+    flex: 1;
+    cursor: pointer;
+}
+
+.mode-option input {
+    display: none;
+}
+
+.mode-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+.mode-option input:checked + .mode-card {
+    border-color: var(--primary);
+    background: rgba(1, 127, 151, 0.1);
+}
+
+.mode-icon {
+    font-size: 2rem;
+    margin-bottom: 5px;
+}
+
+.mode-name {
+    font-weight: bold;
+    color: var(--header);
+}
+
+.mode-desc {
+    font-size: 11px;
+    color: #888;
+    text-align: center;
+    margin-top: 5px;
+}
+
+.preset-section {
+    margin-top: 10px;
+}
+
+.preset-section select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+</style>
+
+<script>
+// 모드 전환 시 프리셋 표시 변경
+document.querySelectorAll('input[name="seedType"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const isRough = e.target.value === 'rough_rice';
+        document.getElementById('roughRicePresets').style.display = isRough ? 'block' : 'none';
+        document.getElementById('brownRicePresets').style.display = isRough ? 'none' : 'block';
+        
+        // 까락 제거 섹션 표시/숨김
+        document.querySelector('.awn-section').style.display = isRough ? 'block' : 'none';
+    });
+});
+
+// 분석 시 모드 포함
+async function analyzeImage() {
+    const seedType = document.querySelector('input[name="seedType"]:checked').value;
+    const preset = seedType === 'rough_rice' 
+        ? document.getElementById('roughRicePreset').value
+        : document.getElementById('brownRicePreset').value;
+    
+    const params = new URLSearchParams({
+        seed_type: seedType,
+        preset: preset,
+        // ... 나머지 파라미터
+    });
+    
+    // API 호출
+}
+</script>
