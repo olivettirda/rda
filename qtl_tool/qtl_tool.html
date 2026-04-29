@@ -2149,19 +2149,19 @@ async function runTier2() {
   }
 }
 
-// 결과 렌더링은 조각 B-3에서 시각화와 함께 채워집니다.
+// 결과 렌더링 (조각 B-3: Plotly 시각화 추가)
 function renderTier2Results(result) {
   document.getElementById('tier2-results').style.display = 'block';
 
-  // 임시 렌더 (B-3에서 Plotly로 교체)
-  const lodEl = document.getElementById('tier2-lod-plot');
-  lodEl.innerHTML = `<div class="empty"><div class="empty-title">LOD 곡선 시각화</div><div class="empty-hint">조각 B-3에서 Plotly로 구현됩니다. 현재는 데이터만 보유 중 (${result.im.n_positions} positions).</div></div>`;
+  // LOD plot
+  renderLODPlot(result.im, result.threshold_used, result.peaks, result.perm);
 
-  const permEl = document.getElementById('tier2-perm-plot');
+  // Permutation histogram
   if (result.perm) {
-    permEl.innerHTML = `<div class="empty"><div class="empty-title">Permutation null distribution</div><div class="empty-hint">${result.perm.n_perm}회 perm: mean=${result.perm.mean.toFixed(2)}, std=${result.perm.std.toFixed(2)}, max=${result.perm.max.toFixed(2)}. Histogram은 B-3에서.</div></div>`;
+    renderPermHistogram(result.perm);
   } else {
-    permEl.innerHTML = `<div class="empty"><div class="empty-hint">Permutation 건너뜀 (수동 threshold ${result.threshold_used.toFixed(2)} 사용).</div></div>`;
+    document.getElementById('tier2-perm-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">Permutation 건너뜀 (수동 threshold ${result.threshold_used.toFixed(2)} 사용).</div></div>`;
   }
 
   // QTL 표 (간단 렌더 — B-3에서 강화)
@@ -2225,6 +2225,224 @@ function renderTier2Results(result) {
 
   // Tab 2로 자동 스크롤
   document.getElementById('tier2-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// Plotly 시각화 (단계 B-3)
+// ============================================================
+const PLOTLY_DARK = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(255,255,255,0.02)',
+  font: {color: '#e8f5f2', family: "'KoPub Dotum Light', '맑은 고딕', sans-serif", size: 11},
+  margin: {l: 55, r: 30, t: 40, b: 50},
+  hoverlabel: {bgcolor: '#0d3a2d', bordercolor: '#017f97', font: {color: '#e8f5f2'}}
+};
+
+const _AXIS_DARK = {
+  gridcolor: 'rgba(255,255,255,0.06)',
+  zerolinecolor: 'rgba(255,255,255,0.1)',
+  color: '#94b8aa',
+  linecolor: 'rgba(255,255,255,0.15)',
+  tickfont: {size: 10}
+};
+
+function renderLODPlot(im, threshold, peaks, perm) {
+  // 염색체별로 그룹화 + 누적 cM 계산
+  const byChr = {};
+  im.lod_curve.forEach(p => { (byChr[p.chr] ||= []).push(p); });
+  const sortedChrs = Object.keys(byChr).sort((a, b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+
+  let offset = 0;
+  const offsets = {};
+  const chrLabels = [];
+  const dividers = [];
+  sortedChrs.forEach((ch, i) => {
+    const pts = byChr[ch].sort((a, b) => a.cM - b.cM);
+    offsets[ch] = offset;
+    const chrLen = pts[pts.length - 1].cM;
+    chrLabels.push({chr: ch, mid: offset + chrLen / 2, end: offset + chrLen});
+    if (i < sortedChrs.length - 1) dividers.push(offset + chrLen + 2.5);
+    offset += chrLen + 5;
+  });
+
+  const traces = [];
+  const altColors = ['#017f97', '#54b7c6'];
+  sortedChrs.forEach((ch, i) => {
+    const pts = byChr[ch];
+    traces.push({
+      x: pts.map(p => offsets[ch] + p.cM),
+      y: pts.map(p => p.LOD),
+      type: 'scatter',
+      mode: 'lines',
+      name: `Chr${ch}`,
+      line: {color: altColors[i % 2], width: 1.6},
+      customdata: pts.map(p => [ch, p.cM, p.add_a, p.dom_d]),
+      hovertemplate: 'Chr%{customdata[0]} cM=%{customdata[1]:.1f}<br>LOD=%{y:.2f}<br>a=%{customdata[2]:.2f}<extra></extra>',
+      showlegend: false
+    });
+  });
+
+  // 검출 QTL peak 마커
+  if (peaks && peaks.length) {
+    const peakX = peaks.map(p => (offsets[p.chr] || 0) + p.cM);
+    traces.push({
+      x: peakX,
+      y: peaks.map(p => p.LOD),
+      type: 'scatter',
+      mode: 'markers+text',
+      marker: {size: 13, color: '#00a1b8', line: {color: '#e8f5f2', width: 1.5}, symbol: 'star'},
+      text: peaks.map((p, i) => `Q${i + 1}`),
+      textposition: 'top center',
+      textfont: {size: 11, color: '#8dccd3'},
+      name: '검출 QTL',
+      customdata: peaks.map(p => [p.chr, p.cM, p.LOD, p.add_a, p.ci_lower_cM, p.ci_upper_cM]),
+      hovertemplate: 'Chr%{customdata[0]} %{customdata[1]:.1f} cM<br>LOD=%{customdata[2]:.2f}<br>a=%{customdata[3]:.2f}<br>CI %{customdata[4]:.1f}~%{customdata[5]:.1f} cM<extra></extra>',
+      showlegend: false
+    });
+
+    // CI 범위 음영 (각 peak마다)
+    peaks.forEach(p => {
+      if (p.ci_lower_cM !== undefined && p.ci_upper_cM !== undefined) {
+        const x0 = (offsets[p.chr] || 0) + p.ci_lower_cM;
+        const x1 = (offsets[p.chr] || 0) + p.ci_upper_cM;
+        traces.push({
+          x: [x0, x1],
+          y: [p.LOD, p.LOD],
+          type: 'scatter',
+          mode: 'lines',
+          line: {color: '#00a1b8', width: 4},
+          opacity: 0.4,
+          showlegend: false,
+          hoverinfo: 'skip'
+        });
+      }
+    });
+  }
+
+  // shapes: threshold + 염색체 구분선
+  const shapes = [];
+  if (perm && perm.thresholds) {
+    Object.entries(perm.thresholds).forEach(([alpha, t]) => {
+      shapes.push({
+        type: 'line', xref: 'paper', x0: 0, x1: 1,
+        y0: t, y1: t,
+        line: {color: alpha === '0.050' ? '#dc3545' : '#d97706', width: 1.4, dash: 'dash'}
+      });
+    });
+  } else if (threshold) {
+    shapes.push({
+      type: 'line', xref: 'paper', x0: 0, x1: 1,
+      y0: threshold, y1: threshold,
+      line: {color: '#dc3545', width: 1.4, dash: 'dash'}
+    });
+  }
+  dividers.forEach(d => {
+    shapes.push({
+      type: 'line', xref: 'x', yref: 'paper',
+      x0: d, x1: d, y0: 0, y1: 1,
+      line: {color: 'rgba(255,255,255,0.06)', width: 1}
+    });
+  });
+
+  // 염색체 라벨 + threshold 라벨
+  const annotations = chrLabels.map(c => ({
+    x: c.mid, y: 1.06, xref: 'x', yref: 'paper',
+    text: c.chr, showarrow: false,
+    font: {size: 11, color: '#94b8aa', family: "'KoPub Dotum Medium', sans-serif"}
+  }));
+  if (perm && perm.thresholds) {
+    Object.entries(perm.thresholds).forEach(([alpha, t]) => {
+      annotations.push({
+        x: 0.985, y: t, xref: 'paper', yref: 'y',
+        text: `α=${alpha} (${t.toFixed(2)})`,
+        showarrow: false, xanchor: 'right',
+        font: {size: 9, color: alpha === '0.050' ? '#dc3545' : '#d97706'},
+        bgcolor: 'rgba(13, 58, 45, 0.8)'
+      });
+    });
+  } else if (threshold) {
+    annotations.push({
+      x: 0.985, y: threshold, xref: 'paper', yref: 'y',
+      text: `threshold ${threshold.toFixed(2)}`,
+      showarrow: false, xanchor: 'right',
+      font: {size: 9, color: '#dc3545'},
+      bgcolor: 'rgba(13, 58, 45, 0.8)'
+    });
+  }
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {
+      text: `LOD 곡선 — ${im.trait} (step ${im.step_cM} cM, ${im.method})`,
+      font: {size: 13, color: '#e8f5f2'}, x: 0.02
+    },
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: '염색체별 cM (누적)', font: {size: 11}},
+      showticklabels: false,
+      range: [-2, offset]
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'LOD score', font: {size: 11}},
+      rangemode: 'tozero'
+    }),
+    shapes: shapes,
+    annotations: annotations,
+    hovermode: 'closest'
+  });
+
+  Plotly.newPlot('tier2-lod-plot', traces, layout, {responsive: true, displaylogo: false});
+}
+
+function renderPermHistogram(perm) {
+  const trace = {
+    x: perm.null_distribution,
+    type: 'histogram',
+    nbinsx: 30,
+    marker: {
+      color: 'rgba(0, 161, 184, 0.55)',
+      line: {color: '#017f97', width: 1}
+    },
+    hovertemplate: 'max LOD: %{x:.2f}<br>count: %{y}<extra></extra>',
+    name: 'Null'
+  };
+
+  const shapes = [];
+  const annotations = [];
+  Object.entries(perm.thresholds).forEach(([alpha, t]) => {
+    const color = alpha === '0.050' ? '#dc3545' : '#d97706';
+    shapes.push({
+      type: 'line', xref: 'x', yref: 'paper',
+      x0: t, x1: t, y0: 0, y1: 1,
+      line: {color: color, width: 2, dash: 'dash'}
+    });
+    annotations.push({
+      x: t, y: 1.04, xref: 'x', yref: 'paper',
+      text: `α=${alpha}<br>${t.toFixed(2)}`,
+      showarrow: false, font: {size: 10, color: color}
+    });
+  });
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {
+      text: `Permutation null distribution (${perm.n_perm}회) — Churchill&Doerge 1994`,
+      font: {size: 12}, x: 0.02
+    },
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'Max LOD per permutation', font: {size: 11}}
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: '빈도', font: {size: 11}}
+    }),
+    shapes: shapes,
+    annotations: annotations,
+    showlegend: false,
+    bargap: 0.05
+  });
+
+  Plotly.newPlot('tier2-perm-plot', [trace], layout, {responsive: true, displaylogo: false});
 }
 
 // ============================================================
