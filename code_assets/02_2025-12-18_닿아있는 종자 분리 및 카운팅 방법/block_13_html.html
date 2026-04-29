@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>종자 분리 파라미터 조정</title>
+    <style>
+        :root {
+            --primary: #017f97;
+            --header: #0c3026;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'KoPub Dotum', sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { background: linear-gradient(135deg, var(--header), var(--primary)); 
+             color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        
+        .main-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        
+        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .control-section { margin-bottom: 25px; }
+        .control-section h3 { color: var(--header); border-bottom: 2px solid var(--primary); 
+                              padding-bottom: 8px; margin-bottom: 15px; }
+        
+        .slider-group { margin-bottom: 15px; }
+        .slider-group label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }
+        .slider-group input[type="range"] { width: 100%; cursor: pointer; }
+        .slider-value { font-weight: bold; color: var(--primary); min-width: 50px; text-align: right; }
+        
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .checkbox-group input { width: 18px; height: 18px; }
+        
+        .btn { background: var(--primary); color: white; border: none; padding: 12px 24px;
+               border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; }
+        .btn:hover { background: var(--header); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .result-area { background: white; padding: 20px; border-radius: 10px; 
+                       box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .upload-area { border: 3px dashed #ccc; border-radius: 10px; padding: 40px; 
+                       text-align: center; cursor: pointer; margin-bottom: 20px; }
+        .upload-area:hover { border-color: var(--primary); }
+        .upload-area.dragover { background: rgba(1, 127, 151, 0.1); border-color: var(--primary); }
+        
+        .image-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .image-box { text-align: center; }
+        .image-box h4 { margin-bottom: 10px; color: var(--header); }
+        .image-box img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; }
+        
+        .count-badge { background: #28a745; color: white; font-size: 24px; font-weight: bold;
+                       padding: 15px 30px; border-radius: 50px; display: inline-block; margin: 20px 0; }
+        
+        .preset-buttons { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .preset-btn { background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 4px; 
+                      cursor: pointer; font-size: 13px; }
+        .preset-btn:hover { background: #ccc; }
+        .preset-btn.active { background: var(--primary); color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌾 종자 분리 및 카운팅 (파라미터 조정)</h1>
+        
+        <div class="main-grid">
+            <!-- 좌측: 컨트롤 패널 -->
+            <div class="controls">
+                <!-- 프리셋 -->
+                <div class="control-section">
+                    <h3>📋 프리셋</h3>
+                    <div class="preset-buttons">
+                        <button class="preset-btn active" onclick="applyPreset('default')">기본값</button>
+                        <button class="preset-btn" onclick="applyPreset('sensitive')">민감</button>
+                        <button class="preset-btn" onclick="applyPreset('conservative')">보수적</button>
+                        <button class="preset-btn" onclick="applyPreset('noAwn')">까락多</button>
+                    </div>
+                </div>
+                
+                <!-- 분리 파라미터 -->
+                <div class="control-section">
+                    <h3>🔀 분리 파라미터</h3>
+                    
+                    <div class="slider-group">
+                        <label>곡률 임계값 <span class="slider-value" id="curvatureVal">0.015</span></label>
+                        <input type="range" id="curvatureThreshold" min="0.005" max="0.05" step="0.001" value="0.015">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>스무딩 강도 <span class="slider-value" id="smoothVal">3.0</span></label>
+                        <input type="range" id="smoothSigma" min="1.0" max="7.0" step="0.5" value="3.0">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>피크 간 최소 거리 <span class="slider-value" id="peakDistVal">15</span></label>
+                        <input type="range" id="minPeakDistance" min="5" max="40" step="1" value="15">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>분리점 거리 비율 <span class="slider-value" id="sepDistVal">0.35</span></label>
+                        <input type="range" id="separationDistanceRatio" min="0.15" max="0.5" step="0.01" value="0.35">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>Watershed 임계값 <span class="slider-value" id="watershedVal">0.4</span></label>
+                        <input type="range" id="watershedThreshold" min="0.2" max="0.7" step="0.05" value="0.4">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>면적 비율 임계값 <span class="slider-value" id="areaRatioVal">1.4</span></label>
+                        <input type="range" id="areaRatioThreshold" min="1.2" max="2.0" step="0.1" value="1.4">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>원형도 임계값 <span class="slider-value" id="circularityVal">0.65</span></label>
+                        <input type="range" id="circularityThreshold" min="0.5" max="0.8" step="0.05" value="0.65">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>최소 종자 면적 <span class="slider-value" id="minAreaVal">500</span></label>
+                        <input type="range" id="minSeedArea" min="100" max="2000" step="50" value="500">
+                    </div>
+                </div>
+                
+                <!-- 까락 제거 -->
+                <div class="control-section">
+                    <h3>🌿 까락 제거</h3>
+                    
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="awnEnabled" checked>
+                        <label for="awnEnabled">까락 제거 활성화</label>
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>침식 강도 <span class="slider-value" id="erosionVal">2</span></label>
+                        <input type="range" id="awnErosion" min="0" max="5" step="1" value="2">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>팽창 강도 <span class="slider-value" id="dilationVal">2</span></label>
+                        <input type="range" id="awnDilation" min="0" max="5" step="1" value="2">
+                    </div>
+                    
+                    <div class="slider-group">
+                        <label>커널 크기 <span class="slider-value" id="kernelVal">3</span></label>
+                        <input type="range" id="awnKernel" min="3" max="7" step="2" value="3">
+                    </div>
+                </div>
+                
+                <!-- 배경색 -->
+                <div class="control-section">
+                    <h3>🎨 배경 설정</h3>
+                    <select id="bgColor" style="width: 100%; padding: 10px; font-size: 14px;">
+                        <option value="blue" selected>파란색 배경</option>
+                        <option value="white">흰색 배경</option>
+                        <option value="black">검은색 배경</option>
+                        <option value="green">녹색 배경</option>
+                    </select>
+                </div>
+                
+                <button class="btn" id="analyzeBtn" disabled>🔍 분석하기</button>
+                <button class="btn" id="resetBtn" style="background: #6c757d;">↺ 초기화</button>
+            </div>
+            
+            <!-- 우측: 결과 영역 -->
+            <div class="result-area">
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                    <p style="font-size: 18px;">📷 이미지를 드래그하거나 클릭하여 업로드</p>
+                    <p style="color: #888; margin-top: 10px;">지원 형식: JPG, PNG</p>
+                </div>
+                
+                <div id="resultSection" style="display: none;">
+                    <div style="text-align: center;">
+                        <span class="count-badge" id="countBadge">0</span>
+                    </div>
+                    
+                    <div class="image-container">
+                        <div class="image-box">
+                            <h4>원본 이미지</h4>
+                            <img id="originalImage" alt="원본">
+                        </div>
+                        <div class="image-box">
+                            <h4>분석 결과</h4>
+                            <img id="resultImage" alt="결과">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1';
+        let selectedFile = null;
+        
+        // DOM 요소
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        // 슬라이더 값 표시 연동
+        const sliders = {
+            curvatureThreshold: 'curvatureVal',
+            smoothSigma: 'smoothVal',
+            minPeakDistance: 'peakDistVal',
+            separationDistanceRatio: 'sepDistVal',
+            watershedThreshold: 'watershedVal',
+            areaRatioThreshold: 'areaRatioVal',
+            circularityThreshold: 'circularityVal',
+            minSeedArea: 'minAreaVal',
+            awnErosion: 'erosionVal',
+            awnDilation: 'dilationVal',
+            awnKernel: 'kernelVal'
+        };
+        
+        Object.entries(sliders).forEach(([sliderId, valueId]) => {
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(valueId);
+            slider.addEventListener('input', () => {
+                valueSpan.textContent = slider.value;
+            });
+        });
+        
+        // 파일 업로드
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            selectedFile = file;
+            analyzeBtn.disabled = false;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('originalImage').src = e.target.result;
+                uploadArea.innerHTML = `<img src="${e.target.result}" style="max-height: 150px;"><p>${file.name}</p>`;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // 프리셋
+        const presets = {
+            default: {
+                curvatureThreshold: 0.015, smoothSigma: 3.0, minPeakDistance: 15,
+                separationDistanceRatio: 0.35, watershedThreshold: 0.4,
+                areaRatioThreshold: 1.4, circularityThreshold: 0.65, minSeedArea: 500,
+                awnEnabled: true, awnErosion: 2, awnDilation: 2, awnKernel: 3
+            },
+            sensitive: {
+                curvatureThreshold: 0.008, smoothSigma: 2.0, minPeakDistance: 10,
+                separationDistanceRatio: 0.45, watershedThreshold: 0.3,
+                areaRatioThreshold: 1.2, circularityThreshold: 0.7, minSeedArea: 300,
+                awnEnabled: true, awnErosion: 1, awnDilation: 1, awnKernel: 3
+            },
+            conservative: {
+                curvatureThreshold: 0.025, smoothSigma: 5.0, minPeakDistance: 25,
+                separationDistanceRatio: 0.25, watershedThreshold: 0.5,
+                areaRatioThreshold: 1.6, circularityThreshold: 0.55, minSeedArea: 700,
+                awnEnabled: true, awnErosion: 3, awnDilation: 3, awnKernel: 5
+            },
+            noAwn: {
+                curvatureThreshold: 0.015, smoothSigma: 3.0, minPeakDistance: 15,
+                separationDistanceRatio: 0.35, watershedThreshold: 0.4,
+                areaRatioThreshold: 1.4, circularityThreshold: 0.65, minSeedArea: 500,
+                awnEnabled: true, awnErosion: 4, awnDilation: 4, awnKernel: 5
+            }
+        };
+        
+        function applyPreset(name) {
+            const preset = presets[name];
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('curvatureThreshold').value = preset.curvatureThreshold;
+            document.getElementById('smoothSigma').value = preset.smoothSigma;
+            document.getElementById('minPeakDistance').value = preset.minPeakDistance;
+            document.getElementById('separationDistanceRatio').value = preset.separationDistanceRatio;
+            document.getElementById('watershedThreshold').value = preset.watershedThreshold;
+            document.getElementById('areaRatioThreshold').value = preset.areaRatioThreshold;
+            document.getElementById('circularityThreshold').value = preset.circularityThreshold;
+            document.getElementById('minSeedArea').value = preset.minSeedArea;
+            document.getElementById('awnEnabled').checked = preset.awnEnabled;
+            document.getElementById('awnErosion').value = preset.awnErosion;
+            document.getElementById('awnDilation').value = preset.awnDilation;
+            document.getElementById('awnKernel').value = preset.awnKernel;
+            
+            // 값 표시 업데이트
+            Object.entries(sliders).forEach(([sliderId, valueId]) => {
+                document.getElementById(valueId).textContent = document.getElementById(sliderId).value;
+            });
+        }
+        
+        // 분석 실행
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = '분석 중...';
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            const params = new URLSearchParams({
+                curvature_threshold: document.getElementById('curvatureThreshold').value,
+                curvature_smooth_sigma: document.getElementById('smoothSigma').value,
+                min_peak_distance: document.getElementById('minPeakDistance').value,
+                max_separation_distance_ratio: document.getElementById('separationDistanceRatio').value,
+                watershed_threshold_ratio: document.getElementById('watershedThreshold').value,
+                area_ratio_threshold: document.getElementById('areaRatioThreshold').value,
+                circularity_threshold: document.getElementById('circularityThreshold').value,
+                min_seed_area: document.getElementById('minSeedArea').value,
+                awn_enabled: document.getElementById('awnEnabled').checked,
+                awn_erosion: document.getElementById('awnErosion').value,
+                awn_dilation: document.getElementById('awnDilation').value,
+                awn_kernel_size: document.getElementById('awnKernel').value,
+                background_color: document.getElementById('bgColor').value
+            });
+            
+            try {
+                const response = await fetch(`${API_BASE}/analyze?${params}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                document.getElementById('countBadge').textContent = result.total_count;
+                document.getElementById('resultImage').src = result.visualization;
+                document.getElementById('resultSection').style.display = 'block';
+                
+            } catch (error) {
+                alert('분석 중 오류 발생: ' + error.message);
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = '🔍 분석하기';
+            }
+        });
+        
+        // 초기화
+        resetBtn.addEventListener('click', () => applyPreset('default'));
+    </script>
+</body>
+</html>
