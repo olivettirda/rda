@@ -545,10 +545,313 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 </div>
 
-<!-- 본 앱 스크립트 (조각 2-e/2-f에서 채움) -->
+<!-- 본 앱 스크립트 -->
 <script id="qtl-script">
-  // 조각 2-e/2-f에서 채워집니다.
-  console.log('QTL Mapping Tool skeleton loaded.');
+// ============================================================
+// 전역 상태
+// ============================================================
+let pyodide = null;
+let appData = {
+  geno: null,    // {data, filename, raw}
+  map: null,
+  pheno: null,
+  diagnosis: null
+};
+
+// ============================================================
+// 로깅
+// ============================================================
+function log(msg, type='info') {
+  const el = document.getElementById('console-log');
+  const time = new Date().toTimeString().slice(0,8);
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ============================================================
+// 탭 전환
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.classList.contains('disabled')) return;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// Pyodide 부팅
+// ============================================================
+async function bootPyodide() {
+  log('Pyodide 다운로드 시작 (약 10초)...', 'info');
+  try {
+    pyodide = await loadPyodide();
+    log('Pyodide 코어 로드 완료', 'ok');
+    log('과학 계산 패키지 로드 중 (numpy, scipy, pandas)...', 'info');
+    await pyodide.loadPackage(['numpy','scipy','pandas']);
+    log('패키지 로드 완료', 'ok');
+
+    // Python 진단 모듈 로드
+    pyodide.runPython(getDiagnosticPyCode());
+    log('진단 엔진 초기화 완료', 'ok');
+
+    document.getElementById('pyodide-status-dot').classList.add('ready');
+    document.getElementById('pyodide-status-text').textContent = '준비됨';
+
+    // 샘플 버튼 활성화
+    document.querySelectorAll('.sample-btn').forEach(b => b.disabled = false);
+
+    log('━━━ 준비 완료. 데이터를 업로드하시거나 샘플을 사용해 보세요 ━━━', 'ok');
+  } catch (e) {
+    log('Pyodide 로드 실패: ' + e.message, 'err');
+    document.getElementById('pyodide-status-text').textContent = '오류';
+  }
+}
+
+// ============================================================
+// Python 진단 코드 (조각 2-f에서 채워집니다)
+// ============================================================
+function getDiagnosticPyCode() {
+  return `
+# 조각 2-f에서 채워집니다.
+def get_sample(kind):
+    return None
+def run_full_diagnosis(g, m, p):
+    import json
+    return json.dumps({'population':{'type':'placeholder','confidence':0,'reason':'2-f 미구현','n_a':0,'n_b':0,'n_h':0,'het_ratio':0,'a_ratio':0,'b_ratio':0},'markers':{'n_markers':0,'n_indiv':0,'avg_missing':0,'max_missing':0,'high_missing_count':0},'phenotype':{'n_traits':0,'trait_names':[],'traits':[],'multi_env':False},'recommendations':[]})
+`;
+}
+
+// ============================================================
+// 파일 처리
+// ============================================================
+async function handleFile(event, type) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  log(`${type} 파일 읽는 중: ${file.name}`, 'info');
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet, {defval:null});
+
+    if (data.length === 0) throw new Error('빈 파일');
+
+    // 컬럼 단위로 변환 (DataFrame.to_dict('list') 형식)
+    const cols = Object.keys(data[0]);
+    const colData = {};
+    cols.forEach(c => colData[c] = data.map(r => r[c]));
+
+    appData[type] = {data: colData, filename: file.name, raw: data};
+    document.getElementById(`upload-${type}`).classList.add('uploaded');
+    document.getElementById(`filename-${type}`).textContent = `✓ ${file.name} (${data.length}행)`;
+    log(`${type} 로드 완료: ${data.length}행, ${cols.length}열`, 'ok');
+
+    checkReady();
+  } catch (e) {
+    log(`${type} 로드 실패: ${e.message}`, 'err');
+  }
+}
+
+function checkReady() {
+  const btn = document.getElementById('btn-diagnose');
+  const ready = appData.geno && appData.pheno;
+  btn.disabled = !(ready && pyodide);
+}
+
+// ============================================================
+// 샘플 데이터 로드
+// ============================================================
+async function loadSample(kind) {
+  if (!pyodide) {
+    log('Pyodide 아직 준비 안 됨. 우상단 배지가 초록색이 될 때까지 기다려주세요.', 'warn');
+    return;
+  }
+
+  // 진단 엔진(get_sample 함수) 등록 여부 확인
+  const hasFunc = pyodide.runPython(`'get_sample' in dir()`);
+  if (!hasFunc) {
+    log('진단 엔진 초기화 미완료. 잠시 후 다시 시도해주세요.', 'warn');
+    return;
+  }
+
+  log(`샘플 데이터 생성: ${kind}`, 'info');
+  try {
+    pyodide.globals.set('_kind', kind);
+    const result = pyodide.runPython('get_sample(_kind)');
+    if (!result) {
+      log('샘플 생성 함수가 아직 미구현입니다 (조각 2-f 대기).', 'warn');
+      return;
+    }
+    const [geno, map, pheno] = result.toJs({dict_converter: Object.fromEntries});
+
+    appData.geno = {data: geno, filename: `sample_${kind}_geno.csv`, raw: null};
+    appData.map = {data: map, filename: `sample_${kind}_map.csv`, raw: null};
+    appData.pheno = {data: pheno, filename: `sample_${kind}_pheno.csv`, raw: null};
+
+    ['geno','map','pheno'].forEach(t => {
+      document.getElementById(`upload-${t}`).classList.add('uploaded');
+      document.getElementById(`filename-${t}`).textContent = `✓ ${appData[t].filename}`;
+    });
+
+    log(`샘플 로드 완료 (${kind})`, 'ok');
+    checkReady();
+  } catch (e) {
+    log('샘플 로드 실패: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+// ============================================================
+// 진단 실행
+// ============================================================
+async function runDiagnostic() {
+  if (!pyodide || !appData.geno || !appData.pheno) {
+    log('데이터 또는 Pyodide 준비 안 됨', 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('btn-diagnose');
+  btn.disabled = true;
+  document.getElementById('diag-btn-icon').innerHTML = '<span class="loader"></span>';
+  log('진단 실행 시작', 'info');
+
+  try {
+    pyodide.globals.set('_geno_json', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_map_json', appData.map ? pyodide.toPy(appData.map.data) : null);
+    pyodide.globals.set('_pheno_json', pyodide.toPy(appData.pheno.data));
+
+    const t0 = performance.now();
+    const resultStr = pyodide.runPython('run_full_diagnosis(_geno_json, _map_json, _pheno_json)');
+    const result = JSON.parse(resultStr);
+    const t1 = performance.now();
+
+    log(`진단 완료 (${(t1-t0).toFixed(0)}ms)`, 'ok');
+    appData.diagnosis = result;
+    renderDiagnosis(result);
+  } catch (e) {
+    log('진단 실패: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('diag-btn-icon').innerHTML = '▶';
+  }
+}
+
+// ============================================================
+// 진단 결과 렌더링
+// ============================================================
+function renderDiagnosis(d) {
+  const out = document.getElementById('diagnostic-output');
+  out.style.display = 'block';
+
+  const pop = d.population;
+  const mk = d.markers;
+  const ph = d.phenotype;
+
+  // Diagnostic Cards
+  const grid = document.getElementById('diag-grid');
+  grid.innerHTML = '';
+
+  // 집단 유형
+  const popLevel = pop.confidence > 0.8 ? 'success' : pop.confidence > 0.6 ? 'warning' : 'error';
+  grid.innerHTML += `
+    <div class="diag-card ${popLevel}">
+      <div class="diag-card-title">집단 유형 추정</div>
+      <div class="diag-card-value">${pop.type}</div>
+      <div class="diag-card-detail">
+        신뢰도: ${(pop.confidence*100).toFixed(0)}%<br>
+        ${pop.reason}<br>
+        A:H:B = ${pop.n_a} : ${pop.n_h} : ${pop.n_b}
+      </div>
+    </div>`;
+
+  // 마커
+  const markerLevel = mk.avg_missing < 0.05 ? 'success' : mk.avg_missing < 0.15 ? 'warning' : 'error';
+  let mkDetail = `총 ${mk.n_markers}개 마커, ${mk.n_indiv}개체<br>`;
+  mkDetail += `평균 결측률 ${(mk.avg_missing*100).toFixed(1)}% (최대 ${(mk.max_missing*100).toFixed(1)}%)<br>`;
+  if (mk.high_missing_count > 0) mkDetail += `<span style="color:var(--warning)">결측 20%↑ 마커: ${mk.high_missing_count}개</span><br>`;
+  if (mk.n_chr) mkDetail += `염색체: ${mk.n_chr}개`;
+  if (mk.avg_interval_cM) mkDetail += ` / 평균 간격 ${mk.avg_interval_cM.toFixed(2)} cM`;
+
+  grid.innerHTML += `
+    <div class="diag-card ${markerLevel}">
+      <div class="diag-card-title">마커 정보</div>
+      <div class="diag-card-value">${mk.n_markers.toLocaleString()} <span style="font-size:13px;color:var(--text-secondary)">markers</span></div>
+      <div class="diag-card-detail">${mkDetail}</div>
+    </div>`;
+
+  // 표현형
+  const traitsHtml = (ph.traits || []).map(t => {
+    const normBadge = t.normal ? '<span class="badge badge-success">정규</span>' : '<span class="badge badge-warning">비정규</span>';
+    const cvBadge = t.cv < 30 ? '<span class="badge badge-success">CV 적정</span>' : '<span class="badge badge-warning">CV 높음</span>';
+    return `<div style="margin:6px 0;font-size:12px"><strong>${t.name}</strong> (N=${t.n}): mean ${t.mean.toFixed(2)} ± ${t.std.toFixed(2)}, CV ${t.cv.toFixed(1)}%, 극단값 ${t.outliers} ${normBadge} ${cvBadge}</div>`;
+  }).join('');
+
+  const envBadge = ph.multi_env ? '<span class="badge badge-info">다환경 감지</span>' : '<span class="badge badge-warning">단환경</span>';
+  grid.innerHTML += `
+    <div class="diag-card success">
+      <div class="diag-card-title">표현형 ${envBadge}</div>
+      <div class="diag-card-value">${ph.n_traits} <span style="font-size:13px;color:var(--text-secondary)">trait${ph.n_traits>1?'s':''}</span></div>
+      <div class="diag-card-detail">${traitsHtml}</div>
+    </div>`;
+
+  // 종합 판정
+  const overallReady = pop.confidence > 0.6 && mk.avg_missing < 0.2 && mk.n_indiv >= 50;
+  grid.innerHTML += `
+    <div class="diag-card ${overallReady ? 'success' : 'warning'}">
+      <div class="diag-card-title">분석 가능 여부</div>
+      <div class="diag-card-value">${overallReady ? '✓ 가능' : '⚠ 주의'}</div>
+      <div class="diag-card-detail">
+        ${overallReady ? '데이터 품질이 표준 분석에 적합합니다.' : '일부 지표가 권장 범위를 벗어납니다. 상세 통계를 확인해주세요.'}
+      </div>
+    </div>`;
+
+  // Recommendations
+  const recList = document.getElementById('rec-list');
+  recList.innerHTML = (d.recommendations || []).map(r => `
+    <div class="rec-item ${r.tier}">
+      <div class="rec-rank">${r.rank}</div>
+      <div class="rec-name">${r.name}</div>
+      <div class="rec-reason">${r.reason}</div>
+    </div>
+  `).join('');
+
+  // Detailed stats table
+  const detail = document.getElementById('detailed-stats');
+  detail.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>지표</th><th>값</th><th>상태</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>집단 유형</td><td>${pop.type}</td><td>${pop.confidence > 0.8 ? '<span class="badge badge-success">확정</span>' : '<span class="badge badge-warning">추정</span>'}</td></tr>
+        <tr><td>유전자형 분포 (A/H/B)</td><td>${(pop.a_ratio*100).toFixed(1)}% / ${(pop.het_ratio*100).toFixed(1)}% / ${(pop.b_ratio*100).toFixed(1)}%</td><td>—</td></tr>
+        <tr><td>마커 수</td><td>${mk.n_markers}</td><td>${mk.n_markers > 100 ? '<span class="badge badge-success">충분</span>' : '<span class="badge badge-warning">부족</span>'}</td></tr>
+        <tr><td>개체 수</td><td>${mk.n_indiv}</td><td>${mk.n_indiv >= 100 ? '<span class="badge badge-success">충분</span>' : '<span class="badge badge-warning">부족</span>'}</td></tr>
+        <tr><td>평균 결측률</td><td>${(mk.avg_missing*100).toFixed(2)}%</td><td>${mk.avg_missing < 0.05 ? '<span class="badge badge-success">우수</span>' : mk.avg_missing < 0.15 ? '<span class="badge badge-warning">주의</span>' : '<span class="badge badge-error">불량</span>'}</td></tr>
+        <tr><td>형질 수</td><td>${ph.n_traits} (${(ph.trait_names||[]).join(', ')})</td><td>—</td></tr>
+        <tr><td>다환경 데이터</td><td>${ph.multi_env ? '예' : '아니오'}</td><td>${ph.multi_env ? '<span class="badge badge-info">QTL×E 가능</span>' : '—'}</td></tr>
+      </tbody>
+    </table>
+  `;
+
+  // 다음 탭 활성화
+  document.querySelectorAll('.tab.disabled').forEach(t => t.classList.remove('disabled'));
+  log('진단 결과 표시 완료. 다음 탭은 단계 B 이후에 구현됩니다.', 'ok');
+
+  out.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// 시작
+// ============================================================
+window.addEventListener('load', bootPyodide);
 </script>
 
 </body>
