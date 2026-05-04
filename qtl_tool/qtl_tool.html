@@ -3469,6 +3469,97 @@ function renderTier3OverlayPlot(result) {
 }
 
 // ============================================================
+// 차트 Export 유틸 (단계 D)
+// ============================================================
+function exportPlot(plotId, prefix, baseName, format) {
+  format = format || 'png';
+  const widthMm = parseFloat(document.getElementById(prefix + '-w').value) || 180;
+  const heightMm = parseFloat(document.getElementById(prefix + '-h').value) || 80;
+  const dpi = parseInt(document.getElementById(prefix + '-dpi').value) || 300;
+  const bw = document.getElementById(prefix + '-bw').checked;
+
+  // mm → px
+  const widthPx = Math.round((widthMm / 25.4) * dpi);
+  const heightPx = Math.round((heightMm / 25.4) * dpi);
+
+  const el = document.getElementById(plotId);
+  if (!el || !el.data) {
+    log('내보낼 차트가 없습니다 (먼저 분석 실행)', 'warn');
+    return;
+  }
+
+  // 흑백 모드 적용
+  let restore = null;
+  if (bw) {
+    restore = applyBWMode(el);
+  }
+
+  const ts = new Date().toISOString().slice(0,10);
+  const filename = `${baseName}_${ts}_${widthMm}x${heightMm}mm_${dpi}dpi${bw ? '_BW' : ''}`;
+
+  Plotly.toImage(el, {format: format, width: widthPx, height: heightPx, scale: 1})
+    .then(dataUrl => {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename + '.' + format;
+      a.click();
+      log(`차트 저장: ${filename}.${format} (${widthPx}×${heightPx}px)`, 'ok');
+      if (restore) restore();
+    })
+    .catch(err => {
+      log('Export 실패: ' + err.message, 'err');
+      if (restore) restore();
+    });
+}
+
+function applyBWMode(plotEl) {
+  // 모든 trace 색상을 회색조로 매핑 (line dash로 구분)
+  const original = plotEl.data.map(t => ({
+    line: t.line ? Object.assign({}, t.line) : undefined,
+    marker: t.marker ? Object.assign({}, t.marker) : undefined
+  }));
+  const dashCycle = ['solid', 'dot', 'dash', 'dashdot', 'longdash', 'longdashdot'];
+  const grayCycle = ['#000000', '#444444', '#888888', '#bbbbbb'];
+  const symbolCycle = ['circle', 'square', 'diamond', 'triangle-up', 'cross', 'star'];
+
+  const update = {};
+  ['line.color','line.dash','marker.color','marker.symbol'].forEach(k => update[k] = []);
+
+  plotEl.data.forEach((t, i) => {
+    if (t.line) {
+      update['line.color'].push(grayCycle[i % grayCycle.length]);
+      update['line.dash'].push(dashCycle[i % dashCycle.length]);
+    } else {
+      update['line.color'].push(undefined);
+      update['line.dash'].push(undefined);
+    }
+    if (t.marker) {
+      update['marker.color'].push(grayCycle[i % grayCycle.length]);
+      update['marker.symbol'].push(symbolCycle[i % symbolCycle.length]);
+    } else {
+      update['marker.color'].push(undefined);
+      update['marker.symbol'].push(undefined);
+    }
+  });
+
+  Plotly.restyle(plotEl, update);
+
+  // 복원 함수
+  return () => {
+    const restoreUpdate = {};
+    ['line.color','line.dash','marker.color','marker.symbol'].forEach(k => restoreUpdate[k] = []);
+    plotEl.data.forEach((_, i) => {
+      const orig = original[i];
+      restoreUpdate['line.color'].push(orig.line ? orig.line.color : undefined);
+      restoreUpdate['line.dash'].push(orig.line ? orig.line.dash : undefined);
+      restoreUpdate['marker.color'].push(orig.marker ? orig.marker.color : undefined);
+      restoreUpdate['marker.symbol'].push(orig.marker ? orig.marker.symbol : undefined);
+    });
+    Plotly.restyle(plotEl, restoreUpdate);
+  };
+}
+
+// ============================================================
 // Plotly 시각화 (단계 B-3)
 // ============================================================
 const PLOTLY_DARK = {
