@@ -2423,6 +2423,261 @@ def icim_add(geno_df, map_df, pheno_df, trait_name=None, step=1.0,
         'background_markers': background_info,
         'lod_curve': lod_curve
     }
+
+# ============== Tier 3: Stepwise Multi-QTL Model (Manichaikul 2009 단순) ==============
+def _find_nearest_marker(marker_chr, marker_cm, target_chr, target_cM):
+    best_dist = np.inf
+    best_idx = -1
+    for i, (ch, cm) in enumerate(zip(marker_chr, marker_cm)):
+        if str(ch) == str(target_chr) and not np.isnan(cm):
+            d = abs(cm - target_cM)
+            if d < best_dist:
+                best_dist = d
+                best_idx = i
+    return best_idx
+
+def stepwise_qtl(geno_df, map_df, pheno_df, trait_name=None, step=1.0,
+                  max_qtl=10, penalty_main=3.52,
+                  pop_type='F2', map_function='kosambi',
+                  min_separation_cM=20.0):
+    """
+    Manichaikul 2009 stepwise QTL (forward-only 단순화 버전).
+
+    매 iteration:
+      1) 이전 선택 QTL의 가장 가까운 마커를 cofactor로
+      2) CIM 스타일로 IM 재실행
+      3) 가장 높은 peak가 penalty_main 통과 시 추가, 아니면 중단
+    선택 후 모든 QTL 동시 회귀로 total / marginal PVE 계산.
+    """
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+    n_indiv = len(pheno)
+
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+    map_idx, _, _ = _build_marker_index(geno_df, map_df)
+    marker_chr = np.array([map_idx.get(str(m), (None, np.nan))[0] for m in marker_names])
+    marker_cm = np.array([map_idx.get(str(m), (None, np.nan))[1] for m in marker_names])
+
+    geno_num = np.full(geno.shape, np.nan)
+    geno_num[geno == 'A'] = 0.0
+    geno_num[geno == 'H'] = 1.0
+    geno_num[geno == 'B'] = 2.0
+    geno_num_T = geno_num.T
+    is_inbred = ('RIL' in pop_type) or ('DH' in pop_type)
+
+    selected_qtls = []
+    iteration_history = []
+
+    chrs_unique = sorted([c for c in set(marker_chr) if c is not None and not pd.isnull(c)],
+                         key=lambda x: int(x) if str(x).isdigit() else 99)
+
+    for k in range(max_qtl):
+        cofactor_indices = [q['marker_idx'] for q in selected_qtls]
+        best_overall = {'LOD': 0.0}
+
+        for ch in chrs_unique:
+            chr_mask = (marker_chr == ch)
+            if chr_mask.sum() < 2:
+                continue
+            idx_arr = np.where(chr_mask)[0]
+            order = np.argsort(marker_cm[idx_arr])
+            idx_arr = idx_arr[order]
+            cms_chr = marker_cm[idx_arr]
+            positions = np.arange(cms_chr[0], cms_chr[-1] + step / 2, step)
+
+            for pos in positions:
+                # 이미 선택된 QTL과 너무 가까우면 스킵
+                skip = False
+                for q in selected_qtls:
+                    if str(q['chr']) == str(ch) and abs(q['cM'] - pos) < min_separation_cM:
+                        skip = True; break
+                if skip:
+                    continue
+
+                left_local = max(0, np.searchsorted(cms_chr, pos, side='right') - 1)
+                right_local = min(len(cms_chr) - 1, left_local + 1)
+                i_l = idx_arr[left_local]
+                i_r = idx_arr[right_local]
+                d1 = abs(pos - cms_chr[left_local])
+                d2 = abs(cms_chr[right_local] - pos)
+
+                X = np.full(n_indiv, np.nan)
+                Z = np.full(n_indiv, np.nan)
+                for j in range(n_indiv):
+                    lg = geno_num[i_l, j]
+                    rg = geno_num[i_r, j]
+                    if not np.isnan(lg) and not np.isnan(rg):
+                        total_d = d1 + d2
+                        wg = lg if total_d == 0 else (lg * d2 + rg * d1) / total_d
+                        X[j] = wg - 1.0
+                        Z[j] = 1.0 if abs(wg - 1.0) < 0.5 else 0.0
+                    elif not np.isnan(lg):
+                        X[j] = lg - 1.0
+                        Z[j] = 1.0 if lg == 1.0 else 0.0
+                    elif not np.isnan(rg):
+                        X[j] = rg - 1.0
+                        Z[j] = 1.0 if rg == 1.0 else 0.0
+
+                if cofactor_indices:
+                    C = geno_num_T[:, cofactor_indices]
+                else:
+                    C = np.zeros((n_indiv, 0))
+
+                mask = ~np.isnan(X) & ~np.isnan(pheno)
+                if C.shape[1] > 0:
+                    mask = mask & ~np.any(np.isnan(C), axis=1)
+                if mask.sum() < 10:
+                    continue
+
+                ym = pheno[mask]; Xm = X[mask]; Zm = Z[mask]; Cm = C[mask]
+
+                if Cm.shape[1] > 0:
+                    A_null = np.column_stack([np.ones(len(ym)), Cm])
+                else:
+                    A_null = np.ones((len(ym), 1))
+                coef_n, _, _, _ = np.linalg.lstsq(A_null, ym, rcond=None)
+                rss_null = float(np.sum((ym - A_null @ coef_n) ** 2))
+
+                if is_inbred:
+                    A_full = np.column_stack([A_null, Xm])
+                else:
+                    A_full = np.column_stack([A_null, Xm, Zm])
+
+                try:
+                    coef, _, _, _ = np.linalg.lstsq(A_full, ym, rcond=None)
+                    rss_full = float(np.sum((ym - A_full @ coef) ** 2))
+                    if rss_full <= 0 or rss_full > rss_null:
+                        continue
+                    lod = (len(ym) / 2.0) * np.log10(rss_null / rss_full)
+                    if lod > best_overall['LOD']:
+                        add_a = float(coef[-2 if not is_inbred else -1])
+                        dom_d = float(coef[-1]) if not is_inbred else None
+                        best_overall = {'chr': str(ch), 'cM': float(pos),
+                                        'LOD': float(lod), 'add_a': add_a, 'dom_d': dom_d}
+                except Exception:
+                    continue
+
+        iteration_history.append({
+            'iteration': k + 1,
+            'best_chr': best_overall.get('chr'),
+            'best_cM': best_overall.get('cM'),
+            'best_LOD': float(best_overall.get('LOD', 0.0))
+        })
+
+        if best_overall['LOD'] < penalty_main:
+            break
+
+        nearest_idx = _find_nearest_marker(marker_chr, marker_cm,
+                                            best_overall['chr'], best_overall['cM'])
+        selected_qtls.append({
+            'order': k + 1,
+            'chr': best_overall['chr'],
+            'cM': best_overall['cM'],
+            'LOD': best_overall['LOD'],
+            'add_a': best_overall.get('add_a'),
+            'dom_d': best_overall.get('dom_d'),
+            'nearest_marker': str(marker_names[nearest_idx]) if nearest_idx >= 0 else None,
+            'marker_idx': int(nearest_idx)
+        })
+
+    # 동시 회귀로 total / marginal PVE
+    total_pve = 0.0
+    final_lod = 0.0
+    if selected_qtls:
+        cofactor_indices = [q['marker_idx'] for q in selected_qtls]
+        C = geno_num_T[:, cofactor_indices]
+        mask = ~np.isnan(pheno) & ~np.any(np.isnan(C), axis=1)
+        if mask.sum() >= 10:
+            ym = pheno[mask]
+            A_full = np.column_stack([np.ones(len(ym)), C[mask]])
+            A_null = np.ones((len(ym), 1))
+            coef_f, _, _, _ = np.linalg.lstsq(A_full, ym, rcond=None)
+            rss_f = float(np.sum((ym - A_full @ coef_f) ** 2))
+            rss_n = float(np.sum((ym - ym.mean()) ** 2))
+            total_pve = 1.0 - rss_f / rss_n if rss_n > 0 else 0.0
+            final_lod = (len(ym) / 2.0) * np.log10(rss_n / rss_f) if rss_f > 0 else 0.0
+
+            # 각 QTL의 marginal PVE
+            for i, q in enumerate(selected_qtls):
+                others = [c for c_idx, c in enumerate(cofactor_indices) if c_idx != i]
+                if others:
+                    C_red = geno_num_T[:, others]
+                    A_red = np.column_stack([np.ones(len(ym)), C_red[mask]])
+                else:
+                    A_red = np.ones((len(ym), 1))
+                coef_r, _, _, _ = np.linalg.lstsq(A_red, ym, rcond=None)
+                rss_r = float(np.sum((ym - A_red @ coef_r) ** 2))
+                marginal_pve = (rss_r - rss_f) / rss_n if rss_n > 0 else 0.0
+                q['marginal_PVE'] = float(marginal_pve)
+
+    return {
+        'method': 'Stepwise multi-QTL (Manichaikul 2009 simplified)',
+        'trait': str(trait_name),
+        'penalty_main': float(penalty_main),
+        'max_qtl': int(max_qtl),
+        'min_separation_cM': float(min_separation_cM),
+        'pop_type': pop_type,
+        'n_qtls': len(selected_qtls),
+        'qtls': selected_qtls,
+        'total_PVE': float(total_pve),
+        'final_model_LOD': float(final_lod),
+        'iteration_history': iteration_history
+    }
+
+# ============== Tier 3 통합: ICIM-ADD + CIM + Multi-QTL ==============
+def run_tier3_analysis(geno_json, map_json, pheno_json, trait_name=None,
+                       step=1.0, pop_type='F2', map_function='kosambi',
+                       cim_window_cM=10.0, cim_max_cofactors=5,
+                       icim_PIN=0.001, icim_POUT=0.002,
+                       multiqtl_max=10, multiqtl_penalty=3.52,
+                       threshold=2.5, ci_drop=1.5):
+    """
+    Tier 3 통합 실행: CIM, ICIM-ADD, Multi-QTL 한 번에 + peak/CI.
+    """
+    geno_df = pd.DataFrame(geno_json)
+    map_df = pd.DataFrame(map_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+
+    cim_res = composite_interval_mapping(geno_df, map_df, pheno_df, trait_name=trait_name,
+                                          step=step, window_cM=cim_window_cM,
+                                          max_cofactors=cim_max_cofactors,
+                                          pop_type=pop_type, map_function=map_function)
+    icim_res = icim_add(geno_df, map_df, pheno_df, trait_name=trait_name,
+                        step=step, PIN=icim_PIN, POUT=icim_POUT,
+                        pop_type=pop_type, map_function=map_function)
+    mqm_res = stepwise_qtl(geno_df, map_df, pheno_df, trait_name=trait_name,
+                            step=step, max_qtl=multiqtl_max,
+                            penalty_main=multiqtl_penalty,
+                            pop_type=pop_type, map_function=map_function)
+
+    # 각 방법의 peak + CI
+    cim_peaks = find_qtl_peaks(cim_res, threshold)
+    for pk in cim_peaks:
+        ci = lod_drop_ci(cim_res, pk['chr'], pk['cM'], drop=ci_drop)
+        if ci:
+            pk['ci_lower_cM'] = ci['lower_cM']; pk['ci_upper_cM'] = ci['upper_cM']
+            pk['ci_width_cM'] = ci['width_cM']
+
+    icim_peaks = find_qtl_peaks(icim_res, threshold)
+    for pk in icim_peaks:
+        ci = lod_drop_ci(icim_res, pk['chr'], pk['cM'], drop=ci_drop)
+        if ci:
+            pk['ci_lower_cM'] = ci['lower_cM']; pk['ci_upper_cM'] = ci['upper_cM']
+            pk['ci_width_cM'] = ci['width_cM']
+
+    return json.dumps({
+        'cim': cim_res,
+        'icim': icim_res,
+        'mqm': mqm_res,
+        'cim_peaks': cim_peaks,
+        'icim_peaks': icim_peaks,
+        'threshold_used': float(threshold),
+        'ci_drop': float(ci_drop)
+    })
 `;
 }
 async function handleFile(event, type) {
