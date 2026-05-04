@@ -4064,14 +4064,192 @@ function renderQEIResults(result) {
   document.getElementById('tier4-results').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-// E-4에서 채워질 placeholder
+// ============================================================
+// Tier 4 시각화 (조각 E-4)
+// ============================================================
 function renderEpiHeatmap(result) {
-  document.getElementById('tier4-epi-heatmap').innerHTML =
-    `<div class="empty"><div class="empty-hint">2D heatmap은 조각 E-4에서 구현됩니다.</div></div>`;
+  if (!result.epi_pairs || result.epi_pairs.length === 0) {
+    document.getElementById('tier4-epi-heatmap').innerHTML =
+      `<div class="empty"><div class="empty-hint">통과 epistasis 페어가 없어 heatmap을 그릴 수 없습니다.</div></div>`;
+    return;
+  }
+
+  // 검출 페어를 누적 cM 좌표 (염색체별 offset)로 매핑
+  // 모든 페어의 마커들을 모아서 chr별 cM 범위 추정
+  const chrRanges = {};
+  result.epi_pairs.forEach(p => {
+    [['chr1','cM1'],['chr2','cM2']].forEach(([c, k]) => {
+      const ch = p[c]; const cm = p[k];
+      if (!chrRanges[ch]) chrRanges[ch] = {min: Infinity, max: -Infinity};
+      chrRanges[ch].min = Math.min(chrRanges[ch].min, cm);
+      chrRanges[ch].max = Math.max(chrRanges[ch].max, cm);
+    });
+  });
+  const sortedChrs = Object.keys(chrRanges).sort((a,b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+  let offset = 0;
+  const offsets = {};
+  const labels = [];
+  const dividers = [];
+  sortedChrs.forEach((ch, i) => {
+    offsets[ch] = offset;
+    const r = chrRanges[ch];
+    labels.push({chr: ch, mid: offset + (r.max - r.min) / 2});
+    if (i < sortedChrs.length - 1) dividers.push(offset + (r.max - r.min) + 2.5);
+    offset += (r.max - r.min) + 5;
+  });
+
+  // 검출 페어를 점으로 (대각선 대칭)
+  const xs = [], ys = [], lods = [], texts = [];
+  result.epi_pairs.forEach(p => {
+    const x1 = offsets[p.chr1] + (p.cM1 - chrRanges[p.chr1].min);
+    const x2 = offsets[p.chr2] + (p.cM2 - chrRanges[p.chr2].min);
+    xs.push(x1); ys.push(x2); lods.push(p.LOD_AA);
+    texts.push(`Chr${p.chr1} ${p.cM1.toFixed(1)} × Chr${p.chr2} ${p.cM2.toFixed(1)}<br>LOD=${p.LOD_AA.toFixed(2)} aa=${p.aa_effect.toFixed(2)}`);
+    // 대칭점도
+    xs.push(x2); ys.push(x1); lods.push(p.LOD_AA);
+    texts.push(`Chr${p.chr2} ${p.cM2.toFixed(1)} × Chr${p.chr1} ${p.cM1.toFixed(1)}<br>LOD=${p.LOD_AA.toFixed(2)} aa=${p.aa_effect.toFixed(2)}`);
+  });
+
+  const trace = {
+    x: xs, y: ys,
+    type: 'scatter', mode: 'markers',
+    marker: {
+      size: lods.map(l => Math.min(22, Math.max(6, l * 2))),
+      color: lods,
+      colorscale: [[0, '#54b7c6'], [0.5, '#017f97'], [1, '#0c3026']],
+      cmin: result.LOD_floor,
+      colorbar: {title: 'LOD<sub>AA</sub>', len: 0.6, tickfont: {size: 10}},
+      line: {color: '#e8f5f2', width: 0.8}
+    },
+    text: texts,
+    hovertemplate: '%{text}<extra></extra>',
+    showlegend: false
+  };
+
+  // 염색체 구분선
+  const shapes = [];
+  dividers.forEach(d => {
+    shapes.push({type: 'line', xref: 'x', yref: 'paper', x0: d, x1: d, y0: 0, y1: 1,
+                 line: {color: 'rgba(255,255,255,0.06)', width: 1}});
+    shapes.push({type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: d, y1: d,
+                 line: {color: 'rgba(255,255,255,0.06)', width: 1}});
+  });
+  // 대각선
+  shapes.push({type: 'line', xref: 'x', yref: 'y', x0: 0, x1: offset, y0: 0, y1: offset,
+               line: {color: 'rgba(255,255,255,0.15)', width: 1, dash: 'dot'}});
+
+  const annotations = labels.map(c => ({
+    x: c.mid, y: 1.02, xref: 'x', yref: 'paper',
+    text: c.chr, showarrow: false, font: {size: 10, color: '#94b8aa'}
+  })).concat(labels.map(c => ({
+    x: 1.02, y: c.mid, xref: 'paper', yref: 'y',
+    text: c.chr, showarrow: false, font: {size: 10, color: '#94b8aa'}, xanchor: 'left'
+  })));
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `Epistasis 2D map — ${result.trait}`, font: {size: 13}, x: 0.02},
+    xaxis: Object.assign({}, _AXIS_DARK, {title: {text: 'Chromosome 1 (cM)', font: {size: 10}},
+                                            range: [-2, offset], showticklabels: false}),
+    yaxis: Object.assign({}, _AXIS_DARK, {title: {text: 'Chromosome 2 (cM)', font: {size: 10}},
+                                            range: [-2, offset], showticklabels: false,
+                                            scaleanchor: 'x', scaleratio: 1}),
+    shapes: shapes, annotations: annotations,
+    height: 480
+  });
+  Plotly.newPlot('tier4-epi-heatmap', [trace], layout, {responsive: true, displaylogo: false});
 }
+
 function renderQEIPlot(result) {
-  document.getElementById('tier4-qei-plot').innerHTML =
-    `<div class="empty"><div class="empty-hint">환경별 overlay는 조각 E-4에서 구현됩니다.</div></div>`;
+  // 환경별 LOD curve overlay
+  const envs = result.envs;
+  const colors = ['#017f97', '#00a1b8', '#54b7c6', '#8dccd3', '#d97706', '#dc3545'];
+
+  // 누적 cM 좌표 (첫 환경 곡선 기준)
+  const refCurve = result.all_curves[envs[0]];
+  const byChr = {};
+  refCurve.forEach(p => { (byChr[p.chr] ||= []).push(p); });
+  const sortedChrs = Object.keys(byChr).sort((a,b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+  let offset = 0;
+  const offsets = {};
+  const labels = [];
+  const dividers = [];
+  sortedChrs.forEach((ch, i) => {
+    offsets[ch] = offset;
+    const pts = byChr[ch].sort((a,b) => a.cM - b.cM);
+    const chrLen = pts[pts.length-1].cM;
+    labels.push({chr: ch, mid: offset + chrLen / 2});
+    if (i < sortedChrs.length - 1) dividers.push(offset + chrLen + 2.5);
+    offset += chrLen + 5;
+  });
+
+  const traces = envs.map((env, i) => {
+    const curve = result.all_curves[env];
+    return {
+      x: curve.map(p => offsets[p.chr] + p.cM),
+      y: curve.map(p => p.LOD),
+      type: 'scatter', mode: 'lines',
+      name: env,
+      line: {color: colors[i % colors.length], width: 1.4}
+    };
+  });
+
+  // main effect peak를 노란 별로
+  if (result.main_effect_peaks.length) {
+    traces.push({
+      x: result.main_effect_peaks.map(p => offsets[p.chr] + p.cM),
+      y: result.main_effect_peaks.map(p => p.avg_LOD),
+      type: 'scatter', mode: 'markers',
+      name: 'Main effect',
+      marker: {size: 14, color: '#4caf50', symbol: 'star',
+               line: {color: '#e8f5f2', width: 1.2}},
+      customdata: result.main_effect_peaks.map(p => [p.chr, p.cM, p.avg_LOD, p.CV]),
+      hovertemplate: 'Main Chr%{customdata[0]} %{customdata[1]:.1f}cM<br>avg LOD=%{customdata[2]:.2f}<br>CV=%{customdata[3]:.2f}<extra></extra>'
+    });
+  }
+  // Q×E peak를 다이아몬드
+  if (result.qei_peaks.length) {
+    traces.push({
+      x: result.qei_peaks.map(p => offsets[p.chr] + p.cM),
+      y: result.qei_peaks.map(p => p.max_LOD),
+      type: 'scatter', mode: 'markers',
+      name: 'Q × E',
+      marker: {size: 14, color: '#d97706', symbol: 'diamond',
+               line: {color: '#e8f5f2', width: 1.2}},
+      customdata: result.qei_peaks.map(p => [p.chr, p.cM, p.LOD_range, p.best_env]),
+      hovertemplate: 'Q×E Chr%{customdata[0]} %{customdata[1]:.1f}cM<br>range=%{customdata[2]:.2f}<br>best=%{customdata[3]}<extra></extra>'
+    });
+  }
+
+  const shapes = [
+    {type: 'line', xref: 'paper', x0: 0, x1: 1, y0: result.threshold_main, y1: result.threshold_main,
+     line: {color: '#dc3545', width: 1.4, dash: 'dash'}}
+  ];
+  dividers.forEach(d => shapes.push({type: 'line', xref: 'x', yref: 'paper',
+                                       x0: d, x1: d, y0: 0, y1: 1,
+                                       line: {color: 'rgba(255,255,255,0.06)', width: 1}}));
+
+  const annotations = labels.map(c => ({
+    x: c.mid, y: 1.05, xref: 'x', yref: 'paper',
+    text: c.chr, showarrow: false, font: {size: 10, color: '#94b8aa'}
+  }));
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `환경별 LOD overlay (${envs.length} 환경)`, font: {size: 13}, x: 0.02},
+    xaxis: Object.assign({}, _AXIS_DARK, {title: {text: '염색체별 cM (누적)', font: {size: 11}}, showticklabels: false}),
+    yaxis: Object.assign({}, _AXIS_DARK, {title: {text: 'LOD score', font: {size: 11}}, rangemode: 'tozero'}),
+    shapes: shapes, annotations: annotations,
+    legend: {orientation: 'h', y: -0.08, x: 0.5, xanchor: 'center', font: {size: 10, color: '#94b8aa'}},
+    hovermode: 'closest'
+  });
+  Plotly.newPlot('tier4-qei-plot', traces, layout, {responsive: true, displaylogo: false});
 }
 
 // ============================================================
