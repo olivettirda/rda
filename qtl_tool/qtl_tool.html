@@ -4249,12 +4249,136 @@ function renderIntegrationResults(result) {
   document.getElementById('integrate-results').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-// 조각 F-4/F-5에서 채워질 export 함수 placeholder
+// ============================================================
+// Excel export (조각 F-4)
+// ============================================================
 async function exportToExcel() {
-  log('Excel export 준비 중... (조각 F-4)', 'info');
-}
-async function exportToHTMLReport() {
-  log('HTML 리포트 export 준비 중... (조각 F-5)', 'info');
+  if (!appData.integration) {
+    log('통합 분석을 먼저 실행하세요', 'warn');
+    return;
+  }
+  const integ = appData.integration;
+  const ts = new Date().toISOString().slice(0, 10);
+  const wb = XLSX.utils.book_new();
+
+  // === Sheet 1: Integrated locus ===
+  const sheet1Rows = [
+    ['#', 'Chr', 'cM', 'max_LOD', 'avg_add_a', 'methods_detected',
+     'n_methods', 'closest_known_QTL', 'distance_cM', 'known_trait',
+     'known_effect', 'known_ref', 'novel']
+  ];
+  integ.integrated_summary.forEach((iL, i) => {
+    const m = iL.comparison && iL.comparison.matches && iL.comparison.matches.length
+      ? iL.comparison.matches[0] : null;
+    sheet1Rows.push([
+      i + 1, iL.chr, iL.cM.toFixed(2), iL.max_LOD.toFixed(3),
+      iL.avg_add_a.toFixed(3), iL.methods_detected.join(','), iL.n_methods,
+      m ? m.known_name : '',
+      m ? m.distance_cM.toFixed(1) : '',
+      m ? m.known_trait : '',
+      m ? (m.effect || '') : '',
+      m ? (m.ref || '') : '',
+      iL.comparison && iL.comparison.novel ? 'YES' : 'no'
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1Rows), 'Integrated_QTL');
+
+  // === Sheet 2: 메소드별 검출 QTL ===
+  const sheet2Rows = [
+    ['method', 'chr', 'cM', 'LOD', 'add_a', 'dom_d',
+     'ci_lower_cM', 'ci_upper_cM', 'ci_width_cM',
+     'closest_known', 'closest_distance_cM', 'closest_trait']
+  ];
+  for (const [method, entries] of Object.entries(integ.methods)) {
+    entries.forEach(e => {
+      const p = e.peak;
+      const m = e.comparison && e.comparison.matches && e.comparison.matches.length
+        ? e.comparison.matches[0] : null;
+      sheet2Rows.push([
+        method, p.chr, p.cM, p.LOD,
+        p.add_a !== null && p.add_a !== undefined ? p.add_a : '',
+        p.dom_d !== null && p.dom_d !== undefined ? p.dom_d : '',
+        p.ci_lower_cM !== undefined ? p.ci_lower_cM : '',
+        p.ci_upper_cM !== undefined ? p.ci_upper_cM : '',
+        p.ci_width_cM !== undefined ? p.ci_width_cM : '',
+        m ? m.known_name : '',
+        m ? m.distance_cM.toFixed(1) : '',
+        m ? m.known_trait : ''
+      ]);
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet2Rows), 'All_Methods');
+
+  // === Sheet 3: 자동 해석 (한 셀당 한 QTL) ===
+  const sheet3Rows = [['method', 'name', 'chr', 'cM', 'LOD', 'auto_summary']];
+  for (const [method, entries] of Object.entries(integ.methods)) {
+    entries.forEach(e => {
+      const p = e.peak;
+      sheet3Rows.push([
+        method,
+        `qChr${p.chr}-${Math.round(p.cM)}`,
+        p.chr, p.cM, p.LOD,
+        e.summary_text
+      ]);
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet3Rows), 'Auto_Summary');
+
+  // === Sheet 4: SMA Bonferroni 통과 마커 (Tab 2 결과) ===
+  if (appData.tier2 && appData.tier2.sma) {
+    const sma = appData.tier2.sma;
+    const sigMarkers = sma.results.filter(r => r.neg_log10_p && r.neg_log10_p > sma.bonferroni_neg_log10);
+    sigMarkers.sort((a, b) => b.neg_log10_p - a.neg_log10_p);
+    const sheet4 = [['marker', 'F', 'neg_log10_p', 'additive_a', 'mean_AA', 'mean_AB', 'mean_BB', 'n']];
+    sigMarkers.forEach(r => {
+      sheet4.push([
+        r.marker, r.F, r.neg_log10_p, r.additive_a,
+        r.mean_AA, r.mean_AB, r.mean_BB, r.n
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet4), 'SMA_Bonferroni');
+  }
+
+  // === Sheet 5: 진단 결과 ===
+  const diag = appData.diagnosis;
+  if (diag) {
+    const sheet5 = [
+      ['항목', '값'],
+      ['집단 유형', diag.population.type],
+      ['신뢰도', diag.population.confidence],
+      ['집단 판정 근거', diag.population.reason],
+      ['n_A / n_H / n_B', `${diag.population.n_a} / ${diag.population.n_h} / ${diag.population.n_b}`],
+      ['헤테로 비율', diag.population.het_ratio],
+      ['마커 수', diag.markers.n_markers],
+      ['개체 수', diag.markers.n_indiv],
+      ['평균 결측률', diag.markers.avg_missing],
+      ['형질 수', diag.phenotype.n_traits],
+      ['형질명', diag.phenotype.trait_names.join(', ')],
+      ['다환경', diag.phenotype.multi_env ? 'YES' : 'NO']
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet5), 'Diagnosis');
+  }
+
+  // === Sheet 6: 추천 파라미터 ===
+  if (diag && diag.parameter_recommendation) {
+    const rec = diag.parameter_recommendation;
+    const sheet6 = [['파라미터', '추천값', '단위', '근거']];
+    rec.parameters.forEach(p => {
+      const overridden = p.key in appData.paramOverrides;
+      sheet6.push([
+        p.name + (overridden ? ' [수정됨]' : ''),
+        overridden ? appData.paramOverrides[p.key] : p.value,
+        p.unit || '',
+        p.reason
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet6), 'Parameters');
+  }
+
+  // 저장
+  const filename = `QTL_report_${ts}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  log(`Excel 저장: ${filename} (${wb.SheetNames.length} 시트)`, 'ok');
 }
 
 // ============================================================
