@@ -915,10 +915,107 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 <!-- 비활성 탭들 (PoC) -->
 <div class="tab-content" id="tab-qc">
-  <div class="card"><div class="empty">
-    <div class="empty-title">QC &amp; Linkage Map 검증</div>
-    <div class="empty-hint">단계 G(작업서)에서 구현됩니다.</div>
-  </div></div>
+  <div class="card">
+    <div class="card-title">데이터 품질 검증 (QC + Linkage Map)</div>
+    <div class="card-subtitle">분석 전 데이터 품질을 자동 검증합니다. 결측률, 분리비 distortion, 알려진 SD 영역, IBS 중복, 표현형 정규성, 연관지도 무결성을 점검.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">집단 유형</label>
+        <select id="qc-pop" class="opt-input">
+          <option value="F2">F2</option><option value="RIL">RIL</option>
+          <option value="DH">DH</option><option value="BC1">BC1</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">마커 결측 임계</label>
+        <input type="number" id="qc-miss-marker" class="opt-input" value="0.10" min="0" max="1" step="0.01">
+        <button class="param-help-btn" onclick="showParamCoach('missing_rate')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">개체 결측 임계</label>
+        <input type="number" id="qc-miss-indiv" class="opt-input" value="0.20" min="0" max="1" step="0.01">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">SD p-value 임계</label>
+        <input type="number" id="qc-sd-p" class="opt-input" value="0.001" min="0" max="0.1" step="0.0001">
+        <button class="param-help-btn" onclick="showParamCoach('segregation_distortion_p')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">IBS 중복 임계</label>
+        <input type="number" id="qc-ibs-dup" class="opt-input" value="0.99" min="0.5" max="1" step="0.001">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">총 cM 기대 (min)</label>
+        <input type="number" id="qc-cm-min" class="opt-input" value="1140" min="100" step="10">
+        <span class="opt-hint">벼 IRGSP-1.0</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">총 cM 기대 (max)</label>
+        <input type="number" id="qc-cm-max" class="opt-input" value="1900" min="100" step="10">
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runQC()" id="btn-qc-run">
+        <span id="qc-btn-icon">▶</span> QC 실행
+      </button>
+      <div id="qc-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="qc-results" style="display:none">
+    <!-- 종합 등급 카드 -->
+    <div class="card">
+      <div class="card-title">종합 결과</div>
+      <div id="qc-overall-grid" class="diagnostic-grid"></div>
+    </div>
+
+    <!-- 마커 -->
+    <div class="card">
+      <div class="card-title">마커 품질</div>
+      <div class="export-bar">
+        <span class="label">출력:</span>
+        <span>너비 <input type="number" id="qm-w" value="180" min="50"> mm</span>
+        <span>높이 <input type="number" id="qm-h" value="80" min="40"> mm</span>
+        <span>DPI <select id="qm-dpi"><option value="72">72</option><option value="150">150</option><option value="300" selected>300</option><option value="600">600</option></select></span>
+        <span class="toggle-row"><input type="checkbox" id="qm-bw"> <label for="qm-bw">흑백</label></span>
+        <button class="btn-mini" onclick="exportPlot('qc-missing-plot','qm','marker_QC')">PNG</button>
+      </div>
+      <div id="qc-missing-plot" style="min-height:280px"></div>
+      <div id="qc-marker-summary" style="margin-top:14px"></div>
+      <div id="qc-marker-flagged-table" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 개체 -->
+    <div class="card">
+      <div class="card-title">개체 품질</div>
+      <div id="qc-indiv-summary"></div>
+      <div id="qc-indiv-table" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 표현형 -->
+    <div class="card">
+      <div class="card-title">표현형 품질</div>
+      <div id="qc-pheno-summary"></div>
+      <div id="qc-pheno-corr" style="margin-top:14px"></div>
+    </div>
+
+    <!-- Linkage map -->
+    <div class="card">
+      <div class="card-title">Linkage Map 검증</div>
+      <div class="export-bar">
+        <span class="label">출력:</span>
+        <span>너비 <input type="number" id="ql-w" value="160" min="50"> mm</span>
+        <span>높이 <input type="number" id="ql-h" value="100" min="40"> mm</span>
+        <span>DPI <select id="ql-dpi"><option value="72">72</option><option value="150">150</option><option value="300" selected>300</option><option value="600">600</option></select></span>
+        <span class="toggle-row"><input type="checkbox" id="ql-bw"> <label for="ql-bw">흑백</label></span>
+        <button class="btn-mini" onclick="exportPlot('qc-linkage-plot','ql','linkage_map')">PNG</button>
+      </div>
+      <div id="qc-linkage-plot" style="min-height:380px"></div>
+      <div id="qc-linkage-summary" style="margin-top:14px"></div>
+    </div>
+  </div>
 </div>
 <div class="tab-content" id="tab-tier12">
   <div class="card">
@@ -3587,6 +3684,403 @@ def run_integration_analysis(detected_peaks_json, n_indiv=None, threshold=2.5):
     """JS에서 호출하기 쉽게 wrapper. detected_peaks_json은 {method: [peaks]} 구조."""
     return generate_full_report_data(detected_peaks_json, n_indiv=n_indiv,
                                       threshold=threshold)
+
+# ============== 단계 G: QC + Linkage Map 검증 ==============
+def qc_marker_quality(geno_df, map_df=None, pop_type='F2',
+                      missing_threshold=0.10, sd_p_threshold=0.001):
+    """
+    마커 품질 검증.
+    - 결측률 (missing rate)
+    - 분리비 χ² (segregation distortion)
+    - 헤테로 이상 (RIL: H<5%, F2: H≈50%)
+    - 알려진 SD 영역 (S5/Sa/hsa1) 플래깅
+    """
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+    n_markers, n_indiv = geno.shape
+    is_inbred = ('RIL' in pop_type) or ('DH' in pop_type)
+
+    # 알려진 SD 영역 (벼)
+    known_sd_regions = []
+    try:
+        known_sd_regions = RULES.get('rice_segregation_distortion_known_regions_DO_NOT_DELETE', []) if RULES else []
+    except NameError:
+        pass
+
+    # 마커 위치 매핑
+    marker_chr = np.array([None] * n_markers, dtype=object)
+    marker_bp = np.full(n_markers, np.nan)
+    marker_cm = np.full(n_markers, np.nan)
+    if map_df is not None:
+        try:
+            map_idx, _, _ = _build_marker_index(geno_df, map_df)
+            for i, mn in enumerate(marker_names):
+                if str(mn) in map_idx:
+                    marker_chr[i] = map_idx[str(mn)][0]
+                    marker_cm[i] = map_idx[str(mn)][1]
+            # bp 컬럼 (있으면)
+            bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+            name_col = map_df.columns[0]
+            if bp_col:
+                bp_map = {str(r[name_col]): float(r[bp_col]) for _, r in map_df.iterrows()}
+                for i, mn in enumerate(marker_names):
+                    if str(mn) in bp_map:
+                        marker_bp[i] = bp_map[str(mn)]
+        except Exception:
+            pass
+
+    marker_results = []
+    summary = {'pass': 0, 'warn': 0, 'fail': 0}
+
+    for i in range(n_markers):
+        row = geno[i]
+        n_a = int((row == 'A').sum())
+        n_b = int((row == 'B').sum())
+        n_h = int((row == 'H').sum())
+        n_miss = int((row == '-').sum())
+        n_total = n_a + n_b + n_h + n_miss
+        n_called = n_a + n_b + n_h
+
+        miss_rate = n_miss / n_total if n_total > 0 else 1.0
+        het_rate = n_h / n_called if n_called > 0 else 0.0
+
+        # 분리비 χ² 검정
+        chi2_stat = None; sd_p = None; sd_flag = False
+        if n_called >= 10:
+            try:
+                if is_inbred:
+                    # RIL/DH: A:B = 1:1
+                    expected = [n_called / 2, n_called / 2]
+                    if (n_a + n_b) > 0:
+                        chi2_stat, sd_p = stats.chisquare([n_a, n_b], expected)
+                else:
+                    # F2: A:H:B = 1:2:1
+                    expected = [n_called * 0.25, n_called * 0.5, n_called * 0.25]
+                    chi2_stat, sd_p = stats.chisquare([n_a, n_h, n_b], expected)
+                if sd_p < sd_p_threshold:
+                    sd_flag = True
+            except Exception:
+                pass
+
+        # 헤테로 이상
+        het_flag = False
+        if is_inbred and het_rate > 0.10:
+            het_flag = True
+        elif not is_inbred and abs(het_rate - 0.50) > 0.15:
+            het_flag = True
+
+        # 알려진 SD 영역 매칭
+        in_known_sd = False; known_locus = None
+        if marker_chr[i] is not None and not np.isnan(marker_bp[i]):
+            try:
+                bp_mb = marker_bp[i] / 1e6
+                for region in known_sd_regions:
+                    if str(region.get('chr')) == str(marker_chr[i]):
+                        pos_str = region.get('position_Mb', '')
+                        if pos_str and '-' in str(pos_str):
+                            lo, hi = [float(x) for x in str(pos_str).split('-')]
+                            if lo <= bp_mb <= hi:
+                                in_known_sd = True
+                                known_locus = region.get('locus')
+                                break
+                        elif marker_chr[i] is not None and str(region.get('chr')) == str(marker_chr[i]):
+                            # 위치 정보 없이 chr만 매칭 (S1 등) — 약한 플래그
+                            if known_locus is None:
+                                known_locus = region.get('locus') + '?'
+            except Exception:
+                pass
+
+        # 등급 판정
+        if miss_rate > missing_threshold * 2 or (sd_flag and not in_known_sd and miss_rate > 0.05):
+            grade = 'fail'
+        elif miss_rate > missing_threshold or sd_flag or het_flag:
+            grade = 'warn'
+        else:
+            grade = 'pass'
+        summary[grade] += 1
+
+        marker_results.append({
+            'marker': str(marker_names[i]),
+            'chr': str(marker_chr[i]) if marker_chr[i] is not None else None,
+            'cM': float(marker_cm[i]) if not np.isnan(marker_cm[i]) else None,
+            'bp': float(marker_bp[i]) if not np.isnan(marker_bp[i]) else None,
+            'n_a': n_a, 'n_h': n_h, 'n_b': n_b, 'n_miss': n_miss,
+            'missing_rate': float(miss_rate),
+            'het_rate': float(het_rate),
+            'sd_chi2': float(chi2_stat) if chi2_stat is not None else None,
+            'sd_p': float(sd_p) if sd_p is not None else None,
+            'sd_flag': bool(sd_flag),
+            'het_flag': bool(het_flag),
+            'in_known_sd': bool(in_known_sd),
+            'known_sd_locus': known_locus,
+            'grade': grade
+        })
+
+    return {
+        'pop_type': pop_type,
+        'is_inbred': bool(is_inbred),
+        'n_markers': int(n_markers),
+        'n_indiv': int(n_indiv),
+        'missing_threshold': float(missing_threshold),
+        'sd_p_threshold': float(sd_p_threshold),
+        'summary': summary,
+        'markers': marker_results
+    }
+
+def qc_individual_quality(geno_df, missing_threshold=0.20, ibs_dup_threshold=0.99):
+    """
+    개체 품질 검증.
+    - 개체별 결측률
+    - IBS (Identity-By-State) 매트릭스 → 중복 의심 쌍
+    """
+    geno = geno_df.iloc[:, 1:].values
+    indiv_names = list(geno_df.columns[1:])
+    n_markers, n_indiv = geno.shape
+
+    # 개체별 결측률
+    indiv_missing = []
+    for j in range(n_indiv):
+        col = geno[:, j]
+        n_miss = int((col == '-').sum())
+        rate = n_miss / n_markers if n_markers > 0 else 1.0
+        indiv_missing.append({
+            'indiv': indiv_names[j],
+            'n_miss': n_miss,
+            'missing_rate': float(rate),
+            'flag': bool(rate > missing_threshold)
+        })
+
+    # IBS pairwise (모든 쌍 비교는 N>200이면 무거움 — sample)
+    ibs_pairs = []
+    if n_indiv <= 300:
+        # 모든 쌍
+        for i in range(n_indiv):
+            for j in range(i+1, n_indiv):
+                # 같은 마커에서 같은 코드 (- 제외)
+                a = geno[:, i]
+                b = geno[:, j]
+                mask = (a != '-') & (b != '-')
+                if mask.sum() < 50:
+                    continue
+                same = (a[mask] == b[mask]).sum()
+                ibs = same / mask.sum()
+                if ibs >= ibs_dup_threshold:
+                    ibs_pairs.append({
+                        'indiv1': indiv_names[i],
+                        'indiv2': indiv_names[j],
+                        'IBS': float(ibs),
+                        'n_compared': int(mask.sum())
+                    })
+    else:
+        # N 큰 경우 — 무작위 sample
+        np.random.seed(42)
+        n_sample = min(20000, n_indiv * (n_indiv - 1) // 2)
+        for _ in range(n_sample):
+            i, j = np.random.choice(n_indiv, 2, replace=False)
+            if i > j: i, j = j, i
+            a = geno[:, i]; b = geno[:, j]
+            mask = (a != '-') & (b != '-')
+            if mask.sum() < 50: continue
+            same = (a[mask] == b[mask]).sum()
+            ibs = same / mask.sum()
+            if ibs >= ibs_dup_threshold:
+                ibs_pairs.append({
+                    'indiv1': indiv_names[i],
+                    'indiv2': indiv_names[j],
+                    'IBS': float(ibs),
+                    'n_compared': int(mask.sum())
+                })
+
+    ibs_pairs.sort(key=lambda x: x['IBS'], reverse=True)
+
+    return {
+        'n_indiv': int(n_indiv),
+        'missing_threshold': float(missing_threshold),
+        'ibs_dup_threshold': float(ibs_dup_threshold),
+        'individuals': indiv_missing,
+        'n_flagged_missing': int(sum(1 for x in indiv_missing if x['flag'])),
+        'duplicate_candidates': ibs_pairs[:50],
+        'n_dup_candidates': len(ibs_pairs)
+    }
+
+def qc_phenotype_quality(pheno_df):
+    """
+    표현형 품질 검증.
+    - 정규성 (Shapiro-Wilk)
+    - 극단값 (IQR 1.5×, 3×)
+    - 다환경 시 환경 간 상관, broad-sense H² 추정
+    """
+    pheno_data = pheno_df.iloc[:, 1:]
+    results = {'n_traits': int(pheno_data.shape[1]), 'traits': [], 'env_correlations': []}
+
+    for col in pheno_data.columns:
+        vals = pd.to_numeric(pheno_data[col], errors='coerce').dropna().values
+        if len(vals) < 3:
+            continue
+        try:
+            sw_stat, sw_p = stats.shapiro(vals)
+        except Exception:
+            sw_stat, sw_p = np.nan, np.nan
+
+        mean = float(vals.mean())
+        std = float(vals.std(ddof=1)) if len(vals) > 1 else 0
+        cv = (std / mean) * 100 if mean != 0 else 0
+        q1, q3 = np.percentile(vals, [25, 75])
+        iqr = q3 - q1
+        outliers_15 = int(((vals < q1 - 1.5 * iqr) | (vals > q3 + 1.5 * iqr)).sum())
+        outliers_3 = int(((vals < q1 - 3 * iqr) | (vals > q3 + 3 * iqr)).sum())
+
+        # MAD-based outliers
+        med = np.median(vals)
+        mad = float(np.median(np.abs(vals - med)))
+        outliers_mad = int((np.abs(vals - med) > 3 * 1.4826 * mad).sum()) if mad > 0 else 0
+
+        # 결측 개수
+        total = pheno_data[col].shape[0]
+        n_miss = int(total - len(vals))
+
+        results['traits'].append({
+            'name': str(col),
+            'n': int(len(vals)),
+            'n_missing': n_miss,
+            'mean': mean, 'std': std, 'cv': float(cv),
+            'min': float(vals.min()), 'max': float(vals.max()),
+            'median': float(med), 'q1': float(q1), 'q3': float(q3),
+            'shapiro_p': float(sw_p) if not np.isnan(sw_p) else None,
+            'normal': bool(sw_p > 0.05) if not np.isnan(sw_p) else None,
+            'outliers_iqr_1_5': outliers_15,
+            'outliers_iqr_3': outliers_3,
+            'outliers_mad': outliers_mad
+        })
+
+    # 다환경 간 상관 (broad H² 근사: 환경 평균 상관)
+    cols = list(pheno_data.columns)
+    if len(cols) >= 2:
+        for i in range(len(cols)):
+            for j in range(i+1, len(cols)):
+                a = pd.to_numeric(pheno_data[cols[i]], errors='coerce')
+                b = pd.to_numeric(pheno_data[cols[j]], errors='coerce')
+                mask = a.notna() & b.notna()
+                if mask.sum() < 5:
+                    continue
+                try:
+                    r, p = stats.pearsonr(a[mask], b[mask])
+                    results['env_correlations'].append({
+                        'env1': cols[i], 'env2': cols[j],
+                        'pearson_r': float(r), 'p': float(p),
+                        'n': int(mask.sum())
+                    })
+                except Exception:
+                    pass
+
+    # 추정 broad-sense H² (환경 간 평균 r)
+    if results['env_correlations']:
+        avg_r = float(np.mean([c['pearson_r'] for c in results['env_correlations']]))
+        results['estimated_broad_H2'] = avg_r
+
+    return results
+
+def validate_linkage_map(map_df, total_cM_min=1140, total_cM_max=1900):
+    """
+    Linkage map 검증.
+    - 마커 순서: bp 순서 vs cM 순서 일치성
+    - cM 갭 (singleton — 비정상적으로 큰 간격)
+    - 총 cM 길이 (벼 IRGSP-1.0 기대 1140~1900cM)
+    """
+    chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+    cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+    bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+    if not chr_col or not cm_col:
+        return {'error': 'Chr / cM 컬럼 누락'}
+
+    chrs = sorted(set(str(c) for c in map_df[chr_col].dropna()),
+                  key=lambda x: int(x) if x.isdigit() else 99)
+    chr_results = []
+    total_cM = 0.0
+
+    for ch in chrs:
+        sub = map_df[map_df[chr_col].astype(str) == ch].copy()
+        sub = sub.sort_values(cm_col).reset_index(drop=True)
+        cms = sub[cm_col].astype(float).values
+        if len(cms) == 0:
+            continue
+        chr_len = float(cms[-1] - cms[0])
+        total_cM += chr_len
+
+        # 인접 마커 간격
+        gaps = np.diff(cms) if len(cms) > 1 else np.array([])
+        max_gap = float(gaps.max()) if len(gaps) else 0
+        avg_gap = float(gaps.mean()) if len(gaps) else 0
+        large_gaps = int((gaps > 30).sum()) if len(gaps) else 0  # 30cM 초과 갭
+
+        # bp 순서 일치성
+        order_consistency = None
+        if bp_col:
+            bps = sub[bp_col].astype(float).values
+            if len(bps) > 1:
+                # bp가 단조 증가하는지 확인
+                bp_order = np.argsort(bps)
+                cm_order = np.arange(len(bps))  # 이미 cM으로 정렬됨
+                spearman, _ = stats.spearmanr(bps, cms)
+                order_consistency = float(spearman)
+
+        chr_results.append({
+            'chr': ch,
+            'n_markers': int(len(sub)),
+            'cm_min': float(cms[0]),
+            'cm_max': float(cms[-1]),
+            'chr_length_cM': chr_len,
+            'max_gap_cM': max_gap,
+            'avg_gap_cM': avg_gap,
+            'large_gaps_count': large_gaps,
+            'bp_cM_spearman': order_consistency
+        })
+
+    total_in_range = total_cM_min <= total_cM <= total_cM_max
+    chr_count_ok = len(chrs) == 12  # 벼 12개 염색체
+
+    return {
+        'n_chr': len(chrs),
+        'total_cM': float(total_cM),
+        'expected_range_cM': [total_cM_min, total_cM_max],
+        'total_in_expected_range': bool(total_in_range),
+        'chr_count_ok': bool(chr_count_ok),
+        'chromosomes': chr_results
+    }
+
+def run_full_qc(geno_json, map_json, pheno_json, pop_type='F2',
+                 missing_marker=0.10, missing_indiv=0.20, sd_p=0.001,
+                 ibs_dup=0.99, total_cM_min=1140, total_cM_max=1900):
+    """전체 QC 통합 실행."""
+    geno_df = pd.DataFrame(geno_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    map_df = pd.DataFrame(map_json) if map_json else None
+
+    res = {
+        'marker': qc_marker_quality(geno_df, map_df, pop_type=pop_type,
+                                     missing_threshold=missing_marker, sd_p_threshold=sd_p),
+        'individual': qc_individual_quality(geno_df,
+                                              missing_threshold=missing_indiv,
+                                              ibs_dup_threshold=ibs_dup),
+        'phenotype': qc_phenotype_quality(pheno_df)
+    }
+    if map_df is not None:
+        res['linkage_map'] = validate_linkage_map(map_df,
+                                                   total_cM_min=total_cM_min,
+                                                   total_cM_max=total_cM_max)
+
+    # 종합 등급
+    overall = 'pass'
+    if res['marker']['summary'].get('fail', 0) > 0 or \
+       res['individual'].get('n_dup_candidates', 0) > 0:
+        overall = 'fail'
+    elif res['marker']['summary'].get('warn', 0) > res['marker']['n_markers'] * 0.1:
+        overall = 'warn'
+    elif map_df is not None and not res['linkage_map'].get('total_in_expected_range', True):
+        overall = 'warn'
+    res['overall_grade'] = overall
+
+    return json.dumps(res)
 `;
 }
 async function handleFile(event, type) {
@@ -4072,6 +4566,432 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// QC + Linkage Map 검증 (단계 G)
+// ============================================================
+function populateQCOptions() {
+  if (!appData.diagnosis) return;
+  const popSel = document.getElementById('qc-pop');
+  const popType = (appData.diagnosis.population.type || '').toUpperCase();
+  if (popType.includes('F2')) popSel.value = 'F2';
+  else if (popType.includes('RIL')) popSel.value = 'RIL';
+  else if (popType.includes('DH')) popSel.value = 'DH';
+  else if (popType.includes('BC')) popSel.value = 'BC1';
+}
+
+async function runQC() {
+  if (!pyodide || !appData.geno) {
+    log('Pyodide 또는 데이터 준비 안 됨', 'warn');
+    return;
+  }
+  const btn = document.getElementById('btn-qc-run');
+  const icon = document.getElementById('qc-btn-icon');
+  const status = document.getElementById('qc-status');
+
+  const params = {
+    pop: document.getElementById('qc-pop').value,
+    miss_marker: parseFloat(document.getElementById('qc-miss-marker').value),
+    miss_indiv: parseFloat(document.getElementById('qc-miss-indiv').value),
+    sd_p: parseFloat(document.getElementById('qc-sd-p').value),
+    ibs_dup: parseFloat(document.getElementById('qc-ibs-dup').value),
+    cm_min: parseFloat(document.getElementById('qc-cm-min').value),
+    cm_max: parseFloat(document.getElementById('qc-cm-max').value)
+  };
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = 'QC 실행 중... (IBS 계산이 큰 N에서 수십 초 소요)';
+
+  try {
+    pyodide.globals.set('_g_qc', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_m_qc', appData.map ? pyodide.toPy(appData.map.data) : null);
+    pyodide.globals.set('_p_qc', pyodide.toPy(appData.pheno.data));
+    pyodide.globals.set('_pop_qc', params.pop);
+    pyodide.globals.set('_mm', params.miss_marker);
+    pyodide.globals.set('_mi', params.miss_indiv);
+    pyodide.globals.set('_sdp', params.sd_p);
+    pyodide.globals.set('_ibs', params.ibs_dup);
+    pyodide.globals.set('_cmmin', params.cm_min);
+    pyodide.globals.set('_cmmax', params.cm_max);
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_full_qc(_g_qc, _m_qc, _p_qc, pop_type=_pop_qc, missing_marker=_mm, missing_indiv=_mi, sd_p=_sdp, ibs_dup=_ibs, total_cM_min=_cmmin, total_cM_max=_cmmax)`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`QC 완료 (${((t1-t0)/1000).toFixed(1)}s) — 종합 등급: ${result.overall_grade}`, 'ok');
+    appData.qc = result;
+    renderQCResults(result);
+    status.textContent = `완료 — 종합: ${result.overall_grade.toUpperCase()}`;
+  } catch (e) {
+    log('QC 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderQCResults(result) {
+  document.getElementById('qc-results').style.display = 'block';
+  const m = result.marker;
+  const ind = result.individual;
+  const ph = result.phenotype;
+  const lm = result.linkage_map;
+
+  // 종합 등급 카드
+  const gradeColor = {pass: 'success', warn: 'warning', fail: 'error'};
+  const overallEl = document.getElementById('qc-overall-grid');
+  overallEl.innerHTML = `
+    <div class="diag-card ${gradeColor[result.overall_grade]}">
+      <div class="diag-card-title">종합 등급</div>
+      <div class="diag-card-value">${result.overall_grade.toUpperCase()}</div>
+      <div class="diag-card-detail">${result.overall_grade === 'pass' ? '분석 진행 권장' : result.overall_grade === 'warn' ? '일부 마커/개체 검토 필요' : '품질 문제 — 정제 필요'}</div>
+    </div>
+    <div class="diag-card ${m.summary.fail > 0 ? 'error' : m.summary.warn > 0 ? 'warning' : 'success'}">
+      <div class="diag-card-title">마커</div>
+      <div class="diag-card-value">${m.summary.pass} / ${m.n_markers}</div>
+      <div class="diag-card-detail">pass ${m.summary.pass} · warn ${m.summary.warn} · fail ${m.summary.fail}</div>
+    </div>
+    <div class="diag-card ${ind.n_dup_candidates > 0 ? 'warning' : 'success'}">
+      <div class="diag-card-title">개체</div>
+      <div class="diag-card-value">${ind.n_indiv}</div>
+      <div class="diag-card-detail">결측 플래그 ${ind.n_flagged_missing}개 · IBS 중복 의심 ${ind.n_dup_candidates}쌍</div>
+    </div>
+    <div class="diag-card ${lm && !lm.total_in_expected_range ? 'warning' : 'success'}">
+      <div class="diag-card-title">Linkage Map</div>
+      <div class="diag-card-value">${lm ? lm.total_cM.toFixed(0) + ' cM' : '—'}</div>
+      <div class="diag-card-detail">${lm ? lm.n_chr + '개 염색체 · ' + (lm.total_in_expected_range ? '기대 범위 내 ✓' : '기대 범위 밖 ⚠') : '맵 파일 없음'}</div>
+    </div>
+  `;
+
+  // 마커 시각화 + 표
+  renderQCMarkerPlot(m);
+  document.getElementById('qc-marker-summary').innerHTML = `
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">
+      임계값: 결측 ${(m.missing_threshold*100).toFixed(0)}%, SD p<${m.sd_p_threshold}
+    </div>
+  `;
+
+  // 플래그된 마커 표 (warn + fail)
+  const flagged = m.markers.filter(x => x.grade !== 'pass');
+  flagged.sort((a, b) => (b.missing_rate + (b.sd_flag ? 1 : 0)) - (a.missing_rate + (a.sd_flag ? 1 : 0)));
+  const flaggedEl = document.getElementById('qc-marker-flagged-table');
+  if (flagged.length === 0) {
+    flaggedEl.innerHTML = `<div class="empty"><div class="empty-hint">플래그된 마커 없음 — 모두 통과</div></div>`;
+  } else {
+    flaggedEl.innerHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:8px 0">플래그된 마커 ${flagged.length}개 (상위 30)</h3>
+      <table>
+        <thead><tr>
+          <th>마커</th><th>Chr</th><th>cM</th><th>결측률</th><th>het</th>
+          <th>SD chi2</th><th>SD p</th><th>알려진 SD</th><th>등급</th>
+        </tr></thead>
+        <tbody>
+          ${flagged.slice(0, 30).map(mk => `
+            <tr>
+              <td><code>${mk.marker}</code></td>
+              <td>${mk.chr || '—'}</td>
+              <td>${mk.cM !== null ? mk.cM.toFixed(1) : '—'}</td>
+              <td>${(mk.missing_rate*100).toFixed(1)}%</td>
+              <td>${(mk.het_rate*100).toFixed(1)}%</td>
+              <td>${mk.sd_chi2 !== null ? mk.sd_chi2.toFixed(2) : '—'}</td>
+              <td>${mk.sd_p !== null ? mk.sd_p.toExponential(2) : '—'}</td>
+              <td>${mk.in_known_sd ? '<strong style="color:var(--accent-5)">' + mk.known_sd_locus + '</strong>' : (mk.known_sd_locus || '—')}</td>
+              <td><span class="badge badge-${mk.grade === 'fail' ? 'error' : 'warning'}">${mk.grade}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // 개체 결측
+  const flagInd = ind.individuals.filter(x => x.flag);
+  document.getElementById('qc-indiv-summary').innerHTML = `
+    <div style="font-size:12px;color:var(--text-secondary)">
+      임계값: 개체 결측 ${(ind.missing_threshold*100).toFixed(0)}%, IBS≥${ind.ibs_dup_threshold}
+    </div>
+  `;
+  let indHTML = '';
+  if (flagInd.length > 0) {
+    indHTML += `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:14px 0 6px">결측 ${(ind.missing_threshold*100).toFixed(0)}% 초과 개체 ${flagInd.length}개</h3>
+      <table><thead><tr><th>개체</th><th>결측 수</th><th>결측률</th></tr></thead><tbody>
+        ${flagInd.slice(0,30).map(i => `<tr><td><code>${i.indiv}</code></td><td>${i.n_miss}</td><td>${(i.missing_rate*100).toFixed(1)}%</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+  if (ind.duplicate_candidates.length > 0) {
+    indHTML += `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:14px 0 6px;color:var(--warning)">중복 의심 ${ind.duplicate_candidates.length}쌍 (IBS≥${ind.ibs_dup_threshold})</h3>
+      <table><thead><tr><th>개체 1</th><th>개체 2</th><th>IBS</th><th>비교 마커</th></tr></thead><tbody>
+        ${ind.duplicate_candidates.slice(0,30).map(p => `<tr><td><code>${p.indiv1}</code></td><td><code>${p.indiv2}</code></td><td>${p.IBS.toFixed(4)}</td><td>${p.n_compared}</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+  if (!indHTML) indHTML = `<div class="empty" style="margin-top:14px"><div class="empty-hint">플래그된 개체 없음 — 모두 정상</div></div>`;
+  document.getElementById('qc-indiv-table').innerHTML = indHTML;
+
+  // 표현형
+  let phHTML = `
+    <table>
+      <thead><tr>
+        <th>형질</th><th>n</th><th>결측</th><th>mean</th><th>SD</th><th>CV%</th>
+        <th>Shapiro p</th><th>정규성</th><th>IQR×1.5</th><th>IQR×3</th><th>MAD</th>
+      </tr></thead>
+      <tbody>
+        ${ph.traits.map(t => `
+          <tr>
+            <td><strong>${t.name}</strong></td>
+            <td>${t.n}</td>
+            <td>${t.n_missing || 0}</td>
+            <td>${t.mean.toFixed(2)}</td>
+            <td>${t.std.toFixed(2)}</td>
+            <td>${t.cv.toFixed(1)}</td>
+            <td>${t.shapiro_p !== null ? t.shapiro_p.toFixed(4) : '—'}</td>
+            <td>${t.normal === null ? '—' : t.normal ? '<span class="badge badge-success">정규</span>' : '<span class="badge badge-warning">비정규</span>'}</td>
+            <td>${t.outliers_iqr_1_5}</td>
+            <td>${t.outliers_iqr_3}</td>
+            <td>${t.outliers_mad}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('qc-pheno-summary').innerHTML = phHTML;
+
+  // 환경 상관 (다환경)
+  if (ph.env_correlations && ph.env_correlations.length > 0) {
+    let corrHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:8px 0">환경 간 Pearson 상관</h3>
+      <table>
+        <thead><tr><th>환경 1</th><th>환경 2</th><th>r</th><th>p</th><th>n</th></tr></thead>
+        <tbody>
+          ${ph.env_correlations.map(c => `
+            <tr>
+              <td>${c.env1}</td><td>${c.env2}</td>
+              <td><strong>${c.pearson_r.toFixed(3)}</strong></td>
+              <td>${c.p < 0.001 ? c.p.toExponential(2) : c.p.toFixed(4)}</td>
+              <td>${c.n}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    if (ph.estimated_broad_H2 !== undefined) {
+      corrHTML += `<div style="font-size:12px;color:var(--text-secondary);margin-top:8px">환경 간 평균 r ≈ broad-sense H² 추정 = <strong>${ph.estimated_broad_H2.toFixed(3)}</strong></div>`;
+    }
+    document.getElementById('qc-pheno-corr').innerHTML = corrHTML;
+  } else {
+    document.getElementById('qc-pheno-corr').innerHTML = '';
+  }
+
+  // Linkage map 시각화 + 표
+  if (lm) {
+    renderLinkageMapPlot(lm);
+    document.getElementById('qc-linkage-summary').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Chr</th><th>마커 수</th><th>cM 시작</th><th>cM 끝</th><th>길이</th>
+          <th>평균 갭</th><th>최대 갭</th><th>>30cM 갭</th><th>bp-cM r</th>
+        </tr></thead>
+        <tbody>
+          ${lm.chromosomes.map(ch => `
+            <tr>
+              <td>${ch.chr}</td>
+              <td>${ch.n_markers}</td>
+              <td>${ch.cm_min.toFixed(1)}</td>
+              <td>${ch.cm_max.toFixed(1)}</td>
+              <td>${ch.chr_length_cM.toFixed(1)} cM</td>
+              <td>${ch.avg_gap_cM.toFixed(2)}</td>
+              <td>${ch.max_gap_cM.toFixed(1)}${ch.large_gaps_count > 0 ? ' <span class="badge badge-warning">' + ch.large_gaps_count + '</span>' : ''}</td>
+              <td>${ch.large_gaps_count}</td>
+              <td>${ch.bp_cM_spearman !== null ? ch.bp_cM_spearman.toFixed(3) : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        총 ${lm.total_cM.toFixed(1)} cM (기대 ${lm.expected_range_cM[0]}~${lm.expected_range_cM[1]})
+        ${lm.total_in_expected_range ? '<span class="badge badge-success">정상</span>' : '<span class="badge badge-warning">범위 밖</span>'}
+        / ${lm.chr_count_ok ? '12개 염색체 ✓' : '<span class="badge badge-warning">염색체 ' + lm.n_chr + '개</span>'}
+      </div>
+    `;
+  }
+
+  document.getElementById('qc-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// QC 시각화 (단계 G-3)
+// ============================================================
+function renderQCMarkerPlot(m) {
+  // 마커 결측률 histogram + SD scatter
+  const missingRates = m.markers.map(x => x.missing_rate);
+  const sdLog10p = m.markers.map(x => x.sd_p ? -Math.log10(x.sd_p) : null);
+  const grades = m.markers.map(x => x.grade);
+  const gradeColor = {pass: '#017f97', warn: '#d97706', fail: '#dc3545'};
+
+  // 1) 결측률 히스토그램
+  const traceMiss = {
+    x: missingRates,
+    type: 'histogram',
+    nbinsx: 30,
+    marker: {color: 'rgba(0, 161, 184, 0.55)', line: {color: '#017f97', width: 1}},
+    name: '결측률',
+    hovertemplate: '결측률: %{x:.2%}<br>마커 수: %{y}<extra></extra>',
+    xaxis: 'x', yaxis: 'y'
+  };
+
+  // 2) SD scatter (-log10 p vs missing rate)
+  const sdValid = m.markers.filter(x => x.sd_p !== null);
+  const traceSd = {
+    x: sdValid.map(x => x.missing_rate),
+    y: sdValid.map(x => -Math.log10(x.sd_p)),
+    type: 'scatter', mode: 'markers',
+    marker: {
+      size: 5, color: sdValid.map(x => gradeColor[x.grade]),
+      line: {color: 'rgba(255,255,255,0.2)', width: 0.5}
+    },
+    text: sdValid.map(x => `${x.marker} (Chr${x.chr || '?'})`),
+    hovertemplate: '%{text}<br>결측률: %{x:.2%}<br>-log10(SD p)=%{y:.2f}<extra></extra>',
+    name: '마커',
+    xaxis: 'x2', yaxis: 'y2',
+    showlegend: false
+  };
+
+  const shapes = [
+    // 결측 임계 vertical
+    {type: 'line', xref: 'x', yref: 'paper',
+     x0: m.missing_threshold, x1: m.missing_threshold, y0: 0, y1: 1,
+     line: {color: '#dc3545', width: 1.4, dash: 'dash'}},
+    // SD plot의 임계 -log10 p
+    {type: 'line', xref: 'x2', yref: 'y2',
+     x0: 0, x1: 1, y0: -Math.log10(m.sd_p_threshold), y1: -Math.log10(m.sd_p_threshold),
+     line: {color: '#dc3545', width: 1.2, dash: 'dash'}}
+  ];
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `마커 QC (총 ${m.n_markers}개)`, font: {size: 13}, x: 0.02},
+    grid: {rows: 1, columns: 2, pattern: 'independent'},
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: '결측률', font: {size: 11}}, domain: [0, 0.45]
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {title: {text: '마커 수', font: {size: 11}}}),
+    xaxis2: Object.assign({}, _AXIS_DARK, {
+      title: {text: '결측률', font: {size: 11}}, domain: [0.55, 1]
+    }),
+    yaxis2: Object.assign({}, _AXIS_DARK, {
+      title: {text: '-log10(SD p)', font: {size: 11}}, anchor: 'x2'
+    }),
+    shapes: shapes,
+    annotations: [
+      {x: m.missing_threshold, y: 1.05, xref: 'x', yref: 'paper',
+       text: `임계 ${(m.missing_threshold*100).toFixed(0)}%`, showarrow: false,
+       font: {size: 9, color: '#dc3545'}},
+      {x: 0.99, y: -Math.log10(m.sd_p_threshold), xref: 'x2 domain', yref: 'y2',
+       text: `SD p<${m.sd_p_threshold}`, showarrow: false, xanchor: 'right',
+       font: {size: 9, color: '#dc3545'}}
+    ],
+    showlegend: false
+  });
+
+  Plotly.newPlot('qc-missing-plot', [traceMiss, traceSd], layout,
+                 {responsive: true, displaylogo: false});
+}
+
+function renderLinkageMapPlot(lm) {
+  // 12개 염색체를 가로 막대로 + 마커를 vertical line으로
+  if (!appData.map || !appData.map.data) {
+    document.getElementById('qc-linkage-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">map 데이터 없음</div></div>`;
+    return;
+  }
+  const md = appData.map.data;
+  const cols = Object.keys(md);
+  const chrCol = cols.find(c => c.toLowerCase().includes('chr')) || cols[1];
+  const cmCol = cols.find(c => c.toLowerCase() === 'cm' || c.toLowerCase().includes('cm'));
+  if (!cmCol) {
+    document.getElementById('qc-linkage-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">cM 컬럼 없음</div></div>`;
+    return;
+  }
+  const chrs = md[chrCol], cms = md[cmCol];
+
+  // 염색체별 정렬
+  const byChr = {};
+  for (let i = 0; i < chrs.length; i++) {
+    const c = String(chrs[i]);
+    (byChr[c] ||= []).push(parseFloat(cms[i]));
+  }
+  const sortedChrs = Object.keys(byChr).sort((a, b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+
+  const traces = [];
+
+  // 각 염색체 막대
+  sortedChrs.forEach(ch => {
+    const cmList = byChr[ch].sort((a, b) => a - b);
+    const minCM = cmList[0], maxCM = cmList[cmList.length - 1];
+    traces.push({
+      x: [minCM, maxCM], y: [`Chr${ch}`, `Chr${ch}`],
+      type: 'scatter', mode: 'lines',
+      line: {color: 'rgba(255,255,255,0.18)', width: 14},
+      hoverinfo: 'skip', showlegend: false
+    });
+    // 마커 위치 점
+    traces.push({
+      x: cmList, y: cmList.map(_ => `Chr${ch}`),
+      type: 'scatter', mode: 'markers',
+      marker: {symbol: 'line-ns', size: 12, color: '#017f97',
+               line: {color: '#017f97', width: 1.5}},
+      text: cmList.map(c => `Chr${ch} ${c.toFixed(1)}cM`),
+      hovertemplate: '%{text}<extra></extra>',
+      showlegend: false, name: `Chr${ch}`
+    });
+  });
+
+  // 동원체 다이아몬드 (G-3)
+  const centX = [], centY = [];
+  sortedChrs.forEach(ch => {
+    const cent = RICE_CENTROMERE_CM[String(ch)];
+    if (cent !== undefined) {
+      centX.push(cent);
+      centY.push(`Chr${ch}`);
+    }
+  });
+  if (centX.length) {
+    traces.push({
+      x: centX, y: centY,
+      type: 'scatter', mode: 'markers',
+      marker: {symbol: 'diamond', size: 14, color: '#d97706',
+               line: {color: '#0c3026', width: 1.5}},
+      name: '동원체',
+      hovertemplate: '동원체 (IRGSP-1.0): %{y} %{x:.1f}cM<extra></extra>'
+    });
+  }
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `Linkage Map — 총 ${lm.total_cM.toFixed(1)} cM (${lm.n_chr}개 염색체)`,
+            font: {size: 13}, x: 0.02},
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'Genetic position (cM)', font: {size: 11}},
+      rangemode: 'tozero'
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: '', autorange: 'reversed', tickfont: {size: 11, color: '#94b8aa'}
+    }),
+    height: 420,
+    legend: {orientation: 'h', y: 1.08, x: 0.5, xanchor: 'center',
+             font: {size: 10, color: '#94b8aa'}, bgcolor: 'rgba(13,58,45,0.5)'}
+  });
+  Plotly.newPlot('qc-linkage-plot', traces, layout, {responsive: true, displaylogo: false});
 }
 
 // ============================================================
@@ -5786,7 +6706,8 @@ function renderDiagnosis(d) {
   // 추천 파라미터 카드 렌더 (조각 3)
   renderParameterRecommendation(d.parameter_recommendation);
 
-  // Tab 2/3/4 옵션 자동 채우기
+  // Tab 1~4 옵션 자동 채우기
+  populateQCOptions();
   populateTier2Options();
   populateTier3Options();
   populateTier4Options();
