@@ -1138,6 +1138,30 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div id="tier3-mqm-summary"></div>
       <div id="tier3-mqm-table"></div>
     </div>
+    <div class="card">
+      <div class="card-title">QTL Effect plot (유전자형별 표현형)</div>
+      <div class="card-subtitle">검출된 QTL의 가까운 마커에서 AA / AB / BB 평균 ± SE를 비교합니다.</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+        <label class="opt-label" style="min-width:auto">QTL 선택:</label>
+        <select id="tier3-effect-select" class="opt-input" style="max-width:340px" onchange="renderQTLEffectPlot()"></select>
+      </div>
+      <div class="export-bar" id="tier3-effect-export">
+        <span class="label">출력:</span>
+        <span>너비 <input type="number" id="te-w" value="80" min="40" max="300"> mm</span>
+        <span>높이 <input type="number" id="te-h" value="60" min="30" max="300"> mm</span>
+        <span>DPI
+          <select id="te-dpi">
+            <option value="72">72</option><option value="150">150</option>
+            <option value="300" selected>300</option><option value="600">600</option>
+          </select>
+        </span>
+        <span class="toggle-row"><input type="checkbox" id="te-bw"> <label for="te-bw">흑백</label></span>
+        <button class="btn-mini" onclick="exportPlot('tier3-effect-plot','te','QTL_effect')">PNG 저장</button>
+        <button class="btn-mini" onclick="exportPlot('tier3-effect-plot','te','QTL_effect','svg')">SVG 저장</button>
+      </div>
+      <div id="tier3-effect-plot" style="min-height:280px"></div>
+      <div id="tier3-effect-stats"></div>
+    </div>
   </div>
 </div>
 <div class="tab-content" id="tab-tier4"><div class="card"><div class="empty"><div class="empty-title">고급 분석 (Epistasis + QTL × Environment)</div><div class="empty-hint">단계 E 구현 예정</div></div></div></div>
@@ -2857,6 +2881,61 @@ def run_tier3_analysis(geno_json, map_json, pheno_json, trait_name=None,
         'threshold_used': float(threshold),
         'ci_drop': float(ci_drop)
     })
+
+# ============== 단계 D: QTL Effect 데이터 ==============
+def qtl_effect_data(geno_json, pheno_json, marker_name, trait_name=None):
+    """특정 마커의 유전자형별(A/H/B) 표현형 통계 + a/d 효과."""
+    geno_df = pd.DataFrame(geno_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+
+    marker_col = geno_df.columns[0]
+    matching = geno_df[geno_df[marker_col] == marker_name]
+    if matching.empty:
+        return json.dumps({'error': f'마커 {marker_name} 없음'})
+    geno_row = matching.iloc[0, 1:].values
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+
+    groups = {'A': [], 'H': [], 'B': []}
+    for i, code in enumerate(geno_row):
+        if code in groups and not np.isnan(pheno[i]):
+            groups[code].append(pheno[i])
+
+    result = {'marker': str(marker_name), 'trait': str(trait_name)}
+    for k in ['A','H','B']:
+        v = np.array(groups[k], dtype=float)
+        if len(v) > 0:
+            mean = float(v.mean())
+            std = float(v.std(ddof=1)) if len(v) > 1 else None
+            se = float(std / np.sqrt(len(v))) if std is not None else None
+        else:
+            mean = None; std = None; se = None
+        result[k] = {'n': int(len(v)), 'mean': mean, 'std': std, 'se': se}
+
+    mA = result['A']['mean']; mH = result['H']['mean']; mB = result['B']['mean']
+    result['additive_a'] = float((mB - mA) / 2.0) if mA is not None and mB is not None else None
+    result['dominance_d'] = float(mH - (mA + mB) / 2.0) if (mA is not None and mH is not None and mB is not None) else None
+
+    valid = pheno[~np.isnan(pheno)]
+    if len(valid) >= 3:
+        try:
+            sw_stat, sw_p = stats.shapiro(valid)
+            result['shapiro_p'] = float(sw_p)
+            result['shapiro_normal'] = bool(sw_p > 0.05)
+        except Exception:
+            pass
+
+    nonempty = [groups[k] for k in ['A','H','B'] if len(groups[k]) >= 2]
+    if len(nonempty) >= 2:
+        try:
+            F, p = stats.f_oneway(*nonempty)
+            result['anova_F'] = float(F)
+            result['anova_p'] = float(p)
+        except Exception:
+            pass
+
+    return json.dumps(result)
 `;
 }
 async function handleFile(event, type) {
@@ -3308,6 +3387,9 @@ function renderTier3Results(result) {
     document.getElementById('tier3-mqm-table').innerHTML = `<div class="empty"><div class="empty-hint">Penalty(${mqm.penalty_main}) 통과 QTL 없음. Penalty를 낮춰 다시 실행해보세요.</div></div>`;
   }
 
+  // QTL effect plot dropdown 채우기 (단계 D-3)
+  populateEffectQTLSelect(result);
+
   document.getElementById('tier3-results').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
@@ -3336,6 +3418,166 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// QTL Effect plot (단계 D-3)
+// ============================================================
+function populateEffectQTLSelect(result) {
+  const sel = document.getElementById('tier3-effect-select');
+  if (!sel) return;
+  // CIM peaks → 가까운 마커, ICIM peaks, MQM의 nearest_marker 통합
+  const items = [];
+  result.cim_peaks.forEach((pk, i) => {
+    const m = findMarkerNearestForExport(pk.chr, pk.cM);
+    if (m) items.push({label: `[CIM] Q${i+1} Chr${pk.chr} ${pk.cM.toFixed(1)}cM (LOD ${pk.LOD.toFixed(2)}) → ${m}`, marker: m});
+  });
+  result.icim_peaks.forEach((pk, i) => {
+    const m = findMarkerNearestForExport(pk.chr, pk.cM);
+    if (m) items.push({label: `[ICIM] Q${i+1} Chr${pk.chr} ${pk.cM.toFixed(1)}cM (LOD ${pk.LOD.toFixed(2)}) → ${m}`, marker: m});
+  });
+  result.mqm.qtls.forEach(q => {
+    if (q.nearest_marker) items.push({label: `[MQM] Q${q.order} Chr${q.chr} ${q.cM.toFixed(1)}cM (LOD ${q.LOD.toFixed(2)}) → ${q.nearest_marker}`, marker: q.nearest_marker});
+  });
+  // 중복 제거
+  const seen = new Set();
+  const unique = items.filter(it => {
+    if (seen.has(it.marker)) return false;
+    seen.add(it.marker); return true;
+  });
+  sel.innerHTML = unique.map(it => `<option value="${it.marker}">${it.label}</option>`).join('');
+  if (unique.length > 0) {
+    renderQTLEffectPlot();
+  } else {
+    document.getElementById('tier3-effect-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">검출 QTL이 없어 effect plot을 표시할 수 없습니다.</div></div>`;
+  }
+}
+
+function findMarkerNearestForExport(targetChr, targetCM) {
+  // appData.map.data의 마커명/Chr/cM에서 가장 가까운 마커
+  if (!appData.map || !appData.map.data) return null;
+  const md = appData.map.data;
+  // 컬럼명 추정
+  const cols = Object.keys(md);
+  const nameCol = cols[0];
+  const chrCol = cols.find(c => c.toLowerCase().includes('chr')) || cols[1];
+  const cmCol = cols.find(c => c.toLowerCase() === 'cm' || c.toLowerCase().includes('cm')) || cols[3];
+  const names = md[nameCol], chrs = md[chrCol], cms = md[cmCol];
+  let best = null, bestDist = Infinity;
+  for (let i = 0; i < names.length; i++) {
+    if (String(chrs[i]) !== String(targetChr)) continue;
+    const d = Math.abs(parseFloat(cms[i]) - targetCM);
+    if (d < bestDist) { bestDist = d; best = names[i]; }
+  }
+  return best;
+}
+
+async function renderQTLEffectPlot() {
+  const sel = document.getElementById('tier3-effect-select');
+  if (!sel || !sel.value) return;
+  const marker = sel.value;
+  const trait = document.getElementById('tier3-trait').value;
+
+  if (!pyodide) return;
+  try {
+    pyodide.globals.set('_g_eff', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_p_eff', pyodide.toPy(appData.pheno.data));
+    pyodide.globals.set('_m_eff', marker);
+    pyodide.globals.set('_t_eff', trait);
+    const resStr = pyodide.runPython('qtl_effect_data(_g_eff, _p_eff, _m_eff, _t_eff)');
+    const eff = JSON.parse(resStr);
+    if (eff.error) {
+      log('Effect plot 데이터 오류: ' + eff.error, 'warn');
+      return;
+    }
+
+    const groups = ['A', 'H', 'B'];
+    const labels = {A: 'AA (반복친)', H: 'AB (이형접합)', B: 'BB (공여친)'};
+    const means = groups.map(k => eff[k] && eff[k].mean !== null ? eff[k].mean : null);
+    const ses = groups.map(k => eff[k] && eff[k].se !== null ? eff[k].se : 0);
+    const ns = groups.map(k => eff[k] ? eff[k].n : 0);
+
+    const trace = {
+      x: groups.map(k => labels[k]),
+      y: means,
+      type: 'bar',
+      marker: {color: ['#017f97', '#54b7c6', '#00a1b8'],
+               line: {color: '#0c3026', width: 1.5}},
+      error_y: {type: 'data', array: ses, color: '#e8f5f2', thickness: 1.5, width: 8},
+      text: ns.map(n => `n=${n}`),
+      textposition: 'outside',
+      textfont: {size: 10, color: '#94b8aa'},
+      hovertemplate: '%{x}<br>mean=%{y:.2f}<br>%{text}<extra></extra>'
+    };
+
+    // a/d 효과 annotation
+    const annos = [];
+    if (eff.additive_a !== null && eff.additive_a !== undefined) {
+      annos.push({
+        x: 1, y: 0.97, xref: 'paper', yref: 'paper',
+        text: `a = ${eff.additive_a.toFixed(2)}`,
+        showarrow: false, xanchor: 'right',
+        font: {size: 11, color: '#8dccd3', family: "'JetBrains Mono', monospace"},
+        bgcolor: 'rgba(13,58,45,0.8)', borderpad: 4
+      });
+    }
+    if (eff.dominance_d !== null && eff.dominance_d !== undefined) {
+      annos.push({
+        x: 1, y: 0.88, xref: 'paper', yref: 'paper',
+        text: `d = ${eff.dominance_d.toFixed(2)}`,
+        showarrow: false, xanchor: 'right',
+        font: {size: 11, color: '#8dccd3', family: "'JetBrains Mono', monospace"},
+        bgcolor: 'rgba(13,58,45,0.8)', borderpad: 4
+      });
+    }
+    if (eff.anova_p !== undefined) {
+      annos.push({
+        x: 0, y: 0.97, xref: 'paper', yref: 'paper',
+        text: `ANOVA p = ${eff.anova_p < 0.001 ? eff.anova_p.toExponential(2) : eff.anova_p.toFixed(4)}`,
+        showarrow: false, xanchor: 'left',
+        font: {size: 11, color: eff.anova_p < 0.05 ? '#4caf50' : '#94b8aa'},
+        bgcolor: 'rgba(13,58,45,0.8)', borderpad: 4
+      });
+    }
+
+    const layout = Object.assign({}, PLOTLY_DARK, {
+      title: {text: `${marker} → ${trait}`, font: {size: 13}, x: 0.02},
+      xaxis: Object.assign({}, _AXIS_DARK, {title: {text: '유전자형', font: {size: 11}}}),
+      yaxis: Object.assign({}, _AXIS_DARK, {title: {text: trait, font: {size: 11}}}),
+      annotations: annos,
+      bargap: 0.4,
+      showlegend: false
+    });
+    Plotly.newPlot('tier3-effect-plot', [trace], layout, {responsive: true, displaylogo: false});
+
+    // 통계 텍스트
+    const statsEl = document.getElementById('tier3-effect-stats');
+    statsEl.innerHTML = `
+      <table>
+        <thead><tr><th>유전자형</th><th>n</th><th>평균</th><th>SD</th><th>SE</th></tr></thead>
+        <tbody>
+          ${groups.map(k => `
+            <tr>
+              <td>${labels[k]}</td>
+              <td>${eff[k].n}</td>
+              <td>${eff[k].mean !== null ? eff[k].mean.toFixed(3) : '—'}</td>
+              <td>${eff[k].std !== null ? eff[k].std.toFixed(3) : '—'}</td>
+              <td>${eff[k].se !== null ? eff[k].se.toFixed(3) : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
+        가산효과 a = (BB − AA)/2 = <strong>${eff.additive_a !== null ? eff.additive_a.toFixed(3) : '—'}</strong>
+        ${eff.dominance_d !== null ? `&nbsp;&nbsp;|&nbsp;&nbsp;우성효과 d = AB − (AA+BB)/2 = <strong>${eff.dominance_d.toFixed(3)}</strong>` : ''}
+        ${eff.shapiro_p !== undefined ? `&nbsp;&nbsp;|&nbsp;&nbsp;Shapiro-Wilk p = ${eff.shapiro_p.toFixed(4)} (${eff.shapiro_normal ? '정규' : '비정규'})` : ''}
+      </div>
+    `;
+  } catch (e) {
+    log('Effect plot 렌더 실패: ' + e.message, 'err');
+    console.error(e);
+  }
 }
 
 function renderTier3OverlayPlot(result) {
