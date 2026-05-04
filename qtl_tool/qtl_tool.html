@@ -1430,7 +1430,73 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 </div>
-<div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-workflow">
+  <div class="card">
+    <div class="card-title">워크플로 연결 — 후속 작업으로 직접 export</div>
+    <div class="card-subtitle">검출 QTL을 KASP 마커 설계, F2:3 검정교배 가이드, 외부 DB 검색, 솜여님 v4.17 벼 육종 시스템 등으로 연결합니다.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">LOD threshold</label>
+        <input type="number" id="wf-threshold" class="opt-input" value="2.5" min="1" step="0.1">
+        <span class="opt-hint">Tab 2 perm 결과 자동 사용</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">KASP flank (kb)</label>
+        <input type="number" id="wf-flank" class="opt-input" value="100" min="10" step="10">
+        <span class="opt-hint">CI 양 끝 ±N kb</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">F2:3 권장 라인 수</label>
+        <input type="number" id="wf-n-lines" class="opt-input" value="200" min="50" step="10">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">F2:3 반복 수</label>
+        <input type="number" id="wf-n-rep" class="opt-input" value="3" min="1" step="1">
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runWorkflowExport()" id="btn-wf-run">
+        <span id="wf-btn-icon">▶</span> 워크플로 자료 생성
+      </button>
+      <div id="wf-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="wf-results" style="display:none">
+    <!-- KASP -->
+    <div class="card">
+      <div class="card-title">KASP 마커 설계 좌표</div>
+      <div class="card-subtitle">각 QTL의 CI 양 끝 ±flank_kb 영역을 KASP 설계용으로 export합니다. solmyung님 KASP 도구에 직접 입력 가능.</div>
+      <button class="btn btn-secondary" onclick="downloadKASPExcel()" style="margin-bottom:10px">KASP 좌표 Excel 다운로드</button>
+      <div id="wf-kasp-table"></div>
+    </div>
+
+    <!-- F2:3 가이드 -->
+    <div class="card">
+      <div class="card-title">F2:3 검정교배 가이드</div>
+      <div id="wf-f23-summary" style="margin-bottom:14px"></div>
+      <div id="wf-f23-priority"></div>
+      <div id="wf-f23-steps" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 외부 링크 -->
+    <div class="card">
+      <div class="card-title">RAP-DB / Gramene 후보유전자 검색</div>
+      <div class="card-subtitle">검출 QTL 영역의 외부 DB 검색 링크. 클릭으로 해당 영역 후보유전자 직접 조회.</div>
+      <div id="wf-external-table"></div>
+    </div>
+
+    <!-- v4.17 -->
+    <div class="card">
+      <div class="card-title">솜여님 벼 육종 시스템 v4.17 호환 JSON</div>
+      <div class="card-subtitle">v4.17 시스템에 직접 import 가능한 표준 형식 JSON.</div>
+      <button class="btn btn-secondary" onclick="downloadV417JSON()" style="margin-bottom:10px">v4.17 JSON 다운로드</button>
+      <pre id="wf-v417-preview" style="background:var(--bg-input);padding:12px;border-radius:5px;font-family:var(--font-mono);font-size:11px;overflow-x:auto;max-height:300px;color:var(--accent-3);border:1px solid var(--border-color)"></pre>
+    </div>
+  </div>
+</div>
 
 </div>
 
@@ -4839,6 +4905,228 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// 워크플로 연결 (단계 H)
+// ============================================================
+async function runWorkflowExport() {
+  if (!pyodide) { log('Pyodide 준비 안 됨', 'warn'); return; }
+
+  const peaks = collectAllPeaks();
+  const totalCount = Object.values(peaks).reduce((s, arr) => s + arr.length, 0);
+  if (totalCount === 0) {
+    log('검출 QTL이 없습니다. Tab 2/3/4에서 분석을 먼저 실행해주세요.', 'warn');
+    document.getElementById('wf-status').textContent = '검출 QTL 0개';
+    return;
+  }
+
+  const btn = document.getElementById('btn-wf-run');
+  const icon = document.getElementById('wf-btn-icon');
+  const status = document.getElementById('wf-status');
+
+  // Tab 2 perm 결과가 있으면 threshold 자동 사용
+  if (appData.tier2 && appData.tier2.threshold_used) {
+    document.getElementById('wf-threshold').value = appData.tier2.threshold_used.toFixed(2);
+  }
+
+  const params = {
+    threshold: parseFloat(document.getElementById('wf-threshold').value),
+    flank: parseInt(document.getElementById('wf-flank').value),
+    n_lines: parseInt(document.getElementById('wf-n-lines').value),
+    n_rep: parseInt(document.getElementById('wf-n-rep').value)
+  };
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = '워크플로 자료 생성 중...';
+
+  try {
+    pyodide.globals.set('_peaks_wf', pyodide.toPy(peaks));
+    pyodide.globals.set('_map_wf', appData.map ? pyodide.toPy(appData.map.data) : null);
+    pyodide.globals.set('_thr_wf', params.threshold);
+    pyodide.globals.set('_flk', params.flank);
+    pyodide.globals.set('_nL', params.n_lines);
+    pyodide.globals.set('_nR', params.n_rep);
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_workflow_export(dict(_peaks_wf), map_json=_map_wf, threshold=_thr_wf, flank_kb=_flk, n_lines_target=_nL, n_replicates=_nR)`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`워크플로 export 완료 (${((t1-t0)/1000).toFixed(1)}s) — KASP ${result.kasp_targets.length}개, 외부 링크 ${result.external_links.length}개`, 'ok');
+    appData.workflow = result;
+    renderWorkflowResults(result);
+    status.textContent = `완료 — ${result.n_unique_peaks}개 unique QTL`;
+  } catch (e) {
+    log('워크플로 export 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderWorkflowResults(result) {
+  document.getElementById('wf-results').style.display = 'block';
+
+  // KASP 표
+  const kaspEl = document.getElementById('wf-kasp-table');
+  if (!result.kasp_targets.length) {
+    kaspEl.innerHTML = '<div class="empty"><div class="empty-hint">검출 QTL 없음</div></div>';
+  } else {
+    kaspEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>#</th><th>QTL ID</th><th>Chr</th>
+          <th>Peak (cM/bp)</th><th>CI (cM)</th><th>CI (bp)</th>
+          <th>KASP 영역</th><th>크기</th><th>LOD</th>
+        </tr></thead>
+        <tbody>
+          ${result.kasp_targets.map(k => `
+            <tr>
+              <td>${k.order}</td>
+              <td><strong>${k.qtl_id}</strong></td>
+              <td>${k.chr}</td>
+              <td>${k.peak_cM.toFixed(1)} / ${k.peak_bp_Mb} Mb</td>
+              <td>${k.ci_lower_cM.toFixed(1)}~${k.ci_upper_cM.toFixed(1)}</td>
+              <td>${(k.ci_lower_bp/1e6).toFixed(2)}~${(k.ci_upper_bp/1e6).toFixed(2)} Mb</td>
+              <td><code>${k.KASP_target_locus}</code></td>
+              <td>${k.region_size_Mb} Mb</td>
+              <td>${k.LOD.toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        IRGSP-1.0 좌표. cM→bp는 사용자 map의 마커 cM/bp 선형 보간.
+      </div>
+    `;
+  }
+
+  // F2:3 가이드
+  const guide = result.f23_validation_guide;
+  if (guide && !guide.error) {
+    document.getElementById('wf-f23-summary').innerHTML = `
+      <div class="diagnostic-grid">
+        <div class="diag-card success">
+          <div class="diag-card-title">검출 QTL 수</div>
+          <div class="diag-card-value">${guide.n_qtls}</div>
+          <div class="diag-card-detail">Top LOD = ${guide.top_LOD.toFixed(2)}</div>
+        </div>
+        <div class="diag-card success">
+          <div class="diag-card-title">권장 F2:3 라인 수</div>
+          <div class="diag-card-value">${guide.recommended_F23_lines}</div>
+          <div class="diag-card-detail">${guide.recommended_replicates}반복 RCBD</div>
+        </div>
+      </div>
+    `;
+    document.getElementById('wf-f23-priority').innerHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:8px 0">QTL별 우선순위</h3>
+      <table>
+        <thead><tr><th>QTL</th><th>Chr</th><th>cM</th><th>LOD</th><th>가산효과</th><th>우선순위</th><th>권장</th></tr></thead>
+        <tbody>
+          ${guide.qtl_priorities.map(q => {
+            const badgeClass = q.priority === 'HIGH' ? 'success' : q.priority === 'MEDIUM' ? 'info' : 'warning';
+            return `
+              <tr>
+                <td><strong>${q.qtl_id}</strong></td>
+                <td>${q.chr}</td>
+                <td>${q.cM.toFixed(1)}</td>
+                <td>${q.LOD.toFixed(2)}</td>
+                <td>${q.add_a !== null ? q.add_a.toFixed(2) : '—'}</td>
+                <td><span class="badge badge-${badgeClass}">${q.priority}</span></td>
+                <td>${q.recommendation}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    document.getElementById('wf-f23-steps').innerHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:14px 0 8px">실험 단계</h3>
+      ${guide.steps.map(s => `
+        <div style="background:var(--bg-input);border-left:3px solid var(--accent-5);padding:12px 14px;margin:6px 0;border-radius:4px;font-size:12px">
+          <strong style="color:var(--accent-3)">Step ${s.step} — ${s.title}</strong><br>
+          <span style="color:var(--text-secondary);line-height:1.6">${s.detail}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  // 외부 링크
+  const extEl = document.getElementById('wf-external-table');
+  if (result.external_links.length === 0) {
+    extEl.innerHTML = '<div class="empty"><div class="empty-hint">검출 QTL 없음</div></div>';
+  } else {
+    extEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>QTL</th><th>Chr</th><th>cM</th><th>bp 영역</th>
+          <th>RAP-DB</th><th>Gramene</th><th>RiceXPro</th><th>SNPSeek</th>
+        </tr></thead>
+        <tbody>
+          ${result.external_links.map(e => `
+            <tr>
+              <td><strong>${e.qtl_id}</strong></td>
+              <td>${e.chr}</td>
+              <td>${e.peak_cM.toFixed(1)}</td>
+              <td>${(e.ci_lower_bp/1e6).toFixed(2)}~${(e.ci_upper_bp/1e6).toFixed(2)} Mb</td>
+              <td><a href="${e.links.RAP_DB}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.Gramene}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.RiceXPro}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.SNPSeek}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // v4.17 JSON preview
+  const v417Pretty = JSON.stringify(JSON.parse(result.v417_export_json), null, 2);
+  document.getElementById('wf-v417-preview').textContent = v417Pretty;
+
+  document.getElementById('wf-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function downloadKASPExcel() {
+  if (!appData.workflow) { log('워크플로 자료를 먼저 생성하세요', 'warn'); return; }
+  const wb = XLSX.utils.book_new();
+  const rows = [
+    ['order', 'qtl_id', 'chr', 'peak_cM', 'peak_bp', 'peak_bp_Mb',
+     'CI_lower_cM', 'CI_upper_cM', 'CI_lower_bp', 'CI_upper_bp',
+     'flank_lower_bp', 'flank_upper_bp', 'region_size_Mb', 'LOD',
+     'add_a', 'KASP_target_locus', 'IRGSP_assembly']
+  ];
+  appData.workflow.kasp_targets.forEach(k => {
+    rows.push([
+      k.order, k.qtl_id, k.chr, k.peak_cM, k.peak_bp, k.peak_bp_Mb,
+      k.ci_lower_cM, k.ci_upper_cM, k.ci_lower_bp, k.ci_upper_bp,
+      k.flank_lower_bp, k.flank_upper_bp, k.region_size_Mb, k.LOD,
+      k.add_a !== null && k.add_a !== undefined ? k.add_a : '',
+      k.KASP_target_locus, k.IRGSP_assembly
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'KASP_targets');
+  const ts = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `KASP_targets_${ts}.xlsx`);
+  log(`KASP 좌표 Excel 저장: KASP_targets_${ts}.xlsx`, 'ok');
+}
+
+function downloadV417JSON() {
+  if (!appData.workflow) { log('워크플로 자료를 먼저 생성하세요', 'warn'); return; }
+  const blob = new Blob([appData.workflow.v417_export_json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `QTL_v417_export_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`v4.17 JSON 저장: QTL_v417_export_${ts}.json`, 'ok');
 }
 
 // ============================================================
