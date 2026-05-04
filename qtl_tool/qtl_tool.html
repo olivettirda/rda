@@ -1299,7 +1299,40 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 </div>
-<div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-result">
+  <div class="card">
+    <div class="card-title">결과 통합 — 모든 분석 결합 + Q-TARO 비교</div>
+    <div class="card-subtitle">Tab 2(Tier 1-2), Tab 3(Tier 3), Tab 4(Tier 4)에서 검출된 모든 QTL을 통합하여 Q-TARO 알려진 QTL과 비교, 자동 해석 텍스트를 생성합니다.</div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <button class="btn" onclick="runIntegration()" id="btn-integrate">
+        <span id="integrate-btn-icon">▶</span> 결과 통합 실행
+      </button>
+      <button class="btn btn-secondary" onclick="exportToExcel()" id="btn-export-xlsx" disabled>
+        Excel 보고서 다운로드
+      </button>
+      <button class="btn btn-secondary" onclick="exportToHTMLReport()" id="btn-export-html" disabled>
+        HTML 리포트 다운로드
+      </button>
+      <div id="integrate-status" style="margin-left:auto;font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="integrate-results" style="display:none">
+    <div class="card">
+      <div class="card-title">통합 QTL locus (메소드 교차 검증)</div>
+      <div id="integrate-locus-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">자동 해석 (각 locus별 상세)</div>
+      <div id="integrate-summary-text"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Q-TARO 비교 표 (전체)</div>
+      <div id="integrate-qtaro-table"></div>
+    </div>
+  </div>
+</div>
 <div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
 
 </div>
@@ -4039,6 +4072,189 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// 결과 통합 (단계 F)
+// ============================================================
+function collectAllPeaks() {
+  // Tab 2/3/4의 검출 QTL을 메소드별로 수집
+  const result = {};
+  if (appData.tier2 && appData.tier2.peaks) {
+    result['IM'] = appData.tier2.peaks.map(p => Object.assign({}, p));
+  }
+  if (appData.tier3) {
+    if (appData.tier3.cim_peaks) result['CIM'] = appData.tier3.cim_peaks.map(p => Object.assign({}, p));
+    if (appData.tier3.icim_peaks) result['ICIM-ADD'] = appData.tier3.icim_peaks.map(p => Object.assign({}, p));
+    if (appData.tier3.mqm && appData.tier3.mqm.qtls) {
+      result['Multi-QTL'] = appData.tier3.mqm.qtls.map(q => ({
+        chr: q.chr, cM: q.cM, LOD: q.LOD,
+        add_a: q.add_a, dom_d: q.dom_d, marginal_PVE: q.marginal_PVE
+      }));
+    }
+  }
+  if (appData.tier4_qei) {
+    if (appData.tier4_qei.main_effect_peaks) {
+      result['QxE main'] = appData.tier4_qei.main_effect_peaks.map(p => ({
+        chr: p.chr, cM: p.cM, LOD: p.avg_LOD, add_a: null
+      }));
+    }
+  }
+  return result;
+}
+
+async function runIntegration() {
+  if (!pyodide) {
+    log('Pyodide 준비 안 됨', 'warn');
+    return;
+  }
+  const allPeaks = collectAllPeaks();
+  const totalCount = Object.values(allPeaks).reduce((s, arr) => s + arr.length, 0);
+  if (totalCount === 0) {
+    log('검출 QTL이 없습니다. Tab 2/3/4에서 분석을 먼저 실행해주세요.', 'warn');
+    document.getElementById('integrate-status').textContent = '검출 QTL 0개 — 분석 먼저 실행';
+    return;
+  }
+
+  const btn = document.getElementById('btn-integrate');
+  const icon = document.getElementById('integrate-btn-icon');
+  const status = document.getElementById('integrate-status');
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = `${Object.keys(allPeaks).length}개 메소드, ${totalCount}개 QTL 통합 중...`;
+
+  try {
+    pyodide.globals.set('_peaks_dict', pyodide.toPy(allPeaks));
+    pyodide.globals.set('_n_indiv', appData.diagnosis ? appData.diagnosis.markers.n_indiv : 200);
+    pyodide.globals.set('_thr', appData.tier2 ? appData.tier2.threshold_used : 2.5);
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+    const t0 = performance.now();
+    const resStr = pyodide.runPython('run_integration_analysis(dict(_peaks_dict), n_indiv=_n_indiv, threshold=_thr)');
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`결과 통합 완료 (${((t1-t0)/1000).toFixed(1)}s) — ${result.integrated_summary.length}개 통합 locus`, 'ok');
+    appData.integration = result;
+    renderIntegrationResults(result);
+    document.getElementById('btn-export-xlsx').disabled = false;
+    document.getElementById('btn-export-html').disabled = false;
+    status.textContent = `완료: ${result.integrated_summary.length}개 통합 locus`;
+  } catch (e) {
+    log('통합 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderIntegrationResults(result) {
+  document.getElementById('integrate-results').style.display = 'block';
+
+  // 통합 locus 표
+  const tableEl = document.getElementById('integrate-locus-table');
+  if (!result.integrated_summary.length) {
+    tableEl.innerHTML = `<div class="empty"><div class="empty-hint">통합 locus 없음</div></div>`;
+  } else {
+    tableEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>#</th><th>Chr</th><th>cM</th><th>max LOD</th><th>가산효과 a</th>
+          <th>검출 메소드</th><th>인접 알려진 QTL</th><th>거리</th><th>Novel?</th>
+        </tr></thead>
+        <tbody>
+          ${result.integrated_summary.map((iL, i) => {
+            const comp = iL.comparison;
+            const m = comp && comp.matches && comp.matches.length ? comp.matches[0] : null;
+            return `
+              <tr>
+                <td>${i+1}</td>
+                <td>${iL.chr}</td>
+                <td>${iL.cM.toFixed(1)}</td>
+                <td><strong style="color:var(--accent-3)">${iL.max_LOD.toFixed(2)}</strong></td>
+                <td>${iL.avg_add_a.toFixed(2)}</td>
+                <td>${iL.methods_detected.map(m => `<span class="badge badge-info">${m}</span>`).join(' ')}</td>
+                <td>${m ? `<strong>${m.known_name}</strong> <span style="font-size:10px;color:var(--text-muted)">(${m.known_trait})</span>` : '—'}</td>
+                <td>${m ? m.distance_cM.toFixed(1) + ' cM' : '—'}</td>
+                <td>${comp && comp.novel ? '<span class="badge badge-warning">Novel</span>' : '<span class="badge badge-success">알려짐</span>'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      ${result.beavis_warning ? `<div class="param-warning" style="margin-top:14px"><div class="title">⚠ Beavis effect</div><div class="detail">N < 500이므로 PVE가 부풀려져 보고될 수 있습니다 (Beavis 1998 / Xu 2003).</div></div>` : ''}
+    `;
+  }
+
+  // 자동 해석
+  const summaryEl = document.getElementById('integrate-summary-text');
+  let summaryHTML = '';
+  for (const [method, entries] of Object.entries(result.methods)) {
+    if (!entries.length) continue;
+    summaryHTML += `<h3 style="font-family:var(--font-medium);font-size:14px;color:var(--accent-3);margin:14px 0 8px">[${method}]</h3>`;
+    entries.forEach(e => {
+      const formatted = e.summary_text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      summaryHTML += `<div style="background:var(--bg-input);padding:14px;border-left:3px solid var(--primary-main);border-radius:5px;margin:8px 0;font-size:12px;line-height:1.7">${formatted}</div>`;
+    });
+  }
+  summaryEl.innerHTML = summaryHTML;
+
+  // Q-TARO 전체 비교 표
+  const qtaroEl = document.getElementById('integrate-qtaro-table');
+  let qtaroRows = [];
+  for (const [method, entries] of Object.entries(result.methods)) {
+    entries.forEach(e => {
+      const pk = e.peak;
+      const comp = e.comparison;
+      if (!comp) return;
+      qtaroRows.push({method, peak: pk, comp});
+    });
+  }
+  if (qtaroRows.length === 0) {
+    qtaroEl.innerHTML = `<div class="empty"><div class="empty-hint">통합 데이터 없음</div></div>`;
+  } else {
+    qtaroEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>메소드</th><th>Chr</th><th>cM</th><th>LOD</th>
+          <th>매칭 1</th><th>거리</th><th>매칭 2</th><th>거리</th>
+        </tr></thead>
+        <tbody>
+          ${qtaroRows.map(r => {
+            const m1 = r.comp.matches && r.comp.matches[0];
+            const m2 = r.comp.matches && r.comp.matches[1];
+            return `
+              <tr>
+                <td>${r.method}</td>
+                <td>${r.peak.chr}</td>
+                <td>${r.peak.cM.toFixed(1)}</td>
+                <td>${r.peak.LOD.toFixed(2)}</td>
+                <td>${m1 ? `<strong>${m1.known_name}</strong> <code style="font-size:10px;color:var(--text-muted)">${m1.known_trait}</code>` : '<span style="color:var(--warning)">novel</span>'}</td>
+                <td>${m1 ? m1.distance_cM.toFixed(1)+'cM' : '—'}</td>
+                <td>${m2 ? `${m2.known_name}` : '—'}</td>
+                <td>${m2 ? m2.distance_cM.toFixed(1)+'cM' : '—'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  document.getElementById('integrate-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// 조각 F-4/F-5에서 채워질 export 함수 placeholder
+async function exportToExcel() {
+  log('Excel export 준비 중... (조각 F-4)', 'info');
+}
+async function exportToHTMLReport() {
+  log('HTML 리포트 export 준비 중... (조각 F-5)', 'info');
 }
 
 // ============================================================
