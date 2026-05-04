@@ -4382,6 +4382,178 @@ async function exportToExcel() {
 }
 
 // ============================================================
+// HTML 리포트 export (조각 F-5)
+// ============================================================
+async function exportToHTMLReport() {
+  if (!appData.integration) {
+    log('통합 분석을 먼저 실행하세요', 'warn');
+    return;
+  }
+  const integ = appData.integration;
+  const diag = appData.diagnosis;
+  const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+  // 차트들을 SVG로 추출
+  const chartIds = [
+    {id: 'tier2-lod-plot', title: 'Tier 1-2: LOD 곡선 + Permutation threshold'},
+    {id: 'tier3-overlay-plot', title: 'Tier 3: IM/CIM/ICIM-ADD 비교'},
+    {id: 'tier3-genome-map', title: 'Genome-wide QTL map'},
+    {id: 'tier4-epi-heatmap', title: 'Tier 4: Epistasis 2D map'},
+    {id: 'tier4-qei-plot', title: 'Tier 4: QTL × Environment'}
+  ];
+  const chartSVGs = {};
+  for (const c of chartIds) {
+    const el = document.getElementById(c.id);
+    if (el && el.data) {
+      try {
+        chartSVGs[c.id] = {
+          title: c.title,
+          svg: await Plotly.toImage(el, {format: 'svg', width: 1200, height: 600})
+        };
+      } catch (e) {
+        log(`차트 SVG 생성 실패 (${c.id}): ${e.message}`, 'warn');
+      }
+    }
+  }
+
+  const locusTable = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Chr</th><th>cM</th><th>max LOD</th><th>가산효과 a</th>
+        <th>검출 메소드</th><th>인접 알려진 QTL</th><th>거리</th><th>Novel?</th>
+      </tr></thead>
+      <tbody>
+        ${integ.integrated_summary.map((iL, i) => {
+          const m = iL.comparison && iL.comparison.matches && iL.comparison.matches.length
+            ? iL.comparison.matches[0] : null;
+          return `
+            <tr>
+              <td>${i+1}</td><td>${iL.chr}</td><td>${iL.cM.toFixed(1)}</td>
+              <td><strong>${iL.max_LOD.toFixed(2)}</strong></td>
+              <td>${iL.avg_add_a.toFixed(2)}</td>
+              <td>${iL.methods_detected.join(', ')}</td>
+              <td>${m ? `<strong>${m.known_name}</strong> <span class="muted">(${m.known_trait})</span>` : '—'}</td>
+              <td>${m ? m.distance_cM.toFixed(1) + ' cM' : '—'}</td>
+              <td>${iL.comparison && iL.comparison.novel ? '<span class="badge novel">Novel</span>' : '<span class="badge known">알려짐</span>'}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  let summarySection = '';
+  for (const [method, entries] of Object.entries(integ.methods)) {
+    if (!entries.length) continue;
+    summarySection += `<h3>${method}</h3>`;
+    entries.forEach(e => {
+      const formatted = e.summary_text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      summarySection += `<div class="locus-summary">${formatted}</div>`;
+    });
+  }
+
+  let diagSection = '';
+  if (diag) {
+    diagSection = `
+      <table>
+        <tr><th>집단 유형</th><td>${diag.population.type} (신뢰도 ${(diag.population.confidence*100).toFixed(0)}%)</td></tr>
+        <tr><th>마커 수 / 개체 수</th><td>${diag.markers.n_markers} / ${diag.markers.n_indiv}</td></tr>
+        <tr><th>평균 결측률</th><td>${(diag.markers.avg_missing * 100).toFixed(2)}%</td></tr>
+        <tr><th>형질</th><td>${diag.phenotype.trait_names.join(', ')}</td></tr>
+        <tr><th>다환경</th><td>${diag.phenotype.multi_env ? 'YES' : 'NO'}</td></tr>
+      </table>
+    `;
+  }
+
+  let chartSection = '';
+  for (const c of chartIds) {
+    if (chartSVGs[c.id]) {
+      chartSection += `
+        <div class="chart-block">
+          <h3>${c.title}</h3>
+          <img src="${chartSVGs[c.id].svg}" style="width:100%;max-width:1200px">
+        </div>
+      `;
+    }
+  }
+
+  const reportHTML = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>QTL Mapping 보고서 — ${ts}</title>
+<style>
+  body { font-family: 'Noto Sans KR', '맑은 고딕', sans-serif; max-width: 1240px;
+         margin: 30px auto; padding: 30px; color: #1a1a1a; line-height: 1.6;
+         background: #fafbfa; }
+  h1 { background: linear-gradient(135deg, #00a1b8, #0c3026);
+       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+       background-clip: text; font-size: 26px; margin-bottom: 6px; }
+  h2 { color: #017f97; border-bottom: 2px solid #017f97; padding-bottom: 4px;
+       margin-top: 32px; font-size: 18px; }
+  h3 { color: #0c3026; font-size: 15px; margin-top: 18px; }
+  .meta { color: #5a6a62; font-size: 13px; margin-bottom: 20px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+  th { background: #cce3dd; padding: 8px 12px; text-align: left; border: 1px solid #b2d9d8; }
+  td { padding: 7px 12px; border: 1px solid #d0d8d4; }
+  tr:nth-child(even) td { background: #f5f9f7; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
+           font-size: 11px; font-weight: 600; }
+  .badge.novel { background: #fef3c7; color: #d97706; border: 1px solid #d97706; }
+  .badge.known { background: #d1fae5; color: #047857; }
+  .locus-summary { background: #f0f9f7; border-left: 3px solid #017f97;
+                   padding: 12px 16px; margin: 8px 0; border-radius: 4px;
+                   font-size: 13px; line-height: 1.7; }
+  .chart-block { margin: 24px 0; padding: 16px; background: white;
+                 border: 1px solid #d0d8d4; border-radius: 6px; }
+  .warning { background: #fef3c7; border-left: 3px solid #d97706;
+             padding: 12px 16px; margin: 14px 0; border-radius: 4px; }
+  .muted { color: #5a6a62; font-size: 11px; }
+  .footer { margin-top: 50px; padding: 20px; border-top: 1px solid #d0d8d4;
+            color: #5a6a62; font-size: 11px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>QTL Mapping 분석 보고서</h1>
+  <div class="meta">생성: ${ts} · QTL Mapping Tool v1.0 · 농촌진흥청 국립식량과학원</div>
+
+  <h2>1. 데이터 진단</h2>
+  ${diagSection}
+
+  <h2>2. 통합 QTL Locus (메소드 cross 검증)</h2>
+  ${locusTable}
+  ${integ.beavis_warning ? '<div class="warning"><strong>⚠ Beavis effect</strong>: N &lt; 500이므로 PVE가 부풀려져 보고될 수 있습니다 (Beavis 1998).</div>' : ''}
+
+  <h2>3. 자동 해석</h2>
+  ${summarySection}
+
+  <h2>4. 시각화</h2>
+  ${chartSection || '<p class="muted">차트 데이터 없음 (분석을 먼저 실행하세요)</p>'}
+
+  <h2>5. 알려진 QTL 데이터베이스 (Q-TARO subset)</h2>
+  <p class="muted">본 보고서의 알려진 QTL 매칭은 IRGSP-1.0 좌표 기준 51개 핵심 벼 QTL/유전자 subset과 비교한 결과입니다. 정확한 후보 유전자 발굴은 RAP-DB / Gramene / funRiceGenes 데이터베이스 추가 검색을 권장합니다.</p>
+
+  <div class="footer">
+    QTL Mapping Tool v1.0 · 농촌진흥청 국립식량과학원<br>
+    참고문헌: Lander&amp;Botstein 1989 · Churchill&amp;Doerge 1994 · Zeng 1994 · Wang 2009 · Manichaikul 2009 · Li 2008 · Li, Wang, Zhang 2015
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([reportHTML], {type: 'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const tsFile = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `QTL_report_${tsFile}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`HTML 리포트 저장: QTL_report_${tsFile}.html (차트 ${Object.keys(chartSVGs).length}종 포함)`, 'ok');
+}
+
+// ============================================================
 // Tier 4 분석 wiring (단계 E)
 // ============================================================
 function populateTier4Options() {
