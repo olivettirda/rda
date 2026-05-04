@@ -2193,6 +2193,236 @@ def composite_interval_mapping(geno_df, map_df, pheno_df, trait_name=None,
         'F_out': float(F_out),
         'lod_curve': lod_curve
     }
+
+# ============== Tier 3: ICIM-ADD (Wang 2009) ==============
+def _stepwise_pvalue_selection(geno_num_T, pheno, PIN=0.001, POUT=0.002, max_iter=500):
+    """
+    P-value 기반 stepwise selection (Wang 2009 ICIM Stage 1).
+    PIN보다 작은 p-value 마커 진입, POUT보다 큰 p-value 마커 제거.
+    """
+    n_indiv, n_markers = geno_num_T.shape
+    selected = []
+    pheno_valid = ~np.isnan(pheno)
+    iters = 0
+
+    while iters < max_iter:
+        iters += 1
+        # Forward: 가장 작은 p-value 마커
+        best_p = 1.0
+        best_idx = -1
+        for j in range(n_markers):
+            if j in selected:
+                continue
+            cols = selected + [j]
+            X_full = geno_num_T[:, cols]
+            mask = pheno_valid & ~np.any(np.isnan(X_full), axis=1)
+            if mask.sum() < 10:
+                continue
+            X = X_full[mask]
+            y = pheno[mask]
+            try:
+                A_full = np.column_stack([np.ones(len(y)), X])
+                if len(selected) == 0:
+                    A_red = np.ones((len(y), 1))
+                else:
+                    A_red = np.column_stack([np.ones(len(y)), X[:, :-1]])
+                coef_f, _, _, _ = np.linalg.lstsq(A_full, y, rcond=None)
+                coef_r, _, _, _ = np.linalg.lstsq(A_red, y, rcond=None)
+                rss_f = float(np.sum((y - A_full @ coef_f) ** 2))
+                rss_r = float(np.sum((y - A_red @ coef_r) ** 2))
+                df2 = len(y) - len(cols) - 1
+                if df2 <= 1 or rss_f <= 0:
+                    continue
+                F = (rss_r - rss_f) / (rss_f / df2)
+                p = 1.0 - stats.f.cdf(F, 1, df2)
+                if p < best_p:
+                    best_p = p
+                    best_idx = j
+            except Exception:
+                continue
+
+        if best_idx < 0 or best_p > PIN:
+            break
+        selected.append(best_idx)
+
+        # Backward
+        if len(selected) >= 2:
+            removed = True
+            while removed:
+                removed = False
+                for j in list(selected):
+                    others = [s for s in selected if s != j]
+                    X_full = geno_num_T[:, selected]
+                    X_red = geno_num_T[:, others]
+                    mask = pheno_valid & ~np.any(np.isnan(X_full), axis=1)
+                    if mask.sum() < 10:
+                        continue
+                    y = pheno[mask]
+                    A_full = np.column_stack([np.ones(len(y)), X_full[mask]])
+                    A_red_m = np.column_stack([np.ones(len(y)), X_red[mask]])
+                    coef_f, _, _, _ = np.linalg.lstsq(A_full, y, rcond=None)
+                    coef_r, _, _, _ = np.linalg.lstsq(A_red_m, y, rcond=None)
+                    rss_f = float(np.sum((y - A_full @ coef_f) ** 2))
+                    rss_r = float(np.sum((y - A_red_m @ coef_r) ** 2))
+                    df2 = len(y) - len(selected) - 1
+                    if df2 <= 1 or rss_f <= 0:
+                        continue
+                    F = (rss_r - rss_f) / (rss_f / df2)
+                    p = 1.0 - stats.f.cdf(F, 1, df2)
+                    if p > POUT:
+                        selected.remove(j)
+                        removed = True
+                        break
+    return selected
+
+def icim_add(geno_df, map_df, pheno_df, trait_name=None, step=1.0,
+             PIN=0.001, POUT=0.002, exclude_window_cM=1.0,
+             pop_type='F2', map_function='kosambi'):
+    """
+    Wang 2009 / Li, Ye, Wang 2007 ICIM-ADD.
+
+    Stage 1: P-value stepwise (PIN/POUT)으로 background marker 선택
+    Stage 2: 각 walking 위치에서 ±exclude_window_cM 내 background 제외
+    Stage 3: 나머지 background를 covariate로 회귀, putative QTL 추가 검정
+
+    참고: 정확한 IciMapping 알고리즘은 background 효과를 표현형에서 미리 빼는
+    Hadamard 변환을 사용합니다. 본 구현은 매 위치에서 회귀에 background를
+    포함하는 형태(통계적으로 동등)이며, 후속에서 정밀화 가능.
+    """
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+    n_indiv = len(pheno)
+
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+    map_idx, _, _ = _build_marker_index(geno_df, map_df)
+    marker_chr = np.array([map_idx.get(str(m), (None, np.nan))[0] for m in marker_names])
+    marker_cm = np.array([map_idx.get(str(m), (None, np.nan))[1] for m in marker_names])
+
+    geno_num = np.full(geno.shape, np.nan)
+    geno_num[geno == 'A'] = 0.0
+    geno_num[geno == 'H'] = 1.0
+    geno_num[geno == 'B'] = 2.0
+    geno_num_T = geno_num.T
+
+    is_inbred = ('RIL' in pop_type) or ('DH' in pop_type)
+
+    # Stage 1: P-value stepwise
+    background_idx = _stepwise_pvalue_selection(geno_num_T, pheno, PIN=PIN, POUT=POUT)
+    background_info = []
+    for bi in background_idx:
+        background_info.append({
+            'marker': str(marker_names[bi]),
+            'chr': str(marker_chr[bi]) if marker_chr[bi] is not None else None,
+            'cM': float(marker_cm[bi]) if not np.isnan(marker_cm[bi]) else None,
+            'index': int(bi)
+        })
+
+    # Stage 2-3: Walking
+    lod_curve = []
+    chrs_unique = sorted([c for c in set(marker_chr) if c is not None and not pd.isnull(c)],
+                         key=lambda x: int(x) if str(x).isdigit() else 99)
+
+    for ch in chrs_unique:
+        chr_mask = (marker_chr == ch)
+        if chr_mask.sum() < 2:
+            continue
+        idx_arr = np.where(chr_mask)[0]
+        order = np.argsort(marker_cm[idx_arr])
+        idx_arr = idx_arr[order]
+        cms_chr = marker_cm[idx_arr]
+        positions = np.arange(cms_chr[0], cms_chr[-1] + step / 2, step)
+
+        for pos in positions:
+            left_local = max(0, np.searchsorted(cms_chr, pos, side='right') - 1)
+            right_local = min(len(cms_chr) - 1, left_local + 1)
+            i_l = idx_arr[left_local]
+            i_r = idx_arr[right_local]
+            d1 = abs(pos - cms_chr[left_local])
+            d2 = abs(cms_chr[right_local] - pos)
+
+            X = np.full(n_indiv, np.nan)
+            Z = np.full(n_indiv, np.nan)
+            for j in range(n_indiv):
+                lg = geno_num[i_l, j]
+                rg = geno_num[i_r, j]
+                if not np.isnan(lg) and not np.isnan(rg):
+                    total_d = d1 + d2
+                    wg = lg if total_d == 0 else (lg * d2 + rg * d1) / total_d
+                    X[j] = wg - 1.0
+                    Z[j] = 1.0 if abs(wg - 1.0) < 0.5 else 0.0
+                elif not np.isnan(lg):
+                    X[j] = lg - 1.0
+                    Z[j] = 1.0 if lg == 1.0 else 0.0
+                elif not np.isnan(rg):
+                    X[j] = rg - 1.0
+                    Z[j] = 1.0 if rg == 1.0 else 0.0
+
+            # ±exclude_window_cM 내 background 제외 (좁은 윈도우, 통상 1cM)
+            active = []
+            for bi in background_idx:
+                if str(marker_chr[bi]) == str(ch) and abs(marker_cm[bi] - pos) <= exclude_window_cM:
+                    continue
+                active.append(bi)
+            C = geno_num_T[:, active] if active else np.zeros((n_indiv, 0))
+
+            mask = ~np.isnan(X) & ~np.isnan(pheno)
+            if C.shape[1] > 0:
+                mask = mask & ~np.any(np.isnan(C), axis=1)
+            if mask.sum() < 10:
+                lod_curve.append({'chr': str(ch), 'cM': float(pos), 'LOD': 0.0,
+                                  'add_a': None, 'dom_d': None})
+                continue
+
+            ym = pheno[mask]; Xm = X[mask]; Zm = Z[mask]; Cm = C[mask]
+
+            if Cm.shape[1] > 0:
+                A_null = np.column_stack([np.ones(len(ym)), Cm])
+            else:
+                A_null = np.ones((len(ym), 1))
+            coef_n, _, _, _ = np.linalg.lstsq(A_null, ym, rcond=None)
+            rss_null = float(np.sum((ym - A_null @ coef_n) ** 2))
+
+            if is_inbred:
+                A_full = np.column_stack([A_null, Xm])
+            else:
+                A_full = np.column_stack([A_null, Xm, Zm])
+
+            try:
+                coef, _, _, _ = np.linalg.lstsq(A_full, ym, rcond=None)
+                rss_full = float(np.sum((ym - A_full @ coef) ** 2))
+                if rss_full <= 0 or rss_null <= 0 or rss_full > rss_null:
+                    lod = 0.0
+                else:
+                    lod = (len(ym) / 2.0) * np.log10(rss_null / rss_full)
+                add_a = float(coef[-2 if not is_inbred else -1])
+                dom_d = float(coef[-1]) if not is_inbred else None
+            except Exception:
+                lod = 0.0; add_a = None; dom_d = None
+
+            lod_curve.append({
+                'chr': str(ch),
+                'cM': float(pos),
+                'LOD': float(max(lod, 0.0)),
+                'add_a': add_a,
+                'dom_d': dom_d
+            })
+
+    return {
+        'method': 'ICIM-ADD (Wang 2009)',
+        'trait': str(trait_name),
+        'step_cM': float(step),
+        'PIN': float(PIN),
+        'POUT': float(POUT),
+        'exclude_window_cM': float(exclude_window_cM),
+        'map_function': map_function,
+        'pop_type': pop_type,
+        'n_positions': len(lod_curve),
+        'n_background': len(background_idx),
+        'background_markers': background_info,
+        'lod_curve': lod_curve
+    }
 `;
 }
 async function handleFile(event, type) {
