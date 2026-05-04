@@ -1299,7 +1299,40 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 </div>
-<div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-result">
+  <div class="card">
+    <div class="card-title">결과 통합 — 모든 분석 결합 + Q-TARO 비교</div>
+    <div class="card-subtitle">Tab 2(Tier 1-2), Tab 3(Tier 3), Tab 4(Tier 4)에서 검출된 모든 QTL을 통합하여 Q-TARO 알려진 QTL과 비교, 자동 해석 텍스트를 생성합니다.</div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <button class="btn" onclick="runIntegration()" id="btn-integrate">
+        <span id="integrate-btn-icon">▶</span> 결과 통합 실행
+      </button>
+      <button class="btn btn-secondary" onclick="exportToExcel()" id="btn-export-xlsx" disabled>
+        Excel 보고서 다운로드
+      </button>
+      <button class="btn btn-secondary" onclick="exportToHTMLReport()" id="btn-export-html" disabled>
+        HTML 리포트 다운로드
+      </button>
+      <div id="integrate-status" style="margin-left:auto;font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="integrate-results" style="display:none">
+    <div class="card">
+      <div class="card-title">통합 QTL locus (메소드 교차 검증)</div>
+      <div id="integrate-locus-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">자동 해석 (각 locus별 상세)</div>
+      <div id="integrate-summary-text"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Q-TARO 비교 표 (전체)</div>
+      <div id="integrate-qtaro-table"></div>
+    </div>
+  </div>
+</div>
 <div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
 
 </div>
@@ -1414,6 +1447,22 @@ async function bootPyodide() {
       log('Python 측에 룰셋 등록 완료', 'ok');
     } else {
       pyodide.runPython('RULES = None')
+    }
+
+    // Q-TARO subset 로드 (단계 F)
+    try {
+      const qtaroRes = await fetch('./data/qtl_tool_qtaro_subset.json', {cache: 'no-store'});
+      if (qtaroRes.ok) {
+        appData.qtaro = await qtaroRes.json();
+        pyodide.globals.set('_QTARO_JSON', JSON.stringify(appData.qtaro));
+        pyodide.runPython('QTARO_DB = json.loads(_QTARO_JSON)');
+        log(`Q-TARO subset 로드 (${appData.qtaro.qtls.length}개 알려진 QTL)`, 'ok');
+      } else {
+        pyodide.runPython('QTARO_DB = None');
+      }
+    } catch (e) {
+      pyodide.runPython('QTARO_DB = None');
+      log('Q-TARO 로드 실패 (' + e.message + '). Tab 5 비교 기능 일부 비활성화', 'warn');
     }
     log('진단 엔진 초기화 완료', 'ok');
 
@@ -3350,6 +3399,194 @@ def qtl_environment_interaction(geno_json, map_json, pheno_json, env_traits,
         },
         'all_curves': {env: im_per_env[env]['lod_curve'] for env in envs}
     })
+
+# ============== 단계 F: Q-TARO 비교 + 자동 해석 ==============
+def compare_with_qtaro(detected_peaks, qtaro_db=None, distance_cM=10.0):
+    """
+    검출 QTL을 Q-TARO 알려진 QTL과 비교.
+    distance_cM 이내에 알려진 QTL이 있으면 매칭, 없으면 novel.
+    """
+    if qtaro_db is None:
+        try:
+            qtaro_db = QTARO_DB
+        except NameError:
+            qtaro_db = None
+    if qtaro_db is None or 'qtls' not in qtaro_db:
+        return [{'detected': p, 'matches': [], 'novel': True, 'note': 'Q-TARO DB 미로드'}
+                for p in detected_peaks]
+
+    qtaro_list = qtaro_db['qtls']
+    results = []
+    for det in detected_peaks:
+        det_chr = str(det.get('chr', ''))
+        det_cM = float(det.get('cM', 0))
+        matches = []
+        for known in qtaro_list:
+            if str(known.get('chr')) != det_chr:
+                continue
+            known_cM = float(known.get('cM_approx', -999))
+            if known_cM < 0:
+                continue
+            d = abs(known_cM - det_cM)
+            if d <= distance_cM:
+                matches.append({
+                    'known_name': known.get('name'),
+                    'known_trait': known.get('trait'),
+                    'known_cM': known_cM,
+                    'distance_cM': float(d),
+                    'effect': known.get('effect'),
+                    'ref': known.get('ref')
+                })
+        matches.sort(key=lambda x: x['distance_cM'])
+        results.append({
+            'detected': det,
+            'matches': matches[:5],
+            'novel': len(matches) == 0,
+            'closest_distance_cM': matches[0]['distance_cM'] if matches else None
+        })
+    return results
+
+def _format_distance(d):
+    if d is None: return 'N/A'
+    if d < 1: return f'{d*1000:.0f}kb'
+    return f'{d:.1f}cM'
+
+def generate_qtl_summary_text(peak, comparison, threshold=2.5, n_indiv=None,
+                               beavis_factor=None, trait_priors=None):
+    """
+    각 QTL에 대해 자동 해석 텍스트 생성.
+
+    예시:
+    "qPH3 (Chr3, 28.0cM): LOD 11.77 (threshold 2.5 통과), PVE 추정 ~25%,
+     가산효과 +8.26 (B allele 증가). CI 27~29cM (1.5-LOD).
+     인접 알려진 QTL: Hd6 (3.5cM) — heading_date. → 다른 형질이라 novel 가능성.
+     N=200 → Beavis factor 1.5× PVE 부풀림 가능."
+    """
+    chr_id = peak.get('chr', '?')
+    cm = peak.get('cM', 0)
+    lod = peak.get('LOD', 0)
+    a = peak.get('add_a')
+    d = peak.get('dom_d')
+    ci_lower = peak.get('ci_lower_cM')
+    ci_upper = peak.get('ci_upper_cM')
+
+    lines = []
+    name = peak.get('name', f'qChr{chr_id}-{cm:.0f}')
+    lines.append(f"**{name}** (Chr{chr_id}, {cm:.1f} cM):")
+    lines.append(f"- LOD = {lod:.2f} (threshold {threshold} {'통과 ✓' if lod >= threshold else '미달 ⚠'})")
+
+    if a is not None:
+        direction = 'B(공여친) allele 증가' if a > 0 else 'A(반복친) allele 증가'
+        lines.append(f"- 가산효과 a = {a:+.2f} ({direction})")
+    if d is not None:
+        if abs(d) < 0.3 * abs(a or 1):
+            dom_class = 'additive 우세'
+        elif d > 0:
+            dom_class = '부분 우성 (B → mid)'
+        else:
+            dom_class = '부분 우성 (A → mid)'
+        lines.append(f"- 우성효과 d = {d:+.2f} ({dom_class})")
+    if ci_lower is not None and ci_upper is not None:
+        lines.append(f"- 신뢰구간 (1.5-LOD drop): {ci_lower:.1f} ~ {ci_upper:.1f} cM (폭 {ci_upper-ci_lower:.1f} cM)")
+
+    # Q-TARO 비교
+    if comparison and 'matches' in comparison:
+        if comparison['novel']:
+            lines.append(f"- **알려진 QTL 인접 없음** ({comparison.get('note', '거리 10cM 이내')}) → **novel QTL 가능**, 후보유전자 발굴 필요")
+        else:
+            for m in comparison['matches'][:2]:
+                lines.append(f"- 인접 알려진 QTL: **{m['known_name']}** ({_format_distance(m['distance_cM'])} 떨어짐) — {m['known_trait']}, {m.get('effect','—')}, {m.get('ref','')}")
+            if peak.get('trait_class') and comparison['matches'][0].get('known_trait') != peak.get('trait_class'):
+                lines.append(f"  → 매칭 QTL의 형질이 다르므로 같은 위치라도 **다른 효과 가능성**")
+
+    # Beavis 효과 경고
+    if n_indiv and n_indiv < 500:
+        if beavis_factor is None:
+            beavis_factor = 2.0 if n_indiv <= 100 else 1.5 if n_indiv <= 200 else 1.3 if n_indiv <= 300 else 1.15
+        lines.append(f"- ⚠ N={n_indiv} → Beavis effect: PVE가 약 {beavis_factor}× 부풀려져 보고됨 (Beavis 1998)")
+
+    # 후속 권장
+    if lod >= threshold:
+        lines.append(f"- → KASP 마커 설계 가능 (CI 영역 ±100kb), F2:3 검정교배 검증 권장")
+
+    return '\n'.join(lines)
+
+def generate_full_report_data(detected_peaks_by_method, n_indiv=None, qtaro_db=None,
+                               threshold=2.5, ci_drop=1.5):
+    """
+    전체 보고서 데이터 생성 (Excel/HTML export 용).
+    """
+    if qtaro_db is None:
+        try:
+            qtaro_db = QTARO_DB
+        except NameError:
+            qtaro_db = None
+
+    report = {
+        'methods': {},
+        'integrated_summary': [],
+        'beavis_warning': bool(n_indiv and n_indiv < 500)
+    }
+
+    for method, peaks in detected_peaks_by_method.items():
+        if not peaks:
+            continue
+        comparisons = compare_with_qtaro(peaks, qtaro_db=qtaro_db)
+        method_entries = []
+        for peak, comp in zip(peaks, comparisons):
+            entry = {
+                'peak': peak,
+                'comparison': comp,
+                'summary_text': generate_qtl_summary_text(peak, comp, threshold=threshold,
+                                                            n_indiv=n_indiv)
+            }
+            method_entries.append(entry)
+        report['methods'][method] = method_entries
+
+    # 통합: 모든 메소드의 peak를 chr/cM 클러스터링
+    all_peaks_with_method = []
+    for method, peaks in detected_peaks_by_method.items():
+        for p in peaks:
+            all_peaks_with_method.append({**p, '_method': method})
+
+    # chr/cM 가까운 것끼리 그룹
+    integrated = []
+    used = set()
+    for i, p in enumerate(all_peaks_with_method):
+        if i in used:
+            continue
+        cluster = [p]
+        used.add(i)
+        for j, p2 in enumerate(all_peaks_with_method[i+1:], start=i+1):
+            if j in used: continue
+            if str(p2['chr']) == str(p['chr']) and abs(p2['cM'] - p['cM']) <= 5.0:
+                cluster.append(p2)
+                used.add(j)
+        # 메소드 전부 통합
+        methods_at_locus = sorted(set(c['_method'] for c in cluster))
+        max_lod = max(c['LOD'] for c in cluster)
+        avg_a = float(np.mean([c.get('add_a', 0) or 0 for c in cluster]))
+        rep = max(cluster, key=lambda x: x['LOD'])
+        comp_list = compare_with_qtaro([rep], qtaro_db=qtaro_db)
+        integrated.append({
+            'chr': rep['chr'],
+            'cM': rep['cM'],
+            'max_LOD': max_lod,
+            'avg_add_a': avg_a,
+            'methods_detected': methods_at_locus,
+            'n_methods': len(methods_at_locus),
+            'representative_peak': rep,
+            'comparison': comp_list[0] if comp_list else None
+        })
+    integrated.sort(key=lambda x: x['max_LOD'], reverse=True)
+    report['integrated_summary'] = integrated
+
+    return json.dumps(report)
+
+def run_integration_analysis(detected_peaks_json, n_indiv=None, threshold=2.5):
+    """JS에서 호출하기 쉽게 wrapper. detected_peaks_json은 {method: [peaks]} 구조."""
+    return generate_full_report_data(detected_peaks_json, n_indiv=n_indiv,
+                                      threshold=threshold)
 `;
 }
 async function handleFile(event, type) {
@@ -3835,6 +4072,485 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// 결과 통합 (단계 F)
+// ============================================================
+function collectAllPeaks() {
+  // Tab 2/3/4의 검출 QTL을 메소드별로 수집
+  const result = {};
+  if (appData.tier2 && appData.tier2.peaks) {
+    result['IM'] = appData.tier2.peaks.map(p => Object.assign({}, p));
+  }
+  if (appData.tier3) {
+    if (appData.tier3.cim_peaks) result['CIM'] = appData.tier3.cim_peaks.map(p => Object.assign({}, p));
+    if (appData.tier3.icim_peaks) result['ICIM-ADD'] = appData.tier3.icim_peaks.map(p => Object.assign({}, p));
+    if (appData.tier3.mqm && appData.tier3.mqm.qtls) {
+      result['Multi-QTL'] = appData.tier3.mqm.qtls.map(q => ({
+        chr: q.chr, cM: q.cM, LOD: q.LOD,
+        add_a: q.add_a, dom_d: q.dom_d, marginal_PVE: q.marginal_PVE
+      }));
+    }
+  }
+  if (appData.tier4_qei) {
+    if (appData.tier4_qei.main_effect_peaks) {
+      result['QxE main'] = appData.tier4_qei.main_effect_peaks.map(p => ({
+        chr: p.chr, cM: p.cM, LOD: p.avg_LOD, add_a: null
+      }));
+    }
+  }
+  return result;
+}
+
+async function runIntegration() {
+  if (!pyodide) {
+    log('Pyodide 준비 안 됨', 'warn');
+    return;
+  }
+  const allPeaks = collectAllPeaks();
+  const totalCount = Object.values(allPeaks).reduce((s, arr) => s + arr.length, 0);
+  if (totalCount === 0) {
+    log('검출 QTL이 없습니다. Tab 2/3/4에서 분석을 먼저 실행해주세요.', 'warn');
+    document.getElementById('integrate-status').textContent = '검출 QTL 0개 — 분석 먼저 실행';
+    return;
+  }
+
+  const btn = document.getElementById('btn-integrate');
+  const icon = document.getElementById('integrate-btn-icon');
+  const status = document.getElementById('integrate-status');
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = `${Object.keys(allPeaks).length}개 메소드, ${totalCount}개 QTL 통합 중...`;
+
+  try {
+    pyodide.globals.set('_peaks_dict', pyodide.toPy(allPeaks));
+    pyodide.globals.set('_n_indiv', appData.diagnosis ? appData.diagnosis.markers.n_indiv : 200);
+    pyodide.globals.set('_thr', appData.tier2 ? appData.tier2.threshold_used : 2.5);
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+    const t0 = performance.now();
+    const resStr = pyodide.runPython('run_integration_analysis(dict(_peaks_dict), n_indiv=_n_indiv, threshold=_thr)');
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`결과 통합 완료 (${((t1-t0)/1000).toFixed(1)}s) — ${result.integrated_summary.length}개 통합 locus`, 'ok');
+    appData.integration = result;
+    renderIntegrationResults(result);
+    document.getElementById('btn-export-xlsx').disabled = false;
+    document.getElementById('btn-export-html').disabled = false;
+    status.textContent = `완료: ${result.integrated_summary.length}개 통합 locus`;
+  } catch (e) {
+    log('통합 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderIntegrationResults(result) {
+  document.getElementById('integrate-results').style.display = 'block';
+
+  // 통합 locus 표
+  const tableEl = document.getElementById('integrate-locus-table');
+  if (!result.integrated_summary.length) {
+    tableEl.innerHTML = `<div class="empty"><div class="empty-hint">통합 locus 없음</div></div>`;
+  } else {
+    tableEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>#</th><th>Chr</th><th>cM</th><th>max LOD</th><th>가산효과 a</th>
+          <th>검출 메소드</th><th>인접 알려진 QTL</th><th>거리</th><th>Novel?</th>
+        </tr></thead>
+        <tbody>
+          ${result.integrated_summary.map((iL, i) => {
+            const comp = iL.comparison;
+            const m = comp && comp.matches && comp.matches.length ? comp.matches[0] : null;
+            return `
+              <tr>
+                <td>${i+1}</td>
+                <td>${iL.chr}</td>
+                <td>${iL.cM.toFixed(1)}</td>
+                <td><strong style="color:var(--accent-3)">${iL.max_LOD.toFixed(2)}</strong></td>
+                <td>${iL.avg_add_a.toFixed(2)}</td>
+                <td>${iL.methods_detected.map(m => `<span class="badge badge-info">${m}</span>`).join(' ')}</td>
+                <td>${m ? `<strong>${m.known_name}</strong> <span style="font-size:10px;color:var(--text-muted)">(${m.known_trait})</span>` : '—'}</td>
+                <td>${m ? m.distance_cM.toFixed(1) + ' cM' : '—'}</td>
+                <td>${comp && comp.novel ? '<span class="badge badge-warning">Novel</span>' : '<span class="badge badge-success">알려짐</span>'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      ${result.beavis_warning ? `<div class="param-warning" style="margin-top:14px"><div class="title">⚠ Beavis effect</div><div class="detail">N < 500이므로 PVE가 부풀려져 보고될 수 있습니다 (Beavis 1998 / Xu 2003).</div></div>` : ''}
+    `;
+  }
+
+  // 자동 해석
+  const summaryEl = document.getElementById('integrate-summary-text');
+  let summaryHTML = '';
+  for (const [method, entries] of Object.entries(result.methods)) {
+    if (!entries.length) continue;
+    summaryHTML += `<h3 style="font-family:var(--font-medium);font-size:14px;color:var(--accent-3);margin:14px 0 8px">[${method}]</h3>`;
+    entries.forEach(e => {
+      const formatted = e.summary_text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      summaryHTML += `<div style="background:var(--bg-input);padding:14px;border-left:3px solid var(--primary-main);border-radius:5px;margin:8px 0;font-size:12px;line-height:1.7">${formatted}</div>`;
+    });
+  }
+  summaryEl.innerHTML = summaryHTML;
+
+  // Q-TARO 전체 비교 표
+  const qtaroEl = document.getElementById('integrate-qtaro-table');
+  let qtaroRows = [];
+  for (const [method, entries] of Object.entries(result.methods)) {
+    entries.forEach(e => {
+      const pk = e.peak;
+      const comp = e.comparison;
+      if (!comp) return;
+      qtaroRows.push({method, peak: pk, comp});
+    });
+  }
+  if (qtaroRows.length === 0) {
+    qtaroEl.innerHTML = `<div class="empty"><div class="empty-hint">통합 데이터 없음</div></div>`;
+  } else {
+    qtaroEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>메소드</th><th>Chr</th><th>cM</th><th>LOD</th>
+          <th>매칭 1</th><th>거리</th><th>매칭 2</th><th>거리</th>
+        </tr></thead>
+        <tbody>
+          ${qtaroRows.map(r => {
+            const m1 = r.comp.matches && r.comp.matches[0];
+            const m2 = r.comp.matches && r.comp.matches[1];
+            return `
+              <tr>
+                <td>${r.method}</td>
+                <td>${r.peak.chr}</td>
+                <td>${r.peak.cM.toFixed(1)}</td>
+                <td>${r.peak.LOD.toFixed(2)}</td>
+                <td>${m1 ? `<strong>${m1.known_name}</strong> <code style="font-size:10px;color:var(--text-muted)">${m1.known_trait}</code>` : '<span style="color:var(--warning)">novel</span>'}</td>
+                <td>${m1 ? m1.distance_cM.toFixed(1)+'cM' : '—'}</td>
+                <td>${m2 ? `${m2.known_name}` : '—'}</td>
+                <td>${m2 ? m2.distance_cM.toFixed(1)+'cM' : '—'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  document.getElementById('integrate-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+// Excel export (조각 F-4)
+// ============================================================
+async function exportToExcel() {
+  if (!appData.integration) {
+    log('통합 분석을 먼저 실행하세요', 'warn');
+    return;
+  }
+  const integ = appData.integration;
+  const ts = new Date().toISOString().slice(0, 10);
+  const wb = XLSX.utils.book_new();
+
+  // === Sheet 1: Integrated locus ===
+  const sheet1Rows = [
+    ['#', 'Chr', 'cM', 'max_LOD', 'avg_add_a', 'methods_detected',
+     'n_methods', 'closest_known_QTL', 'distance_cM', 'known_trait',
+     'known_effect', 'known_ref', 'novel']
+  ];
+  integ.integrated_summary.forEach((iL, i) => {
+    const m = iL.comparison && iL.comparison.matches && iL.comparison.matches.length
+      ? iL.comparison.matches[0] : null;
+    sheet1Rows.push([
+      i + 1, iL.chr, iL.cM.toFixed(2), iL.max_LOD.toFixed(3),
+      iL.avg_add_a.toFixed(3), iL.methods_detected.join(','), iL.n_methods,
+      m ? m.known_name : '',
+      m ? m.distance_cM.toFixed(1) : '',
+      m ? m.known_trait : '',
+      m ? (m.effect || '') : '',
+      m ? (m.ref || '') : '',
+      iL.comparison && iL.comparison.novel ? 'YES' : 'no'
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet1Rows), 'Integrated_QTL');
+
+  // === Sheet 2: 메소드별 검출 QTL ===
+  const sheet2Rows = [
+    ['method', 'chr', 'cM', 'LOD', 'add_a', 'dom_d',
+     'ci_lower_cM', 'ci_upper_cM', 'ci_width_cM',
+     'closest_known', 'closest_distance_cM', 'closest_trait']
+  ];
+  for (const [method, entries] of Object.entries(integ.methods)) {
+    entries.forEach(e => {
+      const p = e.peak;
+      const m = e.comparison && e.comparison.matches && e.comparison.matches.length
+        ? e.comparison.matches[0] : null;
+      sheet2Rows.push([
+        method, p.chr, p.cM, p.LOD,
+        p.add_a !== null && p.add_a !== undefined ? p.add_a : '',
+        p.dom_d !== null && p.dom_d !== undefined ? p.dom_d : '',
+        p.ci_lower_cM !== undefined ? p.ci_lower_cM : '',
+        p.ci_upper_cM !== undefined ? p.ci_upper_cM : '',
+        p.ci_width_cM !== undefined ? p.ci_width_cM : '',
+        m ? m.known_name : '',
+        m ? m.distance_cM.toFixed(1) : '',
+        m ? m.known_trait : ''
+      ]);
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet2Rows), 'All_Methods');
+
+  // === Sheet 3: 자동 해석 (한 셀당 한 QTL) ===
+  const sheet3Rows = [['method', 'name', 'chr', 'cM', 'LOD', 'auto_summary']];
+  for (const [method, entries] of Object.entries(integ.methods)) {
+    entries.forEach(e => {
+      const p = e.peak;
+      sheet3Rows.push([
+        method,
+        `qChr${p.chr}-${Math.round(p.cM)}`,
+        p.chr, p.cM, p.LOD,
+        e.summary_text
+      ]);
+    });
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet3Rows), 'Auto_Summary');
+
+  // === Sheet 4: SMA Bonferroni 통과 마커 (Tab 2 결과) ===
+  if (appData.tier2 && appData.tier2.sma) {
+    const sma = appData.tier2.sma;
+    const sigMarkers = sma.results.filter(r => r.neg_log10_p && r.neg_log10_p > sma.bonferroni_neg_log10);
+    sigMarkers.sort((a, b) => b.neg_log10_p - a.neg_log10_p);
+    const sheet4 = [['marker', 'F', 'neg_log10_p', 'additive_a', 'mean_AA', 'mean_AB', 'mean_BB', 'n']];
+    sigMarkers.forEach(r => {
+      sheet4.push([
+        r.marker, r.F, r.neg_log10_p, r.additive_a,
+        r.mean_AA, r.mean_AB, r.mean_BB, r.n
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet4), 'SMA_Bonferroni');
+  }
+
+  // === Sheet 5: 진단 결과 ===
+  const diag = appData.diagnosis;
+  if (diag) {
+    const sheet5 = [
+      ['항목', '값'],
+      ['집단 유형', diag.population.type],
+      ['신뢰도', diag.population.confidence],
+      ['집단 판정 근거', diag.population.reason],
+      ['n_A / n_H / n_B', `${diag.population.n_a} / ${diag.population.n_h} / ${diag.population.n_b}`],
+      ['헤테로 비율', diag.population.het_ratio],
+      ['마커 수', diag.markers.n_markers],
+      ['개체 수', diag.markers.n_indiv],
+      ['평균 결측률', diag.markers.avg_missing],
+      ['형질 수', diag.phenotype.n_traits],
+      ['형질명', diag.phenotype.trait_names.join(', ')],
+      ['다환경', diag.phenotype.multi_env ? 'YES' : 'NO']
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet5), 'Diagnosis');
+  }
+
+  // === Sheet 6: 추천 파라미터 ===
+  if (diag && diag.parameter_recommendation) {
+    const rec = diag.parameter_recommendation;
+    const sheet6 = [['파라미터', '추천값', '단위', '근거']];
+    rec.parameters.forEach(p => {
+      const overridden = p.key in appData.paramOverrides;
+      sheet6.push([
+        p.name + (overridden ? ' [수정됨]' : ''),
+        overridden ? appData.paramOverrides[p.key] : p.value,
+        p.unit || '',
+        p.reason
+      ]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet6), 'Parameters');
+  }
+
+  // 저장
+  const filename = `QTL_report_${ts}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  log(`Excel 저장: ${filename} (${wb.SheetNames.length} 시트)`, 'ok');
+}
+
+// ============================================================
+// HTML 리포트 export (조각 F-5)
+// ============================================================
+async function exportToHTMLReport() {
+  if (!appData.integration) {
+    log('통합 분석을 먼저 실행하세요', 'warn');
+    return;
+  }
+  const integ = appData.integration;
+  const diag = appData.diagnosis;
+  const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+  // 차트들을 SVG로 추출
+  const chartIds = [
+    {id: 'tier2-lod-plot', title: 'Tier 1-2: LOD 곡선 + Permutation threshold'},
+    {id: 'tier3-overlay-plot', title: 'Tier 3: IM/CIM/ICIM-ADD 비교'},
+    {id: 'tier3-genome-map', title: 'Genome-wide QTL map'},
+    {id: 'tier4-epi-heatmap', title: 'Tier 4: Epistasis 2D map'},
+    {id: 'tier4-qei-plot', title: 'Tier 4: QTL × Environment'}
+  ];
+  const chartSVGs = {};
+  for (const c of chartIds) {
+    const el = document.getElementById(c.id);
+    if (el && el.data) {
+      try {
+        chartSVGs[c.id] = {
+          title: c.title,
+          svg: await Plotly.toImage(el, {format: 'svg', width: 1200, height: 600})
+        };
+      } catch (e) {
+        log(`차트 SVG 생성 실패 (${c.id}): ${e.message}`, 'warn');
+      }
+    }
+  }
+
+  const locusTable = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Chr</th><th>cM</th><th>max LOD</th><th>가산효과 a</th>
+        <th>검출 메소드</th><th>인접 알려진 QTL</th><th>거리</th><th>Novel?</th>
+      </tr></thead>
+      <tbody>
+        ${integ.integrated_summary.map((iL, i) => {
+          const m = iL.comparison && iL.comparison.matches && iL.comparison.matches.length
+            ? iL.comparison.matches[0] : null;
+          return `
+            <tr>
+              <td>${i+1}</td><td>${iL.chr}</td><td>${iL.cM.toFixed(1)}</td>
+              <td><strong>${iL.max_LOD.toFixed(2)}</strong></td>
+              <td>${iL.avg_add_a.toFixed(2)}</td>
+              <td>${iL.methods_detected.join(', ')}</td>
+              <td>${m ? `<strong>${m.known_name}</strong> <span class="muted">(${m.known_trait})</span>` : '—'}</td>
+              <td>${m ? m.distance_cM.toFixed(1) + ' cM' : '—'}</td>
+              <td>${iL.comparison && iL.comparison.novel ? '<span class="badge novel">Novel</span>' : '<span class="badge known">알려짐</span>'}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  let summarySection = '';
+  for (const [method, entries] of Object.entries(integ.methods)) {
+    if (!entries.length) continue;
+    summarySection += `<h3>${method}</h3>`;
+    entries.forEach(e => {
+      const formatted = e.summary_text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      summarySection += `<div class="locus-summary">${formatted}</div>`;
+    });
+  }
+
+  let diagSection = '';
+  if (diag) {
+    diagSection = `
+      <table>
+        <tr><th>집단 유형</th><td>${diag.population.type} (신뢰도 ${(diag.population.confidence*100).toFixed(0)}%)</td></tr>
+        <tr><th>마커 수 / 개체 수</th><td>${diag.markers.n_markers} / ${diag.markers.n_indiv}</td></tr>
+        <tr><th>평균 결측률</th><td>${(diag.markers.avg_missing * 100).toFixed(2)}%</td></tr>
+        <tr><th>형질</th><td>${diag.phenotype.trait_names.join(', ')}</td></tr>
+        <tr><th>다환경</th><td>${diag.phenotype.multi_env ? 'YES' : 'NO'}</td></tr>
+      </table>
+    `;
+  }
+
+  let chartSection = '';
+  for (const c of chartIds) {
+    if (chartSVGs[c.id]) {
+      chartSection += `
+        <div class="chart-block">
+          <h3>${c.title}</h3>
+          <img src="${chartSVGs[c.id].svg}" style="width:100%;max-width:1200px">
+        </div>
+      `;
+    }
+  }
+
+  const reportHTML = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>QTL Mapping 보고서 — ${ts}</title>
+<style>
+  body { font-family: 'Noto Sans KR', '맑은 고딕', sans-serif; max-width: 1240px;
+         margin: 30px auto; padding: 30px; color: #1a1a1a; line-height: 1.6;
+         background: #fafbfa; }
+  h1 { background: linear-gradient(135deg, #00a1b8, #0c3026);
+       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+       background-clip: text; font-size: 26px; margin-bottom: 6px; }
+  h2 { color: #017f97; border-bottom: 2px solid #017f97; padding-bottom: 4px;
+       margin-top: 32px; font-size: 18px; }
+  h3 { color: #0c3026; font-size: 15px; margin-top: 18px; }
+  .meta { color: #5a6a62; font-size: 13px; margin-bottom: 20px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+  th { background: #cce3dd; padding: 8px 12px; text-align: left; border: 1px solid #b2d9d8; }
+  td { padding: 7px 12px; border: 1px solid #d0d8d4; }
+  tr:nth-child(even) td { background: #f5f9f7; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
+           font-size: 11px; font-weight: 600; }
+  .badge.novel { background: #fef3c7; color: #d97706; border: 1px solid #d97706; }
+  .badge.known { background: #d1fae5; color: #047857; }
+  .locus-summary { background: #f0f9f7; border-left: 3px solid #017f97;
+                   padding: 12px 16px; margin: 8px 0; border-radius: 4px;
+                   font-size: 13px; line-height: 1.7; }
+  .chart-block { margin: 24px 0; padding: 16px; background: white;
+                 border: 1px solid #d0d8d4; border-radius: 6px; }
+  .warning { background: #fef3c7; border-left: 3px solid #d97706;
+             padding: 12px 16px; margin: 14px 0; border-radius: 4px; }
+  .muted { color: #5a6a62; font-size: 11px; }
+  .footer { margin-top: 50px; padding: 20px; border-top: 1px solid #d0d8d4;
+            color: #5a6a62; font-size: 11px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>QTL Mapping 분석 보고서</h1>
+  <div class="meta">생성: ${ts} · QTL Mapping Tool v1.0 · 농촌진흥청 국립식량과학원</div>
+
+  <h2>1. 데이터 진단</h2>
+  ${diagSection}
+
+  <h2>2. 통합 QTL Locus (메소드 cross 검증)</h2>
+  ${locusTable}
+  ${integ.beavis_warning ? '<div class="warning"><strong>⚠ Beavis effect</strong>: N &lt; 500이므로 PVE가 부풀려져 보고될 수 있습니다 (Beavis 1998).</div>' : ''}
+
+  <h2>3. 자동 해석</h2>
+  ${summarySection}
+
+  <h2>4. 시각화</h2>
+  ${chartSection || '<p class="muted">차트 데이터 없음 (분석을 먼저 실행하세요)</p>'}
+
+  <h2>5. 알려진 QTL 데이터베이스 (Q-TARO subset)</h2>
+  <p class="muted">본 보고서의 알려진 QTL 매칭은 IRGSP-1.0 좌표 기준 51개 핵심 벼 QTL/유전자 subset과 비교한 결과입니다. 정확한 후보 유전자 발굴은 RAP-DB / Gramene / funRiceGenes 데이터베이스 추가 검색을 권장합니다.</p>
+
+  <div class="footer">
+    QTL Mapping Tool v1.0 · 농촌진흥청 국립식량과학원<br>
+    참고문헌: Lander&amp;Botstein 1989 · Churchill&amp;Doerge 1994 · Zeng 1994 · Wang 2009 · Manichaikul 2009 · Li 2008 · Li, Wang, Zhang 2015
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([reportHTML], {type: 'text/html;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const tsFile = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `QTL_report_${tsFile}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`HTML 리포트 저장: QTL_report_${tsFile}.html (차트 ${Object.keys(chartSVGs).length}종 포함)`, 'ok');
 }
 
 // ============================================================
