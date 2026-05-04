@@ -915,10 +915,107 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 <!-- 비활성 탭들 (PoC) -->
 <div class="tab-content" id="tab-qc">
-  <div class="card"><div class="empty">
-    <div class="empty-title">QC &amp; Linkage Map 검증</div>
-    <div class="empty-hint">단계 G(작업서)에서 구현됩니다.</div>
-  </div></div>
+  <div class="card">
+    <div class="card-title">데이터 품질 검증 (QC + Linkage Map)</div>
+    <div class="card-subtitle">분석 전 데이터 품질을 자동 검증합니다. 결측률, 분리비 distortion, 알려진 SD 영역, IBS 중복, 표현형 정규성, 연관지도 무결성을 점검.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">집단 유형</label>
+        <select id="qc-pop" class="opt-input">
+          <option value="F2">F2</option><option value="RIL">RIL</option>
+          <option value="DH">DH</option><option value="BC1">BC1</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">마커 결측 임계</label>
+        <input type="number" id="qc-miss-marker" class="opt-input" value="0.10" min="0" max="1" step="0.01">
+        <button class="param-help-btn" onclick="showParamCoach('missing_rate')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">개체 결측 임계</label>
+        <input type="number" id="qc-miss-indiv" class="opt-input" value="0.20" min="0" max="1" step="0.01">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">SD p-value 임계</label>
+        <input type="number" id="qc-sd-p" class="opt-input" value="0.001" min="0" max="0.1" step="0.0001">
+        <button class="param-help-btn" onclick="showParamCoach('segregation_distortion_p')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">IBS 중복 임계</label>
+        <input type="number" id="qc-ibs-dup" class="opt-input" value="0.99" min="0.5" max="1" step="0.001">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">총 cM 기대 (min)</label>
+        <input type="number" id="qc-cm-min" class="opt-input" value="1140" min="100" step="10">
+        <span class="opt-hint">벼 IRGSP-1.0</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">총 cM 기대 (max)</label>
+        <input type="number" id="qc-cm-max" class="opt-input" value="1900" min="100" step="10">
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runQC()" id="btn-qc-run">
+        <span id="qc-btn-icon">▶</span> QC 실행
+      </button>
+      <div id="qc-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="qc-results" style="display:none">
+    <!-- 종합 등급 카드 -->
+    <div class="card">
+      <div class="card-title">종합 결과</div>
+      <div id="qc-overall-grid" class="diagnostic-grid"></div>
+    </div>
+
+    <!-- 마커 -->
+    <div class="card">
+      <div class="card-title">마커 품질</div>
+      <div class="export-bar">
+        <span class="label">출력:</span>
+        <span>너비 <input type="number" id="qm-w" value="180" min="50"> mm</span>
+        <span>높이 <input type="number" id="qm-h" value="80" min="40"> mm</span>
+        <span>DPI <select id="qm-dpi"><option value="72">72</option><option value="150">150</option><option value="300" selected>300</option><option value="600">600</option></select></span>
+        <span class="toggle-row"><input type="checkbox" id="qm-bw"> <label for="qm-bw">흑백</label></span>
+        <button class="btn-mini" onclick="exportPlot('qc-missing-plot','qm','marker_QC')">PNG</button>
+      </div>
+      <div id="qc-missing-plot" style="min-height:280px"></div>
+      <div id="qc-marker-summary" style="margin-top:14px"></div>
+      <div id="qc-marker-flagged-table" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 개체 -->
+    <div class="card">
+      <div class="card-title">개체 품질</div>
+      <div id="qc-indiv-summary"></div>
+      <div id="qc-indiv-table" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 표현형 -->
+    <div class="card">
+      <div class="card-title">표현형 품질</div>
+      <div id="qc-pheno-summary"></div>
+      <div id="qc-pheno-corr" style="margin-top:14px"></div>
+    </div>
+
+    <!-- Linkage map -->
+    <div class="card">
+      <div class="card-title">Linkage Map 검증</div>
+      <div class="export-bar">
+        <span class="label">출력:</span>
+        <span>너비 <input type="number" id="ql-w" value="160" min="50"> mm</span>
+        <span>높이 <input type="number" id="ql-h" value="100" min="40"> mm</span>
+        <span>DPI <select id="ql-dpi"><option value="72">72</option><option value="150">150</option><option value="300" selected>300</option><option value="600">600</option></select></span>
+        <span class="toggle-row"><input type="checkbox" id="ql-bw"> <label for="ql-bw">흑백</label></span>
+        <button class="btn-mini" onclick="exportPlot('qc-linkage-plot','ql','linkage_map')">PNG</button>
+      </div>
+      <div id="qc-linkage-plot" style="min-height:380px"></div>
+      <div id="qc-linkage-summary" style="margin-top:14px"></div>
+    </div>
+  </div>
 </div>
 <div class="tab-content" id="tab-tier12">
   <div class="card">
@@ -4472,6 +4569,273 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
 }
 
 // ============================================================
+// QC + Linkage Map 검증 (단계 G)
+// ============================================================
+function populateQCOptions() {
+  if (!appData.diagnosis) return;
+  const popSel = document.getElementById('qc-pop');
+  const popType = (appData.diagnosis.population.type || '').toUpperCase();
+  if (popType.includes('F2')) popSel.value = 'F2';
+  else if (popType.includes('RIL')) popSel.value = 'RIL';
+  else if (popType.includes('DH')) popSel.value = 'DH';
+  else if (popType.includes('BC')) popSel.value = 'BC1';
+}
+
+async function runQC() {
+  if (!pyodide || !appData.geno) {
+    log('Pyodide 또는 데이터 준비 안 됨', 'warn');
+    return;
+  }
+  const btn = document.getElementById('btn-qc-run');
+  const icon = document.getElementById('qc-btn-icon');
+  const status = document.getElementById('qc-status');
+
+  const params = {
+    pop: document.getElementById('qc-pop').value,
+    miss_marker: parseFloat(document.getElementById('qc-miss-marker').value),
+    miss_indiv: parseFloat(document.getElementById('qc-miss-indiv').value),
+    sd_p: parseFloat(document.getElementById('qc-sd-p').value),
+    ibs_dup: parseFloat(document.getElementById('qc-ibs-dup').value),
+    cm_min: parseFloat(document.getElementById('qc-cm-min').value),
+    cm_max: parseFloat(document.getElementById('qc-cm-max').value)
+  };
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = 'QC 실행 중... (IBS 계산이 큰 N에서 수십 초 소요)';
+
+  try {
+    pyodide.globals.set('_g_qc', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_m_qc', appData.map ? pyodide.toPy(appData.map.data) : null);
+    pyodide.globals.set('_p_qc', pyodide.toPy(appData.pheno.data));
+    pyodide.globals.set('_pop_qc', params.pop);
+    pyodide.globals.set('_mm', params.miss_marker);
+    pyodide.globals.set('_mi', params.miss_indiv);
+    pyodide.globals.set('_sdp', params.sd_p);
+    pyodide.globals.set('_ibs', params.ibs_dup);
+    pyodide.globals.set('_cmmin', params.cm_min);
+    pyodide.globals.set('_cmmax', params.cm_max);
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_full_qc(_g_qc, _m_qc, _p_qc, pop_type=_pop_qc, missing_marker=_mm, missing_indiv=_mi, sd_p=_sdp, ibs_dup=_ibs, total_cM_min=_cmmin, total_cM_max=_cmmax)`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`QC 완료 (${((t1-t0)/1000).toFixed(1)}s) — 종합 등급: ${result.overall_grade}`, 'ok');
+    appData.qc = result;
+    renderQCResults(result);
+    status.textContent = `완료 — 종합: ${result.overall_grade.toUpperCase()}`;
+  } catch (e) {
+    log('QC 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderQCResults(result) {
+  document.getElementById('qc-results').style.display = 'block';
+  const m = result.marker;
+  const ind = result.individual;
+  const ph = result.phenotype;
+  const lm = result.linkage_map;
+
+  // 종합 등급 카드
+  const gradeColor = {pass: 'success', warn: 'warning', fail: 'error'};
+  const overallEl = document.getElementById('qc-overall-grid');
+  overallEl.innerHTML = `
+    <div class="diag-card ${gradeColor[result.overall_grade]}">
+      <div class="diag-card-title">종합 등급</div>
+      <div class="diag-card-value">${result.overall_grade.toUpperCase()}</div>
+      <div class="diag-card-detail">${result.overall_grade === 'pass' ? '분석 진행 권장' : result.overall_grade === 'warn' ? '일부 마커/개체 검토 필요' : '품질 문제 — 정제 필요'}</div>
+    </div>
+    <div class="diag-card ${m.summary.fail > 0 ? 'error' : m.summary.warn > 0 ? 'warning' : 'success'}">
+      <div class="diag-card-title">마커</div>
+      <div class="diag-card-value">${m.summary.pass} / ${m.n_markers}</div>
+      <div class="diag-card-detail">pass ${m.summary.pass} · warn ${m.summary.warn} · fail ${m.summary.fail}</div>
+    </div>
+    <div class="diag-card ${ind.n_dup_candidates > 0 ? 'warning' : 'success'}">
+      <div class="diag-card-title">개체</div>
+      <div class="diag-card-value">${ind.n_indiv}</div>
+      <div class="diag-card-detail">결측 플래그 ${ind.n_flagged_missing}개 · IBS 중복 의심 ${ind.n_dup_candidates}쌍</div>
+    </div>
+    <div class="diag-card ${lm && !lm.total_in_expected_range ? 'warning' : 'success'}">
+      <div class="diag-card-title">Linkage Map</div>
+      <div class="diag-card-value">${lm ? lm.total_cM.toFixed(0) + ' cM' : '—'}</div>
+      <div class="diag-card-detail">${lm ? lm.n_chr + '개 염색체 · ' + (lm.total_in_expected_range ? '기대 범위 내 ✓' : '기대 범위 밖 ⚠') : '맵 파일 없음'}</div>
+    </div>
+  `;
+
+  // 마커 시각화 + 표
+  renderQCMarkerPlot(m);
+  document.getElementById('qc-marker-summary').innerHTML = `
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">
+      임계값: 결측 ${(m.missing_threshold*100).toFixed(0)}%, SD p<${m.sd_p_threshold}
+    </div>
+  `;
+
+  // 플래그된 마커 표 (warn + fail)
+  const flagged = m.markers.filter(x => x.grade !== 'pass');
+  flagged.sort((a, b) => (b.missing_rate + (b.sd_flag ? 1 : 0)) - (a.missing_rate + (a.sd_flag ? 1 : 0)));
+  const flaggedEl = document.getElementById('qc-marker-flagged-table');
+  if (flagged.length === 0) {
+    flaggedEl.innerHTML = `<div class="empty"><div class="empty-hint">플래그된 마커 없음 — 모두 통과</div></div>`;
+  } else {
+    flaggedEl.innerHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:8px 0">플래그된 마커 ${flagged.length}개 (상위 30)</h3>
+      <table>
+        <thead><tr>
+          <th>마커</th><th>Chr</th><th>cM</th><th>결측률</th><th>het</th>
+          <th>SD chi2</th><th>SD p</th><th>알려진 SD</th><th>등급</th>
+        </tr></thead>
+        <tbody>
+          ${flagged.slice(0, 30).map(mk => `
+            <tr>
+              <td><code>${mk.marker}</code></td>
+              <td>${mk.chr || '—'}</td>
+              <td>${mk.cM !== null ? mk.cM.toFixed(1) : '—'}</td>
+              <td>${(mk.missing_rate*100).toFixed(1)}%</td>
+              <td>${(mk.het_rate*100).toFixed(1)}%</td>
+              <td>${mk.sd_chi2 !== null ? mk.sd_chi2.toFixed(2) : '—'}</td>
+              <td>${mk.sd_p !== null ? mk.sd_p.toExponential(2) : '—'}</td>
+              <td>${mk.in_known_sd ? '<strong style="color:var(--accent-5)">' + mk.known_sd_locus + '</strong>' : (mk.known_sd_locus || '—')}</td>
+              <td><span class="badge badge-${mk.grade === 'fail' ? 'error' : 'warning'}">${mk.grade}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // 개체 결측
+  const flagInd = ind.individuals.filter(x => x.flag);
+  document.getElementById('qc-indiv-summary').innerHTML = `
+    <div style="font-size:12px;color:var(--text-secondary)">
+      임계값: 개체 결측 ${(ind.missing_threshold*100).toFixed(0)}%, IBS≥${ind.ibs_dup_threshold}
+    </div>
+  `;
+  let indHTML = '';
+  if (flagInd.length > 0) {
+    indHTML += `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:14px 0 6px">결측 ${(ind.missing_threshold*100).toFixed(0)}% 초과 개체 ${flagInd.length}개</h3>
+      <table><thead><tr><th>개체</th><th>결측 수</th><th>결측률</th></tr></thead><tbody>
+        ${flagInd.slice(0,30).map(i => `<tr><td><code>${i.indiv}</code></td><td>${i.n_miss}</td><td>${(i.missing_rate*100).toFixed(1)}%</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+  if (ind.duplicate_candidates.length > 0) {
+    indHTML += `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:14px 0 6px;color:var(--warning)">중복 의심 ${ind.duplicate_candidates.length}쌍 (IBS≥${ind.ibs_dup_threshold})</h3>
+      <table><thead><tr><th>개체 1</th><th>개체 2</th><th>IBS</th><th>비교 마커</th></tr></thead><tbody>
+        ${ind.duplicate_candidates.slice(0,30).map(p => `<tr><td><code>${p.indiv1}</code></td><td><code>${p.indiv2}</code></td><td>${p.IBS.toFixed(4)}</td><td>${p.n_compared}</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+  if (!indHTML) indHTML = `<div class="empty" style="margin-top:14px"><div class="empty-hint">플래그된 개체 없음 — 모두 정상</div></div>`;
+  document.getElementById('qc-indiv-table').innerHTML = indHTML;
+
+  // 표현형
+  let phHTML = `
+    <table>
+      <thead><tr>
+        <th>형질</th><th>n</th><th>결측</th><th>mean</th><th>SD</th><th>CV%</th>
+        <th>Shapiro p</th><th>정규성</th><th>IQR×1.5</th><th>IQR×3</th><th>MAD</th>
+      </tr></thead>
+      <tbody>
+        ${ph.traits.map(t => `
+          <tr>
+            <td><strong>${t.name}</strong></td>
+            <td>${t.n}</td>
+            <td>${t.n_missing || 0}</td>
+            <td>${t.mean.toFixed(2)}</td>
+            <td>${t.std.toFixed(2)}</td>
+            <td>${t.cv.toFixed(1)}</td>
+            <td>${t.shapiro_p !== null ? t.shapiro_p.toFixed(4) : '—'}</td>
+            <td>${t.normal === null ? '—' : t.normal ? '<span class="badge badge-success">정규</span>' : '<span class="badge badge-warning">비정규</span>'}</td>
+            <td>${t.outliers_iqr_1_5}</td>
+            <td>${t.outliers_iqr_3}</td>
+            <td>${t.outliers_mad}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('qc-pheno-summary').innerHTML = phHTML;
+
+  // 환경 상관 (다환경)
+  if (ph.env_correlations && ph.env_correlations.length > 0) {
+    let corrHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:8px 0">환경 간 Pearson 상관</h3>
+      <table>
+        <thead><tr><th>환경 1</th><th>환경 2</th><th>r</th><th>p</th><th>n</th></tr></thead>
+        <tbody>
+          ${ph.env_correlations.map(c => `
+            <tr>
+              <td>${c.env1}</td><td>${c.env2}</td>
+              <td><strong>${c.pearson_r.toFixed(3)}</strong></td>
+              <td>${c.p < 0.001 ? c.p.toExponential(2) : c.p.toFixed(4)}</td>
+              <td>${c.n}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    if (ph.estimated_broad_H2 !== undefined) {
+      corrHTML += `<div style="font-size:12px;color:var(--text-secondary);margin-top:8px">환경 간 평균 r ≈ broad-sense H² 추정 = <strong>${ph.estimated_broad_H2.toFixed(3)}</strong></div>`;
+    }
+    document.getElementById('qc-pheno-corr').innerHTML = corrHTML;
+  } else {
+    document.getElementById('qc-pheno-corr').innerHTML = '';
+  }
+
+  // Linkage map 시각화 + 표
+  if (lm) {
+    renderLinkageMapPlot(lm);
+    document.getElementById('qc-linkage-summary').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Chr</th><th>마커 수</th><th>cM 시작</th><th>cM 끝</th><th>길이</th>
+          <th>평균 갭</th><th>최대 갭</th><th>>30cM 갭</th><th>bp-cM r</th>
+        </tr></thead>
+        <tbody>
+          ${lm.chromosomes.map(ch => `
+            <tr>
+              <td>${ch.chr}</td>
+              <td>${ch.n_markers}</td>
+              <td>${ch.cm_min.toFixed(1)}</td>
+              <td>${ch.cm_max.toFixed(1)}</td>
+              <td>${ch.chr_length_cM.toFixed(1)} cM</td>
+              <td>${ch.avg_gap_cM.toFixed(2)}</td>
+              <td>${ch.max_gap_cM.toFixed(1)}${ch.large_gaps_count > 0 ? ' <span class="badge badge-warning">' + ch.large_gaps_count + '</span>' : ''}</td>
+              <td>${ch.large_gaps_count}</td>
+              <td>${ch.bp_cM_spearman !== null ? ch.bp_cM_spearman.toFixed(3) : '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        총 ${lm.total_cM.toFixed(1)} cM (기대 ${lm.expected_range_cM[0]}~${lm.expected_range_cM[1]})
+        ${lm.total_in_expected_range ? '<span class="badge badge-success">정상</span>' : '<span class="badge badge-warning">범위 밖</span>'}
+        / ${lm.chr_count_ok ? '12개 염색체 ✓' : '<span class="badge badge-warning">염색체 ' + lm.n_chr + '개</span>'}
+      </div>
+    `;
+  }
+
+  document.getElementById('qc-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// 시각화는 G-3에서 채워집니다
+function renderQCMarkerPlot(m) {
+  document.getElementById('qc-missing-plot').innerHTML =
+    `<div class="empty"><div class="empty-hint">마커 결측률 분포는 조각 G-3에서 구현됩니다.</div></div>`;
+}
+function renderLinkageMapPlot(lm) {
+  document.getElementById('qc-linkage-plot').innerHTML =
+    `<div class="empty"><div class="empty-hint">Linkage map 시각화는 조각 G-3에서 구현됩니다.</div></div>`;
+}
+
+// ============================================================
 // 결과 통합 (단계 F)
 // ============================================================
 function collectAllPeaks() {
@@ -6183,7 +6547,8 @@ function renderDiagnosis(d) {
   // 추천 파라미터 카드 렌더 (조각 3)
   renderParameterRecommendation(d.parameter_recommendation);
 
-  // Tab 2/3/4 옵션 자동 채우기
+  // Tab 1~4 옵션 자동 채우기
+  populateQCOptions();
   populateTier2Options();
   populateTier3Options();
   populateTier4Options();
