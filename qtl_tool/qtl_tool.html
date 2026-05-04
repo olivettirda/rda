@@ -960,7 +960,109 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 </div>
-<div class="tab-content" id="tab-tier3"><div class="card"><div class="empty"><div class="empty-title">표준 분석 (ICIM-ADD + CIM + MQM)</div><div class="empty-hint">단계 C 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-tier3">
+  <div class="card">
+    <div class="card-title">표준 분석 (Tier 3)</div>
+    <div class="card-subtitle">ICIM-ADD + CIM + Multi-QTL Model을 동시 실행하여 비교합니다. 검출 QTL에는 1.5-LOD drop CI가 자동 부착됩니다.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">형질</label>
+        <select id="tier3-trait" class="opt-input"></select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">집단 유형</label>
+        <select id="tier3-pop" class="opt-input">
+          <option value="F2">F2</option>
+          <option value="RIL">RIL</option>
+          <option value="DH">DH</option>
+          <option value="BC1">BC1</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Walking step (cM)</label>
+        <input type="number" id="tier3-step" class="opt-input" value="1.0" min="0.1" step="0.1">
+        <button class="param-help-btn" onclick="showParamCoach('walking_step_cM')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Map function</label>
+        <select id="tier3-mapfunc" class="opt-input">
+          <option value="kosambi" selected>Kosambi</option>
+          <option value="haldane">Haldane</option>
+        </select>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">CIM window (cM)</label>
+        <input type="number" id="tier3-cim-window" class="opt-input" value="10.0" min="1" step="1">
+        <button class="param-help-btn" onclick="showParamCoach('CIM_window_cM')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">CIM 최대 cofactor</label>
+        <input type="number" id="tier3-cim-max" class="opt-input" value="5" min="1" max="20" step="1">
+        <button class="param-help-btn" onclick="showParamCoach('max_cofactors')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">ICIM PIN</label>
+        <input type="number" id="tier3-pin" class="opt-input" value="0.001" min="0.00001" step="0.0001">
+        <button class="param-help-btn" onclick="showParamCoach('ICIM_PIN')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">ICIM POUT</label>
+        <input type="number" id="tier3-pout" class="opt-input" value="0.002" min="0.00001" step="0.0001">
+        <button class="param-help-btn" onclick="showParamCoach('ICIM_POUT')">?</button>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Multi-QTL 최대</label>
+        <input type="number" id="tier3-mqm-max" class="opt-input" value="10" min="1" max="20" step="1">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">Multi-QTL penalty</label>
+        <input type="number" id="tier3-mqm-penalty" class="opt-input" value="3.52" min="1" step="0.1">
+        <span class="opt-hint">F2 3.52 / BC 2.69 / RIL 2.69</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">LOD threshold</label>
+        <input type="number" id="tier3-threshold" class="opt-input" value="3.0" min="1" step="0.1">
+        <span class="opt-hint">Tab 2 perm 결과 사용 가능</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">CI drop</label>
+        <select id="tier3-ci" class="opt-input">
+          <option value="1.0">1-LOD drop</option>
+          <option value="1.5" selected>1.5-LOD drop (출판 권장)</option>
+        </select>
+        <button class="param-help-btn" onclick="showParamCoach('CI_method')">?</button>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runTier3()" id="btn-tier3-run">
+        <span id="tier3-btn-icon">▶</span> Tier 3 분석 실행 (CIM + ICIM-ADD + Multi-QTL)
+      </button>
+      <div id="tier3-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="tier3-results" style="display:none">
+    <div class="card">
+      <div class="card-title">LOD 곡선 비교 (IM vs CIM vs ICIM-ADD)</div>
+      <div id="tier3-overlay-plot" style="min-height:420px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">CIM 검출 QTL</div>
+      <div id="tier3-cim-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">ICIM-ADD 검출 QTL</div>
+      <div id="tier3-icim-table"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Multi-QTL Model</div>
+      <div id="tier3-mqm-summary"></div>
+      <div id="tier3-mqm-table"></div>
+    </div>
+  </div>
+</div>
 <div class="tab-content" id="tab-tier4"><div class="card"><div class="empty"><div class="empty-title">고급 분석 (Epistasis + QTL × Environment)</div><div class="empty-hint">단계 E 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-result"><div class="card"><div class="empty"><div class="empty-title">결과 통합</div><div class="empty-hint">단계 F 구현 예정</div></div></div></div>
 <div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
@@ -2969,6 +3071,203 @@ function renderTier2Results(result) {
 }
 
 // ============================================================
+// Tier 3 분석 wiring (단계 C)
+// ============================================================
+function populateTier3Options() {
+  if (!appData.diagnosis) return;
+  const traitSel = document.getElementById('tier3-trait');
+  const traits = appData.diagnosis.phenotype.trait_names || [];
+  traitSel.innerHTML = traits.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  const popSel = document.getElementById('tier3-pop');
+  const popType = (appData.diagnosis.population.type || '').toUpperCase();
+  if (popType.includes('F2')) popSel.value = 'F2';
+  else if (popType.includes('RIL')) popSel.value = 'RIL';
+  else if (popType.includes('DH')) popSel.value = 'DH';
+  else if (popType.includes('BC')) popSel.value = 'BC1';
+
+  // 추천 파라미터 적용
+  const rec = appData.diagnosis.parameter_recommendation;
+  if (rec) {
+    const stepRec = rec.parameters.find(p => p.key === 'walking_step_cM');
+    if (stepRec) document.getElementById('tier3-step').value = stepRec.value;
+  }
+
+  // 집단별 penalty 자동 설정
+  const penaltyMap = {F2: 3.52, BC1: 2.69, RIL: 2.69, DH: 2.69};
+  document.getElementById('tier3-mqm-penalty').value = penaltyMap[popSel.value] || 3.52;
+
+  // Tab 2 perm 결과가 있으면 threshold 자동 채움
+  if (appData.tier2 && appData.tier2.perm) {
+    const t = appData.tier2.perm.thresholds['0.050'];
+    if (t) document.getElementById('tier3-threshold').value = t.toFixed(2);
+  }
+}
+
+async function runTier3() {
+  if (!pyodide || !appData.geno || !appData.pheno || !appData.map) {
+    log('Tier 3 분석에는 마커 위치 파일이 필수입니다.', 'warn');
+    return;
+  }
+  const btn = document.getElementById('btn-tier3-run');
+  const icon = document.getElementById('tier3-btn-icon');
+  const status = document.getElementById('tier3-status');
+
+  const params = {
+    trait: document.getElementById('tier3-trait').value,
+    pop: document.getElementById('tier3-pop').value,
+    step: parseFloat(document.getElementById('tier3-step').value),
+    mapf: document.getElementById('tier3-mapfunc').value,
+    cim_window: parseFloat(document.getElementById('tier3-cim-window').value),
+    cim_max: parseInt(document.getElementById('tier3-cim-max').value),
+    pin: parseFloat(document.getElementById('tier3-pin').value),
+    pout: parseFloat(document.getElementById('tier3-pout').value),
+    mqm_max: parseInt(document.getElementById('tier3-mqm-max').value),
+    mqm_penalty: parseFloat(document.getElementById('tier3-mqm-penalty').value),
+    threshold: parseFloat(document.getElementById('tier3-threshold').value),
+    ci: parseFloat(document.getElementById('tier3-ci').value)
+  };
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = 'CIM + ICIM-ADD + Multi-QTL 실행 중... 30초~몇 분 소요';
+  log(`Tier 3 시작: trait=${params.trait}, pop=${params.pop}`, 'info');
+
+  try {
+    pyodide.globals.set('_geno3', pyodide.toPy(appData.geno.data));
+    pyodide.globals.set('_map3', pyodide.toPy(appData.map.data));
+    pyodide.globals.set('_pheno3', pyodide.toPy(appData.pheno.data));
+    pyodide.globals.set('_t3p', pyodide.toPy(params));
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_tier3_analysis(_geno3, _map3, _pheno3,
+      trait_name=_t3p['trait'], step=_t3p['step'], pop_type=_t3p['pop'],
+      map_function=_t3p['mapf'], cim_window_cM=_t3p['cim_window'],
+      cim_max_cofactors=_t3p['cim_max'], icim_PIN=_t3p['pin'], icim_POUT=_t3p['pout'],
+      multiqtl_max=_t3p['mqm_max'], multiqtl_penalty=_t3p['mqm_penalty'],
+      threshold=_t3p['threshold'], ci_drop=_t3p['ci'])`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`Tier 3 완료 (${((t1-t0)/1000).toFixed(1)}s) — CIM ${result.cim_peaks.length}, ICIM ${result.icim_peaks.length}, MQM ${result.mqm.n_qtls}`, 'ok');
+    appData.tier3 = result;
+    renderTier3Results(result);
+    status.textContent = `완료 — CIM ${result.cim_peaks.length} / ICIM ${result.icim_peaks.length} / MQM ${result.mqm.n_qtls}개`;
+  } catch (e) {
+    log('Tier 3 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderTier3Results(result) {
+  document.getElementById('tier3-results').style.display = 'block';
+
+  // overlay plot은 C-5에서
+  renderTier3OverlayPlot(result);
+
+  // CIM 표
+  document.getElementById('tier3-cim-table').innerHTML = renderQTLTable(result.cim_peaks, result.ci_drop, '검출 QTL 없음') +
+    `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">cofactor ${result.cim.n_cofactors}개: ${result.cim.cofactors.map(c => `${c.marker}(Chr${c.chr} ${c.cM}cM)`).join(', ')}</div>`;
+
+  // ICIM 표
+  document.getElementById('tier3-icim-table').innerHTML = renderQTLTable(result.icim_peaks, result.ci_drop, '검출 QTL 없음') +
+    `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">background ${result.icim.n_background}개: ${result.icim.background_markers.map(b => `${b.marker}(Chr${b.chr} ${b.cM}cM)`).join(', ')}</div>`;
+
+  // MQM
+  const mqm = result.mqm;
+  document.getElementById('tier3-mqm-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px">
+      <div class="diag-card success">
+        <div class="diag-card-title">검출 QTL 수</div>
+        <div class="diag-card-value">${mqm.n_qtls}</div>
+        <div class="diag-card-detail">Penalty: ${mqm.penalty_main.toFixed(2)} (${mqm.pop_type})</div>
+      </div>
+      <div class="diag-card success">
+        <div class="diag-card-title">총 PVE (R²)</div>
+        <div class="diag-card-value">${(mqm.total_PVE * 100).toFixed(1)}%</div>
+        <div class="diag-card-detail">전체 모델이 설명하는 표현형 분산</div>
+      </div>
+      <div class="diag-card success">
+        <div class="diag-card-title">최종 모델 LOD</div>
+        <div class="diag-card-value">${mqm.final_model_LOD.toFixed(2)}</div>
+        <div class="diag-card-detail">동시 회귀 fitting</div>
+      </div>
+    </div>
+  `;
+
+  if (mqm.qtls.length > 0) {
+    document.getElementById('tier3-mqm-table').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>순서</th><th>Chr</th><th>cM</th><th>LOD</th><th>가산효과 a</th><th>우성효과 d</th>
+          <th>marginal PVE</th><th>가까운 마커</th>
+        </tr></thead>
+        <tbody>
+          ${mqm.qtls.map(q => `
+            <tr>
+              <td>Q${q.order}</td>
+              <td>${q.chr}</td>
+              <td>${q.cM.toFixed(1)}</td>
+              <td><strong style="color:var(--accent-3)">${q.LOD.toFixed(2)}</strong></td>
+              <td>${q.add_a !== null ? q.add_a.toFixed(2) : '—'}</td>
+              <td>${q.dom_d !== null ? q.dom_d.toFixed(2) : '—'}</td>
+              <td>${q.marginal_PVE !== undefined ? (q.marginal_PVE * 100).toFixed(1) + '%' : '—'}</td>
+              <td><code>${q.nearest_marker || '—'}</code></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px">
+        Iteration history: ${mqm.iteration_history.map(h => `iter${h.iteration}@Chr${h.best_chr}cM${h.best_cM} LOD=${h.best_LOD.toFixed(2)}`).join(' → ')}
+      </div>
+    `;
+  } else {
+    document.getElementById('tier3-mqm-table').innerHTML = `<div class="empty"><div class="empty-hint">Penalty(${mqm.penalty_main}) 통과 QTL 없음. Penalty를 낮춰 다시 실행해보세요.</div></div>`;
+  }
+
+  document.getElementById('tier3-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderQTLTable(peaks, ciDrop, emptyMsg) {
+  if (!peaks || peaks.length === 0) {
+    return `<div class="empty"><div class="empty-hint">${emptyMsg}</div></div>`;
+  }
+  return `
+    <table>
+      <thead><tr>
+        <th>Chr</th><th>cM</th><th>LOD</th><th>가산효과 a</th><th>우성효과 d</th>
+        <th>CI (${ciDrop}-LOD drop)</th><th>CI 폭</th>
+      </tr></thead>
+      <tbody>
+        ${peaks.map(p => `
+          <tr>
+            <td>${p.chr}</td>
+            <td>${p.cM.toFixed(1)}</td>
+            <td><strong style="color:var(--accent-3)">${p.LOD.toFixed(2)}</strong></td>
+            <td>${p.add_a !== null ? p.add_a.toFixed(2) : '—'}</td>
+            <td>${p.dom_d !== null ? p.dom_d.toFixed(2) : '—'}</td>
+            <td>${p.ci_lower_cM !== undefined ? `${p.ci_lower_cM.toFixed(1)} ~ ${p.ci_upper_cM.toFixed(1)}` : '—'}</td>
+            <td>${p.ci_width_cM !== undefined ? p.ci_width_cM.toFixed(1) + ' cM' : '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderTier3OverlayPlot(result) {
+  // C-5에서 상세 시각화 — 일단 placeholder
+  document.getElementById('tier3-overlay-plot').innerHTML =
+    `<div class="empty"><div class="empty-title">LOD 비교 overlay</div><div class="empty-hint">조각 C-5에서 IM/CIM/ICIM-ADD를 같은 도표에 overlay합니다.</div></div>`;
+}
+
+// ============================================================
 // Plotly 시각화 (단계 B-3)
 // ============================================================
 const PLOTLY_DARK = {
@@ -3287,8 +3586,9 @@ function renderDiagnosis(d) {
   // 추천 파라미터 카드 렌더 (조각 3)
   renderParameterRecommendation(d.parameter_recommendation);
 
-  // Tab 2 옵션 자동 채우기 (단계 B)
+  // Tab 2/3 옵션 자동 채우기
   populateTier2Options();
+  populateTier3Options();
 
   // 다음 탭 활성화
   document.querySelectorAll('.tab.disabled').forEach(t => t.classList.remove('disabled'));
