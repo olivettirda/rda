@@ -1430,7 +1430,73 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 </div>
-<div class="tab-content" id="tab-workflow"><div class="card"><div class="empty"><div class="empty-title">워크플로 연결</div><div class="empty-hint">단계 H 구현 예정</div></div></div></div>
+<div class="tab-content" id="tab-workflow">
+  <div class="card">
+    <div class="card-title">워크플로 연결 — 후속 작업으로 직접 export</div>
+    <div class="card-subtitle">검출 QTL을 KASP 마커 설계, F2:3 검정교배 가이드, 외부 DB 검색, 솜여님 v4.17 벼 육종 시스템 등으로 연결합니다.</div>
+
+    <div class="tier2-options">
+      <div class="opt-row">
+        <label class="opt-label">LOD threshold</label>
+        <input type="number" id="wf-threshold" class="opt-input" value="2.5" min="1" step="0.1">
+        <span class="opt-hint">Tab 2 perm 결과 자동 사용</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">KASP flank (kb)</label>
+        <input type="number" id="wf-flank" class="opt-input" value="100" min="10" step="10">
+        <span class="opt-hint">CI 양 끝 ±N kb</span>
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">F2:3 권장 라인 수</label>
+        <input type="number" id="wf-n-lines" class="opt-input" value="200" min="50" step="10">
+      </div>
+      <div class="opt-row">
+        <label class="opt-label">F2:3 반복 수</label>
+        <input type="number" id="wf-n-rep" class="opt-input" value="3" min="1" step="1">
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="runWorkflowExport()" id="btn-wf-run">
+        <span id="wf-btn-icon">▶</span> 워크플로 자료 생성
+      </button>
+      <div id="wf-status" style="font-size:12px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <div id="wf-results" style="display:none">
+    <!-- KASP -->
+    <div class="card">
+      <div class="card-title">KASP 마커 설계 좌표</div>
+      <div class="card-subtitle">각 QTL의 CI 양 끝 ±flank_kb 영역을 KASP 설계용으로 export합니다. solmyung님 KASP 도구에 직접 입력 가능.</div>
+      <button class="btn btn-secondary" onclick="downloadKASPExcel()" style="margin-bottom:10px">KASP 좌표 Excel 다운로드</button>
+      <div id="wf-kasp-table"></div>
+    </div>
+
+    <!-- F2:3 가이드 -->
+    <div class="card">
+      <div class="card-title">F2:3 검정교배 가이드</div>
+      <div id="wf-f23-summary" style="margin-bottom:14px"></div>
+      <div id="wf-f23-priority"></div>
+      <div id="wf-f23-steps" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 외부 링크 -->
+    <div class="card">
+      <div class="card-title">RAP-DB / Gramene 후보유전자 검색</div>
+      <div class="card-subtitle">검출 QTL 영역의 외부 DB 검색 링크. 클릭으로 해당 영역 후보유전자 직접 조회.</div>
+      <div id="wf-external-table"></div>
+    </div>
+
+    <!-- v4.17 -->
+    <div class="card">
+      <div class="card-title">솜여님 벼 육종 시스템 v4.17 호환 JSON</div>
+      <div class="card-subtitle">v4.17 시스템에 직접 import 가능한 표준 형식 JSON.</div>
+      <button class="btn btn-secondary" onclick="downloadV417JSON()" style="margin-bottom:10px">v4.17 JSON 다운로드</button>
+      <pre id="wf-v417-preview" style="background:var(--bg-input);padding:12px;border-radius:5px;font-family:var(--font-mono);font-size:11px;overflow-x:auto;max-height:300px;color:var(--accent-3);border:1px solid var(--border-color)"></pre>
+    </div>
+  </div>
+</div>
 
 </div>
 
@@ -4081,6 +4147,279 @@ def run_full_qc(geno_json, map_json, pheno_json, pop_type='F2',
     res['overall_grade'] = overall
 
     return json.dumps(res)
+
+# ============== 단계 H: 워크플로 연결 (KASP + F2:3 + 외부 링크) ==============
+def export_for_kasp_design(qtl_peaks, map_df_json=None, flank_kb=100):
+    """
+    검출 QTL → KASP 마커 설계용 좌표 export.
+    각 QTL에 대해:
+      - chr, peak cM/bp, CI 양 끝 cM/bp
+      - flanking 영역 (CI ± flank_kb kb)
+      - solmyung님 KASP 도구 입력 형식
+    """
+    map_df = pd.DataFrame(map_df_json) if map_df_json else None
+    chr_col = bp_col = cm_col = name_col = None
+    if map_df is not None:
+        name_col = map_df.columns[0]
+        chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+        cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+        bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+
+    def cm_to_bp_estimate(ch, cm_pos):
+        """cM에 가까운 마커 2개로 bp 보간."""
+        if map_df is None or chr_col is None or bp_col is None or cm_col is None:
+            return int(cm_pos * 250000)  # 1cM ≈ 250kb 가정
+        sub = map_df[map_df[chr_col].astype(str) == str(ch)].copy()
+        if sub.empty:
+            return int(cm_pos * 250000)
+        sub = sub.sort_values(cm_col)
+        cms = sub[cm_col].astype(float).values
+        bps = sub[bp_col].astype(float).values
+        if cm_pos <= cms[0]:
+            return int(bps[0])
+        if cm_pos >= cms[-1]:
+            return int(bps[-1])
+        # 선형 보간
+        idx = np.searchsorted(cms, cm_pos)
+        c1, c2 = cms[idx-1], cms[idx]
+        b1, b2 = bps[idx-1], bps[idx]
+        if c2 == c1: return int(b1)
+        ratio = (cm_pos - c1) / (c2 - c1)
+        return int(b1 + ratio * (b2 - b1))
+
+    out = []
+    flank_bp = int(flank_kb * 1000)
+    for i, q in enumerate(qtl_peaks):
+        ch = str(q.get('chr', ''))
+        peak_cM = float(q.get('cM', 0))
+        ci_lo_cM = float(q.get('ci_lower_cM', peak_cM - 5))
+        ci_hi_cM = float(q.get('ci_upper_cM', peak_cM + 5))
+
+        peak_bp = cm_to_bp_estimate(ch, peak_cM)
+        ci_lo_bp = cm_to_bp_estimate(ch, ci_lo_cM)
+        ci_hi_bp = cm_to_bp_estimate(ch, ci_hi_cM)
+        flank_lo_bp = max(0, ci_lo_bp - flank_bp)
+        flank_hi_bp = ci_hi_bp + flank_bp
+
+        out.append({
+            'qtl_id': f'qChr{ch}-{int(round(peak_cM))}',
+            'order': i + 1,
+            'chr': ch,
+            'peak_cM': peak_cM,
+            'peak_bp': peak_bp,
+            'peak_bp_Mb': round(peak_bp / 1e6, 3),
+            'ci_lower_cM': ci_lo_cM,
+            'ci_upper_cM': ci_hi_cM,
+            'ci_lower_bp': ci_lo_bp,
+            'ci_upper_bp': ci_hi_bp,
+            'flank_lower_bp': flank_lo_bp,
+            'flank_upper_bp': flank_hi_bp,
+            'region_size_bp': flank_hi_bp - flank_lo_bp,
+            'region_size_Mb': round((flank_hi_bp - flank_lo_bp) / 1e6, 3),
+            'LOD': float(q.get('LOD', 0)),
+            'add_a': q.get('add_a'),
+            'KASP_target_locus': f"Chr{ch}:{flank_lo_bp:,}-{flank_hi_bp:,}",
+            'IRGSP_assembly': 'IRGSP-1.0'
+        })
+    return out
+
+def generate_f3_validation_guide(qtl_peaks, n_lines_target=200, n_replicates=3):
+    """
+    F2:3 검정교배 가이드 자동 생성.
+    검출된 QTL을 검증하기 위한 실험 설계 권장.
+    """
+    n_qtls = len(qtl_peaks)
+    if n_qtls == 0:
+        return {'error': '검출 QTL 없음'}
+
+    # 강한 QTL일수록 작은 N으로 충분
+    sorted_peaks = sorted(qtl_peaks, key=lambda x: x.get('LOD', 0), reverse=True)
+    top_qtl = sorted_peaks[0]
+    top_lod = float(top_qtl.get('LOD', 0))
+
+    # F2:3 권장 N
+    if top_lod >= 10:
+        recommended_N = 100
+    elif top_lod >= 5:
+        recommended_N = 150
+    else:
+        recommended_N = 250
+
+    # 단계별 가이드
+    steps = [
+        {
+            'step': 1,
+            'title': 'F2 family 선택',
+            'detail': f'F2 매핑 집단에서 각 QTL에 대해 양쪽 동형접합(QQ, qq) 및 이형접합(Qq) F2 개체 각 5~10개체 선택. {n_qtls}개 QTL × 3 유전자형 = 약 {n_qtls*3*7}개 F2 부모 라인.'
+        },
+        {
+            'step': 2,
+            'title': 'F2:3 자가수정',
+            'detail': 'F2 개체별로 자가수정하여 F2:3 family 생성. 각 family ≥10개체 (20개체 권장). KASP 마커로 F2 부모의 유전자형 확인 필수.'
+        },
+        {
+            'step': 3,
+            'title': '표현형 평가',
+            'detail': f'F2:3 family들을 동일 환경에서 {n_replicates}반복 RCBD. 가능하면 2~3 환경(년도/장소). 권장 라인 수 ~{recommended_N}개 (top QTL LOD={top_lod:.1f} 기준).'
+        },
+        {
+            'step': 4,
+            'title': '유전자형 × 표현형 회귀',
+            'detail': 'F2:3 family 평균 표현형을 F2 부모 유전자형에 회귀. 가산효과 a는 단일 형질 추정값과 유사해야 함. 우성효과 d는 F2:3에서 1/4 감소(이형접합 분리 때문).'
+        },
+        {
+            'step': 5,
+            'title': '추가 검증',
+            'detail': 'NIL (Near-Isogenic Lines) 개발, BC2F2 미세 매핑, 후보유전자 시퀀싱.'
+        }
+    ]
+
+    # 각 QTL별 KASP 설계 우선순위
+    qtl_priorities = []
+    for q in sorted_peaks:
+        lod = float(q.get('LOD', 0))
+        a = abs(float(q.get('add_a', 0))) if q.get('add_a') is not None else 0
+        priority = 'HIGH' if lod >= 5 and a >= 2 else 'MEDIUM' if lod >= 3 else 'LOW'
+        qtl_priorities.append({
+            'qtl_id': f"qChr{q.get('chr','?')}-{int(round(float(q.get('cM',0))))}",
+            'chr': q.get('chr'),
+            'cM': q.get('cM'),
+            'LOD': lod,
+            'add_a': q.get('add_a'),
+            'priority': priority,
+            'recommendation': {
+                'HIGH': 'KASP 마커 즉시 설계 + F2:3 검증',
+                'MEDIUM': 'KASP 설계 권장, NIL 개발 후 검증',
+                'LOW': 'cofactor 추가 분석 후 재평가'
+            }[priority]
+        })
+
+    return {
+        'n_qtls': n_qtls,
+        'top_LOD': top_lod,
+        'recommended_F23_lines': recommended_N,
+        'recommended_replicates': n_replicates,
+        'steps': steps,
+        'qtl_priorities': qtl_priorities
+    }
+
+def build_external_search_links(qtl_peaks, map_df_json=None):
+    """
+    각 QTL에 대해 RAP-DB / Gramene / funRiceGenes 검색 URL 자동 생성.
+    """
+    map_df = pd.DataFrame(map_df_json) if map_df_json else None
+    chr_col = bp_col = cm_col = None
+    if map_df is not None:
+        chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+        cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+        bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+
+    out = []
+    for q in qtl_peaks:
+        ch = str(q.get('chr', ''))
+        peak_cM = float(q.get('cM', 0))
+        ci_lo = float(q.get('ci_lower_cM', peak_cM - 2))
+        ci_hi = float(q.get('ci_upper_cM', peak_cM + 2))
+
+        # cM → bp 추정
+        peak_bp = int(peak_cM * 250000)
+        lo_bp = int(ci_lo * 250000)
+        hi_bp = int(ci_hi * 250000)
+        if map_df is not None and chr_col and bp_col and cm_col:
+            sub = map_df[map_df[chr_col].astype(str) == ch].copy()
+            if not sub.empty:
+                sub = sub.sort_values(cm_col)
+                cms = sub[cm_col].astype(float).values
+                bps = sub[bp_col].astype(float).values
+                def interp(c):
+                    if c <= cms[0]: return int(bps[0])
+                    if c >= cms[-1]: return int(bps[-1])
+                    idx = np.searchsorted(cms, c)
+                    c1, c2 = cms[idx-1], cms[idx]
+                    b1, b2 = bps[idx-1], bps[idx]
+                    if c2 == c1: return int(b1)
+                    return int(b1 + (c - c1) / (c2 - c1) * (b2 - b1))
+                peak_bp = interp(peak_cM); lo_bp = interp(ci_lo); hi_bp = interp(ci_hi)
+
+        chr_str = f'chr{ch.zfill(2)}' if ch.isdigit() else ch.lower()
+        rap_chr = f'Os{ch.zfill(2)}' if ch.isdigit() else ch
+        out.append({
+            'qtl_id': f"qChr{ch}-{int(round(peak_cM))}",
+            'chr': ch,
+            'peak_cM': peak_cM,
+            'peak_bp': peak_bp,
+            'ci_lower_bp': lo_bp,
+            'ci_upper_bp': hi_bp,
+            'links': {
+                'RAP_DB': f'https://rapdb.dna.affrc.go.jp/viewer/gbrowse/locus.shtml?id=&chr={rap_chr}&start={lo_bp}&end={hi_bp}',
+                'Gramene': f'https://ensembl.gramene.org/Oryza_sativa/Location/View?r={ch}:{lo_bp}-{hi_bp}',
+                'RiceXPro': f'https://ricexpro.dna.affrc.go.jp/category-search.php?keyword=Os{ch.zfill(2)}',
+                'SNPSeek': f'https://snp-seek.irri.org/_genotype.zul?chr={ch}&start={lo_bp}&end={hi_bp}',
+                'NCBI_Map_Viewer': f'https://www.ncbi.nlm.nih.gov/genome/?term=Oryza+sativa+chromosome+{ch}'
+            },
+            'note': 'RAP-DB/Gramene 좌표는 IRGSP-1.0 기준. cM→bp 변환은 사용자 map의 marker bp 보간 또는 1cM=250kb 가정.'
+        })
+    return out
+
+def export_for_v417_system(detected_peaks_by_method, threshold=2.5):
+    """
+    벼 육종 시스템 v4.17과 호환되는 QTL 위치 JSON 출력.
+    {chr, position_cM, position_bp, LOD, effect, source_method} 표준 형식.
+    """
+    out = {
+        '_meta': {
+            'tool': 'QTL Mapping Tool v1.0',
+            'compatible_with': 'rice_breeding_v4.17',
+            'reference': 'IRGSP-1.0',
+            'export_threshold_LOD': float(threshold)
+        },
+        'detected_qtls': []
+    }
+    for method, peaks in detected_peaks_by_method.items():
+        for p in peaks:
+            if float(p.get('LOD', 0)) < threshold:
+                continue
+            out['detected_qtls'].append({
+                'chr': str(p.get('chr', '')),
+                'position_cM': float(p.get('cM', 0)),
+                'position_bp': int(float(p.get('cM', 0)) * 250000),
+                'LOD': float(p.get('LOD', 0)),
+                'additive_effect': p.get('add_a'),
+                'dominance_effect': p.get('dom_d'),
+                'CI_lower_cM': p.get('ci_lower_cM'),
+                'CI_upper_cM': p.get('ci_upper_cM'),
+                'source_method': method,
+                'qtl_id': f"qChr{p.get('chr','?')}-{int(round(float(p.get('cM',0))))}"
+            })
+    return json.dumps(out, indent=2)
+
+def run_workflow_export(detected_peaks_dict, map_json=None, threshold=2.5,
+                         flank_kb=100, n_lines_target=200, n_replicates=3):
+    """단계 H 통합: KASP + F2:3 + 외부 링크 + v4.17 호환."""
+    # 메소드 통합 → unique peaks
+    seen = set()
+    unique_peaks = []
+    for method, peaks in detected_peaks_dict.items():
+        for p in peaks:
+            if float(p.get('LOD', 0)) < threshold:
+                continue
+            key = (str(p.get('chr','')), round(float(p.get('cM',0))))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_peaks.append({**p, '_source_method': method})
+
+    return json.dumps({
+        'kasp_targets': export_for_kasp_design(unique_peaks, map_df_json=map_json,
+                                                 flank_kb=flank_kb),
+        'f23_validation_guide': generate_f3_validation_guide(unique_peaks,
+                                                               n_lines_target=n_lines_target,
+                                                               n_replicates=n_replicates),
+        'external_links': build_external_search_links(unique_peaks, map_df_json=map_json),
+        'v417_export_json': export_for_v417_system(detected_peaks_dict, threshold=threshold),
+        'n_unique_peaks': len(unique_peaks),
+        'threshold_used': float(threshold)
+    })
 `;
 }
 async function handleFile(event, type) {
@@ -4566,6 +4905,228 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// 워크플로 연결 (단계 H)
+// ============================================================
+async function runWorkflowExport() {
+  if (!pyodide) { log('Pyodide 준비 안 됨', 'warn'); return; }
+
+  const peaks = collectAllPeaks();
+  const totalCount = Object.values(peaks).reduce((s, arr) => s + arr.length, 0);
+  if (totalCount === 0) {
+    log('검출 QTL이 없습니다. Tab 2/3/4에서 분석을 먼저 실행해주세요.', 'warn');
+    document.getElementById('wf-status').textContent = '검출 QTL 0개';
+    return;
+  }
+
+  const btn = document.getElementById('btn-wf-run');
+  const icon = document.getElementById('wf-btn-icon');
+  const status = document.getElementById('wf-status');
+
+  // Tab 2 perm 결과가 있으면 threshold 자동 사용
+  if (appData.tier2 && appData.tier2.threshold_used) {
+    document.getElementById('wf-threshold').value = appData.tier2.threshold_used.toFixed(2);
+  }
+
+  const params = {
+    threshold: parseFloat(document.getElementById('wf-threshold').value),
+    flank: parseInt(document.getElementById('wf-flank').value),
+    n_lines: parseInt(document.getElementById('wf-n-lines').value),
+    n_rep: parseInt(document.getElementById('wf-n-rep').value)
+  };
+
+  btn.disabled = true;
+  icon.innerHTML = '<span class="loader"></span>';
+  status.textContent = '워크플로 자료 생성 중...';
+
+  try {
+    pyodide.globals.set('_peaks_wf', pyodide.toPy(peaks));
+    pyodide.globals.set('_map_wf', appData.map ? pyodide.toPy(appData.map.data) : null);
+    pyodide.globals.set('_thr_wf', params.threshold);
+    pyodide.globals.set('_flk', params.flank);
+    pyodide.globals.set('_nL', params.n_lines);
+    pyodide.globals.set('_nR', params.n_rep);
+
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+    const t0 = performance.now();
+    const resStr = pyodide.runPython(`run_workflow_export(dict(_peaks_wf), map_json=_map_wf, threshold=_thr_wf, flank_kb=_flk, n_lines_target=_nL, n_replicates=_nR)`);
+    const result = JSON.parse(resStr);
+    const t1 = performance.now();
+
+    log(`워크플로 export 완료 (${((t1-t0)/1000).toFixed(1)}s) — KASP ${result.kasp_targets.length}개, 외부 링크 ${result.external_links.length}개`, 'ok');
+    appData.workflow = result;
+    renderWorkflowResults(result);
+    status.textContent = `완료 — ${result.n_unique_peaks}개 unique QTL`;
+  } catch (e) {
+    log('워크플로 export 실패: ' + e.message, 'err');
+    console.error(e);
+    status.textContent = '오류 — 콘솔 확인';
+  } finally {
+    btn.disabled = false;
+    icon.innerHTML = '▶';
+  }
+}
+
+function renderWorkflowResults(result) {
+  document.getElementById('wf-results').style.display = 'block';
+
+  // KASP 표
+  const kaspEl = document.getElementById('wf-kasp-table');
+  if (!result.kasp_targets.length) {
+    kaspEl.innerHTML = '<div class="empty"><div class="empty-hint">검출 QTL 없음</div></div>';
+  } else {
+    kaspEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>#</th><th>QTL ID</th><th>Chr</th>
+          <th>Peak (cM/bp)</th><th>CI (cM)</th><th>CI (bp)</th>
+          <th>KASP 영역</th><th>크기</th><th>LOD</th>
+        </tr></thead>
+        <tbody>
+          ${result.kasp_targets.map(k => `
+            <tr>
+              <td>${k.order}</td>
+              <td><strong>${k.qtl_id}</strong></td>
+              <td>${k.chr}</td>
+              <td>${k.peak_cM.toFixed(1)} / ${k.peak_bp_Mb} Mb</td>
+              <td>${k.ci_lower_cM.toFixed(1)}~${k.ci_upper_cM.toFixed(1)}</td>
+              <td>${(k.ci_lower_bp/1e6).toFixed(2)}~${(k.ci_upper_bp/1e6).toFixed(2)} Mb</td>
+              <td><code>${k.KASP_target_locus}</code></td>
+              <td>${k.region_size_Mb} Mb</td>
+              <td>${k.LOD.toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+        IRGSP-1.0 좌표. cM→bp는 사용자 map의 마커 cM/bp 선형 보간.
+      </div>
+    `;
+  }
+
+  // F2:3 가이드
+  const guide = result.f23_validation_guide;
+  if (guide && !guide.error) {
+    document.getElementById('wf-f23-summary').innerHTML = `
+      <div class="diagnostic-grid">
+        <div class="diag-card success">
+          <div class="diag-card-title">검출 QTL 수</div>
+          <div class="diag-card-value">${guide.n_qtls}</div>
+          <div class="diag-card-detail">Top LOD = ${guide.top_LOD.toFixed(2)}</div>
+        </div>
+        <div class="diag-card success">
+          <div class="diag-card-title">권장 F2:3 라인 수</div>
+          <div class="diag-card-value">${guide.recommended_F23_lines}</div>
+          <div class="diag-card-detail">${guide.recommended_replicates}반복 RCBD</div>
+        </div>
+      </div>
+    `;
+    document.getElementById('wf-f23-priority').innerHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:8px 0">QTL별 우선순위</h3>
+      <table>
+        <thead><tr><th>QTL</th><th>Chr</th><th>cM</th><th>LOD</th><th>가산효과</th><th>우선순위</th><th>권장</th></tr></thead>
+        <tbody>
+          ${guide.qtl_priorities.map(q => {
+            const badgeClass = q.priority === 'HIGH' ? 'success' : q.priority === 'MEDIUM' ? 'info' : 'warning';
+            return `
+              <tr>
+                <td><strong>${q.qtl_id}</strong></td>
+                <td>${q.chr}</td>
+                <td>${q.cM.toFixed(1)}</td>
+                <td>${q.LOD.toFixed(2)}</td>
+                <td>${q.add_a !== null ? q.add_a.toFixed(2) : '—'}</td>
+                <td><span class="badge badge-${badgeClass}">${q.priority}</span></td>
+                <td>${q.recommendation}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    document.getElementById('wf-f23-steps').innerHTML = `
+      <h3 style="font-family:var(--font-medium);font-size:13px;margin:14px 0 8px">실험 단계</h3>
+      ${guide.steps.map(s => `
+        <div style="background:var(--bg-input);border-left:3px solid var(--accent-5);padding:12px 14px;margin:6px 0;border-radius:4px;font-size:12px">
+          <strong style="color:var(--accent-3)">Step ${s.step} — ${s.title}</strong><br>
+          <span style="color:var(--text-secondary);line-height:1.6">${s.detail}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  // 외부 링크
+  const extEl = document.getElementById('wf-external-table');
+  if (result.external_links.length === 0) {
+    extEl.innerHTML = '<div class="empty"><div class="empty-hint">검출 QTL 없음</div></div>';
+  } else {
+    extEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th>QTL</th><th>Chr</th><th>cM</th><th>bp 영역</th>
+          <th>RAP-DB</th><th>Gramene</th><th>RiceXPro</th><th>SNPSeek</th>
+        </tr></thead>
+        <tbody>
+          ${result.external_links.map(e => `
+            <tr>
+              <td><strong>${e.qtl_id}</strong></td>
+              <td>${e.chr}</td>
+              <td>${e.peak_cM.toFixed(1)}</td>
+              <td>${(e.ci_lower_bp/1e6).toFixed(2)}~${(e.ci_upper_bp/1e6).toFixed(2)} Mb</td>
+              <td><a href="${e.links.RAP_DB}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.Gramene}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.RiceXPro}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.SNPSeek}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // v4.17 JSON preview
+  const v417Pretty = JSON.stringify(JSON.parse(result.v417_export_json), null, 2);
+  document.getElementById('wf-v417-preview').textContent = v417Pretty;
+
+  document.getElementById('wf-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function downloadKASPExcel() {
+  if (!appData.workflow) { log('워크플로 자료를 먼저 생성하세요', 'warn'); return; }
+  const wb = XLSX.utils.book_new();
+  const rows = [
+    ['order', 'qtl_id', 'chr', 'peak_cM', 'peak_bp', 'peak_bp_Mb',
+     'CI_lower_cM', 'CI_upper_cM', 'CI_lower_bp', 'CI_upper_bp',
+     'flank_lower_bp', 'flank_upper_bp', 'region_size_Mb', 'LOD',
+     'add_a', 'KASP_target_locus', 'IRGSP_assembly']
+  ];
+  appData.workflow.kasp_targets.forEach(k => {
+    rows.push([
+      k.order, k.qtl_id, k.chr, k.peak_cM, k.peak_bp, k.peak_bp_Mb,
+      k.ci_lower_cM, k.ci_upper_cM, k.ci_lower_bp, k.ci_upper_bp,
+      k.flank_lower_bp, k.flank_upper_bp, k.region_size_Mb, k.LOD,
+      k.add_a !== null && k.add_a !== undefined ? k.add_a : '',
+      k.KASP_target_locus, k.IRGSP_assembly
+    ]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'KASP_targets');
+  const ts = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `KASP_targets_${ts}.xlsx`);
+  log(`KASP 좌표 Excel 저장: KASP_targets_${ts}.xlsx`, 'ok');
+}
+
+function downloadV417JSON() {
+  if (!appData.workflow) { log('워크플로 자료를 먼저 생성하세요', 'warn'); return; }
+  const blob = new Blob([appData.workflow.v417_export_json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `QTL_v417_export_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`v4.17 JSON 저장: QTL_v417_export_${ts}.json`, 'ok');
 }
 
 // ============================================================
