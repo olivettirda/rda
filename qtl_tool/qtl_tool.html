@@ -2955,6 +2955,151 @@ def qtl_effect_data(geno_json, pheno_json, marker_name, trait_name=None):
             pass
 
     return json.dumps(result)
+
+# ============== Tier 4: ICIM-EPI (Li et al. 2008) — digenic epistasis ==============
+def icim_epi(geno_df, map_df, pheno_df, trait_name=None,
+             step_2D=5.0, PIN=0.0001, LOD_floor=5.0,
+             pop_type='F2', map_function='kosambi', max_pairs=20000):
+    """
+    Li, Ribaut, Li, Wang 2008 ICIM-EPI (단순화 버전).
+
+    1) ICIM-ADD background marker 선택 (PIN=0.0001 strict)
+    2) 2D scan: 모든 마커 쌍에 대해 가산×가산 interaction 검정
+       y = mu + cofactors + a1*X1 + a2*X2 + aa*X1*X2 + e
+       LOD_AA = (n/2) log10(RSS_main / RSS_full)
+    3) LOD_floor(5.0) 통과 쌍만 보고
+
+    실제 IciMapping은 step_2D cM 격자에서 walking하지만, 본 구현은 마커 위치만
+    사용하여 속도 우선. step_2D는 후속 정밀화에서.
+    """
+    if trait_name is None:
+        trait_name = pheno_df.columns[1]
+    pheno = pd.to_numeric(pheno_df[trait_name], errors='coerce').values
+    n_indiv = len(pheno)
+
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+    map_idx, _, _ = _build_marker_index(geno_df, map_df)
+    marker_chr = np.array([map_idx.get(str(m), (None, np.nan))[0] for m in marker_names])
+    marker_cm = np.array([map_idx.get(str(m), (None, np.nan))[1] for m in marker_names])
+
+    geno_num = np.full(geno.shape, np.nan)
+    geno_num[geno == 'A'] = 0.0
+    geno_num[geno == 'H'] = 1.0
+    geno_num[geno == 'B'] = 2.0
+    geno_num_T = geno_num.T  # (n_indiv, n_markers)
+
+    # Stage 1: background 선택 (strict PIN)
+    background_idx = _stepwise_pvalue_selection(geno_num_T, pheno, PIN=PIN, POUT=PIN*2)
+
+    # 2D scan을 위해 step 간격으로 마커 sub-sample (속도)
+    # 같은 염색체 내 step_2D cM 이내 마커는 하나만
+    sampled = []
+    chrs_unique = sorted([c for c in set(marker_chr) if c is not None and not pd.isnull(c)],
+                         key=lambda x: int(x) if str(x).isdigit() else 99)
+    for ch in chrs_unique:
+        mask = marker_chr == ch
+        idxs = np.where(mask)[0]
+        if len(idxs) == 0: continue
+        order = np.argsort(marker_cm[idxs])
+        idxs = idxs[order]
+        last_cm = -np.inf
+        for i in idxs:
+            if marker_cm[i] - last_cm >= step_2D:
+                sampled.append(int(i))
+                last_cm = float(marker_cm[i])
+    n_sampled = len(sampled)
+
+    # 마커 쌍 후보가 너무 많으면 무작위 샘플
+    n_pairs_total = n_sampled * (n_sampled - 1) // 2
+    if n_pairs_total > max_pairs:
+        # 같은 염색체 쌍은 우선, 다른 염색체는 임의
+        np.random.seed(42)
+        pairs_sample = []
+        for i in range(n_sampled):
+            for j in range(i+1, n_sampled):
+                pairs_sample.append((i, j))
+        if len(pairs_sample) > max_pairs:
+            chosen = np.random.choice(len(pairs_sample), max_pairs, replace=False)
+            pairs_sample = [pairs_sample[k] for k in sorted(chosen)]
+    else:
+        pairs_sample = [(i, j) for i in range(n_sampled) for j in range(i+1, n_sampled)]
+
+    # 2D scan
+    pheno_valid = ~np.isnan(pheno)
+    epi_pairs = []
+    for (i, j) in pairs_sample:
+        m1 = sampled[i]
+        m2 = sampled[j]
+        x1 = geno_num_T[:, m1] - 1.0  # additive coding -1/0/+1
+        x2 = geno_num_T[:, m2] - 1.0
+
+        mask = pheno_valid & ~np.isnan(x1) & ~np.isnan(x2)
+        # background도 같이 mask
+        if background_idx:
+            C = geno_num_T[:, background_idx]
+            mask = mask & ~np.any(np.isnan(C), axis=1)
+        if mask.sum() < 20:
+            continue
+
+        ym = pheno[mask]
+        x1m = x1[mask]
+        x2m = x2[mask]
+
+        # 모델 비교: main만 vs main + a×a
+        if background_idx:
+            Cm = geno_num_T[:, background_idx][mask]
+            base = np.column_stack([np.ones(len(ym)), Cm])
+        else:
+            base = np.ones((len(ym), 1))
+
+        A_main = np.column_stack([base, x1m, x2m])
+        A_full = np.column_stack([A_main, x1m * x2m])
+
+        try:
+            coef_m, _, _, _ = np.linalg.lstsq(A_main, ym, rcond=None)
+            coef_f, _, _, _ = np.linalg.lstsq(A_full, ym, rcond=None)
+            rss_m = float(np.sum((ym - A_main @ coef_m) ** 2))
+            rss_f = float(np.sum((ym - A_full @ coef_f) ** 2))
+            if rss_f <= 0 or rss_m <= 0 or rss_f > rss_m:
+                continue
+            lod_aa = (len(ym) / 2.0) * np.log10(rss_m / rss_f)
+            if lod_aa < LOD_floor:
+                continue
+            aa_effect = float(coef_f[-1])
+            a1 = float(coef_f[-3])
+            a2 = float(coef_f[-2])
+            epi_pairs.append({
+                'marker1': str(marker_names[m1]),
+                'chr1': str(marker_chr[m1]),
+                'cM1': float(marker_cm[m1]),
+                'marker2': str(marker_names[m2]),
+                'chr2': str(marker_chr[m2]),
+                'cM2': float(marker_cm[m2]),
+                'LOD_AA': float(lod_aa),
+                'aa_effect': aa_effect,
+                'a1_main': a1,
+                'a2_main': a2,
+                'same_chr': bool(str(marker_chr[m1]) == str(marker_chr[m2]))
+            })
+        except Exception:
+            continue
+
+    epi_pairs.sort(key=lambda x: x['LOD_AA'], reverse=True)
+
+    return json.dumps({
+        'method': 'ICIM-EPI (Li 2008 simplified)',
+        'trait': str(trait_name),
+        'step_2D_cM': float(step_2D),
+        'PIN': float(PIN),
+        'LOD_floor': float(LOD_floor),
+        'pop_type': pop_type,
+        'n_background': len(background_idx),
+        'n_markers_sampled': int(n_sampled),
+        'n_pairs_tested': int(len(pairs_sample)),
+        'n_epi_significant': len(epi_pairs),
+        'epi_pairs': epi_pairs[:200]  # 상위 200개만
+    })
 `;
 }
 async function handleFile(event, type) {
