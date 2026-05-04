@@ -4825,14 +4825,173 @@ function renderQCResults(result) {
   document.getElementById('qc-results').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-// 시각화는 G-3에서 채워집니다
+// ============================================================
+// QC 시각화 (단계 G-3)
+// ============================================================
 function renderQCMarkerPlot(m) {
-  document.getElementById('qc-missing-plot').innerHTML =
-    `<div class="empty"><div class="empty-hint">마커 결측률 분포는 조각 G-3에서 구현됩니다.</div></div>`;
+  // 마커 결측률 histogram + SD scatter
+  const missingRates = m.markers.map(x => x.missing_rate);
+  const sdLog10p = m.markers.map(x => x.sd_p ? -Math.log10(x.sd_p) : null);
+  const grades = m.markers.map(x => x.grade);
+  const gradeColor = {pass: '#017f97', warn: '#d97706', fail: '#dc3545'};
+
+  // 1) 결측률 히스토그램
+  const traceMiss = {
+    x: missingRates,
+    type: 'histogram',
+    nbinsx: 30,
+    marker: {color: 'rgba(0, 161, 184, 0.55)', line: {color: '#017f97', width: 1}},
+    name: '결측률',
+    hovertemplate: '결측률: %{x:.2%}<br>마커 수: %{y}<extra></extra>',
+    xaxis: 'x', yaxis: 'y'
+  };
+
+  // 2) SD scatter (-log10 p vs missing rate)
+  const sdValid = m.markers.filter(x => x.sd_p !== null);
+  const traceSd = {
+    x: sdValid.map(x => x.missing_rate),
+    y: sdValid.map(x => -Math.log10(x.sd_p)),
+    type: 'scatter', mode: 'markers',
+    marker: {
+      size: 5, color: sdValid.map(x => gradeColor[x.grade]),
+      line: {color: 'rgba(255,255,255,0.2)', width: 0.5}
+    },
+    text: sdValid.map(x => `${x.marker} (Chr${x.chr || '?'})`),
+    hovertemplate: '%{text}<br>결측률: %{x:.2%}<br>-log10(SD p)=%{y:.2f}<extra></extra>',
+    name: '마커',
+    xaxis: 'x2', yaxis: 'y2',
+    showlegend: false
+  };
+
+  const shapes = [
+    // 결측 임계 vertical
+    {type: 'line', xref: 'x', yref: 'paper',
+     x0: m.missing_threshold, x1: m.missing_threshold, y0: 0, y1: 1,
+     line: {color: '#dc3545', width: 1.4, dash: 'dash'}},
+    // SD plot의 임계 -log10 p
+    {type: 'line', xref: 'x2', yref: 'y2',
+     x0: 0, x1: 1, y0: -Math.log10(m.sd_p_threshold), y1: -Math.log10(m.sd_p_threshold),
+     line: {color: '#dc3545', width: 1.2, dash: 'dash'}}
+  ];
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `마커 QC (총 ${m.n_markers}개)`, font: {size: 13}, x: 0.02},
+    grid: {rows: 1, columns: 2, pattern: 'independent'},
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: '결측률', font: {size: 11}}, domain: [0, 0.45]
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {title: {text: '마커 수', font: {size: 11}}}),
+    xaxis2: Object.assign({}, _AXIS_DARK, {
+      title: {text: '결측률', font: {size: 11}}, domain: [0.55, 1]
+    }),
+    yaxis2: Object.assign({}, _AXIS_DARK, {
+      title: {text: '-log10(SD p)', font: {size: 11}}, anchor: 'x2'
+    }),
+    shapes: shapes,
+    annotations: [
+      {x: m.missing_threshold, y: 1.05, xref: 'x', yref: 'paper',
+       text: `임계 ${(m.missing_threshold*100).toFixed(0)}%`, showarrow: false,
+       font: {size: 9, color: '#dc3545'}},
+      {x: 0.99, y: -Math.log10(m.sd_p_threshold), xref: 'x2 domain', yref: 'y2',
+       text: `SD p<${m.sd_p_threshold}`, showarrow: false, xanchor: 'right',
+       font: {size: 9, color: '#dc3545'}}
+    ],
+    showlegend: false
+  });
+
+  Plotly.newPlot('qc-missing-plot', [traceMiss, traceSd], layout,
+                 {responsive: true, displaylogo: false});
 }
+
 function renderLinkageMapPlot(lm) {
-  document.getElementById('qc-linkage-plot').innerHTML =
-    `<div class="empty"><div class="empty-hint">Linkage map 시각화는 조각 G-3에서 구현됩니다.</div></div>`;
+  // 12개 염색체를 가로 막대로 + 마커를 vertical line으로
+  if (!appData.map || !appData.map.data) {
+    document.getElementById('qc-linkage-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">map 데이터 없음</div></div>`;
+    return;
+  }
+  const md = appData.map.data;
+  const cols = Object.keys(md);
+  const chrCol = cols.find(c => c.toLowerCase().includes('chr')) || cols[1];
+  const cmCol = cols.find(c => c.toLowerCase() === 'cm' || c.toLowerCase().includes('cm'));
+  if (!cmCol) {
+    document.getElementById('qc-linkage-plot').innerHTML =
+      `<div class="empty"><div class="empty-hint">cM 컬럼 없음</div></div>`;
+    return;
+  }
+  const chrs = md[chrCol], cms = md[cmCol];
+
+  // 염색체별 정렬
+  const byChr = {};
+  for (let i = 0; i < chrs.length; i++) {
+    const c = String(chrs[i]);
+    (byChr[c] ||= []).push(parseFloat(cms[i]));
+  }
+  const sortedChrs = Object.keys(byChr).sort((a, b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+
+  const traces = [];
+
+  // 각 염색체 막대
+  sortedChrs.forEach(ch => {
+    const cmList = byChr[ch].sort((a, b) => a - b);
+    const minCM = cmList[0], maxCM = cmList[cmList.length - 1];
+    traces.push({
+      x: [minCM, maxCM], y: [`Chr${ch}`, `Chr${ch}`],
+      type: 'scatter', mode: 'lines',
+      line: {color: 'rgba(255,255,255,0.18)', width: 14},
+      hoverinfo: 'skip', showlegend: false
+    });
+    // 마커 위치 점
+    traces.push({
+      x: cmList, y: cmList.map(_ => `Chr${ch}`),
+      type: 'scatter', mode: 'markers',
+      marker: {symbol: 'line-ns', size: 12, color: '#017f97',
+               line: {color: '#017f97', width: 1.5}},
+      text: cmList.map(c => `Chr${ch} ${c.toFixed(1)}cM`),
+      hovertemplate: '%{text}<extra></extra>',
+      showlegend: false, name: `Chr${ch}`
+    });
+  });
+
+  // 동원체 다이아몬드 (G-3)
+  const centX = [], centY = [];
+  sortedChrs.forEach(ch => {
+    const cent = RICE_CENTROMERE_CM[String(ch)];
+    if (cent !== undefined) {
+      centX.push(cent);
+      centY.push(`Chr${ch}`);
+    }
+  });
+  if (centX.length) {
+    traces.push({
+      x: centX, y: centY,
+      type: 'scatter', mode: 'markers',
+      marker: {symbol: 'diamond', size: 14, color: '#d97706',
+               line: {color: '#0c3026', width: 1.5}},
+      name: '동원체',
+      hovertemplate: '동원체 (IRGSP-1.0): %{y} %{x:.1f}cM<extra></extra>'
+    });
+  }
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `Linkage Map — 총 ${lm.total_cM.toFixed(1)} cM (${lm.n_chr}개 염색체)`,
+            font: {size: 13}, x: 0.02},
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'Genetic position (cM)', font: {size: 11}},
+      rangemode: 'tozero'
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: '', autorange: 'reversed', tickfont: {size: 11, color: '#94b8aa'}
+    }),
+    height: 420,
+    legend: {orientation: 'h', y: 1.08, x: 0.5, xanchor: 'center',
+             font: {size: 10, color: '#94b8aa'}, bgcolor: 'rgba(13,58,45,0.5)'}
+  });
+  Plotly.newPlot('qc-linkage-plot', traces, layout, {responsive: true, displaylogo: false});
 }
 
 // ============================================================
