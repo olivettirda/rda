@@ -3587,6 +3587,403 @@ def run_integration_analysis(detected_peaks_json, n_indiv=None, threshold=2.5):
     """JS에서 호출하기 쉽게 wrapper. detected_peaks_json은 {method: [peaks]} 구조."""
     return generate_full_report_data(detected_peaks_json, n_indiv=n_indiv,
                                       threshold=threshold)
+
+# ============== 단계 G: QC + Linkage Map 검증 ==============
+def qc_marker_quality(geno_df, map_df=None, pop_type='F2',
+                      missing_threshold=0.10, sd_p_threshold=0.001):
+    """
+    마커 품질 검증.
+    - 결측률 (missing rate)
+    - 분리비 χ² (segregation distortion)
+    - 헤테로 이상 (RIL: H<5%, F2: H≈50%)
+    - 알려진 SD 영역 (S5/Sa/hsa1) 플래깅
+    """
+    geno = geno_df.iloc[:, 1:].values
+    marker_names = geno_df.iloc[:, 0].values
+    n_markers, n_indiv = geno.shape
+    is_inbred = ('RIL' in pop_type) or ('DH' in pop_type)
+
+    # 알려진 SD 영역 (벼)
+    known_sd_regions = []
+    try:
+        known_sd_regions = RULES.get('rice_segregation_distortion_known_regions_DO_NOT_DELETE', []) if RULES else []
+    except NameError:
+        pass
+
+    # 마커 위치 매핑
+    marker_chr = np.array([None] * n_markers, dtype=object)
+    marker_bp = np.full(n_markers, np.nan)
+    marker_cm = np.full(n_markers, np.nan)
+    if map_df is not None:
+        try:
+            map_idx, _, _ = _build_marker_index(geno_df, map_df)
+            for i, mn in enumerate(marker_names):
+                if str(mn) in map_idx:
+                    marker_chr[i] = map_idx[str(mn)][0]
+                    marker_cm[i] = map_idx[str(mn)][1]
+            # bp 컬럼 (있으면)
+            bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+            name_col = map_df.columns[0]
+            if bp_col:
+                bp_map = {str(r[name_col]): float(r[bp_col]) for _, r in map_df.iterrows()}
+                for i, mn in enumerate(marker_names):
+                    if str(mn) in bp_map:
+                        marker_bp[i] = bp_map[str(mn)]
+        except Exception:
+            pass
+
+    marker_results = []
+    summary = {'pass': 0, 'warn': 0, 'fail': 0}
+
+    for i in range(n_markers):
+        row = geno[i]
+        n_a = int((row == 'A').sum())
+        n_b = int((row == 'B').sum())
+        n_h = int((row == 'H').sum())
+        n_miss = int((row == '-').sum())
+        n_total = n_a + n_b + n_h + n_miss
+        n_called = n_a + n_b + n_h
+
+        miss_rate = n_miss / n_total if n_total > 0 else 1.0
+        het_rate = n_h / n_called if n_called > 0 else 0.0
+
+        # 분리비 χ² 검정
+        chi2_stat = None; sd_p = None; sd_flag = False
+        if n_called >= 10:
+            try:
+                if is_inbred:
+                    # RIL/DH: A:B = 1:1
+                    expected = [n_called / 2, n_called / 2]
+                    if (n_a + n_b) > 0:
+                        chi2_stat, sd_p = stats.chisquare([n_a, n_b], expected)
+                else:
+                    # F2: A:H:B = 1:2:1
+                    expected = [n_called * 0.25, n_called * 0.5, n_called * 0.25]
+                    chi2_stat, sd_p = stats.chisquare([n_a, n_h, n_b], expected)
+                if sd_p < sd_p_threshold:
+                    sd_flag = True
+            except Exception:
+                pass
+
+        # 헤테로 이상
+        het_flag = False
+        if is_inbred and het_rate > 0.10:
+            het_flag = True
+        elif not is_inbred and abs(het_rate - 0.50) > 0.15:
+            het_flag = True
+
+        # 알려진 SD 영역 매칭
+        in_known_sd = False; known_locus = None
+        if marker_chr[i] is not None and not np.isnan(marker_bp[i]):
+            try:
+                bp_mb = marker_bp[i] / 1e6
+                for region in known_sd_regions:
+                    if str(region.get('chr')) == str(marker_chr[i]):
+                        pos_str = region.get('position_Mb', '')
+                        if pos_str and '-' in str(pos_str):
+                            lo, hi = [float(x) for x in str(pos_str).split('-')]
+                            if lo <= bp_mb <= hi:
+                                in_known_sd = True
+                                known_locus = region.get('locus')
+                                break
+                        elif marker_chr[i] is not None and str(region.get('chr')) == str(marker_chr[i]):
+                            # 위치 정보 없이 chr만 매칭 (S1 등) — 약한 플래그
+                            if known_locus is None:
+                                known_locus = region.get('locus') + '?'
+            except Exception:
+                pass
+
+        # 등급 판정
+        if miss_rate > missing_threshold * 2 or (sd_flag and not in_known_sd and miss_rate > 0.05):
+            grade = 'fail'
+        elif miss_rate > missing_threshold or sd_flag or het_flag:
+            grade = 'warn'
+        else:
+            grade = 'pass'
+        summary[grade] += 1
+
+        marker_results.append({
+            'marker': str(marker_names[i]),
+            'chr': str(marker_chr[i]) if marker_chr[i] is not None else None,
+            'cM': float(marker_cm[i]) if not np.isnan(marker_cm[i]) else None,
+            'bp': float(marker_bp[i]) if not np.isnan(marker_bp[i]) else None,
+            'n_a': n_a, 'n_h': n_h, 'n_b': n_b, 'n_miss': n_miss,
+            'missing_rate': float(miss_rate),
+            'het_rate': float(het_rate),
+            'sd_chi2': float(chi2_stat) if chi2_stat is not None else None,
+            'sd_p': float(sd_p) if sd_p is not None else None,
+            'sd_flag': bool(sd_flag),
+            'het_flag': bool(het_flag),
+            'in_known_sd': bool(in_known_sd),
+            'known_sd_locus': known_locus,
+            'grade': grade
+        })
+
+    return {
+        'pop_type': pop_type,
+        'is_inbred': bool(is_inbred),
+        'n_markers': int(n_markers),
+        'n_indiv': int(n_indiv),
+        'missing_threshold': float(missing_threshold),
+        'sd_p_threshold': float(sd_p_threshold),
+        'summary': summary,
+        'markers': marker_results
+    }
+
+def qc_individual_quality(geno_df, missing_threshold=0.20, ibs_dup_threshold=0.99):
+    """
+    개체 품질 검증.
+    - 개체별 결측률
+    - IBS (Identity-By-State) 매트릭스 → 중복 의심 쌍
+    """
+    geno = geno_df.iloc[:, 1:].values
+    indiv_names = list(geno_df.columns[1:])
+    n_markers, n_indiv = geno.shape
+
+    # 개체별 결측률
+    indiv_missing = []
+    for j in range(n_indiv):
+        col = geno[:, j]
+        n_miss = int((col == '-').sum())
+        rate = n_miss / n_markers if n_markers > 0 else 1.0
+        indiv_missing.append({
+            'indiv': indiv_names[j],
+            'n_miss': n_miss,
+            'missing_rate': float(rate),
+            'flag': bool(rate > missing_threshold)
+        })
+
+    # IBS pairwise (모든 쌍 비교는 N>200이면 무거움 — sample)
+    ibs_pairs = []
+    if n_indiv <= 300:
+        # 모든 쌍
+        for i in range(n_indiv):
+            for j in range(i+1, n_indiv):
+                # 같은 마커에서 같은 코드 (- 제외)
+                a = geno[:, i]
+                b = geno[:, j]
+                mask = (a != '-') & (b != '-')
+                if mask.sum() < 50:
+                    continue
+                same = (a[mask] == b[mask]).sum()
+                ibs = same / mask.sum()
+                if ibs >= ibs_dup_threshold:
+                    ibs_pairs.append({
+                        'indiv1': indiv_names[i],
+                        'indiv2': indiv_names[j],
+                        'IBS': float(ibs),
+                        'n_compared': int(mask.sum())
+                    })
+    else:
+        # N 큰 경우 — 무작위 sample
+        np.random.seed(42)
+        n_sample = min(20000, n_indiv * (n_indiv - 1) // 2)
+        for _ in range(n_sample):
+            i, j = np.random.choice(n_indiv, 2, replace=False)
+            if i > j: i, j = j, i
+            a = geno[:, i]; b = geno[:, j]
+            mask = (a != '-') & (b != '-')
+            if mask.sum() < 50: continue
+            same = (a[mask] == b[mask]).sum()
+            ibs = same / mask.sum()
+            if ibs >= ibs_dup_threshold:
+                ibs_pairs.append({
+                    'indiv1': indiv_names[i],
+                    'indiv2': indiv_names[j],
+                    'IBS': float(ibs),
+                    'n_compared': int(mask.sum())
+                })
+
+    ibs_pairs.sort(key=lambda x: x['IBS'], reverse=True)
+
+    return {
+        'n_indiv': int(n_indiv),
+        'missing_threshold': float(missing_threshold),
+        'ibs_dup_threshold': float(ibs_dup_threshold),
+        'individuals': indiv_missing,
+        'n_flagged_missing': int(sum(1 for x in indiv_missing if x['flag'])),
+        'duplicate_candidates': ibs_pairs[:50],
+        'n_dup_candidates': len(ibs_pairs)
+    }
+
+def qc_phenotype_quality(pheno_df):
+    """
+    표현형 품질 검증.
+    - 정규성 (Shapiro-Wilk)
+    - 극단값 (IQR 1.5×, 3×)
+    - 다환경 시 환경 간 상관, broad-sense H² 추정
+    """
+    pheno_data = pheno_df.iloc[:, 1:]
+    results = {'n_traits': int(pheno_data.shape[1]), 'traits': [], 'env_correlations': []}
+
+    for col in pheno_data.columns:
+        vals = pd.to_numeric(pheno_data[col], errors='coerce').dropna().values
+        if len(vals) < 3:
+            continue
+        try:
+            sw_stat, sw_p = stats.shapiro(vals)
+        except Exception:
+            sw_stat, sw_p = np.nan, np.nan
+
+        mean = float(vals.mean())
+        std = float(vals.std(ddof=1)) if len(vals) > 1 else 0
+        cv = (std / mean) * 100 if mean != 0 else 0
+        q1, q3 = np.percentile(vals, [25, 75])
+        iqr = q3 - q1
+        outliers_15 = int(((vals < q1 - 1.5 * iqr) | (vals > q3 + 1.5 * iqr)).sum())
+        outliers_3 = int(((vals < q1 - 3 * iqr) | (vals > q3 + 3 * iqr)).sum())
+
+        # MAD-based outliers
+        med = np.median(vals)
+        mad = float(np.median(np.abs(vals - med)))
+        outliers_mad = int((np.abs(vals - med) > 3 * 1.4826 * mad).sum()) if mad > 0 else 0
+
+        # 결측 개수
+        total = pheno_data[col].shape[0]
+        n_miss = int(total - len(vals))
+
+        results['traits'].append({
+            'name': str(col),
+            'n': int(len(vals)),
+            'n_missing': n_miss,
+            'mean': mean, 'std': std, 'cv': float(cv),
+            'min': float(vals.min()), 'max': float(vals.max()),
+            'median': float(med), 'q1': float(q1), 'q3': float(q3),
+            'shapiro_p': float(sw_p) if not np.isnan(sw_p) else None,
+            'normal': bool(sw_p > 0.05) if not np.isnan(sw_p) else None,
+            'outliers_iqr_1_5': outliers_15,
+            'outliers_iqr_3': outliers_3,
+            'outliers_mad': outliers_mad
+        })
+
+    # 다환경 간 상관 (broad H² 근사: 환경 평균 상관)
+    cols = list(pheno_data.columns)
+    if len(cols) >= 2:
+        for i in range(len(cols)):
+            for j in range(i+1, len(cols)):
+                a = pd.to_numeric(pheno_data[cols[i]], errors='coerce')
+                b = pd.to_numeric(pheno_data[cols[j]], errors='coerce')
+                mask = a.notna() & b.notna()
+                if mask.sum() < 5:
+                    continue
+                try:
+                    r, p = stats.pearsonr(a[mask], b[mask])
+                    results['env_correlations'].append({
+                        'env1': cols[i], 'env2': cols[j],
+                        'pearson_r': float(r), 'p': float(p),
+                        'n': int(mask.sum())
+                    })
+                except Exception:
+                    pass
+
+    # 추정 broad-sense H² (환경 간 평균 r)
+    if results['env_correlations']:
+        avg_r = float(np.mean([c['pearson_r'] for c in results['env_correlations']]))
+        results['estimated_broad_H2'] = avg_r
+
+    return results
+
+def validate_linkage_map(map_df, total_cM_min=1140, total_cM_max=1900):
+    """
+    Linkage map 검증.
+    - 마커 순서: bp 순서 vs cM 순서 일치성
+    - cM 갭 (singleton — 비정상적으로 큰 간격)
+    - 총 cM 길이 (벼 IRGSP-1.0 기대 1140~1900cM)
+    """
+    chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+    cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+    bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+    if not chr_col or not cm_col:
+        return {'error': 'Chr / cM 컬럼 누락'}
+
+    chrs = sorted(set(str(c) for c in map_df[chr_col].dropna()),
+                  key=lambda x: int(x) if x.isdigit() else 99)
+    chr_results = []
+    total_cM = 0.0
+
+    for ch in chrs:
+        sub = map_df[map_df[chr_col].astype(str) == ch].copy()
+        sub = sub.sort_values(cm_col).reset_index(drop=True)
+        cms = sub[cm_col].astype(float).values
+        if len(cms) == 0:
+            continue
+        chr_len = float(cms[-1] - cms[0])
+        total_cM += chr_len
+
+        # 인접 마커 간격
+        gaps = np.diff(cms) if len(cms) > 1 else np.array([])
+        max_gap = float(gaps.max()) if len(gaps) else 0
+        avg_gap = float(gaps.mean()) if len(gaps) else 0
+        large_gaps = int((gaps > 30).sum()) if len(gaps) else 0  # 30cM 초과 갭
+
+        # bp 순서 일치성
+        order_consistency = None
+        if bp_col:
+            bps = sub[bp_col].astype(float).values
+            if len(bps) > 1:
+                # bp가 단조 증가하는지 확인
+                bp_order = np.argsort(bps)
+                cm_order = np.arange(len(bps))  # 이미 cM으로 정렬됨
+                spearman, _ = stats.spearmanr(bps, cms)
+                order_consistency = float(spearman)
+
+        chr_results.append({
+            'chr': ch,
+            'n_markers': int(len(sub)),
+            'cm_min': float(cms[0]),
+            'cm_max': float(cms[-1]),
+            'chr_length_cM': chr_len,
+            'max_gap_cM': max_gap,
+            'avg_gap_cM': avg_gap,
+            'large_gaps_count': large_gaps,
+            'bp_cM_spearman': order_consistency
+        })
+
+    total_in_range = total_cM_min <= total_cM <= total_cM_max
+    chr_count_ok = len(chrs) == 12  # 벼 12개 염색체
+
+    return {
+        'n_chr': len(chrs),
+        'total_cM': float(total_cM),
+        'expected_range_cM': [total_cM_min, total_cM_max],
+        'total_in_expected_range': bool(total_in_range),
+        'chr_count_ok': bool(chr_count_ok),
+        'chromosomes': chr_results
+    }
+
+def run_full_qc(geno_json, map_json, pheno_json, pop_type='F2',
+                 missing_marker=0.10, missing_indiv=0.20, sd_p=0.001,
+                 ibs_dup=0.99, total_cM_min=1140, total_cM_max=1900):
+    """전체 QC 통합 실행."""
+    geno_df = pd.DataFrame(geno_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    map_df = pd.DataFrame(map_json) if map_json else None
+
+    res = {
+        'marker': qc_marker_quality(geno_df, map_df, pop_type=pop_type,
+                                     missing_threshold=missing_marker, sd_p_threshold=sd_p),
+        'individual': qc_individual_quality(geno_df,
+                                              missing_threshold=missing_indiv,
+                                              ibs_dup_threshold=ibs_dup),
+        'phenotype': qc_phenotype_quality(pheno_df)
+    }
+    if map_df is not None:
+        res['linkage_map'] = validate_linkage_map(map_df,
+                                                   total_cM_min=total_cM_min,
+                                                   total_cM_max=total_cM_max)
+
+    # 종합 등급
+    overall = 'pass'
+    if res['marker']['summary'].get('fail', 0) > 0 or \
+       res['individual'].get('n_dup_candidates', 0) > 0:
+        overall = 'fail'
+    elif res['marker']['summary'].get('warn', 0) > res['marker']['n_markers'] * 0.1:
+        overall = 'warn'
+    elif map_df is not None and not res['linkage_map'].get('total_in_expected_range', True):
+        overall = 'warn'
+    res['overall_grade'] = overall
+
+    return json.dumps(res)
 `;
 }
 async function handleFile(event, type) {
