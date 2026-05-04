@@ -1415,6 +1415,22 @@ async function bootPyodide() {
     } else {
       pyodide.runPython('RULES = None')
     }
+
+    // Q-TARO subset 로드 (단계 F)
+    try {
+      const qtaroRes = await fetch('./data/qtl_tool_qtaro_subset.json', {cache: 'no-store'});
+      if (qtaroRes.ok) {
+        appData.qtaro = await qtaroRes.json();
+        pyodide.globals.set('_QTARO_JSON', JSON.stringify(appData.qtaro));
+        pyodide.runPython('QTARO_DB = json.loads(_QTARO_JSON)');
+        log(`Q-TARO subset 로드 (${appData.qtaro.qtls.length}개 알려진 QTL)`, 'ok');
+      } else {
+        pyodide.runPython('QTARO_DB = None');
+      }
+    } catch (e) {
+      pyodide.runPython('QTARO_DB = None');
+      log('Q-TARO 로드 실패 (' + e.message + '). Tab 5 비교 기능 일부 비활성화', 'warn');
+    }
     log('진단 엔진 초기화 완료', 'ok');
 
     document.getElementById('pyodide-status-dot').classList.add('ready');
@@ -3350,6 +3366,194 @@ def qtl_environment_interaction(geno_json, map_json, pheno_json, env_traits,
         },
         'all_curves': {env: im_per_env[env]['lod_curve'] for env in envs}
     })
+
+# ============== 단계 F: Q-TARO 비교 + 자동 해석 ==============
+def compare_with_qtaro(detected_peaks, qtaro_db=None, distance_cM=10.0):
+    """
+    검출 QTL을 Q-TARO 알려진 QTL과 비교.
+    distance_cM 이내에 알려진 QTL이 있으면 매칭, 없으면 novel.
+    """
+    if qtaro_db is None:
+        try:
+            qtaro_db = QTARO_DB
+        except NameError:
+            qtaro_db = None
+    if qtaro_db is None or 'qtls' not in qtaro_db:
+        return [{'detected': p, 'matches': [], 'novel': True, 'note': 'Q-TARO DB 미로드'}
+                for p in detected_peaks]
+
+    qtaro_list = qtaro_db['qtls']
+    results = []
+    for det in detected_peaks:
+        det_chr = str(det.get('chr', ''))
+        det_cM = float(det.get('cM', 0))
+        matches = []
+        for known in qtaro_list:
+            if str(known.get('chr')) != det_chr:
+                continue
+            known_cM = float(known.get('cM_approx', -999))
+            if known_cM < 0:
+                continue
+            d = abs(known_cM - det_cM)
+            if d <= distance_cM:
+                matches.append({
+                    'known_name': known.get('name'),
+                    'known_trait': known.get('trait'),
+                    'known_cM': known_cM,
+                    'distance_cM': float(d),
+                    'effect': known.get('effect'),
+                    'ref': known.get('ref')
+                })
+        matches.sort(key=lambda x: x['distance_cM'])
+        results.append({
+            'detected': det,
+            'matches': matches[:5],
+            'novel': len(matches) == 0,
+            'closest_distance_cM': matches[0]['distance_cM'] if matches else None
+        })
+    return results
+
+def _format_distance(d):
+    if d is None: return 'N/A'
+    if d < 1: return f'{d*1000:.0f}kb'
+    return f'{d:.1f}cM'
+
+def generate_qtl_summary_text(peak, comparison, threshold=2.5, n_indiv=None,
+                               beavis_factor=None, trait_priors=None):
+    """
+    각 QTL에 대해 자동 해석 텍스트 생성.
+
+    예시:
+    "qPH3 (Chr3, 28.0cM): LOD 11.77 (threshold 2.5 통과), PVE 추정 ~25%,
+     가산효과 +8.26 (B allele 증가). CI 27~29cM (1.5-LOD).
+     인접 알려진 QTL: Hd6 (3.5cM) — heading_date. → 다른 형질이라 novel 가능성.
+     N=200 → Beavis factor 1.5× PVE 부풀림 가능."
+    """
+    chr_id = peak.get('chr', '?')
+    cm = peak.get('cM', 0)
+    lod = peak.get('LOD', 0)
+    a = peak.get('add_a')
+    d = peak.get('dom_d')
+    ci_lower = peak.get('ci_lower_cM')
+    ci_upper = peak.get('ci_upper_cM')
+
+    lines = []
+    name = peak.get('name', f'qChr{chr_id}-{cm:.0f}')
+    lines.append(f"**{name}** (Chr{chr_id}, {cm:.1f} cM):")
+    lines.append(f"- LOD = {lod:.2f} (threshold {threshold} {'통과 ✓' if lod >= threshold else '미달 ⚠'})")
+
+    if a is not None:
+        direction = 'B(공여친) allele 증가' if a > 0 else 'A(반복친) allele 증가'
+        lines.append(f"- 가산효과 a = {a:+.2f} ({direction})")
+    if d is not None:
+        if abs(d) < 0.3 * abs(a or 1):
+            dom_class = 'additive 우세'
+        elif d > 0:
+            dom_class = '부분 우성 (B → mid)'
+        else:
+            dom_class = '부분 우성 (A → mid)'
+        lines.append(f"- 우성효과 d = {d:+.2f} ({dom_class})")
+    if ci_lower is not None and ci_upper is not None:
+        lines.append(f"- 신뢰구간 (1.5-LOD drop): {ci_lower:.1f} ~ {ci_upper:.1f} cM (폭 {ci_upper-ci_lower:.1f} cM)")
+
+    # Q-TARO 비교
+    if comparison and 'matches' in comparison:
+        if comparison['novel']:
+            lines.append(f"- **알려진 QTL 인접 없음** ({comparison.get('note', '거리 10cM 이내')}) → **novel QTL 가능**, 후보유전자 발굴 필요")
+        else:
+            for m in comparison['matches'][:2]:
+                lines.append(f"- 인접 알려진 QTL: **{m['known_name']}** ({_format_distance(m['distance_cM'])} 떨어짐) — {m['known_trait']}, {m.get('effect','—')}, {m.get('ref','')}")
+            if peak.get('trait_class') and comparison['matches'][0].get('known_trait') != peak.get('trait_class'):
+                lines.append(f"  → 매칭 QTL의 형질이 다르므로 같은 위치라도 **다른 효과 가능성**")
+
+    # Beavis 효과 경고
+    if n_indiv and n_indiv < 500:
+        if beavis_factor is None:
+            beavis_factor = 2.0 if n_indiv <= 100 else 1.5 if n_indiv <= 200 else 1.3 if n_indiv <= 300 else 1.15
+        lines.append(f"- ⚠ N={n_indiv} → Beavis effect: PVE가 약 {beavis_factor}× 부풀려져 보고됨 (Beavis 1998)")
+
+    # 후속 권장
+    if lod >= threshold:
+        lines.append(f"- → KASP 마커 설계 가능 (CI 영역 ±100kb), F2:3 검정교배 검증 권장")
+
+    return '\n'.join(lines)
+
+def generate_full_report_data(detected_peaks_by_method, n_indiv=None, qtaro_db=None,
+                               threshold=2.5, ci_drop=1.5):
+    """
+    전체 보고서 데이터 생성 (Excel/HTML export 용).
+    """
+    if qtaro_db is None:
+        try:
+            qtaro_db = QTARO_DB
+        except NameError:
+            qtaro_db = None
+
+    report = {
+        'methods': {},
+        'integrated_summary': [],
+        'beavis_warning': bool(n_indiv and n_indiv < 500)
+    }
+
+    for method, peaks in detected_peaks_by_method.items():
+        if not peaks:
+            continue
+        comparisons = compare_with_qtaro(peaks, qtaro_db=qtaro_db)
+        method_entries = []
+        for peak, comp in zip(peaks, comparisons):
+            entry = {
+                'peak': peak,
+                'comparison': comp,
+                'summary_text': generate_qtl_summary_text(peak, comp, threshold=threshold,
+                                                            n_indiv=n_indiv)
+            }
+            method_entries.append(entry)
+        report['methods'][method] = method_entries
+
+    # 통합: 모든 메소드의 peak를 chr/cM 클러스터링
+    all_peaks_with_method = []
+    for method, peaks in detected_peaks_by_method.items():
+        for p in peaks:
+            all_peaks_with_method.append({**p, '_method': method})
+
+    # chr/cM 가까운 것끼리 그룹
+    integrated = []
+    used = set()
+    for i, p in enumerate(all_peaks_with_method):
+        if i in used:
+            continue
+        cluster = [p]
+        used.add(i)
+        for j, p2 in enumerate(all_peaks_with_method[i+1:], start=i+1):
+            if j in used: continue
+            if str(p2['chr']) == str(p['chr']) and abs(p2['cM'] - p['cM']) <= 5.0:
+                cluster.append(p2)
+                used.add(j)
+        # 메소드 전부 통합
+        methods_at_locus = sorted(set(c['_method'] for c in cluster))
+        max_lod = max(c['LOD'] for c in cluster)
+        avg_a = float(np.mean([c.get('add_a', 0) or 0 for c in cluster]))
+        rep = max(cluster, key=lambda x: x['LOD'])
+        comp_list = compare_with_qtaro([rep], qtaro_db=qtaro_db)
+        integrated.append({
+            'chr': rep['chr'],
+            'cM': rep['cM'],
+            'max_LOD': max_lod,
+            'avg_add_a': avg_a,
+            'methods_detected': methods_at_locus,
+            'n_methods': len(methods_at_locus),
+            'representative_peak': rep,
+            'comparison': comp_list[0] if comp_list else None
+        })
+    integrated.sort(key=lambda x: x['max_LOD'], reverse=True)
+    report['integrated_summary'] = integrated
+
+    return json.dumps(report)
+
+def run_integration_analysis(detected_peaks_json, n_indiv=None, threshold=2.5):
+    """JS에서 호출하기 쉽게 wrapper. detected_peaks_json은 {method: [peaks]} 구조."""
+    return generate_full_report_data(detected_peaks_json, n_indiv=n_indiv,
+                                      threshold=threshold)
 `;
 }
 async function handleFile(event, type) {
