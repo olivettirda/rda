@@ -1139,6 +1139,25 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div id="tier3-mqm-table"></div>
     </div>
     <div class="card">
+      <div class="card-title">Genome-wide QTL map (12개 염색체)</div>
+      <div class="card-subtitle">검출된 모든 QTL을 12개 염색체에 일괄 표시합니다. 점 크기 = LOD, 색상 = LOD 강도.</div>
+      <div class="export-bar" id="tier3-genome-export">
+        <span class="label">출력:</span>
+        <span>너비 <input type="number" id="tg-w" value="160" min="50" max="500"> mm</span>
+        <span>높이 <input type="number" id="tg-h" value="100" min="40" max="300"> mm</span>
+        <span>DPI
+          <select id="tg-dpi">
+            <option value="72">72</option><option value="150">150</option>
+            <option value="300" selected>300</option><option value="600">600</option>
+          </select>
+        </span>
+        <span class="toggle-row"><input type="checkbox" id="tg-bw"> <label for="tg-bw">흑백</label></span>
+        <button class="btn-mini" onclick="exportPlot('tier3-genome-map','tg','genome_QTL_map')">PNG 저장</button>
+        <button class="btn-mini" onclick="exportPlot('tier3-genome-map','tg','genome_QTL_map','svg')">SVG 저장</button>
+      </div>
+      <div id="tier3-genome-map" style="min-height:380px"></div>
+    </div>
+    <div class="card">
       <div class="card-title">QTL Effect plot (유전자형별 표현형)</div>
       <div class="card-subtitle">검출된 QTL의 가까운 마커에서 AA / AB / BB 평균 ± SE를 비교합니다.</div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
@@ -3387,6 +3406,9 @@ function renderTier3Results(result) {
     document.getElementById('tier3-mqm-table').innerHTML = `<div class="empty"><div class="empty-hint">Penalty(${mqm.penalty_main}) 통과 QTL 없음. Penalty를 낮춰 다시 실행해보세요.</div></div>`;
   }
 
+  // Genome-wide QTL map (단계 D-4)
+  renderGenomeWideQTLMap(result);
+
   // QTL effect plot dropdown 채우기 (단계 D-3)
   populateEffectQTLSelect(result);
 
@@ -3418,6 +3440,124 @@ function renderQTLTable(peaks, ciDrop, emptyMsg) {
       </tbody>
     </table>
   `;
+}
+
+// ============================================================
+// Genome-wide QTL map (단계 D-4)
+// ============================================================
+// IRGSP-1.0 동원체 위치 (cM, 1cM ≈ 250kb 가정으로 환산)
+const RICE_CENTROMERE_CM = {
+  '1': 71, '2': 52, '3': 78, '4': 39, '5': 50,
+  '6': 61, '7': 48, '8': 51, '9': 11, '10': 33,
+  '11': 48, '12': 47
+};
+
+function renderGenomeWideQTLMap(result) {
+  // 모든 검출 QTL을 통합 (메소드 라벨 포함)
+  const allPeaks = [];
+  result.cim_peaks.forEach(p => allPeaks.push(Object.assign({method: 'CIM'}, p)));
+  result.icim_peaks.forEach(p => allPeaks.push(Object.assign({method: 'ICIM'}, p)));
+  result.mqm.qtls.forEach(q => allPeaks.push({
+    method: 'MQM', chr: q.chr, cM: q.cM, LOD: q.LOD,
+    add_a: q.add_a, dom_d: q.dom_d
+  }));
+
+  // 염색체별 cM 범위 (CIM 곡선에서 측정)
+  const byChr = {};
+  result.cim.lod_curve.forEach(p => {
+    if (!byChr[p.chr]) byChr[p.chr] = {min: Infinity, max: -Infinity};
+    byChr[p.chr].min = Math.min(byChr[p.chr].min, p.cM);
+    byChr[p.chr].max = Math.max(byChr[p.chr].max, p.cM);
+  });
+  const sortedChrs = Object.keys(byChr).sort((a, b) => {
+    const ai = parseInt(a), bi = parseInt(b);
+    if (!isNaN(ai) && !isNaN(bi)) return ai - bi;
+    return a.localeCompare(b);
+  });
+
+  const traces = [];
+
+  // 1) 각 염색체 ideogram 막대 (배경 회색)
+  sortedChrs.forEach(ch => {
+    const r = byChr[ch];
+    traces.push({
+      x: [r.min, r.max],
+      y: [`Chr${ch}`, `Chr${ch}`],
+      type: 'scatter', mode: 'lines',
+      line: {color: 'rgba(255,255,255,0.18)', width: 14},
+      hoverinfo: 'skip', showlegend: false
+    });
+  });
+
+  // 2) 동원체 위치 (있는 경우)
+  const centX = [], centY = [];
+  sortedChrs.forEach(ch => {
+    const cent = RICE_CENTROMERE_CM[String(ch)];
+    if (cent !== undefined) {
+      const r = byChr[ch];
+      // 데이터 범위 내에 있어야
+      if (cent >= r.min && cent <= r.max) {
+        centX.push(cent);
+        centY.push(`Chr${ch}`);
+      }
+    }
+  });
+  if (centX.length) {
+    traces.push({
+      x: centX, y: centY,
+      type: 'scatter', mode: 'markers',
+      marker: {symbol: 'diamond', size: 14, color: '#94b8aa',
+               line: {color: '#0c3026', width: 1.5}},
+      name: '동원체 (IRGSP-1.0)',
+      hovertemplate: '동원체 %{y} %{x:.1f}cM<extra></extra>',
+      showlegend: true
+    });
+  }
+
+  // 3) 검출 QTL — 메소드별 다른 마커
+  const methodConfig = {
+    'CIM':  {symbol: 'circle', color: '#017f97'},
+    'ICIM': {symbol: 'square', color: '#00a1b8'},
+    'MQM':  {symbol: 'star', color: '#d97706'}
+  };
+
+  ['CIM', 'ICIM', 'MQM'].forEach(method => {
+    const subset = allPeaks.filter(p => p.method === method);
+    if (!subset.length) return;
+    const cfg = methodConfig[method];
+    traces.push({
+      x: subset.map(p => p.cM),
+      y: subset.map(p => `Chr${p.chr}`),
+      type: 'scatter', mode: 'markers',
+      name: method,
+      marker: {
+        symbol: cfg.symbol,
+        size: subset.map(p => Math.min(28, Math.max(10, p.LOD * 1.6))),
+        color: cfg.color,
+        line: {color: '#e8f5f2', width: 1.2}
+      },
+      customdata: subset.map(p => [method, p.chr, p.cM, p.LOD,
+                                    p.add_a !== null && p.add_a !== undefined ? p.add_a : 'NA']),
+      hovertemplate: '%{customdata[0]} Chr%{customdata[1]} %{customdata[2]:.1f}cM<br>LOD=%{customdata[3]:.2f}<br>a=%{customdata[4]}<extra></extra>'
+    });
+  });
+
+  const layout = Object.assign({}, PLOTLY_DARK, {
+    title: {text: `Genome-wide QTL map — ${result.cim.trait}`, font: {size: 13}, x: 0.02},
+    xaxis: Object.assign({}, _AXIS_DARK, {
+      title: {text: 'Genetic position (cM)', font: {size: 11}},
+      rangemode: 'tozero'
+    }),
+    yaxis: Object.assign({}, _AXIS_DARK, {
+      title: '', autorange: 'reversed',
+      tickfont: {size: 11, color: '#94b8aa'}
+    }),
+    legend: {orientation: 'h', y: 1.08, x: 0.5, xanchor: 'center',
+             font: {size: 10, color: '#94b8aa'}, bgcolor: 'rgba(13,58,45,0.5)'},
+    height: 420
+  });
+
+  Plotly.newPlot('tier3-genome-map', traces, layout, {responsive: true, displaylogo: false});
 }
 
 // ============================================================
