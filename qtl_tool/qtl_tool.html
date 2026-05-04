@@ -3100,6 +3100,141 @@ def icim_epi(geno_df, map_df, pheno_df, trait_name=None,
         'n_epi_significant': len(epi_pairs),
         'epi_pairs': epi_pairs[:200]  # 상위 200개만
     })
+
+# ============== Tier 4: QTL × Environment (Li, Wang, Zhang 2015) ==============
+def qtl_environment_interaction(geno_json, map_json, pheno_json, env_traits,
+                                 step=1.0, pop_type='F2', map_function='kosambi',
+                                 threshold_main=3.0, threshold_QEI=3.0):
+    """
+    Li, Wang, Zhang 2015 ICIM-MET 다환경 분석 (단순화).
+
+    Args:
+        env_traits: 환경별 형질 컬럼 list (예: ['Yield_E1', 'Yield_E2', 'Yield_E3'])
+
+    Stage 1: 각 환경별 IM 실행
+    Stage 2: 각 위치에서 ANOVA로 main effect vs Q×E 분리
+        - main effect QTL: 모든 환경에서 일관 (LOD_avg > threshold_main, var(LOD) low)
+        - Q×E QTL: 일부 환경에서만 강한 LOD (var(LOD) high)
+    """
+    geno_df = pd.DataFrame(geno_json)
+    map_df = pd.DataFrame(map_json)
+    pheno_df = pd.DataFrame(pheno_json)
+    n_envs = len(env_traits)
+
+    # 환경별 IM
+    im_per_env = {}
+    for env in env_traits:
+        if env not in pheno_df.columns:
+            continue
+        im_per_env[env] = interval_mapping(geno_df, map_df, pheno_df,
+                                            trait_name=env, step=step,
+                                            pop_type=pop_type, map_function=map_function)
+
+    if not im_per_env:
+        return json.dumps({'error': '유효한 환경 형질 없음'})
+
+    # 모든 환경의 LOD 곡선이 같은 위치 정의역 → 동일 (cim_curve와 같음)
+    envs = list(im_per_env.keys())
+    ref_curve = im_per_env[envs[0]]['lod_curve']
+    n_pos = len(ref_curve)
+
+    # 각 위치별 환경별 LOD 모음
+    pos_data = []
+    for i in range(n_pos):
+        env_lods = []
+        env_a = []
+        for env in envs:
+            pt = im_per_env[env]['lod_curve'][i]
+            env_lods.append(pt['LOD'])
+            env_a.append(pt.get('add_a'))
+        env_lods = np.array(env_lods, dtype=float)
+        avg_lod = float(np.mean(env_lods))
+        std_lod = float(np.std(env_lods))
+        max_lod = float(np.max(env_lods))
+        min_lod = float(np.min(env_lods))
+        pos_data.append({
+            'chr': ref_curve[i]['chr'],
+            'cM': ref_curve[i]['cM'],
+            'avg_LOD': avg_lod,
+            'std_LOD': std_lod,
+            'max_LOD': max_lod,
+            'min_LOD': min_lod,
+            'env_LODs': env_lods.tolist(),
+            'env_effects': env_a
+        })
+
+    # main effect QTL: avg_LOD 기준 peak (CV 낮은 — 일관 효과)
+    main_peaks = []
+    by_chr = {}
+    for p in pos_data:
+        by_chr.setdefault(p['chr'], []).append(p)
+    for ch, pts in by_chr.items():
+        pts_sorted = sorted(pts, key=lambda x: x['cM'])
+        above = [p for p in pts_sorted if p['avg_LOD'] >= threshold_main]
+        if not above:
+            continue
+        clusters = [[above[0]]]
+        for p in above[1:]:
+            if p['cM'] - clusters[-1][-1]['cM'] <= 20:
+                clusters[-1].append(p)
+            else:
+                clusters.append([p])
+        for cl in clusters:
+            best = max(cl, key=lambda x: x['avg_LOD'])
+            cv = best['std_LOD'] / best['avg_LOD'] if best['avg_LOD'] > 0 else 0
+            main_peaks.append({
+                'chr': str(best['chr']), 'cM': float(best['cM']),
+                'avg_LOD': best['avg_LOD'], 'std_LOD': best['std_LOD'],
+                'CV': float(cv), 'max_LOD': best['max_LOD'], 'min_LOD': best['min_LOD'],
+                'env_LODs': best['env_LODs'], 'env_effects': best['env_effects'],
+                'classification': 'main_effect' if cv < 0.4 else 'mixed'
+            })
+
+    # Q×E peak: range_LOD (max-min) 기준
+    qei_peaks = []
+    for ch, pts in by_chr.items():
+        pts_sorted = sorted(pts, key=lambda x: x['cM'])
+        # 환경 간 차이가 크고 max는 임계 통과
+        candidates = [p for p in pts_sorted
+                      if (p['max_LOD'] - p['min_LOD']) >= threshold_QEI and p['max_LOD'] >= threshold_main]
+        if not candidates:
+            continue
+        clusters = [[candidates[0]]]
+        for p in candidates[1:]:
+            if p['cM'] - clusters[-1][-1]['cM'] <= 20:
+                clusters[-1].append(p)
+            else:
+                clusters.append([p])
+        for cl in clusters:
+            best = max(cl, key=lambda x: x['max_LOD'] - x['min_LOD'])
+            qei_peaks.append({
+                'chr': str(best['chr']), 'cM': float(best['cM']),
+                'avg_LOD': best['avg_LOD'], 'max_LOD': best['max_LOD'],
+                'min_LOD': best['min_LOD'],
+                'LOD_range': float(best['max_LOD'] - best['min_LOD']),
+                'env_LODs': best['env_LODs'], 'env_effects': best['env_effects'],
+                'best_env': envs[int(np.argmax(best['env_LODs']))],
+                'worst_env': envs[int(np.argmin(best['env_LODs']))]
+            })
+
+    main_peaks.sort(key=lambda x: x['avg_LOD'], reverse=True)
+    qei_peaks.sort(key=lambda x: x['LOD_range'], reverse=True)
+
+    return json.dumps({
+        'method': 'ICIM-MET (Li, Wang, Zhang 2015 simplified)',
+        'envs': envs,
+        'n_envs': n_envs,
+        'threshold_main': float(threshold_main),
+        'threshold_QEI': float(threshold_QEI),
+        'main_effect_peaks': main_peaks,
+        'qei_peaks': qei_peaks,
+        'pos_data_summary': {
+            'n_positions': n_pos,
+            'mean_avg_LOD': float(np.mean([p['avg_LOD'] for p in pos_data])),
+            'max_avg_LOD': float(max(p['avg_LOD'] for p in pos_data))
+        },
+        'all_curves': {env: im_per_env[env]['lod_curve'] for env in envs}
+    })
 `;
 }
 async function handleFile(event, type) {
