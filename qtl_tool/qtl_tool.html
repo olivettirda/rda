@@ -1793,11 +1793,18 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <div id="wf-external-table"></div>
     </div>
 
-    <!-- v4.17 -->
+    <!-- v4.17 (단계 7: 두 형식 동시 export) -->
     <div class="card">
-      <div class="card-title">벼 육종 시스템 v4.17 import용 JSON</div>
-      <div class="card-subtitle">v4.17 시스템에 직접 import 가능한 표준 형식 JSON.</div>
-      <button class="btn btn-secondary" onclick="downloadV417JSON()" style="margin-bottom:10px">v4.17 JSON 다운로드</button>
+      <div class="card-title" title="v4.17 시스템의 [QTL 가져오기] 기능에 직접 업로드 가능">벼 육종 시스템 v4.17 import용 JSON</div>
+      <div class="card-subtitle">v4.17 시스템에 직접 import 가능한 표준 형식. <strong>legacy 형식</strong>(기존 키 유지)과 <strong>v0.2 표준</strong>(kasp_region 포함, cM-bp 정확 보간) 두 종류 제공.</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="downloadV417JSON()" title="기존 detected_qtls 키 형식">v4.17 호환 JSON (legacy 형식)</button>
+        <button class="btn" onclick="downloadV417JSONv02()" title="v0.2 표준 — qtls + kasp_region 포함">v4.17 호환 JSON (v0.2 표준)</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button class="float-log-ctrl active" id="v417-tab-legacy" onclick="switchV417Preview('legacy')">legacy 미리보기</button>
+        <button class="float-log-ctrl" id="v417-tab-v02" onclick="switchV417Preview('v02')">v0.2 표준 미리보기</button>
+      </div>
       <pre id="wf-v417-preview" style="background:var(--bg-input);padding:12px;border-radius:5px;font-family:var(--font-mono);font-size:11px;overflow-x:auto;max-height:300px;color:var(--primary-main);border:1px solid var(--border-color)"></pre>
     </div>
   </div>
@@ -5105,13 +5112,14 @@ def build_external_search_links(qtl_peaks, map_df_json=None):
 
 def export_for_v417_system(detected_peaks_by_method, threshold=2.5):
     """
-    벼 육종 시스템 v4.17과 호환되는 QTL 위치 JSON 출력.
+    벼 육종 시스템 v4.17과 호환되는 QTL 위치 JSON 출력 (legacy 형식).
     {chr, position_cM, position_bp, LOD, effect, source_method} 표준 형식.
     """
     out = {
         '_meta': {
-            'tool': 'QTL Mapping Tool v1.0',
+            'tool': 'QTL Mapping Tool v0.2',
             'compatible_with': 'rice_breeding_v4.17',
+            'format': 'legacy',
             'reference': 'IRGSP-1.0',
             'export_threshold_LOD': float(threshold)
         },
@@ -5133,7 +5141,88 @@ def export_for_v417_system(detected_peaks_by_method, threshold=2.5):
                 'source_method': method,
                 'qtl_id': f"qChr{p.get('chr','?')}-{int(round(float(p.get('cM',0))))}"
             })
-    return json.dumps(out, indent=2)
+    return json.dumps(out, indent=2, ensure_ascii=False)
+
+def export_for_v417_system_v02(detected_peaks_by_method, map_json=None,
+                                 threshold=2.5, flank_kb=100):
+    """
+    v0.2 표준 형식 — kasp_region 영역 포함 + cM-bp 정확 보간.
+    스키마: {metadata, qtls: [{id, chr, peak_cM, peak_bp, ci_cM_start, ci_cM_end,
+                              ci_bp_start, ci_bp_end, lod, kasp_region}]}
+    """
+    from datetime import datetime
+    map_df = pd.DataFrame(map_json) if map_json else None
+
+    chr_col = bp_col = cm_col = None
+    if map_df is not None:
+        chr_col = next((c for c in map_df.columns if str(c).lower() in ['chr','chromosome','chrom']), None)
+        bp_col = next((c for c in map_df.columns if str(c).lower() in ['bp','position_bp','position']), None)
+        cm_col = next((c for c in map_df.columns if str(c).lower() in ['cm','position_cm','genetic']), None)
+
+    def cm_to_bp(ch, cm_pos):
+        if map_df is None or chr_col is None or bp_col is None or cm_col is None:
+            return int(float(cm_pos) * 250000)
+        sub = map_df[map_df[chr_col].astype(str) == str(ch)].copy()
+        if sub.empty:
+            return int(float(cm_pos) * 250000)
+        sub = sub.sort_values(cm_col)
+        cms = sub[cm_col].astype(float).values
+        bps = sub[bp_col].astype(float).values
+        if cm_pos <= cms[0]: return int(bps[0])
+        if cm_pos >= cms[-1]: return int(bps[-1])
+        idx = np.searchsorted(cms, cm_pos)
+        c1, c2 = cms[idx-1], cms[idx]
+        b1, b2 = bps[idx-1], bps[idx]
+        if c2 == c1: return int(b1)
+        return int(b1 + (cm_pos - c1) / (c2 - c1) * (b2 - b1))
+
+    flank_bp = int(flank_kb * 1000)
+    qtls = []
+    seen = set()
+    for method, peaks in detected_peaks_by_method.items():
+        for p in peaks:
+            lod = float(p.get('LOD', 0))
+            if lod < threshold: continue
+            ch = str(p.get('chr', ''))
+            peak_cM = float(p.get('cM', 0))
+            key = (ch, round(peak_cM, 1))
+            if key in seen: continue
+            seen.add(key)
+            ci_lo_cM = float(p.get('ci_lower_cM', peak_cM - 5))
+            ci_hi_cM = float(p.get('ci_upper_cM', peak_cM + 5))
+            peak_bp = cm_to_bp(ch, peak_cM)
+            ci_lo_bp = cm_to_bp(ch, ci_lo_cM)
+            ci_hi_bp = cm_to_bp(ch, ci_hi_cM)
+            qtls.append({
+                'id': f"qChr{ch}-{int(round(peak_cM))}",
+                'chr': ch,
+                'peak_cM': peak_cM,
+                'peak_bp': peak_bp,
+                'ci_cM_start': ci_lo_cM,
+                'ci_cM_end': ci_hi_cM,
+                'ci_bp_start': ci_lo_bp,
+                'ci_bp_end': ci_hi_bp,
+                'lod': lod,
+                'kasp_region': {
+                    'chr': ch,
+                    'start': max(0, ci_lo_bp - flank_bp),
+                    'end': ci_hi_bp + flank_bp,
+                    'flank_kb': int(flank_kb)
+                }
+            })
+
+    out = {
+        'metadata': {
+            'tool_version': 'QTL Mapping Tool v0.2',
+            'export_date': datetime.now().strftime('%Y-%m-%d'),
+            'lod_threshold': float(threshold),
+            'source': 'qtl_tool.html',
+            'reference_assembly': 'IRGSP-1.0',
+            'format': 'v0.2_standard'
+        },
+        'qtls': qtls
+    }
+    return json.dumps(out, indent=2, ensure_ascii=False)
 
 def run_workflow_export(detected_peaks_dict, map_json=None, threshold=2.5,
                          flank_kb=100, n_lines_target=200, n_replicates=3):
@@ -5159,6 +5248,10 @@ def run_workflow_export(detected_peaks_dict, map_json=None, threshold=2.5,
                                                                n_replicates=n_replicates),
         'external_links': build_external_search_links(unique_peaks, map_df_json=map_json),
         'v417_export_json': export_for_v417_system(detected_peaks_dict, threshold=threshold),
+        'v417_export_v02_json': export_for_v417_system_v02(detected_peaks_dict,
+                                                             map_json=map_json,
+                                                             threshold=threshold,
+                                                             flank_kb=flank_kb),
         'n_unique_peaks': len(unique_peaks),
         'threshold_used': float(threshold)
     })
@@ -5996,11 +6089,28 @@ function renderWorkflowResults(result) {
     `;
   }
 
-  // v4.17 JSON preview
-  const v417Pretty = JSON.stringify(JSON.parse(result.v417_export_json), null, 2);
-  document.getElementById('wf-v417-preview').textContent = v417Pretty;
+  // v4.17 JSON preview — 단계 7: 두 형식 모두 미리보기 가능
+  switchV417Preview('legacy');
 
   document.getElementById('wf-results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function switchV417Preview(format) {
+  if (!appData.workflow) return;
+  const tabLegacy = document.getElementById('v417-tab-legacy');
+  const tabV02 = document.getElementById('v417-tab-v02');
+  if (tabLegacy) tabLegacy.classList.toggle('active', format === 'legacy');
+  if (tabV02) tabV02.classList.toggle('active', format === 'v02');
+  const raw = (format === 'v02')
+    ? appData.workflow.v417_export_v02_json
+    : appData.workflow.v417_export_json;
+  if (!raw) return;
+  try {
+    const pretty = JSON.stringify(JSON.parse(raw), null, 2);
+    document.getElementById('wf-v417-preview').textContent = pretty;
+  } catch (e) {
+    document.getElementById('wf-v417-preview').textContent = raw;
+  }
 }
 
 function downloadKASPExcel() {
@@ -6031,13 +6141,30 @@ function downloadV417JSON() {
   if (!appData.workflow) { log('워크플로 자료를 먼저 생성하세요', 'warn'); return; }
   const blob = new Blob([appData.workflow.v417_export_json], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
-  const ts = new Date().toISOString().slice(0, 10);
+  const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const a = document.createElement('a');
   a.href = url;
-  a.download = `QTL_v417_export_${ts}.json`;
+  a.download = `qtl_export_v417_legacy_${ts}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  log(`v4.17 JSON 저장: QTL_v417_export_${ts}.json`, 'ok');
+  log(`v4.17 JSON (legacy 형식) 저장: qtl_export_v417_legacy_${ts}.json`, 'ok');
+}
+
+function downloadV417JSONv02() {
+  if (!appData.workflow) { log('워크플로 자료를 먼저 생성하세요', 'warn'); return; }
+  if (!appData.workflow.v417_export_v02_json) {
+    log('v0.2 표준 export 데이터 없음 — 워크플로 자료를 다시 생성하세요', 'warn');
+    return;
+  }
+  const blob = new Blob([appData.workflow.v417_export_v02_json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `qtl_export_v417_v02_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`v4.17 JSON (v0.2 표준) 저장: qtl_export_v417_v02_${ts}.json`, 'ok');
 }
 
 // ============================================================
