@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-QTL Mapping Tool v1.0 — 검증 스크립트
+QTL Mapping Tool v0.2 — 검증 스크립트
 qtl_tool.html에서 Python 코드를 추출하여 단위 테스트.
 
 실행: python3 qtl_tool/validation/validate_tool.py
@@ -183,6 +183,17 @@ def run_all_tests():
     wf = json.loads(ns['run_workflow_export'](peaks_dict, map_json=mp, threshold=2.5))
     print(f"    [Workflow] KASP {len(wf['kasp_targets'])}개, F2:3 권장 N={wf['f23_validation_guide']['recommended_F23_lines']}")
     assert wf['n_unique_peaks'] >= 1
+
+    # Test 10 (v0.2): v4.17 두 형식 동시 export
+    legacy = json.loads(wf['v417_export_json'])
+    v02 = json.loads(wf['v417_export_v02_json'])
+    print(f"    [v4.17 dual] legacy.format={legacy['_meta'].get('format')}, v02.format={v02['metadata'].get('format')}")
+    print(f"    [v4.17 dual] v02 qtls={len(v02['qtls'])}, kasp_region.flank_kb={v02['qtls'][0]['kasp_region']['flank_kb']}")
+    assert legacy['_meta'].get('format') == 'legacy', "legacy 메타 누락"
+    assert v02['metadata'].get('format') == 'v0.2_standard', "v0.2 표준 메타 누락"
+    assert 'kasp_region' in v02['qtls'][0], "v0.2의 kasp_region 누락"
+    qtl = v02['qtls'][0]
+    assert qtl['ci_bp_start'] < qtl['peak_bp'] < qtl['ci_bp_end'], "cM-bp 보간 단조 위배"
 
     print(f"\n{'=' * 60}\n검증 종합: 모두 PASS")
     print("=" * 60)

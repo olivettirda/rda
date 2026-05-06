@@ -1,7 +1,8 @@
-# QTL Mapping Tool v1.0
+# QTL Mapping Tool v0.2
 
 > 농촌진흥청 국립식량과학원 벼 분자육종 자동화 도구
 > 단일 HTML 파일로 동작 — 브라우저만 있으면 됩니다
+> v0.2 변경: 라이트 테마 기본, 양식 통합 .xlsx 자동 인식, 추천 파라미터 적용 상태 시각화, 플로팅 로그 창, v4.17 JSON 두 형식
 
 ICIM(QTL IciMapping), TASSEL, MEGA의 핵심 기능을 통합하되, **"초보자도 파라미터 의미를 이해할 수 있는"** 접근성을 차별점으로 둔 QTL 매핑 도구입니다.
 
@@ -36,14 +37,23 @@ python3 -m http.server 8000
 
 ## 첫 사용 흐름
 
-1. **Tab 0** — 샘플 데이터 버튼(F2/RIL/RIL 다환경) 또는 직접 파일 업로드
-2. **▶ 진단 실행** → 집단 유형, 마커 통계, 표현형 통계 + 추천 파라미터 카드
+1. **Tab 0** — `📋 양식 템플릿 다운로드`로 .xlsx 받아 데이터 채우거나 샘플 데이터 버튼 사용
+2. **▶ 진단 실행** → 집단 유형, 마커 통계, 표현형 통계 + 추천 파라미터 카드 (사용처 배지 + 적용 상태 칩 표시)
 3. **Tab 1** — QC 실행 (분석 전 데이터 품질 검증, 권장)
-4. **Tab 2** — 빠른 분석 (SMA + IM + Permutation)
+4. **Tab 2** — 빠른 분석 (SMA + IM + Permutation). 완료 시 추천 파라미터 칩이 ✓ 적용으로 변경
 5. **Tab 3** — 표준 분석 (CIM + ICIM-ADD + Multi-QTL Model)
 6. **Tab 4** — 고급 분석 (Epistasis 또는 QTL × Environment)
 7. **Tab 5** — 결과 통합 + Q-TARO 비교 + Excel/HTML 리포트
-8. **Tab 6** — KASP 마커 설계 + F2:3 가이드 + 외부 DB 검색
+8. **Tab 6** — KASP 마커 설계 + F2:3 가이드 + 외부 DB 검색 + v4.17 JSON (legacy/v0.2 표준)
+
+### v0.2 신규 사용성 개선
+- **양식 통합**: 단일 .xlsx (시트명 `Genotype`/`Phenotype`/`Map`) 또는 분리 3파일 모두 지원
+- **추천 파라미터 적용 상태**: 라벨 옆에 `[Tab 2 IM, Tab 3 CIM/ICIM/MQM에 적용]` 배지 + `✓ 적용됨 14:32:15` / `⚠ 미반영` / `— 분석 필요` 칩
+- **변경 토스트**: 우측 하단에서 "LOD_threshold 2.5 → 3.0 / Tab 2/3 peak에 영향 — 재실행 필요"
+- **stale 배너**: heavy 파라미터(walking_step, ICIM_PIN, permutations) 변경 시 결과 영역 상단에 호박색 배너 + [재실행]
+- **적용 상태 모달**: Tab 6의 `📊 현재 파라미터 적용 상태 확인`으로 8개 파라미터의 현재값/적용 탭/마지막 갱신/[지금 적용] 표
+- **플로팅 로그 창**: 우측 하단 드래그/리사이즈 가능, `logger.info/ok/warn/error` API
+- **v4.17 JSON 두 형식**: legacy (기존 키) + v0.2 표준 (kasp_region 포함, cM-bp 정확 보간)
 
 ## 입력 데이터 형식
 
