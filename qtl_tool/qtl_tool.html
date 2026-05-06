@@ -702,6 +702,75 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   gap: 4px;
 }
 
+/* 단계 5: heavy 파라미터 stale 배너 + 적용 상태 모달 */
+.stale-banner {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning);
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.stale-banner .banner-text {
+  flex: 1;
+}
+.stale-banner .banner-text strong { color: var(--warning); }
+.stale-banner .banner-rerun {
+  background: var(--warning);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: var(--font-medium);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stale-banner .banner-rerun:hover { background: #b85a02; }
+
+.apply-state-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.apply-state-table th {
+  background: var(--bg-input);
+  padding: 8px 10px;
+  text-align: left;
+  font-family: var(--font-medium);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.apply-state-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.apply-state-table .now-apply-btn {
+  background: var(--primary-main);
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-family: var(--font-medium);
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.apply-state-table .now-apply-btn:hover { background: var(--accent-5); }
+.apply-state-table .now-apply-btn:disabled {
+  background: var(--bg-input);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 /* 단계 4: 사용처 배지 + 적용 상태 칩 + 토스트 */
 .usage-badge {
   display: inline-block;
@@ -1571,10 +1640,13 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       </div>
     </div>
 
-    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center">
-      <button class="btn" onclick="runWorkflowExport()" id="btn-wf-run">
-        <span id="wf-btn-icon">▶</span> 워크플로 자료 생성
-      </button>
+    <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="runWorkflowExport()" id="btn-wf-run">
+          <span id="wf-btn-icon">▶</span> 워크플로 자료 생성
+        </button>
+        <button class="btn-link" onclick="showApplyStateModal()">📊 현재 파라미터 적용 상태 확인</button>
+      </div>
       <div id="wf-status" style="font-size:12px;color:var(--text-secondary)"></div>
     </div>
   </div>
@@ -1726,6 +1798,169 @@ function refreshAllParamChips() {
   document.querySelectorAll('.apply-chip[data-param-key]').forEach(chip => {
     refreshParamChip(chip.dataset.paramKey);
   });
+}
+
+// ============================================================
+// 단계 5: heavy 파라미터 stale 배너 — 결과 영역 상단에 표시
+// ============================================================
+const TAB_RESULT_CONTAINERS = {
+  'Tab 2': 'tier2-results',
+  'Tab 3': 'tier3-results'
+};
+
+const TAB_RERUN_FN = {
+  'Tab 2': 'runTier2',
+  'Tab 3': 'runTier3'
+};
+
+function _bannerId(tabKey) { return `stale-banner-${tabKey.replace(' ','-').toLowerCase()}`; }
+
+function showStaleBanner(tabKey, paramKeyList) {
+  const container = document.getElementById(TAB_RESULT_CONTAINERS[tabKey]);
+  if (!container) return;
+  const bannerId = _bannerId(tabKey);
+  let banner = document.getElementById(bannerId);
+  const params_str = paramKeyList.join(', ');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = bannerId;
+    banner.className = 'stale-banner';
+    container.insertBefore(banner, container.firstChild);
+  }
+  banner.innerHTML = `
+    <div class="banner-text">
+      <strong>⚠ ${tabKey} 결과가 stale입니다</strong> — <code>${params_str}</code> 변경됨. 결과를 갱신하려면 재실행하세요.
+    </div>
+    <button class="banner-rerun" onclick="dismissStaleBanner('${tabKey}'); ${TAB_RERUN_FN[tabKey]}()">[재실행]</button>
+  `;
+  banner.style.display = 'flex';
+}
+
+function dismissStaleBanner(tabKey) {
+  const banner = document.getElementById(_bannerId(tabKey));
+  if (banner) banner.style.display = 'none';
+}
+
+// PARAM_USAGE.tabs에서 Tab 식별자 추출 ("Tab 2 IM" → "Tab 2")
+function _extractTabKeys(usageTabs) {
+  const tabs = new Set();
+  usageTabs.forEach(t => {
+    const m = t.match(/Tab (\d+)/);
+    if (m) tabs.add(`Tab ${m[1]}`);
+    if (t.includes('Tab 2/3')) { tabs.add('Tab 2'); tabs.add('Tab 3'); }
+  });
+  return Array.from(tabs);
+}
+
+// onParamChange / onTab6ParamChange에서 호출 — heavy 파라미터면 영향 탭 결과에 stale 배너
+function maybeShowStaleBannerFor(paramKey) {
+  const usage = PARAM_USAGE[paramKey];
+  if (!usage || !usage.heavy) return;
+  const tabKeys = _extractTabKeys(usage.tabs);
+  tabKeys.forEach(tk => {
+    if (tk === 'Tab 2' && !appData.tier2) return; // 결과 없으면 배너 의미 없음
+    if (tk === 'Tab 3' && !appData.tier3) return;
+    // 해당 탭 영향 받는 stale 파라미터들 모음
+    const stales = Object.keys(PARAM_USAGE).filter(k => {
+      const u = PARAM_USAGE[k];
+      const ktabs = _extractTabKeys(u.tabs);
+      return ktabs.includes(tk) && u.heavy &&
+             appData.paramApplyState[k] && appData.paramApplyState[k].state === 'stale';
+    });
+    if (stales.length > 0) showStaleBanner(tk, stales);
+  });
+}
+
+// ============================================================
+// 단계 5: 적용 상태 모달 (Tab 6)
+// ============================================================
+function _readCurrentParamValue(key) {
+  // 사용자 override 또는 현재 input 값 읽기
+  if (key in appData.paramOverrides) return appData.paramOverrides[key];
+  if (appData._currentRecommendation) {
+    const p = appData._currentRecommendation.parameters.find(x => x.key === key);
+    if (p) return p.value;
+  }
+  // Tab 6 입력 필드
+  const inputMap = {KASP_flank_kb: 'wf-flank', F23_lines: 'wf-n-lines', F23_replicates: 'wf-n-rep'};
+  if (inputMap[key]) {
+    const el = document.getElementById(inputMap[key]);
+    if (el) return el.value;
+  }
+  return '—';
+}
+
+function _applyNowFromModal(key) {
+  // 해당 파라미터의 영향 탭 분석을 즉시 재실행
+  const usage = PARAM_USAGE[key];
+  if (!usage) return;
+  const tabs = _extractTabKeys(usage.tabs);
+  if (tabs.includes('Tab 2') && typeof runTier2 === 'function' && appData.tier2) {
+    runTier2();
+  } else if (tabs.includes('Tab 3') && typeof runTier3 === 'function' && appData.tier3) {
+    runTier3();
+  } else if (tabs.includes('Tab 6') && typeof runWorkflowExport === 'function') {
+    runWorkflowExport();
+  } else {
+    showToast(`재실행 불가`, `${key} 영향 탭이 아직 분석된 적 없습니다. 해당 탭에서 직접 실행하세요.`, 'warn');
+  }
+  closeApplyStateModal();
+}
+
+function showApplyStateModal() {
+  // Parameter Coach 모달 element 재활용
+  const modal = document.getElementById('param-coach-modal');
+  if (!modal) return;
+  document.getElementById('coach-display-name').textContent = '현재 파라미터 적용 상태';
+  document.getElementById('coach-key').textContent = '단계 5 — 통합 진단';
+
+  const rows = Object.entries(PARAM_USAGE).map(([key, usage]) => {
+    const st = appData.paramApplyState[key];
+    const stateLabel = !st ? '<span class="apply-chip pending">— 분석 필요</span>'
+                     : st.state === 'applied' ? `<span class="apply-chip applied">✓ 적용됨</span>`
+                     : `<span class="apply-chip stale">⚠ stale</span>`;
+    const ts = st && st.appliedAt ? _formatChipTime(st.appliedAt) : '—';
+    const val = _readCurrentParamValue(key);
+    const tabs_str = usage.tabs.join(', ');
+    const heavyTag = usage.heavy ? ' <span style="font-size:9px;color:var(--warning)">[heavy]</span>' : '';
+    const canApplyNow = !st || st.state !== 'applied';
+    const applyBtn = canApplyNow
+      ? `<button class="now-apply-btn" onclick="_applyNowFromModal('${key}')">지금 적용</button>`
+      : `<button class="now-apply-btn" disabled>적용됨</button>`;
+    return `
+      <tr>
+        <td><code>${key}</code>${heavyTag}</td>
+        <td>${val}</td>
+        <td>${tabs_str}</td>
+        <td>${ts}</td>
+        <td>${stateLabel}</td>
+        <td>${applyBtn}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('coach-body').innerHTML = `
+    <div class="coach-section">
+      <div class="coach-section-title">파라미터별 적용 상태</div>
+      <div class="coach-section-body" style="font-size:11px;color:var(--text-secondary)">
+        heavy 표시: 변경 시 해당 탭 분석 전체 재실행이 필요한 무거운 파라미터.<br>
+        가벼운 파라미터는 다음 분석 실행 시 자동 반영됩니다.
+      </div>
+      <table class="apply-state-table" style="margin-top:10px">
+        <thead><tr>
+          <th>파라미터</th><th>현재 값</th><th>적용 탭</th>
+          <th>마지막 갱신</th><th>상태</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+  modal.style.display = 'flex';
+}
+
+function closeApplyStateModal() {
+  const modal = document.getElementById('param-coach-modal');
+  if (modal) modal.style.display = 'none';
 }
 
 // 단계 4: Tab 6 옵션 변경 시 토스트 + stale 칩
@@ -4995,6 +5230,7 @@ async function runTier2() {
     log(`Tier 2 완료 (${((t1-t0)/1000).toFixed(1)}s) — 검출 QTL ${result.peaks.length}개`, 'ok');
     // 단계 4: Tier 2에서 사용된 파라미터 ✓ 적용 표시
     ['walking_step_cM','LOD_threshold','permutations','CI_method'].forEach(k => setParamApplyState(k, 'applied'));
+    dismissStaleBanner('Tab 2');
     appData.tier2 = result;
     if (nPerm <= 0) {
       result.threshold_used = manualLOD;
@@ -5179,6 +5415,7 @@ async function runTier3() {
     log(`Tier 3 완료 (${((t1-t0)/1000).toFixed(1)}s) — CIM ${result.cim_peaks.length}, ICIM ${result.icim_peaks.length}, MQM ${result.mqm.n_qtls}`, 'ok');
     // 단계 4: Tier 3에서 사용된 파라미터 ✓ 적용 표시
     ['walking_step_cM','ICIM_PIN','LOD_threshold','CI_method'].forEach(k => setParamApplyState(k, 'applied'));
+    dismissStaleBanner('Tab 3');
     appData.tier3 = result;
     renderTier3Results(result);
     status.textContent = `완료 — CIM ${result.cim_peaks.length} / ICIM ${result.icim_peaks.length} / MQM ${result.mqm.n_qtls}개`;
@@ -7835,6 +8072,9 @@ function onParamChange(key, newValStr, originalVal) {
     'warn'
   );
   setParamApplyState(key, 'stale');
+
+  // 단계 5: heavy 파라미터면 영향 탭 결과 영역에 stale 배너 표시
+  maybeShowStaleBannerFor(key);
 
   // 카드 하단 override 카운트 업데이트
   refreshOverrideBadge();
