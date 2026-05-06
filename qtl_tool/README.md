@@ -1,8 +1,15 @@
-# QTL Mapping Tool v0.2
+# QTL Mapping Tool v0.6
 
 > 농촌진흥청 국립식량과학원 벼 분자육종 자동화 도구
 > 단일 HTML 파일로 동작 — 브라우저만 있으면 됩니다
-> v0.2 변경: 라이트 테마 기본, 양식 통합 .xlsx 자동 인식, 추천 파라미터 적용 상태 시각화, 플로팅 로그 창, v4.17 JSON 두 형식
+>
+> **v0.6 변경 (2026-05)**:
+> - 외부 후보유전자 검색을 **Gramene 1개만** 표시 (안 되는 RAP-DB/SNP-Seek/RiceXPro/TASUKE+ 모두 제거)
+> - **QTL 영역 FASTA 다운로드** 신규 (Ensembl REST API 1차, NCBI eutils 폴백)
+>
+> **v0.4 변경 (2026-04)**:
+> - 라이트 테마 기본, 양식 통합 .xlsx 자동 인식, 추천 파라미터 적용 상태 시각화, 플로팅 로그 창, v4.17 JSON 두 형식
+> - **UX 4종 신규**: 적용 파라미터 strip(옅은 붉은색), 통합 드롭존+모드 토글, 전역 drag&drop, 단계별 초기화 플로팅 리모콘
 
 ICIM(QTL IciMapping), TASSEL, MEGA의 핵심 기능을 통합하되, **"초보자도 파라미터 의미를 이해할 수 있는"** 접근성을 차별점으로 둔 QTL 매핑 도구입니다.
 

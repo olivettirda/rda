@@ -1,20 +1,25 @@
-# DEVELOPER_NOTES — QTL Mapping Tool v0.2
+# DEVELOPER_NOTES — QTL Mapping Tool v0.6
 
 > 개발자/리뷰어용 기술 문서
 > 알고리즘 선택 근거, R/qtl과의 차이점, 향후 개선 포인트 정리
 
-## v0.2 변경 (PR #303-#310)
+## 변경 내역 (PR #303-#314)
 
-| PR | 변경 |
-|---|---|
-| #302 | Pyodide line 1607 syntax + 라이트 테마 기본 |
-| #303 | v0.1 백업 + .gitignore |
-| #304 | "솜여님" 호칭 일괄 제거 (코드/UI/주석, README 본명 유지) |
-| #305 | xlsx 양식 통합 4시트 + 시트명 자동 인식 (단일 통합 + 분리 3파일 모두 지원) |
-| #306 | 추천 파라미터 사용처 배지 + 적용 상태 칩 + 변경 토스트 |
-| #307 | heavy 파라미터 stale 배너 + 적용 상태 모달 |
-| #308 | 플로팅 로그 창 (logger API + 메모리 영속화) |
-| #309 | v4.17 JSON 두 형식 동시 export (legacy + v0.2 표준) |
+| 버전 | PR | 변경 |
+|---|---|---|
+| v0.1.1 | #302 | Pyodide line 1607 syntax + 라이트 테마 기본 |
+| v0.2 | #303 | v0.1 백업 + .gitignore |
+| v0.2 | #304 | "솜여님" 호칭 일괄 제거 (코드/UI/주석, README 본명 유지) |
+| v0.2 | #305 | xlsx 양식 통합 4시트 + 시트명 자동 인식 |
+| v0.2 | #306 | 추천 파라미터 사용처 배지 + 적용 상태 칩 + 변경 토스트 |
+| v0.2 | #307 | heavy 파라미터 stale 배너 + 적용 상태 모달 |
+| v0.2 | #308 | 플로팅 로그 창 (logger API + 메모리 영속화) |
+| v0.2 | #309 | v4.17 JSON 두 형식 동시 export (legacy + v0.2 표준) |
+| v0.2 | #310 | 종합 검증 + README + DEVELOPER_NOTES |
+| v0.3 | #311 | 외부 DB URL 검증 패치 (RAP-DB NARO, SNP-Seek 미러, TASUKE+) |
+| v0.4 | #312 | UX 4종 (적용 strip / 통합 드롭존 / 전역 D&D / 초기화 리모콘) |
+| v0.5 | #313 | 외부 링크 표를 **Gramene 단일 컬럼**으로 단순화 |
+| v0.6 | #314 | **FASTA 다운로드** (Ensembl REST + NCBI 폴백) |
 
 ### v0.2 설계 결정
 
@@ -154,6 +159,25 @@ Permutation threshold는 random seed에 따라 ±5% 내외 변동. 1000회는 �
 - Yoon DK et al. 2023 *Genes* 14:1593 (Odae×Unbong40 RIL N=160)
 
 이 데이터로 본 도구의 검출 QTL이 논문 결과와 일치하는지 정량 비교. 단계 I 연장 작업.
+
+## v0.5/v0.6 설계 결정
+
+**외부 링크를 Gramene 1개로 줄인 이유 (v0.5)**:
+- 사용자 환경에서 "Gramene 외 모든 링크 안 됨" 피드백.
+- 안정성 검증된 1개만 노출하여 사용자 혼란 방지.
+- 보조 DB는 사용자가 Gramene에서 locus ID 확보 후 직접 검색.
+
+**FASTA 다운로드 — Ensembl REST 1차 + NCBI 폴백 (v0.6)**:
+- GitHub Pages 정적 사이트에서 백엔드 없이 동작해야 함 → 클라이언트 fetch만 사용 가능.
+- Ensembl Plants REST API:
+  - CORS `Access-Control-Allow-Origin: *` 명시 → fetch 가능
+  - Public open access, 시간당 55,000 req
+  - IRGSP-1.0 좌표 정확 일치
+- NCBI eutils:
+  - CORS 비공식이라 fetch 불가 → `<a href download>` 외부 링크로만 사용
+  - DDBJ accession AP014957.1~AP014968.1 (chr1~12) 사용 (RefSeq NC_ 번호는 release별 변동 회피)
+- 5 Mb 초과 영역은 응답 지연 가능성 → 사용자 confirm 후 NCBI 폴백 선택지 제공
+- 파일명 `{qtl}_chr{N}_{start}-{end}_IRGSP-1.0.fasta` — assembly 명시로 추후 혼선 방지
 
 ## 추후 개선 포인트
 
