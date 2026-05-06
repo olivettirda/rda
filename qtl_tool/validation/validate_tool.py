@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-QTL Mapping Tool v0.2 — 검증 스크립트
+QTL Mapping Tool v0.6 — 검증 스크립트
 qtl_tool.html에서 Python 코드를 추출하여 단위 테스트.
 
 실행: python3 qtl_tool/validation/validate_tool.py
@@ -194,6 +194,37 @@ def run_all_tests():
     assert 'kasp_region' in v02['qtls'][0], "v0.2의 kasp_region 누락"
     qtl = v02['qtls'][0]
     assert qtl['ci_bp_start'] < qtl['peak_bp'] < qtl['ci_bp_end'], "cM-bp 보간 단조 위배"
+
+    # Test 11 (v0.5/v0.6): 외부 링크 표가 Gramene 1개만 + FASTA URL 형식 검증
+    # qtl_tool.html에서 FASTA URL 생성 패턴이 정확히 들어있는지 grep
+    html_path = HTML_PATH
+    html_text = html_path.read_text()
+
+    # Gramene 단일 컬럼 (v0.5)
+    assert 'Gramene 후보유전자' in html_text or 'Gramene Location/View 열기' in html_text, \
+        "v0.5: Gramene 단일 컬럼 미반영"
+    # 옛 다중 DB 컬럼이 표에서 제거됐는지 (table thead 한정)
+    table_block_match = re.search(
+        r"외부 링크 \(v0\.5: Gramene 단일\).+?</table>",
+        html_text, re.DOTALL
+    )
+    if table_block_match:
+        table_block = table_block_match.group(0)
+        for old_col in ['SNPSeek', 'TASUKE+', 'RiceXPro', '미러 ↗']:
+            assert old_col not in table_block, f"v0.5: 표에 옛 컬럼 {old_col} 잔존"
+
+    # FASTA URL (v0.6)
+    fasta_checks = [
+        ('Ensembl REST URL 패턴', 'rest.ensembl.org/sequence/region/oryza_sativa'),
+        ('NCBI eutils URL', 'eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'),
+        ('IRGSP DDBJ chr5 매핑', "'5': 'AP014961.1'"),
+        ('5 Mb 임계 상수', 'FASTA_LARGE_REGION_BP = 5_000_000'),
+        ('FASTA fetch 헤더', "'Accept': 'text/x-fasta'"),
+        ('파일명 IRGSP-1.0 명시', '_IRGSP-1.0.fasta')
+    ]
+    for label, needle in fasta_checks:
+        assert needle in html_text, f"v0.6: {label} 누락 — {needle}"
+    print(f"    [v0.5/v0.6] Gramene 단일 + FASTA Ensembl/NCBI URL 형식 검증 통과")
 
     print(f"\n{'=' * 60}\n검증 종합: 모두 PASS")
     print("=" * 60)
