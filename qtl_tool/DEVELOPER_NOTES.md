@@ -1,7 +1,46 @@
-# DEVELOPER_NOTES — QTL Mapping Tool v1.0
+# DEVELOPER_NOTES — QTL Mapping Tool v0.2
 
 > 개발자/리뷰어용 기술 문서
 > 알고리즘 선택 근거, R/qtl과의 차이점, 향후 개선 포인트 정리
+
+## v0.2 변경 (PR #303-#310)
+
+| PR | 변경 |
+|---|---|
+| #302 | Pyodide line 1607 syntax + 라이트 테마 기본 |
+| #303 | v0.1 백업 + .gitignore |
+| #304 | "솜여님" 호칭 일괄 제거 (코드/UI/주석, README 본명 유지) |
+| #305 | xlsx 양식 통합 4시트 + 시트명 자동 인식 (단일 통합 + 분리 3파일 모두 지원) |
+| #306 | 추천 파라미터 사용처 배지 + 적용 상태 칩 + 변경 토스트 |
+| #307 | heavy 파라미터 stale 배너 + 적용 상태 모달 |
+| #308 | 플로팅 로그 창 (logger API + 메모리 영속화) |
+| #309 | v4.17 JSON 두 형식 동시 export (legacy + v0.2 표준) |
+
+### v0.2 설계 결정
+
+**파라미터 분류 (PARAM_USAGE)**:
+```js
+walking_step_cM   heavy=true  (Tab 2 IM, Tab 3 CIM/ICIM/MQM)
+ICIM_PIN          heavy=true  (Tab 3 ICIM-ADD)
+LOD_threshold     heavy=false (Tab 2/3 peak, Tab 5 통합)
+permutations      heavy=true  (Tab 2 perm threshold)
+CI_method         heavy=false (Tab 2/3 CI 계산)
+KASP_flank_kb     heavy=false (Tab 6 KASP 영역)
+F23_lines         heavy=false (Tab 6 F2:3 가이드)
+F23_replicates    heavy=false (Tab 6 F2:3 가이드)
+```
+
+heavy=true는 분석 전체 재실행 필요 (수~분 단위). false는 다음 분석 시 자동 반영.
+
+**메모리만 영속화 (artifacts 호환)**:
+- localStorage / sessionStorage 미사용
+- 페이지 새로고침 시 모든 상태 기본값 복원
+- `floatLogState`, `appData.paramApplyState` 등 모두 `let`/`const` 변수
+
+**v4.17 JSON 두 형식 공존 이유**:
+- legacy: v4.17 기존 사용자가 변경 없이 이어서 사용 가능 (`detected_qtls` 키 유지)
+- v0.2 표준: 신규 통합용 — `kasp_region` 포함, cM-bp 선형 보간, unique peaks
+- 두 형식 동시 생성으로 마이그레이션 전후 모두 대응
 
 ## 아키텍처
 
