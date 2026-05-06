@@ -85,6 +85,21 @@ body {
   opacity: 0.6;
 }
 .header-left { display: flex; align-items: center; gap: 14px; }
+.header-left.header-home {
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.header-left.header-home:hover { background: rgba(1, 127, 151, 0.08); }
+.header-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+}
 .header-title {
   font-family: var(--font-bold);
   font-size: 18px;
@@ -173,7 +188,104 @@ body {
 .tab.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
 /* Main */
-.main { padding: 28px 32px; max-width: 1400px; margin: 0 auto; }
+/* v1.2: 반응형 — 1400px 기본, 큰 모니터에서 자동 확장 (clamp), 다단 grid */
+.main {
+  padding: 28px 32px;
+  max-width: clamp(1200px, 95vw, 1900px);
+  margin: 0 auto;
+}
+@media (max-width: 1280px) {
+  .main { max-width: 100%; padding: 22px 18px; }
+}
+
+/* v1.2: 큰 화면에서 옵션 카드 + 결과 영역 2열 grid (사용자 옵션) */
+.layout-2col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+@media (min-width: 1700px) {
+  .layout-2col.wide-active {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .layout-2col.wide-active > .layout-fullwidth {
+    grid-column: 1 / -1;
+  }
+}
+
+/* v1.2: 글씨 크기 조절 floating 컨트롤 */
+.font-size-ctrl {
+  position: fixed;
+  right: 18px;
+  bottom: 240px;
+  z-index: 1052;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(12,48,38,0.15);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+}
+.font-size-ctrl button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-bold);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.font-size-ctrl button:hover { background: var(--bg-input); }
+.font-size-ctrl button.font-current {
+  background: var(--primary-main);
+  color: white;
+}
+.font-size-ctrl .font-size-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  min-width: 38px;
+  text-align: center;
+}
+
+/* v1.2: 큰 화면 토글 (헤더 우측) */
+.layout-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: all 0.15s;
+}
+.layout-toggle-btn:hover { background: var(--bg-input); color: var(--primary-main); }
+.layout-toggle-btn.active { background: var(--primary-main); color: white; border-color: var(--primary-main); }
+@media (max-width: 1699px) {
+  .layout-toggle-btn { display: none; }
+}
+
+/* v1.2: FASTA 다운로드 출처 표시 칩 */
+.fasta-source-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+}
+.fasta-source-badge.ensembl { background: #d1fae5; color: #047857; border: 1px solid #047857; }
+.fasta-source-badge.ncbi    { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
 .tab-content { display: none; animation: fadeIn 0.3s; }
 .tab-content.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1513,15 +1625,29 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 <!-- Header -->
 <div class="header">
-  <div class="header-left">
+  <div class="header-left header-home" onclick="goToHome()" title="초기 화면(데이터 입력)으로 이동" role="button" tabindex="0">
+    <img src="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png"
+         alt="ssallogo" class="header-logo" onerror="this.style.display='none'">
     <div class="header-title">
       QTL Mapping Tool <span class="ver">PoC v0.1</span>
     </div>
   </div>
-  <div class="status-badge">
-    <span class="status-dot" id="pyodide-status-dot"></span>
-    <span id="pyodide-status-text">Pyodide 로딩 중...</span>
+  <div style="display:flex;align-items:center;gap:6px">
+    <button class="layout-toggle-btn" id="layout-toggle-btn" onclick="toggleWideLayout()" title="넓은 모니터에서 결과 영역을 2열로 배치">2열 보기</button>
+    <div class="status-badge">
+      <span class="status-dot" id="pyodide-status-dot"></span>
+      <span id="pyodide-status-text">Pyodide 로딩 중...</span>
+    </div>
   </div>
+</div>
+
+<!-- v1.2: 글씨 크기 조절 floating 컨트롤 -->
+<div class="font-size-ctrl" id="font-size-ctrl" title="글씨 크기 조절">
+  <button onclick="setFontScale(0)" title="작게 (90%)">A−</button>
+  <button onclick="setFontScale(1)" class="font-current" id="font-btn-1">A</button>
+  <button onclick="setFontScale(2)" title="크게 (115%)">A+</button>
+  <button onclick="setFontScale(3)" title="더 크게 (130%)">A++</button>
+  <span class="font-size-label" id="font-size-label">100%</span>
 </div>
 
 <!-- Tabs -->
@@ -1921,8 +2047,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 
-  <div id="tier3-results" style="display:none">
-    <div class="card">
+  <div id="tier3-results" class="layout-2col" style="display:none">
+    <div class="card layout-fullwidth">
       <div class="card-title">LOD 곡선 비교 (IM vs CIM vs ICIM-ADD)</div>
       <div class="export-bar" id="tier3-overlay-export">
         <span class="label">출력:</span>
@@ -2192,7 +2318,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     </div>
   </div>
 
-  <div id="wf-results" style="display:none">
+  <div id="wf-results" class="layout-2col" style="display:none">
     <!-- KASP -->
     <div class="card">
       <div class="card-title">KASP 마커 설계 좌표</div>
@@ -2812,15 +2938,68 @@ document.addEventListener('DOMContentLoaded', _setupFloatLogDrag);
 // ============================================================
 // 탭 전환
 // ============================================================
+function activateTab(tabKey) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const tabBtn = document.querySelector(`.tab[data-tab="${tabKey}"]`);
+  const tabContent = document.getElementById('tab-' + tabKey);
+  if (tabBtn) tabBtn.classList.add('active');
+  if (tabContent) tabContent.classList.add('active');
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     if (tab.classList.contains('disabled')) return;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    activateTab(tab.dataset.tab);
   });
 });
+
+// v1.2: 헤더 좌측(로고+제목) 클릭 → Tab 0 (데이터 입력) 이동
+function goToHome() {
+  activateTab('input');
+}
+// 키보드 접근성 (Enter/Space)
+document.addEventListener('DOMContentLoaded', () => {
+  const home = document.querySelector('.header-home');
+  if (home) {
+    home.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToHome(); }
+    });
+  }
+});
+
+// ============================================================
+// v1.2: 글씨 크기 조절 (zoom 기반, 메모리 변수만)
+// ============================================================
+const FONT_SCALES = [0.9, 1.0, 1.15, 1.3];
+const FONT_LABELS = ['90%', '100%', '115%', '130%'];
+let _currentFontIdx = 1;
+
+function setFontScale(idx) {
+  _currentFontIdx = Math.max(0, Math.min(FONT_SCALES.length - 1, idx));
+  const scale = FONT_SCALES[_currentFontIdx];
+  // zoom (Chrome/Edge/Safari) + Firefox fallback (transform)
+  document.documentElement.style.zoom = scale;
+  // UI 갱신
+  document.querySelectorAll('.font-size-ctrl button').forEach((b, i) => {
+    b.classList.toggle('font-current', i === _currentFontIdx);
+  });
+  const lbl = document.getElementById('font-size-label');
+  if (lbl) lbl.textContent = FONT_LABELS[_currentFontIdx];
+}
+
+// ============================================================
+// v1.2: 큰 화면 2열 레이아웃 토글 (≥1700px에서만 동작)
+// ============================================================
+let _wideLayoutOn = false;
+function toggleWideLayout() {
+  _wideLayoutOn = !_wideLayoutOn;
+  document.querySelectorAll('.layout-2col').forEach(el => {
+    el.classList.toggle('wide-active', _wideLayoutOn);
+  });
+  const btn = document.getElementById('layout-toggle-btn');
+  if (btn) btn.classList.toggle('active', _wideLayoutOn);
+}
 
 // ============================================================
 // Pyodide 부팅
@@ -6777,6 +6956,15 @@ const IRGSP_DDBJ_ACC = {
 
 const FASTA_LARGE_REGION_BP = 5_000_000;  // 5 Mb 초과 시 경고
 
+// v1.2: FASTA 다운로드 출처 표시
+function _setFastaSourceBadge(qtlName, source) {
+  const el = document.querySelector(`[data-fasta-status="${qtlName}"]`);
+  if (!el) return;
+  const ts = new Date().toTimeString().slice(0, 8);
+  const cls = source.toLowerCase();
+  el.innerHTML = `<span class="fasta-source-badge ${cls}">✓ ${source} ${ts}</span>`;
+}
+
 function _ensemblFastaUrl(chr, start, end) {
   const region = `${chr}:${start}-${end}:1`;
   return `https://rest.ensembl.org/sequence/region/oryza_sativa/${region}?content-type=text/x-fasta`;
@@ -6803,6 +6991,7 @@ async function downloadQtlFasta(chr, start, end, qtlName) {
       if (ncbiUrl) {
         window.open(ncbiUrl, '_blank');
         log(`NCBI 외부 링크 열림: ${qtlName} (${(regionSize/1e6).toFixed(2)} Mb)`, 'warn');
+        _setFastaSourceBadge(qtlName, 'NCBI');
       }
       return;
     }
@@ -6829,12 +7018,14 @@ async function downloadQtlFasta(chr, start, end, qtlName) {
     URL.revokeObjectURL(blobUrl);
     log(`FASTA 저장: ${a.download} (${(fasta.length/1024).toFixed(1)} KB)`, 'ok');
     showToast(`FASTA 저장 완료`, `${a.download}`, 'info');
+    _setFastaSourceBadge(qtlName, 'Ensembl');
   } catch (e) {
     log(`Ensembl REST fetch 실패 (${e.message}), NCBI 외부 링크로 폴백`, 'warn');
     const ncbiUrl = _ncbiFastaUrl(chr, start, end);
     if (ncbiUrl) {
       window.open(ncbiUrl, '_blank');
       showToast(`Ensembl 실패 → NCBI 폴백`, '새 탭에서 NCBI eutils 다운로드 시작', 'warn');
+      _setFastaSourceBadge(qtlName, 'NCBI');
     } else {
       showToast(`다운로드 실패`, `Chr${chr}에 매핑된 NCBI accession 없음`, 'error');
     }
@@ -6989,19 +7180,18 @@ function renderFastaTable(externalLinks) {
               <td>${(e.ci_lower_bp/1e6).toFixed(2)}~${(e.ci_upper_bp/1e6).toFixed(2)} Mb</td>
               <td>${sizeMb} Mb${isLarge ? ' <span class="badge badge-warning" title="5 Mb 초과 — Ensembl 응답 느릴 수 있어 NCBI 폴백 권장">large</span>' : ''}</td>
               <td>
-                <button class="btn-mini" onclick="downloadQtlFasta('${e.chr}', ${e.ci_lower_bp}, ${e.ci_upper_bp}, '${e.qtl_id}')" title="Ensembl Plants REST API로 직접 fetch (CORS 허용). 실패하면 NCBI eutils로 자동 폴백.">
+                <button class="btn-mini" onclick="downloadQtlFasta('${e.chr}', ${e.ci_lower_bp}, ${e.ci_upper_bp}, '${e.qtl_id}')" title="1차: Ensembl Plants REST (CORS 허용). 실패/큰 영역: NCBI eutils 자동 폴백.">
                   ⬇ FASTA 다운로드
                 </button>
+                <span class="fasta-source-display" data-fasta-status="${e.qtl_id}"></span>
               </td>
             </tr>
           `;
         }).join('')}
       </tbody>
     </table>
-    <div style="margin-top:10px;padding:10px 14px;background:var(--bg-input);border-left:3px solid var(--accent-5);border-radius:5px;font-size:11px;color:var(--text-secondary);line-height:1.6">
-      <strong style="color:var(--primary-main)">동작 방식</strong> · 클릭 시 <strong>Ensembl Plants REST</strong>에서 직접 fetch → 자동 다운로드.
-      Ensembl 응답 실패하거나 영역이 5 Mb 초과로 사용자가 거절하면 <strong>NCBI eutils</strong>(DDBJ accession AP014957.1~AP014968.1)로 자동 폴백.
-      파일명: <code>{qtl}_chr{N}_{start}-{end}_IRGSP-1.0.fasta</code>. 좌표 1-based inclusive.
+    <div style="margin-top:8px;font-size:10px;color:var(--text-muted);line-height:1.5">
+      1차: Ensembl Plants REST (CORS) · 폴백: NCBI eutils (DDBJ AP014957.1~AP014968.1) · 다운로드 후 출처가 버튼 옆에 표시됩니다.
     </div>
   `;
 }
