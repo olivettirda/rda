@@ -702,6 +702,124 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   gap: 4px;
 }
 
+/* 단계 6: 플로팅 로그 창 */
+.float-log {
+  position: fixed;
+  right: 18px;
+  bottom: 70px;
+  width: 400px;
+  height: 300px;
+  min-width: 280px;
+  min-height: 120px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(12,48,38,0.18);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
+}
+.float-log.minimized {
+  height: 36px !important;
+  resize: none;
+}
+.float-log.hidden { display: none; }
+
+.float-log-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #f5f9f7, #ffffff);
+  border-bottom: 1px solid var(--border-color);
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+.float-log-title {
+  font-family: var(--font-medium);
+  font-size: 12px;
+  color: var(--text-primary);
+  flex: 1;
+}
+.float-log-ctrl {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+.float-log-ctrl:hover { background: var(--bg-input); }
+.float-log-ctrl.active { background: var(--primary-main); color: white; border-color: var(--primary-main); }
+
+.float-log-filter {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.float-log-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  background: #fafbfa;
+}
+.float-log-body .float-log-line { display: block; }
+.float-log-body .lvl-info  { color: var(--primary-main); }
+.float-log-body .lvl-ok    { color: #047857; }
+.float-log-body .lvl-warn  { color: var(--warning); }
+.float-log-body .lvl-err   { color: var(--error); }
+.float-log-body .log-time  { color: var(--text-muted); margin-right: 8px; }
+
+.float-log-toggle {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--primary-main);
+  color: white;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(12,48,38,0.25);
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 1051;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.15s;
+}
+.float-log-toggle:hover { background: var(--accent-5); transform: scale(1.05); }
+.float-log-toggle .badge-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--error);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  font-weight: 600;
+  display: none;
+}
+.float-log-toggle .badge-count.has-count { display: inline-block; }
+
 /* 단계 5: heavy 파라미터 stale 배너 + 적용 상태 모달 */
 .stale-banner {
   margin: 12px 0;
@@ -1690,6 +1808,28 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 <!-- 토스트 컨테이너 (단계 4) -->
 <div class="toast-container" id="toast-container"></div>
 
+<!-- 플로팅 로그 창 (단계 6) -->
+<div class="float-log" id="float-log">
+  <div class="float-log-header" id="float-log-header">
+    <span class="float-log-title">📋 실행 로그</span>
+    <button class="float-log-ctrl active" id="float-log-time-toggle" title="타임스탬프 표시/숨김" onclick="toggleLogTimestamps()">⏱</button>
+    <select class="float-log-filter" id="float-log-filter" title="레벨 필터" onchange="renderFloatLog()">
+      <option value="all">전체</option>
+      <option value="info">INFO</option>
+      <option value="ok">OK</option>
+      <option value="warn">WARN</option>
+      <option value="err">ERROR</option>
+    </select>
+    <button class="float-log-ctrl" title="로그 비우기" onclick="clearFloatLog()">🗑</button>
+    <button class="float-log-ctrl" title="최소화" onclick="minimizeFloatLog()">_</button>
+    <button class="float-log-ctrl" title="숨기기" onclick="hideFloatLog()">×</button>
+  </div>
+  <div class="float-log-body" id="float-log-body"></div>
+</div>
+<button class="float-log-toggle" id="float-log-toggle-btn" onclick="toggleFloatLog()" title="실행 로그 열기/닫기">
+  📋<span class="badge-count" id="float-log-badge">0</span>
+</button>
+
 <!-- Parameter Coach 모달 (조각 4) -->
 <div class="modal-backdrop" id="param-coach-modal" style="display:none">
   <div class="modal-content">
@@ -2015,14 +2155,159 @@ async function loadRulesAndDescriptions() {
 // ============================================================
 // 로깅
 // ============================================================
-function log(msg, type='info') {
-  const el = document.getElementById('console-log');
-  const time = new Date().toTimeString().slice(0,8);
-  const div = document.createElement('div');
-  div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${msg}</span>`;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
+// ============================================================
+// 단계 6: 플로팅 로그 창 + logger API
+// ============================================================
+const floatLogState = {
+  entries: [],          // [{ts: Date, level: 'info|ok|warn|err', msg: string}]
+  showTimestamps: true,
+  filter: 'all',
+  hidden: false,
+  minimized: false,
+  unread: 0,
+  maxEntries: 1000      // 메모리 보호
+};
+
+function _appendLogEntry(level, msg) {
+  const entry = {ts: new Date(), level, msg};
+  floatLogState.entries.push(entry);
+  if (floatLogState.entries.length > floatLogState.maxEntries) {
+    floatLogState.entries.shift();
+  }
+  appendFloatLogLine(entry);
+  // 미확인 카운트 (패널 숨겨진 상태일 때)
+  if (floatLogState.hidden) {
+    floatLogState.unread += 1;
+    updateLogBadge();
+  }
+  // 기존 콘솔 영역도 동기화 (Tab 0 하단 console-log)
+  const legacy = document.getElementById('console-log');
+  if (legacy) {
+    const time = entry.ts.toTimeString().slice(0, 8);
+    const div = document.createElement('div');
+    div.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${level === 'err' ? 'err' : level}">${msg}</span>`;
+    legacy.appendChild(div);
+    legacy.scrollTop = legacy.scrollHeight;
+  }
 }
+
+function appendFloatLogLine(entry) {
+  if (floatLogState.filter !== 'all' && floatLogState.filter !== entry.level) return;
+  const body = document.getElementById('float-log-body');
+  if (!body) return;
+  const span = document.createElement('span');
+  span.className = `float-log-line lvl-${entry.level}`;
+  const tsText = floatLogState.showTimestamps
+    ? `<span class="log-time">[${entry.ts.toTimeString().slice(0,8)}]</span>`
+    : '';
+  span.innerHTML = `${tsText}${entry.msg}`;
+  body.appendChild(span);
+  body.scrollTop = body.scrollHeight;
+}
+
+function renderFloatLog() {
+  const body = document.getElementById('float-log-body');
+  const filter = document.getElementById('float-log-filter');
+  if (!body) return;
+  if (filter) floatLogState.filter = filter.value;
+  body.innerHTML = '';
+  floatLogState.entries.forEach(appendFloatLogLine);
+}
+
+function clearFloatLog() {
+  floatLogState.entries.length = 0;
+  const body = document.getElementById('float-log-body');
+  if (body) body.innerHTML = '';
+}
+
+function toggleLogTimestamps() {
+  floatLogState.showTimestamps = !floatLogState.showTimestamps;
+  const btn = document.getElementById('float-log-time-toggle');
+  if (btn) btn.classList.toggle('active', floatLogState.showTimestamps);
+  renderFloatLog();
+}
+
+function minimizeFloatLog() {
+  const panel = document.getElementById('float-log');
+  panel.classList.toggle('minimized');
+  floatLogState.minimized = panel.classList.contains('minimized');
+}
+
+function hideFloatLog() {
+  const panel = document.getElementById('float-log');
+  panel.classList.add('hidden');
+  floatLogState.hidden = true;
+}
+
+function showFloatLog() {
+  const panel = document.getElementById('float-log');
+  panel.classList.remove('hidden');
+  panel.classList.remove('minimized');
+  floatLogState.hidden = false;
+  floatLogState.minimized = false;
+  floatLogState.unread = 0;
+  updateLogBadge();
+}
+
+function toggleFloatLog() {
+  if (floatLogState.hidden) showFloatLog();
+  else hideFloatLog();
+}
+
+function updateLogBadge() {
+  const badge = document.getElementById('float-log-badge');
+  if (!badge) return;
+  badge.textContent = floatLogState.unread > 99 ? '99+' : String(floatLogState.unread);
+  badge.classList.toggle('has-count', floatLogState.unread > 0);
+}
+
+// 신규 logger API
+const logger = {
+  info: (msg) => _appendLogEntry('info', msg),
+  ok:   (msg) => _appendLogEntry('ok', msg),
+  warn: (msg) => _appendLogEntry('warn', msg),
+  error:(msg) => _appendLogEntry('err', msg)
+};
+
+// 기존 log(msg, type) 호환 (route to new panel)
+function log(msg, type='info') {
+  // type 정규화
+  let level = type;
+  if (type === 'error') level = 'err';
+  else if (!['info','ok','warn','err'].includes(level)) level = 'info';
+  _appendLogEntry(level, msg);
+}
+
+// 헤더 드래그 (위치 이동)
+function _setupFloatLogDrag() {
+  const panel = document.getElementById('float-log');
+  const header = document.getElementById('float-log-header');
+  if (!panel || !header) return;
+  let dragging = false;
+  let offsetX = 0, offsetY = 0;
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+    dragging = true;
+    const rect = panel.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - offsetX));
+    const y = Math.max(0, Math.min(window.innerHeight - 30, e.clientY - offsetY));
+    panel.style.left = x + 'px';
+    panel.style.top = y + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+  });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    document.body.style.userSelect = '';
+  });
+}
+document.addEventListener('DOMContentLoaded', _setupFloatLogDrag);
 
 // ============================================================
 // 탭 전환
