@@ -702,6 +702,72 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   gap: 4px;
 }
 
+/* 단계 4: 사용처 배지 + 적용 상태 칩 + 토스트 */
+.usage-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: var(--primary-main);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border-radius: 10px;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+}
+.usage-badge + .usage-badge { margin-left: 4px; }
+
+.apply-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-family: var(--font-medium);
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.apply-chip.applied { background: #d1fae5; color: #047857; border: 1px solid #047857; }
+.apply-chip.stale   { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+.apply-chip.pending { background: var(--bg-input); color: var(--text-secondary); border: 1px solid var(--border-color); }
+.apply-chip .chip-time { color: var(--text-muted); font-family: var(--font-mono); font-weight: 400; }
+
+.toast-container {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+.toast {
+  background: #ffffff;
+  border: 1px solid var(--primary-main);
+  border-left: 4px solid var(--primary-main);
+  color: var(--text-primary);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-family: var(--font-medium);
+  font-size: 12px;
+  box-shadow: var(--shadow);
+  animation: toastIn 0.25s ease-out;
+  opacity: 1;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.toast.fading { opacity: 0; transform: translateX(20px); }
+.toast.warn   { border-color: var(--warning); border-left-color: var(--warning); }
+.toast.error  { border-color: var(--error);   border-left-color: var(--error); }
+.toast .toast-title { font-family: var(--font-bold); margin-bottom: 4px; }
+.toast .toast-detail { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 /* Modal — Parameter Coach (조각 4) */
 .modal-backdrop {
   position: fixed;
@@ -1488,17 +1554,20 @@ tr:hover td { background: rgba(255,255,255,0.02); }
         <span class="opt-hint">Tab 2 perm 결과 자동 사용</span>
       </div>
       <div class="opt-row">
-        <label class="opt-label">KASP flank (kb)</label>
-        <input type="number" id="wf-flank" class="opt-input" value="100" min="10" step="10">
+        <label class="opt-label">KASP flank (kb) <span class="usage-badge">Tab 6 KASP 영역</span><span class="apply-chip pending" data-param-key="KASP_flank_kb">— 분석 필요</span></label>
+        <input type="number" id="wf-flank" class="opt-input" value="100" min="10" step="10"
+               onchange="onTab6ParamChange('KASP_flank_kb', this.value)">
         <span class="opt-hint">CI 양 끝 ±N kb</span>
       </div>
       <div class="opt-row">
-        <label class="opt-label">F2:3 권장 라인 수</label>
-        <input type="number" id="wf-n-lines" class="opt-input" value="200" min="50" step="10">
+        <label class="opt-label">F2:3 권장 라인 수 <span class="usage-badge">Tab 6 F2:3 가이드</span><span class="apply-chip pending" data-param-key="F23_lines">— 분석 필요</span></label>
+        <input type="number" id="wf-n-lines" class="opt-input" value="200" min="50" step="10"
+               onchange="onTab6ParamChange('F23_lines', this.value)">
       </div>
       <div class="opt-row">
-        <label class="opt-label">F2:3 반복 수</label>
-        <input type="number" id="wf-n-rep" class="opt-input" value="3" min="1" step="1">
+        <label class="opt-label">F2:3 반복 수 <span class="usage-badge">Tab 6 F2:3 가이드</span><span class="apply-chip pending" data-param-key="F23_replicates">— 분석 필요</span></label>
+        <input type="number" id="wf-n-rep" class="opt-input" value="3" min="1" step="1"
+               onchange="onTab6ParamChange('F23_replicates', this.value)">
       </div>
     </div>
 
@@ -1546,6 +1615,9 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 </div>
 
+<!-- 토스트 컨테이너 (단계 4) -->
+<div class="toast-container" id="toast-container"></div>
+
 <!-- Parameter Coach 모달 (조각 4) -->
 <div class="modal-backdrop" id="param-coach-modal" style="display:none">
   <div class="modal-content">
@@ -1573,8 +1645,112 @@ let appData = {
   diagnosis: null,
   rules: null,             // qtl_tool_rules.json
   paramDescriptions: null, // qtl_tool_param_descriptions.json
-  paramOverrides: {}       // 사용자가 수정한 파라미터 (조각 4에서 사용)
+  paramOverrides: {},      // 사용자가 수정한 파라미터 (조각 4에서 사용)
+  paramApplyState: {}      // 단계 4: {key: {state: 'applied'|'stale'|'pending', appliedAt: Date}}
 };
+
+// ============================================================
+// 단계 4: 파라미터 → 사용처 탭 / 분류 메타데이터
+// ============================================================
+const PARAM_USAGE = {
+  walking_step_cM: {tabs: ['Tab 2 IM', 'Tab 3 CIM/ICIM/MQM'], heavy: true},
+  ICIM_PIN:        {tabs: ['Tab 3 ICIM-ADD'], heavy: true},
+  LOD_threshold:   {tabs: ['Tab 2/3 peak', 'Tab 5 통합'], heavy: false},
+  permutations:    {tabs: ['Tab 2 perm threshold'], heavy: true},
+  CI_method:       {tabs: ['Tab 2/3 CI 계산'], heavy: false},
+  // Tab 6 워크플로 입력
+  KASP_flank_kb:   {tabs: ['Tab 6 KASP 영역'], heavy: false},
+  F23_lines:       {tabs: ['Tab 6 F2:3 가이드'], heavy: false},
+  F23_replicates:  {tabs: ['Tab 6 F2:3 가이드'], heavy: false}
+};
+
+// ============================================================
+// 단계 4: 토스트 알림
+// ============================================================
+function showToast(title, detail, level) {
+  level = level || 'info';
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const el = document.createElement('div');
+  el.className = 'toast' + (level === 'warn' ? ' warn' : level === 'error' ? ' error' : '');
+  el.innerHTML = `<div class="toast-title">${title}</div>` +
+                 (detail ? `<div class="toast-detail">${detail}</div>` : '');
+  container.appendChild(el);
+  // 3초 후 fade-out → remove
+  setTimeout(() => {
+    el.classList.add('fading');
+    setTimeout(() => el.remove(), 400);
+  }, 3000);
+}
+
+// ============================================================
+// 단계 4: 적용 상태 칩 갱신
+// ============================================================
+function setParamApplyState(key, state, ts) {
+  // state: 'applied' | 'stale' | 'pending'
+  appData.paramApplyState[key] = {
+    state: state,
+    appliedAt: ts || new Date()
+  };
+  refreshParamChip(key);
+}
+
+function _formatChipTime(d) {
+  if (!d) return '';
+  const t = (d instanceof Date) ? d : new Date(d);
+  return t.toTimeString().slice(0, 8);
+}
+
+function refreshParamChip(key) {
+  const chip = document.querySelector(`.apply-chip[data-param-key="${key}"]`);
+  if (!chip) return;
+  const st = appData.paramApplyState[key];
+  if (!st) {
+    chip.className = 'apply-chip pending';
+    chip.innerHTML = '— 분석 필요';
+    return;
+  }
+  if (st.state === 'applied') {
+    chip.className = 'apply-chip applied';
+    chip.innerHTML = `✓ 적용됨 <span class="chip-time">${_formatChipTime(st.appliedAt)}</span>`;
+  } else if (st.state === 'stale') {
+    chip.className = 'apply-chip stale';
+    chip.innerHTML = `⚠ 미반영`;
+  } else {
+    chip.className = 'apply-chip pending';
+    chip.innerHTML = '— 분석 필요';
+  }
+}
+
+function refreshAllParamChips() {
+  document.querySelectorAll('.apply-chip[data-param-key]').forEach(chip => {
+    refreshParamChip(chip.dataset.paramKey);
+  });
+}
+
+// 단계 4: Tab 6 옵션 변경 시 토스트 + stale 칩
+function onTab6ParamChange(key, newVal) {
+  const usage = PARAM_USAGE[key] || {tabs: [], heavy: false};
+  const tabs_str = usage.tabs.join(', ') || '— (영향 탭 없음)';
+  showToast(
+    `${key} 변경됨 → ${newVal}`,
+    `${tabs_str} 에 영향 — 워크플로 자료 생성 버튼을 다시 누르세요.`,
+    'warn'
+  );
+  setParamApplyState(key, 'stale');
+}
+
+// 분석 실행 후 일괄 'applied' 표시 (해당 탭에 영향받는 모든 파라미터)
+function markParamsApplied(tabIdentifier) {
+  // tabIdentifier: 'Tab 2 IM', 'Tab 3 CIM/ICIM/MQM', etc. (PARAM_USAGE.tabs 매칭)
+  const now = new Date();
+  for (const [key, usage] of Object.entries(PARAM_USAGE)) {
+    if (usage.tabs.some(t => t === tabIdentifier || tabIdentifier.includes(t.split(' ')[1]))) {
+      appData.paramApplyState[key] = {state: 'applied', appliedAt: now};
+      refreshParamChip(key);
+    }
+  }
+}
 
 // ============================================================
 // JSON 룰셋/설명 로드 (Pyodide 부팅 시 호출)
@@ -4817,6 +4993,8 @@ async function runTier2() {
     const t1 = performance.now();
 
     log(`Tier 2 완료 (${((t1-t0)/1000).toFixed(1)}s) — 검출 QTL ${result.peaks.length}개`, 'ok');
+    // 단계 4: Tier 2에서 사용된 파라미터 ✓ 적용 표시
+    ['walking_step_cM','LOD_threshold','permutations','CI_method'].forEach(k => setParamApplyState(k, 'applied'));
     appData.tier2 = result;
     if (nPerm <= 0) {
       result.threshold_used = manualLOD;
@@ -4999,6 +5177,8 @@ async function runTier3() {
     const t1 = performance.now();
 
     log(`Tier 3 완료 (${((t1-t0)/1000).toFixed(1)}s) — CIM ${result.cim_peaks.length}, ICIM ${result.icim_peaks.length}, MQM ${result.mqm.n_qtls}`, 'ok');
+    // 단계 4: Tier 3에서 사용된 파라미터 ✓ 적용 표시
+    ['walking_step_cM','ICIM_PIN','LOD_threshold','CI_method'].forEach(k => setParamApplyState(k, 'applied'));
     appData.tier3 = result;
     renderTier3Results(result);
     status.textContent = `완료 — CIM ${result.cim_peaks.length} / ICIM ${result.icim_peaks.length} / MQM ${result.mqm.n_qtls}개`;
@@ -5163,6 +5343,8 @@ async function runWorkflowExport() {
     const t1 = performance.now();
 
     log(`워크플로 export 완료 (${((t1-t0)/1000).toFixed(1)}s) — KASP ${result.kasp_targets.length}개, 외부 링크 ${result.external_links.length}개`, 'ok');
+    // 단계 4: Tab 6 입력 파라미터 ✓ 적용 표시
+    ['KASP_flank_kb','F23_lines','F23_replicates'].forEach(k => setParamApplyState(k, 'applied'));
     appData.workflow = result;
     renderWorkflowResults(result);
     status.textContent = `완료 — ${result.n_unique_peaks}개 unique QTL`;
@@ -7503,10 +7685,12 @@ function renderParameterRecommendation(rec) {
   const rows = rec.parameters.map(p => {
     const overridden = (p.key in appData.paramOverrides);
     const currentVal = overridden ? appData.paramOverrides[p.key] : p.value;
+    const usage = PARAM_USAGE[p.key] || {tabs: []};
+    const usageBadges = usage.tabs.map(t => `<span class="usage-badge">${t}</span>`).join('');
     return `
       <tr class="param-row${overridden ? ' overridden' : ''}" data-param-key="${p.key}">
         <td>
-          <div class="param-name">${p.name}</div>
+          <div class="param-name">${p.name}${usageBadges}<span class="apply-chip pending" data-param-key="${p.key}">— 분석 필요</span></div>
           <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px">${p.key}</div>
         </td>
         <td>${renderParamInput(p, currentVal)}</td>
@@ -7526,6 +7710,9 @@ function renderParameterRecommendation(rec) {
 
   // 원본 추천값을 JS 측에 보관 (resetParam에서 사용)
   appData._currentRecommendation = rec;
+
+  // 단계 4: 칩 상태를 메모리에 보관된 값으로 동기화
+  setTimeout(refreshAllParamChips, 0);
 
   const overrideCount = Object.keys(appData.paramOverrides).length;
   list.innerHTML = `
@@ -7637,6 +7824,17 @@ function onParamChange(key, newValStr, originalVal) {
     if (origDisplay) origDisplay.style.display = 'none';
     log(`파라미터 복원: ${key} = ${originalVal}`, 'info');
   }
+
+  // 단계 4: 토스트 + stale 칩 표시
+  const usage = PARAM_USAGE[key] || {tabs: [], heavy: false};
+  const tabs_str = usage.tabs.join(', ') || '— (영향 탭 없음)';
+  const heavy_label = usage.heavy ? '재실행 필요 (무거움)' : '재실행 필요';
+  showToast(
+    `${key} ${originalVal} → ${newVal}`,
+    `${tabs_str} 에 영향 — ${heavy_label}`,
+    'warn'
+  );
+  setParamApplyState(key, 'stale');
 
   // 카드 하단 override 카운트 업데이트
   refreshOverrideBadge();
