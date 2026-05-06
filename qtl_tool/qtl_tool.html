@@ -1788,8 +1788,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
     <!-- 외부 링크 -->
     <div class="card">
-      <div class="card-title">RAP-DB / Gramene 후보유전자 검색</div>
-      <div class="card-subtitle">검출 QTL 영역의 외부 DB 검색 링크. 클릭으로 해당 영역 후보유전자 직접 조회.</div>
+      <div class="card-title">후보유전자 / 다품종 변이 외부 DB 검색</div>
+      <div class="card-subtitle">검출 QTL 영역(IRGSP-1.0 좌표)을 4개 DB로 직접 조회. URL은 2026-05 기준 검증된 형식 (RAP-DB NARO/JBrowse, Gramene Location/View, SNP-Seek 미러, TASUKE+).</div>
       <div id="wf-external-table"></div>
     </div>
 
@@ -5054,7 +5054,16 @@ def generate_f3_validation_guide(qtl_peaks, n_lines_target=200, n_replicates=3):
 
 def build_external_search_links(qtl_peaks, map_df_json=None):
     """
-    각 QTL에 대해 RAP-DB / Gramene / funRiceGenes 검색 URL 자동 생성.
+    각 QTL에 대해 RAP-DB / Gramene / SNP-Seek(mirror) / TASUKE+ / RiceXPro fallback 검색 URL 자동 생성.
+
+    URL 정책 (2026-05 기준):
+      - RAP-DB: 도메인 affrc.go.jp → naro.go.jp 이전. JBrowse deep-link로 좌표 영역 표시.
+        형식: /jbrowse/?data=data%2Firgsp1&loc=chrNN:start..end (chr 두 자리 + ..)
+      - Gramene/Ensembl Plants: 정상 동작. /Oryza_sativa/Location/View?r=N:start-end (chr 한 자리 + 하이픈)
+      - SNP-Seek 본 사이트(snp-seek.irri.org)는 IRRI funding 문제로 일시 오프라인.
+        미러 snpseekv3.duckdns.org 1차, brs-snpseek.duckdns.org fallback.
+      - TASUKE+ (1,358 varieties IRGSP-1.0): 다품종 SNP/InDel 직접 표시. 좌표 deep-link 미지원이라 base URL.
+      - RiceXPro 본 사이트는 좌표 검색 미지원. RAP-DB locus 페이지로 우회하거나 keyword 검색을 fallback으로.
     """
     map_df = pd.DataFrame(map_df_json) if map_df_json else None
     chr_col = bp_col = cm_col = None
@@ -5090,8 +5099,16 @@ def build_external_search_links(qtl_peaks, map_df_json=None):
                     return int(b1 + (c - c1) / (c2 - c1) * (b2 - b1))
                 peak_bp = interp(peak_cM); lo_bp = interp(ci_lo); hi_bp = interp(ci_hi)
 
-        chr_str = f'chr{ch.zfill(2)}' if ch.isdigit() else ch.lower()
-        rap_chr = f'Os{ch.zfill(2)}' if ch.isdigit() else ch
+        # 염색체 표기
+        chr_one = ch  # Gramene/SNP-Seek: 한 자리 (예: '5')
+        chr_two = ch.zfill(2) if ch.isdigit() else ch  # RAP-DB JBrowse: 두 자리 (예: '05')
+
+        # RAP-DB JBrowse (NARO 신 도메인 + 좌표 deep-link + 하이라이트)
+        rapdb_loc = f'chr{chr_two}:{lo_bp}..{hi_bp}'
+        rapdb_url = (f'https://rapdb.dna.naro.go.jp/jbrowse/?data=data%2Firgsp1'
+                     f'&loc={rapdb_loc}&highlight={rapdb_loc}'
+                     f'&tracks=Locus_IRGSP-1.0,Transcript_IRGSP-1.0')
+
         out.append({
             'qtl_id': f"qChr{ch}-{int(round(peak_cM))}",
             'chr': ch,
@@ -5100,13 +5117,26 @@ def build_external_search_links(qtl_peaks, map_df_json=None):
             'ci_lower_bp': lo_bp,
             'ci_upper_bp': hi_bp,
             'links': {
-                'RAP_DB': f'https://rapdb.dna.affrc.go.jp/viewer/gbrowse/locus.shtml?id=&chr={rap_chr}&start={lo_bp}&end={hi_bp}',
-                'Gramene': f'https://ensembl.gramene.org/Oryza_sativa/Location/View?r={ch}:{lo_bp}-{hi_bp}',
-                'RiceXPro': f'https://ricexpro.dna.affrc.go.jp/category-search.php?keyword=Os{ch.zfill(2)}',
-                'SNPSeek': f'https://snp-seek.irri.org/_genotype.zul?chr={ch}&start={lo_bp}&end={hi_bp}',
-                'NCBI_Map_Viewer': f'https://www.ncbi.nlm.nih.gov/genome/?term=Oryza+sativa+chromosome+{ch}'
+                # 1차 진입점 (좌표 영역 후보 유전자)
+                'RAP_DB': rapdb_url,
+                'Gramene': f'https://ensembl.gramene.org/Oryza_sativa/Location/View?r={chr_one}:{lo_bp}-{hi_bp}',
+                # 다품종 변이
+                'SNP_Seek_mirror': f'https://snpseekv3.duckdns.org/genotype.zul?res=1&chr={chr_one}&start={lo_bp}&end={hi_bp}',
+                'TASUKE_plus': 'https://tasuke01.dna.naro.go.jp/tasuke/ricegenomes/',
+                # 자동화 (REST 기반, JSON)
+                'Ensembl_REST_genes': f'https://rest.ensembl.org/overlap/region/oryza_sativa/{chr_one}:{lo_bp}-{hi_bp}?feature=gene;content-type=application/json',
+                # 보조/fallback
+                'Ensembl_Plants': f'https://plants.ensembl.org/Oryza_sativa/Location/View?r={chr_one}:{lo_bp}-{hi_bp}',
+                'SNP_Seek_mirror_BRS': 'https://brs-snpseek.duckdns.org/',
+                'MSU_RGAP': 'https://rice.uga.edu/',
+                'funRiceGenes': 'https://funricegenes.github.io/'
             },
-            'note': 'RAP-DB/Gramene 좌표는 IRGSP-1.0 기준. cM→bp 변환은 사용자 map의 marker bp 보간 또는 1cM=250kb 가정.'
+            'notes': {
+                'rap_db': 'RAP-DB는 2026-03 NARO 도메인으로 이전. JBrowse 좌표 deep-link.',
+                'snp_seek': 'SNP-Seek 본 사이트(snp-seek.irri.org)는 일시 오프라인. 미러(snpseekv3 / brs)는 응답이 다소 느릴 수 있음.',
+                'rice_xpro': 'RiceXPro는 좌표 검색 미지원. RAP-DB JBrowse에서 locus ID 추출 후 RAP-DB locus 페이지의 Expression(RiceXpro) 탭 사용 권장.',
+                'tasuke_plus': 'TASUKE+는 1,358 품종 변이 비교용. 좌표 deep-link 미지원이라 페이지 진입 후 chr/start/end 직접 입력.'
+            }
         })
     return out
 
@@ -6060,7 +6090,7 @@ function renderWorkflowResults(result) {
     `;
   }
 
-  // 외부 링크
+  // 외부 링크 (v0.3: 4개 DB URL 검증 후 교체 — RAP-DB NARO/JBrowse, SNP-Seek 미러, TASUKE+ 신규)
   const extEl = document.getElementById('wf-external-table');
   if (result.external_links.length === 0) {
     extEl.innerHTML = '<div class="empty"><div class="empty-hint">검출 QTL 없음</div></div>';
@@ -6069,7 +6099,11 @@ function renderWorkflowResults(result) {
       <table>
         <thead><tr>
           <th>QTL</th><th>Chr</th><th>cM</th><th>bp 영역</th>
-          <th>RAP-DB</th><th>Gramene</th><th>RiceXPro</th><th>SNPSeek</th>
+          <th title="rapdb.dna.naro.go.jp JBrowse 좌표 deep-link">RAP-DB</th>
+          <th title="ensembl.gramene.org Location/View">Gramene</th>
+          <th title="snpseekv3.duckdns.org 미러 (본 사이트 일시 오프라인)">SNP-Seek*</th>
+          <th title="1,358 varieties 다품종 SNP/InDel 비교 (좌표 직접 입력)">TASUKE+</th>
+          <th title="Ensembl Plants REST API JSON (자동화용)">REST API</th>
         </tr></thead>
         <tbody>
           ${result.external_links.map(e => `
@@ -6078,14 +6112,26 @@ function renderWorkflowResults(result) {
               <td>${e.chr}</td>
               <td>${e.peak_cM.toFixed(1)}</td>
               <td>${(e.ci_lower_bp/1e6).toFixed(2)}~${(e.ci_upper_bp/1e6).toFixed(2)} Mb</td>
-              <td><a href="${e.links.RAP_DB}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
-              <td><a href="${e.links.Gramene}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
-              <td><a href="${e.links.RiceXPro}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
-              <td><a href="${e.links.SNPSeek}" target="_blank" style="color:var(--accent-3)">열기 ↗</a></td>
+              <td><a href="${e.links.RAP_DB}" target="_blank" rel="noopener" style="color:var(--primary-main)">열기 ↗</a></td>
+              <td><a href="${e.links.Gramene}" target="_blank" rel="noopener" style="color:var(--primary-main)">열기 ↗</a></td>
+              <td><a href="${e.links.SNP_Seek_mirror}" target="_blank" rel="noopener" style="color:var(--primary-main)">미러 ↗</a></td>
+              <td><a href="${e.links.TASUKE_plus}" target="_blank" rel="noopener" style="color:var(--primary-main)">진입 ↗</a></td>
+              <td><a href="${e.links.Ensembl_REST_genes}" target="_blank" rel="noopener" style="color:var(--primary-main)">JSON ↗</a></td>
             </tr>
           `).join('')}
         </tbody>
       </table>
+      <div style="margin-top:10px;padding:10px 14px;background:var(--bg-input);border-left:3px solid var(--accent-5);border-radius:5px;font-size:11px;color:var(--text-secondary);line-height:1.6">
+        <strong style="color:var(--primary-main)">URL 정책 (2026-05 검증)</strong><br>
+        · <strong>RAP-DB</strong>: 도메인 affrc.go.jp → naro.go.jp 이전 (2026-03), JBrowse <code>chr05:start..end</code> 형식<br>
+        · <strong>SNP-Seek</strong>: 본 사이트 IRRI funding 문제로 일시 오프라인. 미러(<code>snpseekv3.duckdns.org</code>) 사용 — 응답이 다소 느릴 수 있음<br>
+        · <strong>TASUKE+</strong> (1,358 varieties): 좌표 deep-link 미지원이라 페이지 진입 후 chr/start/end 직접 입력<br>
+        · <strong>RiceXPro</strong>는 좌표 검색 미지원이라 표에서 제외. RAP-DB locus 페이지의 Expression(RiceXpro) 탭에서 발현 데이터 확인 권장<br>
+        · 보조 링크: <a href="${result.external_links[0].links.Ensembl_Plants}" target="_blank" rel="noopener" style="color:var(--primary-main)">Ensembl Plants</a> ·
+          <a href="${result.external_links[0].links.SNP_Seek_mirror_BRS}" target="_blank" rel="noopener" style="color:var(--primary-main)">SNP-Seek BRS 미러</a> ·
+          <a href="${result.external_links[0].links.MSU_RGAP}" target="_blank" rel="noopener" style="color:var(--primary-main)">MSU RGAP</a> ·
+          <a href="${result.external_links[0].links.funRiceGenes}" target="_blank" rel="noopener" style="color:var(--primary-main)">funRiceGenes</a>
+      </div>
     `;
   }
 
