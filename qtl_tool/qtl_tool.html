@@ -6781,32 +6781,28 @@ function renderFastaTable(externalLinks) {
     el.innerHTML = '<div class="empty"><div class="empty-hint">검출 QTL 없음</div></div>';
     return;
   }
+  // v0.9: 단일 다운로드 버튼 — Ensembl 1차 + 실패 시 자동 NCBI 폴백
   el.innerHTML = `
     <table>
       <thead><tr>
         <th>QTL</th><th>Chr</th><th>bp 영역 (IRGSP-1.0)</th><th>크기</th>
-        <th title="Ensembl Plants REST API — CORS 허용, 직접 fetch + 자동 다운로드">Ensembl FASTA</th>
-        <th title="NCBI eutils — 외부 다운로드 링크 (DDBJ accession AP01495x.1)">NCBI FASTA (외부)</th>
+        <th>FASTA 다운로드</th>
       </tr></thead>
       <tbody>
         ${externalLinks.map(e => {
           const sizeBp = e.ci_upper_bp - e.ci_lower_bp;
           const sizeMb = (sizeBp / 1e6).toFixed(2);
           const isLarge = sizeBp > FASTA_LARGE_REGION_BP;
-          const ncbiUrl = _ncbiFastaUrl(e.chr, e.ci_lower_bp, e.ci_upper_bp);
           return `
             <tr>
               <td><strong>${e.qtl_id}</strong></td>
               <td>${e.chr}</td>
               <td>${(e.ci_lower_bp/1e6).toFixed(2)}~${(e.ci_upper_bp/1e6).toFixed(2)} Mb</td>
-              <td>${sizeMb} Mb${isLarge ? ' <span class="badge badge-warning" title="5 Mb 초과 — 응답 느릴 수 있음">large</span>' : ''}</td>
+              <td>${sizeMb} Mb${isLarge ? ' <span class="badge badge-warning" title="5 Mb 초과 — Ensembl 응답 느릴 수 있어 NCBI 폴백 권장">large</span>' : ''}</td>
               <td>
-                <button class="btn-mini" onclick="downloadQtlFasta('${e.chr}', ${e.ci_lower_bp}, ${e.ci_upper_bp}, '${e.qtl_id}')" title="Ensembl REST에서 FASTA 직접 fetch + 자동 다운로드">
-                  ⬇ Ensembl 다운로드
+                <button class="btn-mini" onclick="downloadQtlFasta('${e.chr}', ${e.ci_lower_bp}, ${e.ci_upper_bp}, '${e.qtl_id}')" title="Ensembl Plants REST API로 직접 fetch (CORS 허용). 실패하면 NCBI eutils로 자동 폴백.">
+                  ⬇ FASTA 다운로드
                 </button>
-              </td>
-              <td>
-                ${ncbiUrl ? `<a href="${ncbiUrl}" target="_blank" rel="noopener" download="${e.qtl_id}_chr${e.chr}_${e.ci_lower_bp}-${e.ci_upper_bp}_NCBI.fasta" style="color:var(--primary-main);font-family:var(--font-medium);font-size:11px">NCBI 외부 링크 ↗</a>` : '<span style="color:var(--text-muted);font-size:11px">매핑 없음</span>'}
               </td>
             </tr>
           `;
@@ -6814,11 +6810,9 @@ function renderFastaTable(externalLinks) {
       </tbody>
     </table>
     <div style="margin-top:10px;padding:10px 14px;background:var(--bg-input);border-left:3px solid var(--accent-5);border-radius:5px;font-size:11px;color:var(--text-secondary);line-height:1.6">
-      <strong style="color:var(--primary-main)">FASTA 다운로드 정책</strong><br>
-      · <strong>Ensembl 다운로드</strong>: <code>rest.ensembl.org/sequence/region/oryza_sativa/{chr}:{start}-{end}</code> 직접 fetch (CORS 허용). 자동으로 <code>{qtl}_chr{N}_{start}-{end}_IRGSP-1.0.fasta</code> 저장.<br>
-      · <strong>NCBI 외부 링크</strong>: Ensembl 실패 시 자동 폴백, 또는 5 Mb 초과 큰 영역에서 사용자가 명시 선택. DDBJ accession <code>AP014957.1~AP014968.1</code> (chr 1~12) + <code>seq_start/seq_stop</code>.<br>
-      · 좌표는 1-based, inclusive (Ensembl·NCBI 모두 동일)<br>
-      · 5 Mb 초과 영역은 응답이 느릴 수 있어 사용자 확인 다이얼로그 표시
+      <strong style="color:var(--primary-main)">동작 방식</strong> · 클릭 시 <strong>Ensembl Plants REST</strong>에서 직접 fetch → 자동 다운로드.
+      Ensembl 응답 실패하거나 영역이 5 Mb 초과로 사용자가 거절하면 <strong>NCBI eutils</strong>(DDBJ accession AP014957.1~AP014968.1)로 자동 폴백.
+      파일명: <code>{qtl}_chr{N}_{start}-{end}_IRGSP-1.0.fasta</code>. 좌표 1-based inclusive.
     </div>
   `;
 }
