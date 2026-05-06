@@ -878,6 +878,86 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   letter-spacing: 0.5px;
 }
 
+/* v1.0: QTL CI 영역 후보유전자 표 */
+.qtl-gene-section {
+  margin-top: 12px;
+  padding: 14px;
+  background: #f8fafa;
+  border-left: 4px solid var(--primary-main);
+  border-radius: 5px;
+}
+.qtl-gene-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.qtl-gene-count {
+  font-family: var(--font-medium);
+  font-size: 13px;
+  color: var(--primary-dark);
+}
+.qtl-gene-table-wrapper {
+  overflow-x: auto;
+}
+.qtl-gene-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-base);
+  font-size: 12px;
+}
+.qtl-gene-table thead {
+  background: var(--primary-dark);
+  color: #ffffff;
+}
+.qtl-gene-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-family: var(--font-medium);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid var(--primary-main);
+}
+.qtl-gene-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #cce3dd;
+  vertical-align: top;
+}
+.qtl-gene-table tbody tr:nth-child(even) { background: #e8f4f8; }
+.qtl-gene-table tbody tr:hover { background: #cce3dd; }
+
+.btn-fetch-genes {
+  background: var(--primary-main);
+  color: #ffffff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--font-medium);
+  font-size: 11px;
+  transition: background 0.15s;
+}
+.btn-fetch-genes:hover { background: var(--primary-dark); }
+.btn-download {
+  background: var(--accent-5);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--font-medium);
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.btn-download:disabled {
+  background: #cce3dd;
+  color: #94b8aa;
+  cursor: not-allowed;
+}
+.btn-download:not(:disabled):hover { background: var(--primary-dark); }
+
 /* v0.8: F2:3 검정교배 가이드 표 + 펼침 카드 */
 .f23-steps-table {
   width: 100%;
@@ -6774,6 +6854,128 @@ async function downloadQtlFasta(chr, start, end, qtlName) {
   }
 }
 
+// ============================================================
+// v1.0: QTL CI 영역 후보유전자 자동 추출 (Ensembl REST /overlap/region)
+// ============================================================
+
+// Endpoint: rest.ensembl.org/overlap/region/oryza_sativa/{chr}:{start}-{end}
+// CORS: Access-Control-Allow-Origin: *
+// 인증: 불필요, Rate limit: 15 req/sec
+// Assembly: IRGSP-1.0 (응답 객체의 assembly_name 필드로 검증)
+async function fetchQtlGenes(chr, start, end) {
+  const url = `https://rest.ensembl.org/overlap/region/oryza_sativa/`
+            + `${chr}:${start}-${end}?feature=gene;content-type=application/json`;
+  const res = await fetch(url, {headers: {'Accept': 'application/json'}});
+  if (!res.ok) throw new Error(`Ensembl REST HTTP ${res.status}`);
+  const genes = await res.json();
+  return genes.map(g => ({
+    rapdb_id:    g.gene_id || g.id,
+    symbol:      g.external_name || '-',
+    chr:         g.seq_region_name,
+    start:       g.start,
+    end:         g.end,
+    length_bp:   g.end - g.start + 1,
+    strand:      g.strand === 1 ? '+' : '-',
+    biotype:     g.biotype,
+    source:      g.source,
+    description: g.description || '',
+    assembly:    g.assembly_name
+  }));
+}
+
+async function renderQtlGeneTable(qtl) {
+  // qtl = { name, chr, start, end }
+  const tbody = document.querySelector(`#qtl-genes-tbody-${qtl.name}`);
+  const countEl = document.querySelector(`#qtl-gene-count-${qtl.name}`);
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--primary-main);padding:14px">⏳ Ensembl REST 호출 중...</td></tr>`;
+  if (countEl) countEl.textContent = '';
+
+  const widthMb = (qtl.end - qtl.start) / 1_000_000;
+  if (widthMb > 5 && countEl) {
+    countEl.innerHTML = `<span style="color:var(--error)">⚠ ${widthMb.toFixed(1)} Mb 영역 — 응답 지연 가능</span>`;
+  }
+
+  try {
+    const genes = await fetchQtlGenes(qtl.chr, qtl.start, qtl.end);
+    if (genes.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:14px">해당 영역에 annotation된 유전자 없음 (centromere 등 가능성)</td></tr>`;
+      if (countEl) countEl.textContent = `${qtl.name}: 0 genes`;
+      return;
+    }
+
+    tbody.innerHTML = genes.map((g, i) => {
+      const desc = g.description || '';
+      const descShort = desc.length > 80 ? desc.substring(0, 80) + '...' : desc;
+      const escapeAttr = s => String(s).replace(/"/g, '&quot;');
+      return `
+        <tr>
+          <td>${i + 1}</td>
+          <td><a href="https://rapdb.dna.naro.go.jp/viewer/gbrowse_details/irgsp1?name=${encodeURIComponent(g.rapdb_id)}"
+                 target="_blank" rel="noopener" style="color:var(--primary-main);font-family:var(--font-medium)">${g.rapdb_id}</a></td>
+          <td>${g.symbol}</td>
+          <td style="font-family:var(--font-mono);font-size:11px">${g.chr}:${g.start.toLocaleString()}–${g.end.toLocaleString()}</td>
+          <td>${(g.length_bp/1000).toFixed(1)} kb</td>
+          <td>${g.strand}</td>
+          <td><code style="font-size:10px">${g.biotype}</code></td>
+          <td title="${escapeAttr(desc)}">${descShort || '<span style="color:var(--text-muted)">—</span>'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    if (countEl) {
+      countEl.innerHTML = `<strong style="color:var(--primary-dark)">${qtl.name}</strong>: ${genes.length} genes <span style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono)">(assembly: ${genes[0].assembly || 'IRGSP-1.0'})</span>`;
+    }
+
+    // 다운로드 버튼 활성화
+    const dlBtn = document.querySelector(`#qtl-gene-download-${qtl.name}`);
+    if (dlBtn) {
+      dlBtn.disabled = false;
+      dlBtn.onclick = () => downloadQtlGenesXlsx(qtl, genes);
+    }
+
+    log(`Ensembl 후보유전자 ${genes.length}개 로드 (${qtl.name}, assembly=${genes[0].assembly})`, 'ok');
+  } catch (err) {
+    const fallbackUrl = `https://plants.ensembl.org/Oryza_sativa/Location/View?r=${qtl.chr}:${qtl.start}-${qtl.end}`;
+    tbody.innerHTML = `<tr><td colspan="8" style="color:var(--error);padding:14px;line-height:1.6">
+      ❌ Ensembl REST 호출 실패: ${err.message}<br>
+      <a href="${fallbackUrl}" target="_blank" rel="noopener" style="color:var(--primary-main);font-family:var(--font-medium)">→ Gramene Location/View로 직접 확인 ↗</a>
+    </td></tr>`;
+    if (countEl) countEl.innerHTML = `<span style="color:var(--error)">실패</span>`;
+    log(`Ensembl 후보유전자 로드 실패 (${qtl.name}): ${err.message}`, 'err');
+  }
+}
+
+function downloadQtlGenesXlsx(qtl, genes) {
+  if (!genes || genes.length === 0) return;
+  const rows = genes.map((g, i) => ({
+    '순번': i + 1,
+    'RAP-DB ID': g.rapdb_id,
+    'Symbol': g.symbol,
+    'Chromosome': g.chr,
+    'Start (bp)': g.start,
+    'End (bp)': g.end,
+    'Length (bp)': g.length_bp,
+    'Strand': g.strand,
+    'Biotype': g.biotype,
+    'Source': g.source,
+    'Description': g.description,
+    'Assembly': g.assembly
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    {wch: 5}, {wch: 18}, {wch: 15}, {wch: 5},
+    {wch: 12}, {wch: 12}, {wch: 10}, {wch: 6},
+    {wch: 14}, {wch: 8}, {wch: 60}, {wch: 10}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, qtl.name);
+  const filename = `${qtl.name}_chr${qtl.chr}_${qtl.start}-${qtl.end}_genes_IRGSP-1.0.xlsx`;
+  XLSX.writeFile(wb, filename);
+  log(`후보유전자 Excel 저장: ${filename} (${genes.length} genes)`, 'ok');
+}
+
 function renderFastaTable(externalLinks) {
   const el = document.getElementById('wf-fasta-table');
   if (!el) return;
@@ -7043,7 +7245,7 @@ function renderWorkflowResults(result) {
       <table>
         <thead><tr>
           <th>QTL</th><th>Chr</th><th>cM</th><th>bp 영역 (IRGSP-1.0)</th>
-          <th title="ensembl.gramene.org/Oryza_sativa/Location/View — IRGSP-1.0 좌표 영역의 후보 유전자">Gramene 후보유전자</th>
+          <th title="Gramene Location/View 또는 Ensembl REST API로 후보 유전자 조회">후보 유전자 조회</th>
         </tr></thead>
         <tbody>
           ${result.external_links.map(e => `
@@ -7052,12 +7254,56 @@ function renderWorkflowResults(result) {
               <td>${e.chr}</td>
               <td>${e.peak_cM.toFixed(1)}</td>
               <td>${(e.ci_lower_bp/1e6).toFixed(2)}~${(e.ci_upper_bp/1e6).toFixed(2)} Mb</td>
-              <td><a href="${e.links.Gramene}" target="_blank" rel="noopener" style="color:var(--primary-main);font-family:var(--font-medium)">Gramene Location/View 열기 ↗</a></td>
+              <td>
+                <a href="${e.links.Gramene}" target="_blank" rel="noopener" style="color:var(--primary-main);font-family:var(--font-medium);font-size:11px">Gramene Location/View ↗</a>
+                <span style="color:var(--text-muted);margin:0 4px">|</span>
+                <button class="btn-fetch-genes"
+                        data-qtl-name="${e.qtl_id}"
+                        data-chr="${e.chr}"
+                        data-start="${e.ci_lower_bp}"
+                        data-end="${e.ci_upper_bp}"
+                        title="Ensembl REST API로 이 영역의 후보유전자 표 + 엑셀 다운로드">
+                  📋 유전자 목록 보기
+                </button>
+              </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
+
+      ${result.external_links.map(e => `
+        <div id="qtl-gene-section-${e.qtl_id}" class="qtl-gene-section" style="display:none">
+          <div class="qtl-gene-header">
+            <span id="qtl-gene-count-${e.qtl_id}" class="qtl-gene-count"></span>
+            <button id="qtl-gene-download-${e.qtl_id}" class="btn-download" disabled>⬇ 엑셀 다운로드</button>
+          </div>
+          <div class="qtl-gene-table-wrapper">
+            <table class="qtl-gene-table">
+              <thead><tr>
+                <th>#</th><th>RAP-DB ID</th><th>Symbol</th><th>Position</th>
+                <th>Length</th><th>Strand</th><th>Biotype</th><th>Description</th>
+              </tr></thead>
+              <tbody id="qtl-genes-tbody-${e.qtl_id}"></tbody>
+            </table>
+          </div>
+        </div>
+      `).join('')}
     `;
+
+    // 버튼 클릭 → 토글 표시 + Ensembl REST 호출
+    extEl.querySelectorAll('.btn-fetch-genes').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qtl = {
+          name:  btn.dataset.qtlName,
+          chr:   btn.dataset.chr,
+          start: parseInt(btn.dataset.start, 10),
+          end:   parseInt(btn.dataset.end, 10)
+        };
+        const section = document.getElementById(`qtl-gene-section-${qtl.name}`);
+        if (section) section.style.display = 'block';
+        renderQtlGeneTable(qtl);
+      });
+    });
   }
 
   // v0.6: FASTA 다운로드 표
