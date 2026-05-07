@@ -841,6 +841,38 @@ body {
       <div id="sma-result-area" style="margin-top:18px"></div>
     </div>
 
+    <!-- W3-3: WheatQTLdb 핵심 30 QTL + 분석 결과 자동 비교 -->
+    <div class="card" id="qtldb-card">
+      <div class="card-title">
+        WheatQTLdb 핵심 QTL — 분석 결과 자동 매칭
+        <span class="format-badge tier-1" style="margin-left:8px">30 QTLs</span>
+      </div>
+      <div class="card-subtitle" id="qtldb-subtitle">로딩 중...</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" id="qtldb-search" placeholder="검색: Vrn / Lr34 / Fhb / 출수기 / 형질명..."
+               style="padding:7px 10px;border:1px solid var(--border-color);border-radius:4px;min-width:280px;font-size:12px">
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          카테고리
+          <select id="qtldb-category" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+            <option value="all">전체</option>
+            <option value="flowering">개화·출수</option>
+            <option value="morphology">형태 (초장 등)</option>
+            <option value="yield">수량</option>
+            <option value="yield_quality">수량+품질</option>
+            <option value="quality">품질</option>
+            <option value="disease">병 저항성</option>
+            <option value="phs">수발아</option>
+            <option value="stress">스트레스 내성</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;margin-top:18px">
+          <input type="checkbox" id="qtldb-match-only"> 분석 매칭된 QTL만
+        </label>
+        <span id="qtldb-status" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <div id="qtldb-table"></div>
+    </div>
+
     <!-- W3-1: KASP 라이브러리 (Rasheed 2016 + 한국 검증) -->
     <div class="card" id="kasp-library-card">
       <div class="card-title">
@@ -1143,6 +1175,7 @@ document.querySelectorAll('#lang-toggle button').forEach(btn => {
     if (KOREA_QTL_PANEL) renderKoreaQtlPanel();
     if (KOREA_CULTIVARS) renderKoreaCultivars();
     if (KASP_LIBRARY) renderKaspLibrary();
+    if (WHEAT_QTLDB) renderWheatQtldb();
     log(`언어 변경: ${btn.dataset.lang}`);
   });
 });
@@ -1227,6 +1260,7 @@ let SPECIES_CONFIG = null;
 let KOREA_QTL_PANEL = null;
 let KOREA_CULTIVARS = null;
 let KASP_LIBRARY = null;
+let WHEAT_QTLDB = null;
 
 async function loadJson(path) {
   const res = await fetch(path, { cache: 'no-cache' });
@@ -1240,21 +1274,24 @@ async function loadAllData() {
     log('file:// 프로토콜 감지 — 외부 JSON fetch 제한 (HTTP 서버 사용 권장)', 'warn');
   }
   try {
-    const [cfg, qtl, cv, kasp] = await Promise.all([
+    const [cfg, qtl, cv, kasp, qtldb] = await Promise.all([
       loadJson('data/wheat_species_config.json'),
       loadJson('data/wheat_qtl_korea_panel.json'),
       loadJson('data/wheat_cultivars_korea.json'),
-      loadJson('data/wheat_kasp_library.json').catch(() => null)
+      loadJson('data/wheat_kasp_library.json').catch(() => null),
+      loadJson('data/wheat_qtldb_subset.json').catch(() => null)
     ]);
     SPECIES_CONFIG = cfg;
     KOREA_QTL_PANEL = qtl;
     KOREA_CULTIVARS = cv;
     KASP_LIBRARY = kasp;
-    log(`데이터 로드 완료: SPECIES_CONFIG(${Object.keys(cfg).filter(k=>!k.startsWith('_')&&k!=='version'&&k!=='default').length}종) · QTL(${qtl.qtls.length}) · 품종(${cv.cultivars.length})${kasp ? ` · KASP(${kasp.markers.length})` : ''}`, 'ok');
+    WHEAT_QTLDB = qtldb;
+    log(`데이터 로드 완료: SPECIES_CONFIG(${Object.keys(cfg).filter(k=>!k.startsWith('_')&&k!=='version'&&k!=='default').length}종) · QTL(${qtl.qtls.length}) · 품종(${cv.cultivars.length})${kasp ? ` · KASP(${kasp.markers.length})` : ''}${qtldb ? ` · WheatQTLdb(${qtldb.qtls.length})` : ''}`, 'ok');
     applySpeciesConfig(CURRENT_PLOIDY);
     renderKoreaQtlPanel();
     renderKoreaCultivars();
     if (kasp) renderKaspLibrary();
+    if (qtldb) renderWheatQtldb();
   } catch (e) {
     log(`데이터 로드 실패: ${e.message} — file:// 또는 누락된 data/ 폴더 가능성`, 'error');
     document.getElementById('korea-qtl-table-wrap').innerHTML =
@@ -1320,6 +1357,100 @@ function renderKoreaQtlPanel() {
       `<strong style="color:var(--primary-main)">VRN/PPD 상태:</strong> ${summary} ` +
       `<br>${impl} (Lim 2025 신규 SNP: ${(vrn.novel_snps_lim_2025||[]).join(', ')})`;
   }
+}
+
+// W3-3: WheatQTLdb subset 렌더링 + 분석 결과 자동 매칭
+// 매칭 규칙: SMA/IM/GLM 유의 마커가 QTL의 chr 일치 + pos가 [pos_mb_lo, pos_mb_hi] ± 5Mb 영역에 있으면 매칭
+function _matchSigToQtldb(sigResults) {
+  if (!WHEAT_QTLDB || !sigResults?.length) return new Map();
+  const matchMap = new Map();
+  WHEAT_QTLDB.qtls.forEach(q => {
+    const lo_bp = (q.pos_mb_lo - 5) * 1_000_000;
+    const hi_bp = (q.pos_mb_hi + 5) * 1_000_000;
+    const matched = sigResults.filter(r =>
+      r.sig && r.chr === q.chr && Number.isFinite(r.pos) && r.pos >= lo_bp && r.pos <= hi_bp
+    );
+    if (matched.length) matchMap.set(q.qtl_id, matched);
+  });
+  return matchMap;
+}
+
+function renderWheatQtldb() {
+  if (!WHEAT_QTLDB) return;
+  const subtitle = document.getElementById('qtldb-subtitle');
+  subtitle.innerHTML = WHEAT_QTLDB._comment + ' · ' +
+    Object.entries(WHEAT_QTLDB.summary.by_category).map(([k,v]) => `${k}(${v})`).join(' / ');
+
+  const search = document.getElementById('qtldb-search');
+  const cat = document.getElementById('qtldb-category');
+  const matchOnly = document.getElementById('qtldb-match-only');
+  const wrap = document.getElementById('qtldb-table');
+  const status = document.getElementById('qtldb-status');
+
+  function _render() {
+    const sigResults = (_SESSION_STATE.smaResults || []).filter(r => r.sig);
+    const matches = _matchSigToQtldb(sigResults);
+    const q = (search.value || '').trim().toLowerCase();
+    let qtls = WHEAT_QTLDB.qtls;
+    if (q) {
+      qtls = qtls.filter(t =>
+        (t.qtl_id + ' ' + (t.alt_names || []).join(' ') + ' ' + t.chr + ' ' +
+         (t.trait_ko || '') + ' ' + (t.trait_en || '') + ' ' + (t.gene || '')).toLowerCase().includes(q)
+      );
+    }
+    if (cat.value !== 'all') qtls = qtls.filter(t => t.category === cat.value);
+    if (matchOnly.checked) qtls = qtls.filter(t => matches.has(t.qtl_id));
+
+    if (!qtls.length) {
+      wrap.innerHTML = '<div class="placeholder" style="padding:20px;text-align:center">조건에 맞는 QTL 없음</div>';
+      status.textContent = '0 QTL';
+      return;
+    }
+    let html = `<table class="detect-result-table">
+      <thead><tr>
+        <th>QTL ID</th><th>형질</th><th>Chr</th><th>위치 (Mb)</th><th>Gene/marker</th><th>매칭</th>
+      </tr></thead><tbody>`;
+    qtls.forEach(t => {
+      const trait = (CURRENT_LANG === 'ko') ? (t.trait_ko || t.trait_en) : (t.trait_en || t.trait_ko);
+      const matched = matches.get(t.qtl_id);
+      let matchCell;
+      if (matched) {
+        const top = matched.sort((a,b) => b.neg_log10_p - a.neg_log10_p)[0];
+        matchCell = `<span class="format-badge tier-1">✓ ${matched.length}개</span><br>` +
+          `<span style="font-size:10px;font-family:var(--font-mono)">top: ${top.marker} −log₁₀p=${top.neg_log10_p.toFixed(2)}</span>`;
+      } else {
+        matchCell = '<span style="color:var(--text-muted);font-size:11px">—</span>';
+      }
+      const koreaTag = t.korea_priority
+        ? `<span class="qtl-priority ${t.korea_priority}">${t.korea_priority}</span>`
+        : '';
+      const altNames = (t.alt_names || []).length
+        ? `<br><span style="color:var(--text-muted);font-size:10px">≡ ${(t.alt_names || []).join(', ')}</span>`
+        : '';
+      const koreaNote = t.korea_status_ko
+        ? `<br><span style="color:var(--accent-5);font-size:10px;font-style:italic">${t.korea_status_ko}</span>`
+        : '';
+      html += `<tr title="${t.reference || ''}">
+        <td><strong>${t.qtl_id}</strong>${koreaTag ? ' ' + koreaTag : ''}${altNames}</td>
+        <td style="font-size:11px">${trait || '—'}${koreaNote}</td>
+        <td>${t.chr}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${t.pos_mb_lo}–${t.pos_mb_hi}</td>
+        <td style="font-size:11px">${t.gene || '—'}${t.kasp_marker ? `<br><span class="format-badge tier-2" style="font-size:9px">KASP: ${t.kasp_marker}</span>` : ''}</td>
+        <td>${matchCell}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    status.textContent = `${qtls.length}개 표시${matches.size ? ` · 분석 매칭 ${matches.size}` : ''}`;
+  }
+
+  if (!search._qtldbBound) {
+    search.addEventListener('input', _render);
+    cat.addEventListener('change', _render);
+    matchOnly.addEventListener('change', _render);
+    search._qtldbBound = true;
+  }
+  _render();
 }
 
 // W3-1: KASP 라이브러리 렌더링 + 검색 필터 + 업로드 매칭
@@ -3275,6 +3406,7 @@ async function runSma() {
     };
     _saveSessionForReport('smaResults', results);
     _saveSessionForReport('smaMeta', meta);
+    if (WHEAT_QTLDB) renderWheatQtldb();
     renderSmaResults(results, meta);
     renderManhattan(results, meta);
     refreshEnsemblMarkerDropdown(results);
@@ -4359,7 +4491,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 3 — W3-2 GLM GWAS (PCA 보정, 다양성 패널용) 활성');
+log('단계: Phase 3 — W3-3 WheatQTLdb 30 QTL 자동 매칭 활성');
 
 // 분석 라디오 변경 → IM/GLM 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
