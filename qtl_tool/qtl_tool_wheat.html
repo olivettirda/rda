@@ -1134,9 +1134,30 @@ function autoDetectFormat(rawText) {
   const head = rawText.slice(0, 8000);  // 첫 8KB만 검사
   return detectTier1(head)
       || detectTier2(head)
+      || detectMarkerMap(head)   // W1-5b: 마커 위치 맵 (marker/chr/pos)
       || detectPhenotype(head)   // W1-5a: 표현형 파일 별도 분기 (Tier 2.5)
       || detectTier3(rawText)
       || { format: 'unknown', tier: 'unknown' };
+}
+
+// W1-5b: 마커 위치 맵 자동 감지
+// 헤더에 marker/snp_name + chr + pos/bp/position 모두 존재
+function detectMarkerMap(headSample) {
+  const lines = headSample.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return null;
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const header = lines[0].split(sep).map(c => c.trim().toLowerCase());
+  const hasMarker = header.some(c => /^(marker|snp_?name|probe(set)?_?id|cloneid|rs#?)$/i.test(c));
+  const hasChr = header.some(c => /^chr(om(osome)?)?$/i.test(c));
+  const hasPos = header.some(c => /^(pos|bp|position|start)$/i.test(c));
+  if (!hasMarker || !hasChr || !hasPos) return null;
+  // 데이터 첫 줄에서 위치 컬럼이 숫자인지 확인
+  if (lines.length >= 2) {
+    const cells = lines[1].split(sep);
+    const posIdx = header.findIndex(c => /^(pos|bp|position|start)$/i.test(c));
+    if (posIdx >= 0 && !Number.isFinite(parseFloat(cells[posIdx]))) return null;
+  }
+  return { format: 'MarkerMap', tier: 2 };
 }
 
 // W1-5a: 표현형 파일 자동 감지
@@ -1759,6 +1780,62 @@ function parsePhenotype(rawText) {
   return { samples, traits: traitNames, data, traitStats };
 }
 
+// ============================================================
+// W1-5b: 마커 위치 맵 파서 (marker, chr, pos[, cM])
+// ============================================================
+function parseMarkerMap(rawText) {
+  const lines = rawText.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { map: {}, _error: 'empty' };
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const header = lines[0].split(sep).map(c => c.trim());
+  const lower = header.map(c => c.toLowerCase());
+  const markerIdx = lower.findIndex(c => /^(marker|snp_?name|probe(set)?_?id|cloneid|rs#?)$/i.test(c));
+  const chrIdx = lower.findIndex(c => /^chr(om(osome)?)?$/i.test(c));
+  const posIdx = lower.findIndex(c => /^(pos|bp|position|start)$/i.test(c));
+  const cmIdx = lower.findIndex(c => /^(cm|genetic_pos|genetic_position)$/i.test(c));
+  if (markerIdx < 0 || chrIdx < 0 || posIdx < 0) return { map: {}, _error: 'columns missing' };
+
+  const map = {};
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(sep);
+    const m = (cells[markerIdx] || '').trim();
+    if (!m) continue;
+    const chr = String(cells[chrIdx] || '').trim().replace(/^Chr/i, '');
+    const pos = parseFloat(cells[posIdx]);
+    if (!Number.isFinite(pos)) continue;
+    map[m] = {
+      chr,
+      pos,
+      cM: cmIdx >= 0 ? parseFloat(cells[cmIdx]) : null
+    };
+  }
+  return { map, n_markers: Object.keys(map).length };
+}
+
+// 마커 맵을 유전형 records에 적용 (chr/pos 채움)
+function applyMarkerMap(genoEntry, mapEntry) {
+  if (!genoEntry?.parsed?.records || !mapEntry?.parsed?.map) return 0;
+  const map = mapEntry.parsed.map;
+  let updated = 0, missed = 0;
+  genoEntry.parsed.records.forEach(r => {
+    const e = map[r.marker];
+    if (e) {
+      r.chr = e.chr;
+      r.pos = e.pos;
+      if (e.cM != null) r.cM = e.cM;
+      updated++;
+    } else {
+      missed++;
+    }
+  });
+  // QC chr_dist 재계산
+  if (genoEntry.qc) {
+    genoEntry.qc.chr_dist = countByChr(genoEntry.parsed.records);
+  }
+  log(`  마커 맵 적용: ${genoEntry.name} ← ${mapEntry.name} · 매핑 ${updated} / 미매핑 ${missed}`, missed > updated ? 'warn' : 'ok');
+  return updated;
+}
+
 // 파일 처리 entry point
 async function handleFile(file) {
   log(`파일 처리: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
@@ -1831,6 +1908,13 @@ async function handleFile(file) {
     } else {
       log(`  Phenotype: ${parsed.samples.length} 시료 × ${parsed.traits.length} 형질 (${parsed.traits.slice(0,3).join(', ')}${parsed.traits.length > 3 ? '...' : ''})`, 'ok');
     }
+  } else if (det.format === 'MarkerMap') {
+    parsed = parseMarkerMap(rawText);
+    if (parsed._error) {
+      log(`  MarkerMap 파싱 실패: ${parsed._error}`, 'error');
+    } else {
+      log(`  MarkerMap: ${parsed.n_markers} 마커 위치 정보`, 'ok');
+    }
   } else if (det.format !== 'unknown') {
     log(`  ${det.format}: 파서 미구현`, 'warn');
   }
@@ -1842,6 +1926,21 @@ async function handleFile(file) {
     qc
   };
   UPLOADED_FILES.push(entry);
+  // W1-5b: MarkerMap 업로드 시 chr=unknown인 모든 유전형에 자동 적용
+  if (det.format === 'MarkerMap' && parsed?.map) {
+    UPLOADED_FILES.forEach(g => {
+      if (g === entry) return;
+      const records = g.parsed?.records;
+      if (records && records.some(r => r.chr === 'unknown')) {
+        applyMarkerMap(g, entry);
+      }
+    });
+  }
+  // 신규 유전형 업로드 시, 기존 MarkerMap이 있으면 자동 적용
+  if (entry.parsed?.records && entry.parsed.records.some(r => r.chr === 'unknown')) {
+    const mapEntry = UPLOADED_FILES.find(f => f.detected.format === 'MarkerMap');
+    if (mapEntry) applyMarkerMap(entry, mapEntry);
+  }
   renderFileList();
   renderDetectResult();
   refreshAnalysisDropdowns();
@@ -2060,7 +2159,9 @@ async function runSma() {
     const sigCount = results.filter(r => r.sig).length;
     log(`  SMA 완료: ${results.length} 마커 검정, 유의 ${sigCount}개 (${elapsed}초)`, 'ok');
 
-    renderSmaResults(results, { trait: traitName, alpha, bonferroni, geno_file: genoEntry.name, n_markers: records.length });
+    const meta = { trait: traitName, alpha, bonferroni, geno_file: genoEntry.name, n_markers: records.length };
+    renderSmaResults(results, meta);
+    renderManhattan(results, meta);
     status.textContent = `완료 — ${sigCount}개 유의 (${elapsed}s)`;
     activateTab('visual');
   } catch (e) {
@@ -2072,6 +2173,141 @@ async function runSma() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// ============================================================
+// W1-5b: Manhattan plot (Plotly scattergl, sub-genome A/B/D 색조)
+// ============================================================
+const SUBGEN_COLOR = {
+  A: '#E64B35', B: '#4DBBD5', D: '#8491B4',
+  unknown: '#888888'
+};
+const WHEAT_CHR_ORDER = [
+  '1A','1B','1D','2A','2B','2D','3A','3B','3D',
+  '4A','4B','4D','5A','5B','5D','6A','6B','6D','7A','7B','7D'
+];
+
+function _subgenOf(chr) {
+  if (!chr) return 'unknown';
+  const m = String(chr).toUpperCase().match(/[ABD]$/);
+  return m ? m[0] : 'unknown';
+}
+
+function renderManhattan(results, meta) {
+  const placeholder = document.getElementById('manhattan-placeholder');
+  if (!results || !results.length) return;
+
+  // 1) chr별로 그룹화 + sort
+  const withPos = results.filter(r => r.chr && r.chr !== 'unknown' && Number.isFinite(r.pos));
+  if (!withPos.length) {
+    placeholder.innerHTML = `<strong>Manhattan plot 비활성</strong>
+      마커 위치 정보 없음 — chr/pos가 'unknown'인 마커뿐.<br>
+      <span style="font-size:11px">marker / chr / pos 컬럼을 가진 마커 맵 파일을 업로드하세요</span>`;
+    return;
+  }
+
+  // 2) chr별 누적 좌표 계산 (1A=0~chr1A_max, 1B=chr1A_max~..., ...)
+  const chrPresent = WHEAT_CHR_ORDER.filter(c => withPos.some(r => r.chr === c));
+  // 추가로 정의되지 않은 chr (예: 'chrUn')도 마지막에 표시
+  const extraChrs = [...new Set(withPos.map(r => r.chr))].filter(c => !WHEAT_CHR_ORDER.includes(c));
+  const chrSequence = [...chrPresent, ...extraChrs];
+
+  const chrMaxPos = {};
+  withPos.forEach(r => {
+    const cur = chrMaxPos[r.chr] || 0;
+    if (r.pos > cur) chrMaxPos[r.chr] = r.pos;
+  });
+  const chrOffset = {};
+  let cumOffset = 0;
+  const tickVals = [], tickLabels = [];
+  const GAP = 5_000_000;  // 염색체 간 5 Mb 간격
+  chrSequence.forEach(c => {
+    chrOffset[c] = cumOffset;
+    const max = chrMaxPos[c] || 0;
+    tickVals.push(cumOffset + max / 2);
+    tickLabels.push(c);
+    cumOffset += max + GAP;
+  });
+
+  // 3) sub-genome별 트레이스 분리
+  const traces = [];
+  ['A', 'B', 'D', 'unknown'].forEach(sub => {
+    const points = withPos.filter(r => _subgenOf(r.chr) === sub);
+    if (!points.length) return;
+    traces.push({
+      type: 'scattergl',
+      mode: 'markers',
+      name: `Sub-genome ${sub}` + (sub === 'unknown' ? ' (정의 안됨)' : ''),
+      x: points.map(p => chrOffset[p.chr] + p.pos),
+      y: points.map(p => p.neg_log10_p),
+      text: points.map(p => `<b>${p.marker}</b><br>${p.chr}:${p.pos.toLocaleString()}<br>p = ${p.p.toExponential(2)}<br>F = ${p.F.toFixed(2)}<br>n = ${p.n}`),
+      hovertemplate: '%{text}<extra></extra>',
+      marker: {
+        color: SUBGEN_COLOR[sub],
+        size: points.map(p => p.sig ? 8 : 5),
+        opacity: points.map(p => p.sig ? 1 : 0.7),
+        line: { width: points.map(p => p.sig ? 1 : 0), color: '#0c3026' }
+      }
+    });
+  });
+
+  // 4) 임계선
+  const sigThreshold = meta.bonferroni ? -Math.log10(meta.alpha / meta.n_markers) : -Math.log10(meta.alpha);
+  const thresholdLabel = meta.bonferroni
+    ? `Bonferroni −log₁₀(${meta.alpha}/${meta.n_markers}) = ${sigThreshold.toFixed(2)}`
+    : `α=${meta.alpha} → ${sigThreshold.toFixed(2)}`;
+
+  const layout = {
+    title: {
+      text: `Manhattan plot — ${meta.trait}` + (meta.geno_file ? ` (${meta.geno_file})` : ''),
+      font: { family: 'KoPub Dotum Bold, sans-serif', size: 14, color: '#0c3026' }
+    },
+    xaxis: {
+      title: '21 chromosomes (1A → 7D)',
+      tickvals: tickVals,
+      ticktext: tickLabels,
+      tickfont: { size: 10, family: 'JetBrains Mono, monospace' },
+      gridcolor: '#e6ece8',
+      zeroline: false
+    },
+    yaxis: {
+      title: '−log₁₀(p)',
+      gridcolor: '#e6ece8',
+      zeroline: false,
+      rangemode: 'tozero'
+    },
+    plot_bgcolor: '#fafbfa',
+    paper_bgcolor: '#ffffff',
+    height: 460,
+    margin: { l: 56, r: 28, t: 50, b: 70 },
+    hovermode: 'closest',
+    legend: { orientation: 'h', y: -0.2, x: 0, font: { size: 10 } },
+    shapes: [{
+      type: 'line', xref: 'paper', x0: 0, x1: 1,
+      y0: sigThreshold, y1: sigThreshold,
+      line: { color: '#dc3545', width: 1.5, dash: 'solid' }
+    }],
+    annotations: [{
+      x: 1, y: sigThreshold, xref: 'paper', xanchor: 'right',
+      text: thresholdLabel,
+      showarrow: false, yshift: -10,
+      font: { color: '#dc3545', size: 10, family: 'JetBrains Mono, monospace' }
+    }]
+  };
+
+  // placeholder를 실제 plot div로 교체
+  placeholder.innerHTML = '';
+  placeholder.style.padding = '0';
+  placeholder.style.background = 'transparent';
+  placeholder.style.border = 'none';
+  placeholder.style.textAlign = 'left';
+  const div = document.createElement('div');
+  div.id = 'manhattan-plot';
+  div.style.width = '100%';
+  div.style.height = '460px';
+  placeholder.appendChild(div);
+  Plotly.newPlot(div, traces, layout, { responsive: true, displaylogo: false });
+  log(`Manhattan plot 렌더링: ${withPos.length} 마커 (chr ${chrSequence.length}개)`, 'ok');
 }
 
 function renderSmaResults(results, meta) {
@@ -2142,7 +2378,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-5a 진행 — 표현형 + SMA(scipy.stats.f_oneway) 분석 활성');
+log('단계: W1-5b 진행 — 마커 위치 맵 + Plotly Manhattan plot (sub-genome A/B/D 색조) 활성');
 
 // SMA 실행 버튼 바인딩
 document.getElementById('sma-run-btn')?.addEventListener('click', runSma);
