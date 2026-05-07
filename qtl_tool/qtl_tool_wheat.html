@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wheat QTL Mapping Tool — PoC v0.1</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+
+<!-- KoPub Dotum (Korean) -->
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/wizfree/free-fonts/KoPubWorld%20Dotum%20Light/KoPubWorld%20Dotum%20Light.css');
+</style>
+
+<!-- 외부 라이브러리 (Pyodide/Plotly/XLSX) — webR은 W1-2 후속 chunk에서 추가 -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style id="wheat-styles">
+:root {
+  /* DMRT Style System (UI 테마) */
+  --bg-primary: #fafbfa;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f9f7;
+  --bg-input: #f5f9f7;
+
+  --primary-dark: #0c3026;
+  --primary-main: #017f97;
+  --accent-5: #00a1b8;
+  --accent-4: #54b7c6;
+  --accent-3: #8dccd3;
+  --accent-2: #b2d9d8;
+  --accent-1: #cce3dd;
+
+  --error: #dc3545;
+  --warning: #d97706;
+  --warning-bg: #fef3c7;
+  --success: #4caf50;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #5a6a62;
+  --text-muted: #8a9d92;
+  --border-color: #d0d8d4;
+  --shadow: 0 2px 8px rgba(12,48,38,0.08);
+  --shadow-teal: 0 4px 16px rgba(1, 127, 151, 0.18);
+
+  /* Wheat sub-genome 색조 (Manhattan plot 등 차트 전용 — Okabe-Ito/Wong 색맹 안전) */
+  --subgen-A: #E64B35;
+  --subgen-A-light: #F39B7F;
+  --subgen-B: #4DBBD5;
+  --subgen-B-light: #00A087;
+  --subgen-D: #8491B4;
+  --subgen-D-light: #B09C85;
+
+  --font-base: 'KoPub Dotum Light', 'KoPubDotum Light', '맑은 고딕', sans-serif;
+  --font-medium: 'KoPub Dotum Medium', 'KoPubDotum Medium', '맑은 고딕', sans-serif;
+  --font-bold: 'KoPub Dotum Bold', 'KoPubDotum Bold', '맑은 고딕', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-base);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f9f7 100%);
+  border-bottom: 1px solid var(--border-color);
+  padding: 18px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.header::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--primary-main) 30%, var(--accent-5) 50%, var(--primary-main) 70%, transparent 100%);
+  opacity: 0.6;
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-logo {
+  width: 36px; height: 36px; object-fit: contain; border-radius: 4px;
+}
+.header-title {
+  font-family: var(--font-bold);
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--accent-5), var(--primary-dark));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.header-title .ver {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  -webkit-text-fill-color: var(--text-muted);
+  margin-left: 8px;
+}
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* Toggle group (i18n / ploidy) */
+.toggle-group {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 2px;
+  background: var(--bg-card);
+}
+.toggle-group button {
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 14px;
+  transition: all 0.15s;
+}
+.toggle-group button.active {
+  background: var(--primary-main);
+  color: white;
+}
+.toggle-group button:hover:not(.active) { background: var(--bg-input); color: var(--primary-main); }
+
+/* Status badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--warning);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.status-dot.ready { background: var(--success); animation: none; }
+.status-dot.error { background: var(--error); animation: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Tabs (7-Step Wizard) */
+.tabs {
+  display: flex;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 32px;
+  gap: 4px;
+  overflow-x: auto;
+}
+.tab {
+  padding: 16px 18px;
+  font-family: var(--font-medium);
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tab .num {
+  display: inline-flex;
+  width: 22px; height: 22px;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-1);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--primary-dark);
+}
+.tab:hover { color: var(--text-primary); }
+.tab.active {
+  color: var(--primary-dark);
+  border-bottom-color: var(--primary-main);
+  font-family: var(--font-bold);
+}
+.tab.active .num {
+  background: var(--primary-main);
+  color: white;
+}
+.tab.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+/* Main */
+.main {
+  padding: 28px 32px;
+  max-width: clamp(1200px, 95vw, 1900px);
+  margin: 0 auto;
+}
+@media (max-width: 1280px) {
+  .main { max-width: 100%; padding: 22px 18px; }
+}
+
+.tab-content { display: none; animation: fadeIn 0.3s; }
+.tab-content.active { display: block; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-family: var(--font-bold);
+  font-size: 16px;
+  color: var(--primary-dark);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.card-subtitle {
+  font-family: var(--font-medium);
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: -8px 0 14px 0;
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--font-medium);
+  font-size: 13px;
+  padding: 9px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover { background: var(--bg-input); border-color: var(--primary-main); color: var(--primary-main); }
+.btn-primary {
+  background: var(--primary-main);
+  color: white;
+  border-color: var(--primary-main);
+}
+.btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); color: white; }
+.btn-primary:disabled { background: var(--accent-1); border-color: var(--accent-1); cursor: not-allowed; color: var(--text-muted); }
+
+/* Placeholder area (각 탭 W1-3 이후 단계에서 채움) */
+.placeholder {
+  padding: 38px 28px;
+  text-align: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-input);
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+}
+.placeholder strong { display: block; color: var(--primary-main); font-family: var(--font-bold); font-size: 14px; margin-bottom: 6px; }
+
+/* Wheat sub-genome 칩 */
+.subgen-chip {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-right: 4px;
+  letter-spacing: 0.3px;
+}
+.subgen-chip.A { background: var(--subgen-A); color: white; }
+.subgen-chip.B { background: var(--subgen-B); color: white; }
+.subgen-chip.D { background: var(--subgen-D); color: white; }
+
+/* 정보 배너 (벼 도구와의 차이/주의사항 안내) */
+.notice-banner {
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  background: var(--warning-bg);
+  border-left: 4px solid var(--warning);
+  border-radius: 4px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--primary-dark);
+}
+.notice-banner .title {
+  font-family: var(--font-bold);
+  color: var(--warning);
+  margin-bottom: 4px;
+}
+
+/* Floating log */
+.float-log {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 360px;
+  max-height: 200px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-teal);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  z-index: 1050;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.float-log-header {
+  padding: 6px 12px;
+  background: var(--primary-dark);
+  color: white;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.float-log-body {
+  padding: 8px 12px;
+  overflow-y: auto;
+  flex: 1;
+  background: #0c3026;
+  color: #cce3dd;
+}
+.float-log-body .log-line { line-height: 1.5; }
+.float-log-body .log-ok { color: #8dccd3; }
+.float-log-body .log-warn { color: #d97706; }
+.float-log-body .log-err { color: #dc3545; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <img src="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png"
+         alt="ssallogo" class="header-logo"
+         onerror="this.style.display='none'">
+    <div class="header-title">
+      <span data-i18n="app.title">밀 QTL Mapping Tool</span>
+      <span class="ver">PoC v0.1</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <!-- Ploidy 토글 (Hexaploid / Tetraploid / Synthetic / Wild) -->
+    <div class="toggle-group" id="ploidy-toggle" title="배수성/종 선택">
+      <button class="active" data-ploidy="hexaploid">6x AABBDD</button>
+      <button data-ploidy="tetraploid">4x AABB</button>
+      <button data-ploidy="synthetic">SHW</button>
+      <button data-ploidy="wild">Wild</button>
+    </div>
+    <!-- 언어 토글 -->
+    <div class="toggle-group" id="lang-toggle">
+      <button class="active" data-lang="ko">한국어</button>
+      <button data-lang="en">EN</button>
+    </div>
+    <div class="status-badge">
+      <span class="status-dot" id="pyodide-status-dot"></span>
+      <span id="pyodide-status-text" data-i18n="status.loading">Pyodide 로딩 중...</span>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs (7-Step Wizard, T3/Galaxy 스타일) -->
+<div class="tabs">
+  <button class="tab active" data-tab="upload"><span class="num">1</span><span data-i18n="tab.upload">데이터 업로드</span></button>
+  <button class="tab" data-tab="detect"><span class="num">2</span><span data-i18n="tab.detect">자동 감지 & QC</span></button>
+  <button class="tab" data-tab="population"><span class="num">3</span><span data-i18n="tab.population">집단 유형</span></button>
+  <button class="tab" data-tab="method"><span class="num">4</span><span data-i18n="tab.method">분석 방법</span></button>
+  <button class="tab" data-tab="params"><span class="num">5</span><span data-i18n="tab.params">매개변수</span></button>
+  <button class="tab" data-tab="visual"><span class="num">6</span><span data-i18n="tab.visual">시각화</span></button>
+  <button class="tab" data-tab="report"><span class="num">7</span><span data-i18n="tab.report">보고서</span></button>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- 공통 안내 배너 (모든 탭 상단) -->
+  <div class="notice-banner">
+    <div class="title" data-i18n="notice.title">밀 도구 베타 — 벼 도구와의 주요 차이</div>
+    <div data-i18n="notice.body">
+      이 도구는 <strong>밀(Triticum aestivum, IWGSC RefSeq v2.1)</strong> 전용입니다.
+      벼 도구의 87.2% 정확도는 <strong>벼 모델 기준</strong>이며, 밀 재학습·재검증이 진행 중입니다.
+      35K Wheat Breeders' Array는 <strong>Affymetrix Axiom</strong>(Illumina 아님)이며,
+      90K iSelect의 <strong>D-genome coverage는 ≈4.6%</strong>로 D-genome QTL 검출력이 제한됩니다.
+    </div>
+  </div>
+
+  <!-- Tab 1: 데이터 업로드 -->
+  <div class="tab-content active" id="tab-upload">
+    <div class="card">
+      <div class="card-title">
+        <span data-i18n="upload.title">1. 유전자형/표현형/마커 위치 파일 업로드</span>
+        <span class="subgen-chip A">A</span><span class="subgen-chip B">B</span><span class="subgen-chip D">D</span>
+      </div>
+      <div class="card-subtitle" data-i18n="upload.subtitle">
+        지원 형식: VCF · HapMap · Illumina 90K/15K Final Report · Affymetrix Axiom 35K/820K · DArTseq · KASP grid (XLSX/CSV)
+      </div>
+      <div class="placeholder">
+        <strong>W1-4에서 채울 영역</strong>
+        drag&amp;drop 업로드 + Tier 1-3 자동 감지 + missing/MAF/segregation distortion 표
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: 자동 감지 & QC -->
+  <div class="tab-content" id="tab-detect">
+    <div class="card">
+      <div class="card-title" data-i18n="detect.title">2. 형식 자동 감지 결과</div>
+      <div class="placeholder">
+        <strong>W1-4</strong>
+        Tier 1-3 결과 + 마커 prefix 분포 + IWGSC v2.1 좌표 매핑 검증
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: 집단 유형 -->
+  <div class="tab-content" id="tab-population">
+    <div class="card">
+      <div class="card-title" data-i18n="population.title">3. 집단 유형 선택</div>
+      <div class="card-subtitle" data-i18n="population.subtitle">
+        F2 / RIL / DH / BC / NIL / MAGIC / diversity panel
+      </div>
+      <div class="placeholder">
+        <strong>W1-3</strong>
+        집단 유형 선택 카드 + Vrn/Ppd dominance 모델 옵션
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 4: 분석 방법 -->
+  <div class="tab-content" id="tab-method">
+    <div class="card">
+      <div class="card-title" data-i18n="method.title">4. 분석 방법 선택</div>
+      <div class="card-subtitle" data-i18n="method.subtitle">
+        SMA · IM · CIM (webR) · ICIM-ADD · GLM · MLM · FarmCPU · BLINK
+      </div>
+      <div class="placeholder">
+        <strong>W1-5</strong>
+        방법별 카드 + 학술 근거 모달 (Churchill &amp; Doerge 1994 등)
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 5: 매개변수 -->
+  <div class="tab-content" id="tab-params">
+    <div class="card">
+      <div class="card-title" data-i18n="params.title">5. 분석 매개변수</div>
+      <div class="placeholder">
+        <strong>W1-5</strong>
+        LOD threshold · permutation N · walking step · kinship · PCA components
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 6: 시각화 -->
+  <div class="tab-content" id="tab-visual">
+    <div class="card">
+      <div class="card-title" data-i18n="visual.title">6. 결과 시각화</div>
+      <div class="card-subtitle">
+        Manhattan (sub-genome A/B/D 색조) · LOD plot · 21 chr linkage map · genotype heatmap
+      </div>
+      <div class="placeholder" id="manhattan-placeholder">
+        <strong>W1-5</strong>
+        Plotly scattergl Manhattan plot + 1A~7D 21개 chr 패널
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 7: 보고서 -->
+  <div class="tab-content" id="tab-report">
+    <div class="card">
+      <div class="card-title" data-i18n="report.title">7. 보고서 자동 생성</div>
+      <div class="card-subtitle" data-i18n="report.subtitle">
+        한국어 PDF (농진청 표준 11섹션) + 영문 TAG/PBJ 양식 + 매개변수 로그 + SHA-256 해시
+      </div>
+      <div class="placeholder">
+        <strong>W1-7</strong>
+        품종보호 출원품종 심사요령(예규 제190호) 호환 출력
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Floating Log -->
+<div class="float-log" id="float-log">
+  <div class="float-log-header">
+    <span>실행 로그</span>
+    <span id="float-log-count" style="opacity:0.7">0</span>
+  </div>
+  <div class="float-log-body" id="float-log-body"></div>
+</div>
+
+<script id="wheat-script">
+// ============================================================
+// i18n 사전 (W1-7 시점에 분리/확장 예정)
+// ============================================================
+const I18N = {
+  ko: {
+    'app.title': '밀 QTL Mapping Tool',
+    'status.loading': 'Pyodide 로딩 중...',
+    'status.ready': 'Pyodide 준비 완료',
+    'status.error': 'Pyodide 로딩 실패',
+    'tab.upload': '데이터 업로드',
+    'tab.detect': '자동 감지 & QC',
+    'tab.population': '집단 유형',
+    'tab.method': '분석 방법',
+    'tab.params': '매개변수',
+    'tab.visual': '시각화',
+    'tab.report': '보고서',
+    'notice.title': '밀 도구 베타 — 벼 도구와의 주요 차이',
+    'notice.body': "이 도구는 <strong>밀(Triticum aestivum, IWGSC RefSeq v2.1)</strong> 전용입니다. 벼 도구의 87.2% 정확도는 <strong>벼 모델 기준</strong>이며, 밀 재학습·재검증이 진행 중입니다. 35K Wheat Breeders' Array는 <strong>Affymetrix Axiom</strong>(Illumina 아님)이며, 90K iSelect의 <strong>D-genome coverage는 ≈4.6%</strong>로 D-genome QTL 검출력이 제한됩니다.",
+    'upload.title': '1. 유전자형/표현형/마커 위치 파일 업로드',
+    'upload.subtitle': "지원 형식: VCF · HapMap · Illumina 90K/15K Final Report · Affymetrix Axiom 35K/820K · DArTseq · KASP grid (XLSX/CSV)",
+    'detect.title': '2. 형식 자동 감지 결과',
+    'population.title': '3. 집단 유형 선택',
+    'population.subtitle': 'F2 / RIL / DH / BC / NIL / MAGIC / diversity panel',
+    'method.title': '4. 분석 방법 선택',
+    'method.subtitle': 'SMA · IM · CIM (webR) · ICIM-ADD · GLM · MLM · FarmCPU · BLINK',
+    'params.title': '5. 분석 매개변수',
+    'visual.title': '6. 결과 시각화',
+    'report.title': '7. 보고서 자동 생성',
+    'report.subtitle': '한국어 PDF (농진청 표준 11섹션) + 영문 TAG/PBJ 양식 + 매개변수 로그 + SHA-256 해시'
+  },
+  en: {
+    'app.title': 'Wheat QTL Mapping Tool',
+    'status.loading': 'Loading Pyodide...',
+    'status.ready': 'Pyodide ready',
+    'status.error': 'Pyodide load failed',
+    'tab.upload': 'Data Upload',
+    'tab.detect': 'Auto-detect & QC',
+    'tab.population': 'Population Type',
+    'tab.method': 'Analysis Method',
+    'tab.params': 'Parameters',
+    'tab.visual': 'Visualization',
+    'tab.report': 'Report',
+    'notice.title': 'Wheat tool beta — key differences from rice tool',
+    'notice.body': "This tool targets <strong>wheat (Triticum aestivum, IWGSC RefSeq v2.1)</strong>. The 87.2% accuracy of the rice tool refers to <strong>the rice model</strong> and wheat re-training/re-validation is in progress. The 35K Wheat Breeders' Array is <strong>Affymetrix Axiom</strong> (not Illumina), and the 90K iSelect has <strong>D-genome coverage ≈4.6%</strong>, limiting D-genome QTL detection power.",
+    'upload.title': '1. Upload genotype / phenotype / marker map files',
+    'upload.subtitle': "Supported: VCF · HapMap · Illumina 90K/15K Final Report · Affymetrix Axiom 35K/820K · DArTseq · KASP grid (XLSX/CSV)",
+    'detect.title': '2. Format auto-detection results',
+    'population.title': '3. Population type',
+    'population.subtitle': 'F2 / RIL / DH / BC / NIL / MAGIC / diversity panel',
+    'method.title': '4. Choose analysis method',
+    'method.subtitle': 'SMA · IM · CIM (webR) · ICIM-ADD · GLM · MLM · FarmCPU · BLINK',
+    'params.title': '5. Analysis parameters',
+    'visual.title': '6. Result visualization',
+    'report.title': '7. Auto report generation',
+    'report.subtitle': 'Korean PDF (RDA 11-section standard) + English TAG/PBJ template + parameter log + SHA-256 hash'
+  }
+};
+
+let CURRENT_LANG = 'ko';
+let CURRENT_PLOIDY = 'hexaploid';
+
+function applyI18n(lang) {
+  CURRENT_LANG = lang;
+  const dict = I18N[lang] || I18N.ko;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key] !== undefined) el.innerHTML = dict[key];
+  });
+  document.documentElement.lang = lang;
+}
+
+// ============================================================
+// Floating Log
+// ============================================================
+const _logBody = document.getElementById('float-log-body');
+const _logCount = document.getElementById('float-log-count');
+let _logN = 0;
+
+function log(msg, level) {
+  level = level || 'info';
+  const cls = level === 'ok' ? 'log-ok' : level === 'warn' ? 'log-warn' : level === 'error' ? 'log-err' : '';
+  const ts = new Date().toTimeString().slice(0, 8);
+  const line = document.createElement('div');
+  line.className = 'log-line ' + cls;
+  line.textContent = `[${ts}] ${msg}`;
+  _logBody.appendChild(line);
+  _logBody.scrollTop = _logBody.scrollHeight;
+  _logN += 1;
+  _logCount.textContent = _logN;
+}
+
+// ============================================================
+// 탭 전환
+// ============================================================
+function activateTab(tabKey) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const tabBtn = document.querySelector(`.tab[data-tab="${tabKey}"]`);
+  const tabContent = document.getElementById('tab-' + tabKey);
+  if (tabBtn) tabBtn.classList.add('active');
+  if (tabContent) tabContent.classList.add('active');
+}
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.classList.contains('disabled')) return;
+    activateTab(tab.dataset.tab);
+  });
+});
+
+// ============================================================
+// 토글 (i18n / ploidy)
+// ============================================================
+document.querySelectorAll('#lang-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#lang-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyI18n(btn.dataset.lang);
+    log(`언어 변경: ${btn.dataset.lang}`);
+  });
+});
+
+document.querySelectorAll('#ploidy-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#ploidy-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    CURRENT_PLOIDY = btn.dataset.ploidy;
+    log(`배수성 변경: ${CURRENT_PLOIDY}`, 'ok');
+    // W1-3에서 SPECIES_CONFIG 분기 적용
+  });
+});
+
+// ============================================================
+// Pyodide 부팅 (placeholder — W1-5에서 통계 함수 로드)
+// ============================================================
+let pyodide = null;
+
+async function bootPyodide() {
+  const dot = document.getElementById('pyodide-status-dot');
+  const text = document.getElementById('pyodide-status-text');
+  try {
+    log('Pyodide 부팅 시작...');
+    pyodide = await loadPyodide();
+    log('numpy/scipy/pandas 로딩...', 'ok');
+    await pyodide.loadPackage(['numpy', 'scipy', 'pandas']);
+    dot.classList.add('ready');
+    text.textContent = (I18N[CURRENT_LANG] || I18N.ko)['status.ready'];
+    log('Pyodide 준비 완료', 'ok');
+  } catch (e) {
+    dot.classList.add('error');
+    text.textContent = (I18N[CURRENT_LANG] || I18N.ko)['status.error'];
+    log(`Pyodide 부팅 실패: ${e.message}`, 'error');
+  }
+}
+
+// ============================================================
+// 초기화
+// ============================================================
+applyI18n('ko');
+log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
+log('단계: W1-2 골격 — W1-3 SPECIES_CONFIG · W1-4 파서 · W1-5 분석 · W1-6 외부 API · W1-7 보고서');
+bootPyodide();
+</script>
+
+</body>
+</html>
