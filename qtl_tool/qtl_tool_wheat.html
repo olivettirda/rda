@@ -710,10 +710,42 @@ body {
         Manhattan (sub-genome A/B/D 색조) · LOD plot · 21 chr linkage map · genotype heatmap
       </div>
       <div id="manhattan-placeholder" class="placeholder">
-        <strong>W1-5b 대기</strong>
-        Plotly scattergl Manhattan plot + 1A~7D 21개 chr 패널 — W1-5a SMA 분석 결과 표는 아래
+        <strong>분석 대기</strong>
+        Tab 4에서 SMA 분석을 실행하면 Manhattan plot이 여기에 표시됩니다
       </div>
       <div id="sma-result-area" style="margin-top:18px"></div>
+    </div>
+
+    <!-- W1-6a: Ensembl Plants Wheat REST 후보 유전자 카드 -->
+    <div class="card" id="ensembl-card" style="display:none">
+      <div class="card-title">
+        후보 유전자 — Ensembl Plants Wheat REST
+        <span class="format-badge tier-1" style="margin-left:8px">CORS *</span>
+      </div>
+      <div class="card-subtitle">
+        유의 마커 영역 ± window kb의 protein-coding 유전자를 IWGSC RefSeq v2.1에서 직접 fetch (인증 불필요)
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          마커 (top 유의)
+          <select id="ensembl-marker-sel" style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:240px">
+            <option value="">-- 선택 --</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          영역 ± (kb)
+          <select id="ensembl-window" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+            <option value="100">100 kb</option>
+            <option value="500" selected>500 kb</option>
+            <option value="1000">1 Mb</option>
+            <option value="2000">2 Mb</option>
+            <option value="5000">5 Mb</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" id="ensembl-fetch-btn">유전자 가져오기</button>
+        <span id="ensembl-status" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <div id="ensembl-result-area"></div>
     </div>
   </div>
 
@@ -2162,6 +2194,7 @@ async function runSma() {
     const meta = { trait: traitName, alpha, bonferroni, geno_file: genoEntry.name, n_markers: records.length };
     renderSmaResults(results, meta);
     renderManhattan(results, meta);
+    refreshEnsemblMarkerDropdown(results);
     status.textContent = `완료 — ${sigCount}개 유의 (${elapsed}s)`;
     activateTab('visual');
   } catch (e) {
@@ -2310,6 +2343,175 @@ function renderManhattan(results, meta) {
   log(`Manhattan plot 렌더링: ${withPos.length} 마커 (chr ${chrSequence.length}개)`, 'ok');
 }
 
+// ============================================================
+// W1-6a: Ensembl Plants Wheat REST API
+// ============================================================
+// CORS: Access-Control-Allow-Origin * (인증 불필요, rate 15 req/sec)
+// IWGSC RefSeq v2.1 매핑: species = triticum_aestivum, assembly = IWGSC_RefSeq_v2.1
+// 또는 v1.0 어셈블리 species = triticum_aestivum (기본)
+const ENSEMBL_BASE = 'https://rest.ensembl.org';
+
+function _ensemblChrName(chr, ploidy) {
+  // IWGSC v1.0/v2.1 chromosome 명칭은 Ensembl Plants에서 그대로 "1A"/"1B"/.../"7D"
+  // 일부 케이스에서 'Chr1A' 또는 '1A'로 다름 — Plants는 '1A' 사용
+  return String(chr).replace(/^Chr/i, '');
+}
+
+async function fetchEnsemblGenes(chr, start, end, opts) {
+  opts = opts || {};
+  const species = opts.species || 'triticum_aestivum';
+  const feature = opts.feature || 'gene';
+  const cleanChr = _ensemblChrName(chr);
+  const url = `${ENSEMBL_BASE}/overlap/region/${species}/${cleanChr}:${start}-${end}?feature=${feature}`;
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/json' },
+    cache: 'no-cache'
+  });
+  if (!res.ok) throw new Error(`Ensembl REST HTTP ${res.status} (${res.statusText})`);
+  const genes = await res.json();
+  return genes.map(g => ({
+    gene_id: g.gene_id || g.id,
+    symbol: g.external_name || '-',
+    chr: g.seq_region_name,
+    start: g.start,
+    end: g.end,
+    length_bp: g.end - g.start + 1,
+    strand: g.strand === 1 ? '+' : '-',
+    biotype: g.biotype,
+    source: g.source,
+    description: g.description || '',
+    assembly: g.assembly_name
+  }));
+}
+
+async function runEnsemblFetch() {
+  const status = document.getElementById('ensembl-status');
+  const resultArea = document.getElementById('ensembl-result-area');
+  const markerSel = document.getElementById('ensembl-marker-sel');
+  const windowKb = parseInt(document.getElementById('ensembl-window').value) || 500;
+
+  if (!markerSel.value) {
+    status.textContent = '마커를 먼저 선택하세요';
+    return;
+  }
+  // 선택한 마커 정보 추출 (value = `chr|pos|marker_name`)
+  const [chr, posStr, markerName] = markerSel.value.split('|');
+  const pos = parseInt(posStr);
+  if (!chr || !Number.isFinite(pos)) {
+    status.textContent = '마커 위치 정보 부재';
+    return;
+  }
+
+  const start = Math.max(1, pos - windowKb * 1000);
+  const end = pos + windowKb * 1000;
+  const widthMb = (end - start) / 1_000_000;
+  status.textContent = `로딩 중... ${chr}:${(start/1e6).toFixed(2)}-${(end/1e6).toFixed(2)} Mb (${widthMb.toFixed(1)} Mb)`;
+  resultArea.innerHTML = `<div class="placeholder">Ensembl Plants REST 호출 중... (${markerName})</div>`;
+
+  try {
+    if (widthMb > 10) {
+      log(`경고: ${widthMb.toFixed(1)} Mb 영역 — 응답 지연 가능`, 'warn');
+    }
+    const t0 = performance.now();
+    const genes = await fetchEnsemblGenes(chr, start, end);
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    log(`Ensembl: ${chr}:${start}-${end} → ${genes.length} 유전자 (${elapsed}초, assembly ${genes[0]?.assembly || '?'})`, 'ok');
+    renderEnsemblGenes(genes, { marker: markerName, chr, start, end, windowKb, elapsed });
+    status.textContent = `완료 — ${genes.length} 유전자`;
+  } catch (e) {
+    log(`Ensembl REST 실패: ${e.message}`, 'error');
+    resultArea.innerHTML = `<div style="padding:14px;background:var(--warning-bg);border-left:4px solid var(--error)">
+      <strong>Ensembl REST 실패:</strong> ${e.message}<br>
+      <span style="font-size:11px">CORS · 네트워크 · rate limit (15/sec) 확인</span>
+    </div>`;
+    status.textContent = '실패';
+  }
+}
+
+function renderEnsemblGenes(genes, meta) {
+  const wrap = document.getElementById('ensembl-result-area');
+  if (!genes.length) {
+    wrap.innerHTML = `<div class="placeholder">${meta.marker} ± ${meta.windowKb}kb 영역에 annotation된 유전자 없음</div>`;
+    return;
+  }
+  const proteinCoding = genes.filter(g => g.biotype === 'protein_coding');
+  let html = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="qc-stat"><span class="key">전체</span><span class="val">${genes.length}</span></span>
+      <span class="qc-stat"><span class="key">protein_coding</span><span class="val">${proteinCoding.length}</span></span>
+      <span class="qc-stat"><span class="key">영역</span><span class="val">${meta.chr}:${(meta.start/1e6).toFixed(2)}-${(meta.end/1e6).toFixed(2)} Mb</span></span>
+      <span class="qc-stat"><span class="key">assembly</span><span class="val">${genes[0].assembly || '?'}</span></span>
+      <span class="qc-stat"><span class="key">${meta.elapsed}초</span><span class="val">REST</span></span>
+    </div>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>#</th><th>Gene ID</th><th>Symbol</th><th>위치</th><th>Length</th><th>Strand</th><th>Biotype</th><th>Description</th>
+      </tr></thead><tbody>
+  `;
+  genes.slice(0, 100).forEach((g, i) => {
+    const desc = (g.description || '').slice(0, 80) + ((g.description || '').length > 80 ? '...' : '');
+    html += `<tr>
+      <td>${i+1}</td>
+      <td><a href="https://plants.ensembl.org/${ENSEMBL_BASE.includes('rest') ? 'Triticum_aestivum/Gene/Summary?g=' : ''}${g.gene_id}" target="_blank" rel="noopener" style="color:var(--primary-main)">${g.gene_id}</a></td>
+      <td>${g.symbol}</td>
+      <td><span style="font-family:var(--font-mono);font-size:10px">${g.chr}:${g.start.toLocaleString()}-${g.end.toLocaleString()}</span></td>
+      <td>${(g.length_bp/1000).toFixed(1)} kb</td>
+      <td>${g.strand}</td>
+      <td><span class="format-badge ${g.biotype === 'protein_coding' ? 'tier-1' : 'tier-2'}">${g.biotype}</span></td>
+      <td title="${g.description}" style="font-size:11px">${desc || '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (genes.length > 100) html += `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">상위 100개 표시 (전체 ${genes.length})</div>`;
+  // 다운로드 버튼
+  html += `<button class="btn" style="margin-top:8px" onclick='_downloadGenesXlsx(${JSON.stringify(genes).replace(/'/g, "&apos;")}, "${meta.marker}", "${meta.chr}", ${meta.start}, ${meta.end})'>엑셀 다운로드</button>`;
+  wrap.innerHTML = html;
+}
+
+function _downloadGenesXlsx(genes, marker, chr, start, end) {
+  if (typeof XLSX === 'undefined') { log('XLSX.js 미로드', 'error'); return; }
+  const rows = genes.map((g, i) => ({
+    '순번': i + 1,
+    'Gene ID': g.gene_id,
+    'Symbol': g.symbol,
+    'Chromosome': g.chr,
+    'Start (bp)': g.start,
+    'End (bp)': g.end,
+    'Length (bp)': g.length_bp,
+    'Strand': g.strand,
+    'Biotype': g.biotype,
+    'Source': g.source,
+    'Description': g.description,
+    'Assembly': g.assembly
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:5},{wch:24},{wch:14},{wch:6},{wch:12},{wch:12},{wch:10},{wch:6},{wch:14},{wch:8},{wch:60},{wch:18}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, marker.slice(0,30));
+  const filename = `${marker}_${chr}_${start}-${end}_IWGSC_genes.xlsx`;
+  XLSX.writeFile(wb, filename);
+  log(`엑셀 다운로드: ${filename}`, 'ok');
+}
+
+// SMA 결과 → Ensembl 마커 dropdown 갱신
+function refreshEnsemblMarkerDropdown(results) {
+  const sel = document.getElementById('ensembl-marker-sel');
+  const card = document.getElementById('ensembl-card');
+  if (!sel || !card) return;
+  if (!results || !results.length) { card.style.display = 'none'; return; }
+  // top 20 (chr/pos 정보가 있는 마커만)
+  const candidates = results.filter(r => r.chr && r.chr !== 'unknown' && Number.isFinite(r.pos)).slice(0, 20);
+  if (!candidates.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  sel.innerHTML = '<option value="">-- 마커 선택 --</option>' +
+    candidates.map(r => {
+      const sigMark = r.sig ? '★ ' : '';
+      const lbl = `${sigMark}${r.marker} (${r.chr}:${(r.pos/1e6).toFixed(2)} Mb, p=${r.p.toExponential(1)})`;
+      return `<option value="${r.chr}|${r.pos}|${r.marker}">${lbl}</option>`;
+    }).join('');
+  if (candidates.length > 0) sel.value = `${candidates[0].chr}|${candidates[0].pos}|${candidates[0].marker}`;
+}
+
 function renderSmaResults(results, meta) {
   const wrap = document.getElementById('sma-result-area');
   if (!results.length) {
@@ -2378,10 +2580,13 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-5b 진행 — 마커 위치 맵 + Plotly Manhattan plot (sub-genome A/B/D 색조) 활성');
+log('단계: W1-6a 진행 — Ensembl Plants Wheat REST 후보 유전자 추출 활성 (CORS *)');
 
 // SMA 실행 버튼 바인딩
 document.getElementById('sma-run-btn')?.addEventListener('click', runSma);
+
+// W1-6a: Ensembl 유전자 fetch 버튼 바인딩
+document.getElementById('ensembl-fetch-btn')?.addEventListener('click', runEnsemblFetch);
 loadAllData();
 setupUpload();
 bootPyodide();
