@@ -695,10 +695,42 @@ body {
           <input type="radio" name="analysis-method" value="im">
           <span><strong>IM</strong> (Interval Mapping, Haley-Knott) <span style="color:var(--text-muted);font-size:11px">— W2-2 활성</span></span>
         </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--primary-main);border-radius:6px;background:var(--bg-card-hover)">
+          <input type="radio" name="analysis-method" value="glm">
+          <span><strong>GLM</strong> (Diversity panel + PCA) <span style="color:var(--text-muted);font-size:11px">— W3-2 활성</span></span>
+        </label>
         <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-color);border-radius:6px;opacity:0.5">
           <input type="radio" name="analysis-method" value="cim" disabled>
           <span>CIM (webR) <span style="color:var(--text-muted);font-size:11px">— 후속</span></span>
         </label>
+      </div>
+
+      <!-- W3-2: GLM 매개변수 -->
+      <div id="glm-params" style="margin-top:14px;padding:14px;background:var(--bg-input);border-radius:6px;display:none">
+        <div style="font-family:var(--font-bold);margin-bottom:8px;color:var(--primary-dark)">GLM (PCA 보정 GWAS) 매개변수</div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            PCA components (집단구조 보정)
+            <select id="glm-npca" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="0">0 (보정 없음)</option>
+              <option value="3" selected>3 (권장)</option>
+              <option value="5">5</option>
+              <option value="10">10 (대형 패널)</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            LOD/p 임계
+            <select id="glm-thr" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="bonferroni" selected>Bonferroni (α=0.05)</option>
+              <option value="fdr">FDR B-H (q=0.05)</option>
+              <option value="suggestive">Suggestive (1/n)</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
+          <strong>GLM</strong>: y ~ μ + Σ(γ·PC) + β·G — 다양성 패널 GWAS 표준.
+          MLM(kinship + REML)은 후속 chunk (W3-2b).
+        </div>
       </div>
 
       <!-- W2-2: IM 매개변수 (IM 선택 시 표시) -->
@@ -2411,6 +2443,99 @@ function refreshAnalysisDropdowns() {
   }
 }
 
+const PY_GLM_FUNC = `
+def run_glm_gwas(geno_codes, sample_ids, marker_names, marker_chrs, marker_pos,
+                 pheno_dict, n_pca=3):
+    """GLM GWAS with PCA covariates (단순 다양성 패널)."""
+    import numpy as np
+    from scipy import stats
+    code_map = {'A': 0.0, 'H': 1.0, 'B': 2.0}
+    n_markers = len(geno_codes)
+    n_samples = len(sample_ids)
+    y_orig = np.array([pheno_dict.get(s, np.nan) for s in sample_ids], dtype=float)
+    valid = ~np.isnan(y_orig)
+    if valid.sum() < 20:
+        return {'results': [], '_error': 'too few valid samples (<20)'}
+    y = y_orig[valid]
+    n = len(y)
+
+    # 유전형 matrix (samples × markers, additive 0/1/2; missing → 마커 평균)
+    G_full = np.full((n_samples, n_markers), np.nan, dtype=float)
+    for mi in range(n_markers):
+        codes = geno_codes[mi]
+        for si in range(n_samples):
+            c = codes[si]
+            if c in code_map:
+                G_full[si, mi] = code_map[c]
+    G = G_full[valid]
+    # missing impute (마커 평균)
+    for mi in range(n_markers):
+        col = G[:, mi]
+        m = np.isnan(col)
+        if m.all():
+            G[:, mi] = 0
+        elif m.any():
+            G[m, mi] = np.nanmean(col)
+
+    # PCA
+    PC = None
+    if n_pca > 0:
+        Gc = G - G.mean(axis=0, keepdims=True)
+        # full SVD는 비용 큼 → randomized 또는 covariance 기반
+        # 단순화: numpy.linalg.svd (compact)
+        try:
+            U, S, _Vt = np.linalg.svd(Gc, full_matrices=False)
+            PC = U[:, :n_pca] * S[:n_pca]
+        except Exception:
+            PC = None
+
+    # 회귀: y ~ X_cov + β·g, X_cov = [1 | PC1..K]
+    X_cov = np.ones((n, 1))
+    if PC is not None and PC.shape[1] > 0:
+        X_cov = np.column_stack([X_cov, PC])
+    k_cov = X_cov.shape[1]
+
+    results = []
+    for mi in range(n_markers):
+        g = G[:, mi]
+        if np.std(g) < 1e-8:
+            continue
+        X_full = np.column_stack([X_cov, g])
+        try:
+            beta, *_ = np.linalg.lstsq(X_full, y, rcond=None)
+            yhat = X_full @ beta
+            resid = y - yhat
+            df_resid = n - X_full.shape[1]
+            if df_resid <= 0:
+                continue
+            mse = float(np.sum(resid * resid) / df_resid)
+            xtxi = np.linalg.pinv(X_full.T @ X_full)
+            se_beta = float(np.sqrt(max(mse * xtxi[-1, -1], 1e-30)))
+            t_stat = float(beta[-1] / se_beta) if se_beta > 0 else 0.0
+            p_val = 2.0 * (1.0 - stats.t.cdf(abs(t_stat), df=df_resid))
+            p_val = float(max(p_val, 1e-300))
+            results.append({
+                'marker': marker_names[mi],
+                'chr': marker_chrs[mi],
+                'pos': float(marker_pos[mi]) if marker_pos[mi] else 0.0,
+                'beta': float(beta[-1]),
+                'se': se_beta,
+                't': t_stat,
+                'p': p_val,
+                'neg_log10_p': float(-np.log10(p_val)),
+                'n': n
+            })
+        except Exception:
+            continue
+    results.sort(key=lambda r: r['p'])
+    return {
+        'results': results,
+        'n_pca_used': PC.shape[1] if PC is not None else 0,
+        'n_samples': n,
+        'n_markers_tested': len(results)
+    }
+`;
+
 const PY_IM_FUNC = `
 def im_hk_ril(geno_codes, sample_ids, marker_chrs, marker_pos_cm, marker_names,
               pheno_dict, walk_step_cm=1.0, population='RIL'):
@@ -2656,6 +2781,168 @@ def run_sma(geno_codes, sample_ids, marker_names, marker_chrs, pheno_dict, alpha
 
 let _smaFuncReady = false;
 let _imFuncReady = false;
+let _glmFuncReady = false;
+
+// W3-2: GLM GWAS 실행
+async function runGlm() {
+  const btn = document.getElementById('sma-run-btn');
+  const status = document.getElementById('sma-status');
+  if (!pyodide) { log('Pyodide 미준비', 'error'); return; }
+
+  const genoSel = document.getElementById('sma-geno');
+  const traitSel = document.getElementById('sma-trait');
+  const nPca = parseInt(document.getElementById('glm-npca').value);
+  const thrMode = document.getElementById('glm-thr').value;
+
+  if (!genoSel.value || !traitSel.value) {
+    log('GLM: 유전형 + 형질 모두 선택 필요', 'warn');
+    return;
+  }
+
+  const genoEntry = UPLOADED_FILES[parseInt(genoSel.value)];
+  const [phenoIdxStr, traitName] = traitSel.value.split('::');
+  const phenoEntry = UPLOADED_FILES[parseInt(phenoIdxStr)];
+  if (!genoEntry?.parsed?.records?.length || !phenoEntry?.parsed?.data?.[traitName]) {
+    log('GLM: 데이터 부재', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = `GLM (PCA=${nPca}) 분석 중...`;
+  log(`GLM 시작: ${genoEntry.name} × ${traitName} (n_pca=${nPca})`);
+
+  try {
+    if (!_glmFuncReady) {
+      pyodide.runPython(PY_GLM_FUNC);
+      _glmFuncReady = true;
+      log('  GLM Python 함수 정의 완료', 'ok');
+    }
+    const t0 = performance.now();
+    const records = genoEntry.parsed.records;
+    const samples = genoEntry.parsed.samples;
+    const phenoData = phenoEntry.parsed.data[traitName];
+
+    pyodide.globals.set('_glm_geno_codes', records.map(r => r.gts));
+    pyodide.globals.set('_glm_sample_ids', samples);
+    pyodide.globals.set('_glm_marker_names', records.map(r => r.marker));
+    pyodide.globals.set('_glm_marker_chrs', records.map(r => r.chr));
+    pyodide.globals.set('_glm_marker_pos', records.map(r => r.pos || 0));
+    pyodide.globals.set('_glm_pheno_dict', phenoData);
+    pyodide.globals.set('_glm_npca', nPca);
+
+    const proxy = pyodide.runPython(
+      'run_glm_gwas(_glm_geno_codes.to_py(), _glm_sample_ids.to_py(), _glm_marker_names.to_py(), ' +
+      '_glm_marker_chrs.to_py(), _glm_marker_pos.to_py(), _glm_pheno_dict.to_py(), _glm_npca)'
+    );
+    const out = proxy.toJs({ dict_converter: Object.fromEntries });
+    if (proxy.destroy) proxy.destroy();
+    const results = out.results || [];
+
+    if (out._error) {
+      log(`GLM 실패: ${out._error}`, 'error');
+      status.textContent = 'GLM 실패: ' + out._error;
+      btn.disabled = false;
+      return;
+    }
+
+    // 임계 계산
+    let threshold;
+    let thrLabel;
+    const nT = results.length;
+    if (thrMode === 'fdr') {
+      // BH FDR — q=0.05
+      const sorted = [...results].sort((a, b) => a.p - b.p);
+      const m = sorted.length;
+      let cutoff = 0;
+      for (let i = m - 1; i >= 0; i--) {
+        if (sorted[i].p <= ((i + 1) / m) * 0.05) { cutoff = sorted[i].p; break; }
+      }
+      threshold = cutoff || 0.05 / m;
+      thrLabel = `FDR B-H q=0.05 → p ≤ ${threshold.toExponential(2)}`;
+    } else if (thrMode === 'suggestive') {
+      threshold = 1 / nT;
+      thrLabel = `Suggestive 1/n (1/${nT}) = ${threshold.toExponential(2)}`;
+    } else {
+      threshold = 0.05 / nT;
+      thrLabel = `Bonferroni 0.05/${nT} = ${threshold.toExponential(2)}`;
+    }
+    results.forEach(r => { r.sig = r.p < threshold; });
+    const sigCount = results.filter(r => r.sig).length;
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    log(`  GLM 완료: ${out.n_markers_tested} 마커 (n=${out.n_samples}, PC=${out.n_pca_used}), 유의 ${sigCount} (${elapsed}초)`, 'ok');
+    log(`    임계: ${thrLabel}`, 'ok');
+
+    const meta = {
+      method: 'GLM-PCA',
+      trait: traitName,
+      geno_file: genoEntry.name,
+      n_markers: out.n_markers_tested,
+      n_pca: out.n_pca_used,
+      n_samples: out.n_samples,
+      threshold,
+      thr_mode: thrMode,
+      thr_label: thrLabel,
+      elapsed,
+      // SMA Manhattan과 호환: alpha/bonferroni 더미
+      alpha: 0.05, bonferroni: thrMode === 'bonferroni'
+    };
+    _saveSessionForReport('smaResults', results);  // Manhattan에서 사용
+    _saveSessionForReport('smaMeta', meta);
+    renderGlmResults(results, meta);
+    renderManhattan(results, meta);
+    refreshEnsemblMarkerDropdown(results);
+    refreshBoxplotDropdown(results);
+    status.textContent = `GLM 완료 — 유의 ${sigCount}개 (${elapsed}s)`;
+    activateTab('visual');
+  } catch (e) {
+    log(`GLM 실행 실패: ${e.message}`, 'error');
+    status.textContent = 'GLM 실패';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderGlmResults(results, meta) {
+  const wrap = document.getElementById('sma-result-area');
+  if (!results.length) {
+    wrap.innerHTML = `<div class="placeholder">GLM: 결과 없음</div>`;
+    return;
+  }
+  const top = results.slice(0, 50);
+  const sig = results.filter(r => r.sig);
+  let html = `
+    <div class="card-title">GLM GWAS 결과 — ${meta.trait}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="qc-stat"><span class="key">시료</span><span class="val">${meta.n_samples}</span></span>
+      <span class="qc-stat"><span class="key">마커</span><span class="val">${meta.n_markers}</span></span>
+      <span class="qc-stat"><span class="key">PC</span><span class="val">${meta.n_pca}</span></span>
+      <span class="qc-stat"><span class="key">유의</span><span class="val">${sig.length}</span></span>
+      <span class="qc-stat"><span class="key">임계</span><span class="val">${meta.thr_label}</span></span>
+      <span class="qc-stat"><span class="key">시간</span><span class="val">${meta.elapsed}s</span></span>
+    </div>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>#</th><th>Marker</th><th>Chr</th><th>Position</th><th>β</th><th>SE</th><th>t</th><th>p</th><th>−log₁₀p</th><th>유의</th>
+      </tr></thead><tbody>
+  `;
+  top.forEach((r, i) => {
+    html += `<tr ${r.sig ? 'style="background:#fef3c7"' : ''}>
+      <td>${i+1}</td>
+      <td><strong>${r.marker}</strong></td>
+      <td>${r.chr}</td>
+      <td style="font-size:11px">${r.pos > 0 ? r.pos.toLocaleString() : '—'}</td>
+      <td>${r.beta.toFixed(3)}</td>
+      <td>${r.se.toFixed(3)}</td>
+      <td>${r.t.toFixed(2)}</td>
+      <td>${r.p.toExponential(2)}</td>
+      <td>${r.neg_log10_p.toFixed(2)}</td>
+      <td>${r.sig ? '<span class="format-badge tier-1">✓</span>' : '−'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (results.length > 50) html += `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">상위 50개 (전체 ${results.length})</div>`;
+  wrap.innerHTML = html;
+}
 
 // W2-2: IM 실행
 async function runIm() {
@@ -4072,20 +4359,22 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 3 시작 — W3-1 KASP 라이브러리 (Rasheed 2016 + 한국 검증) 활성');
+log('단계: Phase 3 — W3-2 GLM GWAS (PCA 보정, 다양성 패널용) 활성');
 
-// 분석 라디오 변경 → IM 매개변수 표시 토글
+// 분석 라디오 변경 → IM/GLM 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
   r.addEventListener('change', () => {
-    const im = document.querySelector('input[name="analysis-method"]:checked')?.value === 'im';
-    document.getElementById('im-params').style.display = im ? '' : 'none';
+    const v = document.querySelector('input[name="analysis-method"]:checked')?.value;
+    document.getElementById('im-params').style.display = v === 'im' ? '' : 'none';
+    document.getElementById('glm-params').style.display = v === 'glm' ? '' : 'none';
   });
 });
 
-// W2-1: 실행 버튼 — SMA / IM 분기
+// 실행 버튼 — SMA / IM / GLM 분기 (W3-2)
 document.getElementById('sma-run-btn')?.addEventListener('click', () => {
   const method = document.querySelector('input[name="analysis-method"]:checked')?.value;
   if (method === 'im') runIm();
+  else if (method === 'glm') runGlm();
   else runSma();
 });
 
