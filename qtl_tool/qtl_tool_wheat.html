@@ -1195,6 +1195,214 @@ function countByChr(records) {
   return dist;
 }
 
+// ============================================================
+// W1-4b: HapMap 파서 (TASSEL 표준)
+// ============================================================
+// 헤더: rs# alleles chrom pos strand assembly# protLSID assayLSID panelLSID QCcode [samples...]
+// 셀 값: IUPAC 단일자 (A/C/G/T 동형 / R/Y/S/W/K/M 이형 / N 누락) — 또는 두자리 (AA/AT/...)
+const _IUPAC_HET = new Set(['R','Y','S','W','K','M']);
+
+function _hapmapCellToCode(cell, refChar, altChar) {
+  if (!cell || cell === 'N' || cell === '.' || cell === '-' || cell === 'NA') return '-';
+  const c = cell.trim().toUpperCase();
+  if (c.length === 1) {
+    if (_IUPAC_HET.has(c)) return 'H';
+    if (c === refChar) return 'A';
+    if (c === altChar) return 'B';
+    if (c === 'N') return '-';
+    // 다른 단일자 (예: A/T 마커에 G가 들어온 경우) — 미스매치
+    return '-';
+  }
+  // 두자리 (AA/AT 등)
+  if (c.length === 2) {
+    const [x, y] = [c[0], c[1]];
+    if (x === 'N' || y === 'N') return '-';
+    if (x === refChar && y === refChar) return 'A';
+    if (x === altChar && y === altChar) return 'B';
+    if ((x === refChar && y === altChar) || (x === altChar && y === refChar)) return 'H';
+    return '-';
+  }
+  return '-';
+}
+
+function parseHapMap(rawText, opts) {
+  opts = opts || {};
+  const maxMarkers = opts.maxMarkers || 20000;
+  const lines = rawText.split(/\r?\n/);
+  let headerCols = null;
+  let samples = [];
+  const records = [];
+  let droppedNonSnp = 0, droppedMissing = 0;
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (line.startsWith('#')) continue;
+    const f = line.split('\t');
+    if (!headerCols) {
+      // 첫 비공백 행이 헤더
+      const lower = f.map(c => c.toLowerCase());
+      if (lower[0].startsWith('rs') && lower.includes('alleles') && lower.includes('chrom') && lower.includes('pos')) {
+        headerCols = f;
+        const qcIdx = lower.indexOf('qccode');
+        const startIdx = qcIdx >= 0 ? qcIdx + 1 : 11;  // 표준 11번째 컬럼부터 샘플
+        samples = headerCols.slice(startIdx);
+        continue;
+      }
+      continue;
+    }
+    if (records.length >= maxMarkers) break;
+    if (f.length < 11) continue;
+    const [rsId, alleles, chrom, pos, strand /*, assembly, protLSID, assayLSID, panelLSID, qcCode*/] = f;
+    // alleles 형식: "A/G" 또는 "A/G/T" (다중)
+    const allParts = alleles.split('/');
+    if (allParts.length !== 2) { droppedNonSnp++; continue; }
+    const [refChar, altChar] = allParts.map(s => s.toUpperCase());
+    if (refChar.length !== 1 || altChar.length !== 1) { droppedNonSnp++; continue; }
+    const qcIdx = headerCols.findIndex(c => c.toLowerCase() === 'qccode');
+    const startIdx = qcIdx >= 0 ? qcIdx + 1 : 11;
+    const cells = f.slice(startIdx);
+    const gts = cells.map(c => _hapmapCellToCode(c, refChar, altChar));
+    const missing = gts.filter(g => g === '-').length / Math.max(1, gts.length);
+    if (missing > 0.5) { droppedMissing++; continue; }
+    records.push({
+      marker: rsId !== '.' ? rsId : `S${chrom}_${pos}`,
+      chr: String(chrom).replace(/^Chr/i, ''),
+      pos: +pos || 0,
+      ref: refChar, alt: altChar,
+      gts
+    });
+  }
+  return { meta: { format: 'HapMap' }, samples, records, droppedNonSnp, droppedMissing };
+}
+
+// ============================================================
+// W1-4b: Illumina 90K/15K Final Report (long-format) 파서
+// ============================================================
+// [Header] 섹션 — Num SNPs / Num Samples / GSGT Version
+// [Data] 섹션 — SNP Name | Sample ID | Allele1 - AB | Allele2 - AB | GC Score | ...
+// 각 행은 (marker × sample) 단일 데이터 → matrix로 pivot 필요
+function parseIlluminaFinalReport(rawText, opts) {
+  opts = opts || {};
+  const minGcScore = opts.minGcScore != null ? opts.minGcScore : 0.15;
+  const maxMarkers = opts.maxMarkers || 30000;
+  const lines = rawText.split(/\r?\n/);
+
+  // 1) [Header] 메타 추출
+  let inHeader = false, inData = false;
+  let dataHeader = null;
+  const meta = { format: 'Illumina_FinalReport' };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === '[Header]') { inHeader = true; continue; }
+    if (line.trim() === '[Data]') { inHeader = false; inData = true; continue; }
+    if (inHeader) {
+      const m = line.match(/^([\w\s]+?)\s{2,}(.+)$|^([\w\s]+?)\t(.+)$/);
+      if (m) {
+        const k = (m[1] || m[3] || '').trim();
+        const v = (m[2] || m[4] || '').trim();
+        if (k) meta[k] = v;
+      } else {
+        // "Num SNPs 81587" 같은 단일 공백 구분 키-값
+        const sp = line.split(/\s+/);
+        if (sp.length >= 2 && /\d/.test(sp[sp.length-1])) {
+          const v = sp[sp.length-1];
+          const k = sp.slice(0, -1).join(' ');
+          if (k) meta[k] = v;
+        }
+      }
+    }
+    if (inData && line.trim()) {
+      // 첫 [Data] 줄이 헤더
+      const cols = line.split('\t');
+      if (cols.length === 1) {
+        // 탭 없이 공백 구분이면 csv 가능성
+        const cols2 = line.split(',');
+        if (cols2.length > 3) {
+          dataHeader = cols2.map(c => c.trim());
+        }
+      } else {
+        dataHeader = cols.map(c => c.trim());
+      }
+      break;
+    }
+  }
+  if (!dataHeader) return { meta, samples: [], records: [], _error: 'no [Data] section' };
+
+  // 2) 컬럼 인덱스
+  const idx = (name) => dataHeader.findIndex(c => c.toLowerCase() === name.toLowerCase());
+  const ix = {
+    snp: idx('SNP Name'),
+    sample: idx('Sample ID'),
+    a1ab: idx('Allele1 - AB'),
+    a2ab: idx('Allele2 - AB'),
+    gc: idx('GC Score')
+  };
+  if (ix.snp < 0 || ix.sample < 0 || ix.a1ab < 0 || ix.a2ab < 0) {
+    return { meta, samples: [], records: [], _error: 'required columns missing (SNP Name / Sample ID / Allele1 - AB / Allele2 - AB)' };
+  }
+
+  // 3) 본문 파싱 → marker × sample matrix pivot
+  const dataStartLine = lines.findIndex(l => l.trim() === '[Data]') + 2;  // [Data] + header line
+  const sep = lines[dataStartLine - 1].includes('\t') ? '\t' : ',';
+  const markerSet = new Set();
+  const sampleSet = new Set();
+  const cellMap = new Map();   // key = `${marker}|${sample}` → 'A'/'B'/'H'/'-'
+  let rowCount = 0;
+
+  for (let i = dataStartLine; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const f = line.split(sep);
+    if (f.length < dataHeader.length - 2) continue;
+    const marker = f[ix.snp];
+    const sample = f[ix.sample];
+    const a1 = (f[ix.a1ab] || '').trim().toUpperCase();
+    const a2 = (f[ix.a2ab] || '').trim().toUpperCase();
+    const gcScore = ix.gc >= 0 ? parseFloat(f[ix.gc]) : 1.0;
+    if (!marker || !sample) continue;
+    rowCount++;
+    if (markerSet.size >= maxMarkers && !markerSet.has(marker)) continue;  // 메모리 가드
+    markerSet.add(marker);
+    sampleSet.add(sample);
+    let code = '-';
+    if (Number.isFinite(gcScore) && gcScore < minGcScore) {
+      code = '-';   // GC Score 임계 미달 → missing
+    } else if (a1 === '-' || a2 === '-' || !a1 || !a2) {
+      code = '-';
+    } else if (a1 === 'A' && a2 === 'A') code = 'A';
+    else if (a1 === 'B' && a2 === 'B') code = 'B';
+    else if ((a1 === 'A' && a2 === 'B') || (a1 === 'B' && a2 === 'A')) code = 'H';
+    else code = '-';
+    cellMap.set(`${marker}|${sample}`, code);
+  }
+
+  // 4) 정렬·matrix 변환
+  const samples = Array.from(sampleSet).sort();
+  const markers = Array.from(markerSet);  // 입력 순서 보존
+  const records = markers.map(m => {
+    const gts = samples.map(s => cellMap.get(`${m}|${s}`) || '-');
+    // 마커 prefix로 형식 추정 (chr/pos는 별도 map 파일 필요 — W1-5에서 lookup)
+    return {
+      marker: m,
+      chr: 'unknown',
+      pos: 0,
+      ref: 'A', alt: 'B',
+      gts
+    };
+  });
+
+  // 5) 50%+ missing 마커 제외
+  const filtered = records.filter(r => {
+    const miss = r.gts.filter(g => g === '-').length / r.gts.length;
+    return miss <= 0.5;
+  });
+
+  meta.dataRows = rowCount;
+  meta.uniqueMarkers = markers.length;
+  meta.uniqueSamples = samples.length;
+  return { meta, samples, records: filtered, droppedMissing: records.length - filtered.length };
+}
+
 // 파일 처리 entry point
 async function handleFile(file) {
   log(`파일 처리: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
@@ -1220,8 +1428,23 @@ async function handleFile(file) {
     parsed = parseVcf(rawText);
     qc = computeQc(parsed);
     log(`  VCF: ${parsed.samples.length} 시료 × ${parsed.records.length} SNP (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
+  } else if (det.format === 'HapMap' || det.format === 'HapMap_TASSEL') {
+    parsed = parseHapMap(rawText);
+    qc = computeQc(parsed);
+    log(`  HapMap: ${parsed.samples.length} 시료 × ${parsed.records.length} SNP (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
+  } else if (det.format === 'Illumina_GenomeStudio' || det.format === 'Illumina_FinalReport') {
+    parsed = parseIlluminaFinalReport(rawText);
+    if (parsed._error) {
+      log(`  Final Report 파싱 실패: ${parsed._error}`, 'error');
+    } else {
+      qc = computeQc(parsed);
+      const numSnp = parsed.meta['Num SNPs'] || parsed.meta.uniqueMarkers;
+      const platform = (numSnp > 50000) ? '90K' : (numSnp > 10000 ? '15K' : 'small');
+      log(`  Illumina ${platform} Final Report: ${parsed.samples.length} 시료 × ${parsed.records.length} 마커 (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
+      log(`    chr/pos는 IWGSC v2.1 lookup 필요 — W1-5 chunk에서 통합`, 'warn');
+    }
   } else if (det.format !== 'unknown') {
-    log(`  ${det.format}: 파서는 W1-4b chunk에서 추가 예정`, 'warn');
+    log(`  ${det.format}: 파서는 W1-4c chunk에서 추가 예정`, 'warn');
   }
   const entry = {
     name: file.name,
@@ -1307,7 +1530,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-4a 진행 — VCF 파서 + Tier 1-3 자동 감지 활성');
+log('단계: W1-4b 진행 — VCF/HapMap/Illumina 90K Final Report 파서 활성');
 loadAllData();
 setupUpload();
 bootPyodide();
