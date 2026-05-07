@@ -679,14 +679,52 @@ body {
           <input type="radio" name="analysis-method" value="sma" checked>
           <span><strong>SMA</strong> (Single Marker ANOVA) <span style="color:var(--text-muted);font-size:11px">— W1-5a 활성</span></span>
         </label>
-        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-color);border-radius:6px;opacity:0.5">
-          <input type="radio" name="analysis-method" value="im" disabled>
-          <span>IM <span style="color:var(--text-muted);font-size:11px">— 후속</span></span>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--primary-main);border-radius:6px;background:var(--bg-card-hover)">
+          <input type="radio" name="analysis-method" value="im">
+          <span><strong>IM</strong> (Interval Mapping, Haley-Knott) <span style="color:var(--text-muted);font-size:11px">— W2-2 활성</span></span>
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-color);border-radius:6px;opacity:0.5">
           <input type="radio" name="analysis-method" value="cim" disabled>
           <span>CIM (webR) <span style="color:var(--text-muted);font-size:11px">— 후속</span></span>
         </label>
+      </div>
+
+      <!-- W2-2: IM 매개변수 (IM 선택 시 표시) -->
+      <div id="im-params" style="margin-top:14px;padding:14px;background:var(--bg-input);border-radius:6px;display:none">
+        <div style="font-family:var(--font-bold);margin-bottom:8px;color:var(--primary-dark)">IM 매개변수 (Haley-Knott)</div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            집단 유형
+            <select id="im-pop" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="RIL" selected>RIL (재조합 자식 계통)</option>
+              <option value="DH">DH (배가 반수체)</option>
+              <option value="F2" disabled>F2 (Phase 2 후속)</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            Walking step (cM)
+            <select id="im-step" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="0.5">0.5 cM</option>
+              <option value="1" selected>1.0 cM</option>
+              <option value="2">2.0 cM</option>
+              <option value="5">5.0 cM</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            LOD 임계
+            <select id="im-lod" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="2.5" selected>2.5 (Lander-Botstein floor)</option>
+              <option value="3">3.0</option>
+              <option value="3.5">3.5</option>
+              <option value="permutation">Permutation 자동 (느림)</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
+          <strong>주의</strong> · 마커 맵의 cM 컬럼이 필요합니다 (없으면 bp/1e6을 cM로 가정).
+          본 단순 구현은 거리 가중 보간 (실제 R/qtl <code>method="hk"</code>와 차이 있음).
+          정확한 EM/HK는 Phase 2 후속 chunk에서 webR 통합 예정.
+        </div>
       </div>
 
       <div style="margin-top:18px;padding:14px;background:var(--bg-input);border-radius:6px">
@@ -2135,6 +2173,115 @@ function refreshAnalysisDropdowns() {
   }
 }
 
+const PY_IM_FUNC = `
+def im_hk_ril(geno_codes, sample_ids, marker_chrs, marker_pos_cm, marker_names,
+              pheno_dict, walk_step_cm=1.0, population='RIL'):
+    """
+    Haley-Knott regression IM (RIL/DH simplified).
+    각 cM 위치에서 양 옆 마커의 거리 가중 보간된 additive genotype으로 회귀.
+    Returns: list of {chr, pos_cm, lod, n, near_left, near_right}
+    """
+    import numpy as np
+    code_map = {'A': 1.0, 'B': -1.0, 'H': 0.0}
+    n_markers = len(marker_chrs)
+    n_samples = len(sample_ids)
+    y_orig = np.array([pheno_dict.get(s, np.nan) for s in sample_ids], dtype=float)
+    valid = ~np.isnan(y_orig)
+    y = y_orig[valid]
+    if len(y) < 10:
+        return []
+
+    # 마커별 valid additive genotype
+    X_by_marker = []
+    for mi in range(n_markers):
+        codes = geno_codes[mi]
+        x_full = np.array([code_map.get(codes[i], np.nan) for i in range(n_samples)])
+        X_by_marker.append(x_full[valid])
+
+    # chr별 마커 (cM 정렬)
+    chr_to_markers = {}
+    for mi in range(n_markers):
+        cm = marker_pos_cm[mi]
+        if cm is None or not np.isfinite(cm):
+            continue
+        chr_to_markers.setdefault(marker_chrs[mi], []).append((mi, cm))
+    for chr_, lst in chr_to_markers.items():
+        lst.sort(key=lambda t: t[1])
+
+    n = len(y)
+    ss_null = float(np.sum((y - y.mean()) ** 2))
+    if ss_null <= 0:
+        return []
+
+    results = []
+    for chr_, lst in chr_to_markers.items():
+        if not lst or chr_ == 'unknown':
+            continue
+        cm_min, cm_max = lst[0][1], lst[-1][1]
+        if cm_max <= cm_min:
+            continue
+        positions = list(np.arange(cm_min, cm_max + walk_step_cm, walk_step_cm))
+        for p in positions:
+            # flanking markers
+            left = None
+            right = None
+            for (mi, cm) in lst:
+                if cm <= p:
+                    left = (mi, cm)
+                elif right is None:
+                    right = (mi, cm)
+                    break
+            if left is None and right is None:
+                continue
+            # 보간된 additive genotype X
+            if left is None:
+                X = X_by_marker[right[0]]
+                near_left, near_right = '—', marker_names[right[0]]
+            elif right is None:
+                X = X_by_marker[left[0]]
+                near_left, near_right = marker_names[left[0]], '—'
+            else:
+                d_left = p - left[1]
+                d_right = right[1] - p
+                total = d_left + d_right
+                if total < 1e-9:
+                    X = X_by_marker[left[0]]
+                else:
+                    w_left = d_right / total
+                    w_right = d_left / total
+                    X = w_left * X_by_marker[left[0]] + w_right * X_by_marker[right[0]]
+                near_left = marker_names[left[0]]
+                near_right = marker_names[right[0]]
+            # missing 처리 (보간 시 NaN 전파)
+            mask = ~np.isnan(X)
+            if mask.sum() < 5:
+                continue
+            x = X[mask]; yy = y[mask]
+            x_mean = x.mean(); y_mean = yy.mean()
+            sxx = float(np.sum((x - x_mean) ** 2))
+            if sxx < 1e-10:
+                continue
+            sxy = float(np.sum((x - x_mean) * (yy - y_mean)))
+            b = sxy / sxx
+            yhat = y_mean + b * (x - x_mean)
+            ss_full = float(np.sum((yy - yhat) ** 2))
+            n_use = int(mask.sum())
+            if ss_full <= 0:
+                continue
+            # LOD = (n/2) * log10(SS_null / SS_full)
+            lod = (n_use / 2.0) * np.log10(ss_null / ss_full)
+            results.append({
+                'chr': chr_,
+                'pos_cm': float(p),
+                'lod': float(lod),
+                'n': n_use,
+                'near_left': near_left,
+                'near_right': near_right
+            })
+    results.sort(key=lambda r: -r['lod'])
+    return results
+`;
+
 const PY_PERMUTATION_FUNC = `
 def run_permutation(geno_codes, sample_ids, pheno_dict, n_perm=500):
     """
@@ -2270,6 +2417,240 @@ def run_sma(geno_codes, sample_ids, marker_names, marker_chrs, pheno_dict, alpha
 `;
 
 let _smaFuncReady = false;
+let _imFuncReady = false;
+
+// W2-2: IM 실행
+async function runIm() {
+  const btn = document.getElementById('sma-run-btn');
+  const status = document.getElementById('sma-status');
+  if (!pyodide) { log('Pyodide 미준비', 'error'); return; }
+
+  const genoSel = document.getElementById('sma-geno');
+  const traitSel = document.getElementById('sma-trait');
+  const popType = document.getElementById('im-pop').value;
+  const walkStep = parseFloat(document.getElementById('im-step').value);
+  const lodMode = document.getElementById('im-lod').value;
+
+  if (!genoSel.value || !traitSel.value) {
+    log('IM: 유전형 + 형질 모두 선택 필요', 'warn');
+    return;
+  }
+
+  const genoEntry = UPLOADED_FILES[parseInt(genoSel.value)];
+  const [phenoIdxStr, traitName] = traitSel.value.split('::');
+  const phenoEntry = UPLOADED_FILES[parseInt(phenoIdxStr)];
+  if (!genoEntry?.parsed?.records?.length || !phenoEntry?.parsed?.data?.[traitName]) {
+    log('IM: 데이터 부재', 'error');
+    return;
+  }
+
+  // cM 정보 — records.cM 또는 fallback bp/1e6
+  const records = genoEntry.parsed.records;
+  const hasCm = records.some(r => Number.isFinite(r.cM));
+  const marker_pos_cm = records.map(r => {
+    if (Number.isFinite(r.cM)) return r.cM;
+    if (Number.isFinite(r.pos) && r.pos > 0) return r.pos / 1_000_000;  // bp → cM 추정
+    return null;
+  });
+  const usableMarkers = marker_pos_cm.filter(c => c != null).length;
+  if (usableMarkers < 2) {
+    log('IM: cM 정보 부재 — 마커 맵 업로드 필요', 'error');
+    return;
+  }
+  if (!hasCm) {
+    log('IM: cM 컬럼 없어 bp/1Mb 추정 사용 — 결과 정밀도 제한', 'warn');
+  }
+
+  btn.disabled = true;
+  status.textContent = `IM (${popType}, step=${walkStep} cM) 분석 중...`;
+  log(`IM 시작: ${genoEntry.name} × ${traitName} (pop=${popType}, step=${walkStep} cM)`);
+
+  try {
+    if (!_imFuncReady) {
+      pyodide.runPython(PY_IM_FUNC);
+      _imFuncReady = true;
+      log('  IM Python 함수 정의 완료', 'ok');
+    }
+    const t0 = performance.now();
+    const samples = genoEntry.parsed.samples;
+    const phenoData = phenoEntry.parsed.data[traitName];
+
+    pyodide.globals.set('_im_geno_codes', records.map(r => r.gts));
+    pyodide.globals.set('_im_sample_ids', samples);
+    pyodide.globals.set('_im_marker_names', records.map(r => r.marker));
+    pyodide.globals.set('_im_marker_chrs', records.map(r => r.chr));
+    pyodide.globals.set('_im_marker_pos_cm', marker_pos_cm);
+    pyodide.globals.set('_im_pheno_dict', phenoData);
+    pyodide.globals.set('_im_walk_step', walkStep);
+    pyodide.globals.set('_im_pop', popType);
+
+    const proxy = pyodide.runPython(
+      'im_hk_ril(_im_geno_codes.to_py(), _im_sample_ids.to_py(), _im_marker_chrs.to_py(), ' +
+      '_im_marker_pos_cm.to_py(), _im_marker_names.to_py(), _im_pheno_dict.to_py(), _im_walk_step, _im_pop)'
+    );
+    const imResults = proxy.toJs({ dict_converter: Object.fromEntries });
+    if (proxy.destroy) proxy.destroy();
+
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    const lodThreshold = (lodMode === 'permutation') ? null : parseFloat(lodMode);
+    const peakCount = lodThreshold ? imResults.filter(r => r.lod >= lodThreshold).length : 0;
+    log(`  IM 완료: ${imResults.length} 위치 평가, peak (LOD≥${lodThreshold}): ${peakCount} (${elapsed}초)`, 'ok');
+
+    const meta = {
+      method: 'IM-HK',
+      trait: traitName, geno_file: genoEntry.name,
+      population: popType, walk_step: walkStep,
+      lod_threshold: lodThreshold, n_positions: imResults.length,
+      n_markers_used: usableMarkers, has_cm: hasCm, elapsed
+    };
+    _saveSessionForReport('imResults', imResults);
+    _saveSessionForReport('imMeta', meta);
+    renderImResults(imResults, meta);
+    renderImLodPlot(imResults, meta);
+    status.textContent = `IM 완료 — peak ${peakCount}개 (${elapsed}s)`;
+    activateTab('visual');
+  } catch (e) {
+    log(`IM 실행 실패: ${e.message}`, 'error');
+    status.textContent = 'IM 실패';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderImResults(results, meta) {
+  const wrap = document.getElementById('sma-result-area');
+  if (!results.length) {
+    wrap.innerHTML = `<div class="placeholder">IM: 결과 없음 (cM 정보 또는 표현형 부재)</div>`;
+    return;
+  }
+  // chr별 LOD peak 추출 (각 chr 최대 LOD)
+  const peaks = {};
+  results.forEach(r => {
+    if (!peaks[r.chr] || r.lod > peaks[r.chr].lod) peaks[r.chr] = r;
+  });
+  const peakList = Object.values(peaks).sort((a, b) => b.lod - a.lod);
+
+  let html = `
+    <div class="card-title">IM (Haley-Knott) 결과 — ${meta.trait}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="qc-stat"><span class="key">집단</span><span class="val">${meta.population}</span></span>
+      <span class="qc-stat"><span class="key">step</span><span class="val">${meta.walk_step} cM</span></span>
+      <span class="qc-stat"><span class="key">평가 위치</span><span class="val">${meta.n_positions}</span></span>
+      <span class="qc-stat"><span class="key">사용 마커</span><span class="val">${meta.n_markers_used}</span></span>
+      <span class="qc-stat"><span class="key">LOD 임계</span><span class="val">${meta.lod_threshold ?? 'perm'}</span></span>
+      <span class="qc-stat"><span class="key">시간</span><span class="val">${meta.elapsed}s</span></span>
+      ${meta.has_cm ? '' : '<span class="qc-stat" style="background:var(--warning-bg)"><span class="key">⚠ cM</span><span class="val">bp/1Mb 추정</span></span>'}
+    </div>
+    <h3 style="font-family:var(--font-bold);color:var(--primary-dark);font-size:13px;margin-top:10px">염색체별 LOD peak</h3>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>#</th><th>Chr</th><th>Peak (cM)</th><th>LOD</th><th>flanking 좌</th><th>flanking 우</th><th>n</th><th>유의</th>
+      </tr></thead><tbody>
+  `;
+  peakList.slice(0, 21).forEach((r, i) => {
+    const sig = meta.lod_threshold && r.lod >= meta.lod_threshold;
+    html += `<tr ${sig ? 'style="background:#fef3c7"' : ''}>
+      <td>${i+1}</td>
+      <td><strong>${r.chr}</strong></td>
+      <td>${r.pos_cm.toFixed(1)}</td>
+      <td>${r.lod.toFixed(2)}</td>
+      <td style="font-size:11px">${r.near_left}</td>
+      <td style="font-size:11px">${r.near_right}</td>
+      <td>${r.n}</td>
+      <td>${sig ? '<span class="format-badge tier-1">✓</span>' : '−'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderImLodPlot(results, meta) {
+  const placeholder = document.getElementById('manhattan-placeholder');
+  if (!results.length) return;
+  // chr별 그룹화 + cM 누적 좌표
+  const byChr = {};
+  results.forEach(r => {
+    byChr[r.chr] = byChr[r.chr] || [];
+    byChr[r.chr].push(r);
+  });
+  Object.values(byChr).forEach(arr => arr.sort((a,b) => a.pos_cm - b.pos_cm));
+  const chrSeq = WHEAT_CHR_ORDER.filter(c => byChr[c]);
+  const extras = Object.keys(byChr).filter(c => !WHEAT_CHR_ORDER.includes(c) && c !== 'unknown');
+  const allChrs = [...chrSeq, ...extras];
+  const tickVals = [], tickLabels = [], chrOffset = {};
+  let cum = 0;
+  const GAP = 5;  // cM gap
+  allChrs.forEach(c => {
+    chrOffset[c] = cum;
+    const max = Math.max(...byChr[c].map(r => r.pos_cm));
+    tickVals.push(cum + max / 2);
+    tickLabels.push(c);
+    cum += max + GAP;
+  });
+
+  // sub-genome 트레이스
+  const traces = [];
+  ['A', 'B', 'D', 'unknown'].forEach(sub => {
+    const points = [];
+    allChrs.forEach(c => {
+      if (_subgenOf(c) !== sub) return;
+      byChr[c].forEach(r => points.push({ ...r, x: chrOffset[c] + r.pos_cm }));
+    });
+    if (!points.length) return;
+    traces.push({
+      type: 'scattergl',
+      mode: 'lines+markers',
+      name: `Sub-genome ${sub}`,
+      x: points.map(p => p.x),
+      y: points.map(p => p.lod),
+      text: points.map(p => `<b>${p.chr}:${p.pos_cm.toFixed(1)} cM</b><br>LOD = ${p.lod.toFixed(2)}<br>flanking: ${p.near_left} / ${p.near_right}<br>n = ${p.n}`),
+      hovertemplate: '%{text}<extra></extra>',
+      marker: { color: SUBGEN_COLOR[sub], size: 3, opacity: 0.6 },
+      line: { color: SUBGEN_COLOR[sub], width: 1.2 }
+    });
+  });
+
+  const shapes = [];
+  const annotations = [];
+  if (meta.lod_threshold) {
+    shapes.push({
+      type: 'line', xref: 'paper', x0: 0, x1: 1,
+      y0: meta.lod_threshold, y1: meta.lod_threshold,
+      line: { color: '#dc3545', width: 1.5, dash: 'solid' }
+    });
+    annotations.push({
+      x: 1, y: meta.lod_threshold, xref: 'paper', xanchor: 'right',
+      text: `LOD ≥ ${meta.lod_threshold}`,
+      showarrow: false, yshift: -10,
+      font: { color: '#dc3545', size: 10, family: 'JetBrains Mono, monospace' }
+    });
+  }
+
+  const layout = {
+    title: { text: `IM LOD curve — ${meta.trait} (${meta.population}, step=${meta.walk_step} cM)`,
+             font: { family: 'KoPub Dotum Bold, sans-serif', size: 14, color: '#0c3026' } },
+    xaxis: { title: 'Genome (cM, 1A → 7D)', tickvals: tickVals, ticktext: tickLabels,
+             tickfont: { size: 10, family: 'JetBrains Mono, monospace' }, gridcolor: '#e6ece8' },
+    yaxis: { title: 'LOD', gridcolor: '#e6ece8', rangemode: 'tozero' },
+    plot_bgcolor: '#fafbfa', paper_bgcolor: '#ffffff', height: 460,
+    margin: { l: 56, r: 28, t: 50, b: 70 }, hovermode: 'closest',
+    legend: { orientation: 'h', y: -0.2, x: 0, font: { size: 10 } },
+    shapes, annotations
+  };
+
+  placeholder.innerHTML = '';
+  placeholder.style.padding = '0';
+  placeholder.style.background = 'transparent';
+  placeholder.style.border = 'none';
+  placeholder.style.textAlign = 'left';
+  const div = document.createElement('div');
+  div.id = 'manhattan-plot';   // 보고서 PNG 변환에 같은 id 사용
+  div.style.width = '100%';
+  div.style.height = '460px';
+  placeholder.appendChild(div);
+  Plotly.newPlot(div, traces, layout, { responsive: true, displaylogo: false });
+  log(`IM LOD plot 렌더링: chr ${allChrs.length}개 × ${results.length} 위치`, 'ok');
+}
 
 async function runSma() {
   const btn = document.getElementById('sma-run-btn');
@@ -3222,10 +3603,22 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 2 시작 — W2-1 Permutation 임계 (Churchill & Doerge 1994) 활성');
+log('단계: Phase 2 — W2-2 Interval Mapping (Haley-Knott) 활성 + W2-1 Permutation 유지');
 
-// SMA 실행 버튼 바인딩
-document.getElementById('sma-run-btn')?.addEventListener('click', runSma);
+// 분석 라디오 변경 → IM 매개변수 표시 토글
+document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const im = document.querySelector('input[name="analysis-method"]:checked')?.value === 'im';
+    document.getElementById('im-params').style.display = im ? '' : 'none';
+  });
+});
+
+// W2-1: 실행 버튼 — SMA / IM 분기
+document.getElementById('sma-run-btn')?.addEventListener('click', () => {
+  const method = document.querySelector('input[name="analysis-method"]:checked')?.value;
+  if (method === 'im') runIm();
+  else runSma();
+});
 
 // W1-6a: Ensembl 유전자 fetch 버튼 바인딩
 document.getElementById('ensembl-fetch-btn')?.addEventListener('click', runEnsemblFetch);
