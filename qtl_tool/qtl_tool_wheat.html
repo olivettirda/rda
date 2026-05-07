@@ -797,6 +797,53 @@ body {
       <div id="sma-result-area" style="margin-top:18px"></div>
     </div>
 
+    <!-- W2-3: Genotype heatmap -->
+    <div class="card" id="heatmap-card" style="display:none">
+      <div class="card-title">유전자형 heatmap</div>
+      <div class="card-subtitle">시료 × 마커 매트릭스 — A=빨강, H=노랑, B=파랑, 누락=회색 (Okabe-Ito 호환)</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          유전형 파일
+          <select id="hm-geno-sel" style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:240px"></select>
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          chr 필터
+          <select id="hm-chr-sel" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+            <option value="all">전체 chr</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          마커 수 한도 (시각화 성능)
+          <select id="hm-marker-limit" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+            <option value="200">200 (빠름)</option>
+            <option value="500" selected>500</option>
+            <option value="1000">1000</option>
+            <option value="2000">2000 (느림)</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" id="hm-render-btn">heatmap 렌더링</button>
+        <span id="hm-status" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <div id="heatmap-plot" style="width:100%;min-height:380px"></div>
+    </div>
+
+    <!-- W2-3: Marker boxplot (분석 후 활성) -->
+    <div class="card" id="boxplot-card" style="display:none">
+      <div class="card-title">마커별 형질 분포 (boxplot)</div>
+      <div class="card-subtitle">선택한 마커의 A/H/B 그룹별 표현형 분포 — ANOVA p-value 함께 표시</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          마커 (top SMA 유의)
+          <select id="bx-marker-sel" style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:240px"></select>
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;margin-top:18px">
+          <input type="checkbox" id="bx-violin"> violin 모드
+        </label>
+        <button class="btn btn-primary" id="bx-render-btn">렌더링</button>
+      </div>
+      <div id="boxplot-plot" style="width:100%;min-height:340px"></div>
+    </div>
+
     <!-- W1-6a: Ensembl Plants Wheat REST 후보 유전자 카드 -->
     <div class="card" id="ensembl-card" style="display:none">
       <div class="card-title">
@@ -1997,7 +2044,7 @@ async function handleFile(file) {
       parsed, qc
     };
     UPLOADED_FILES.push(entry);
-    renderFileList(); renderDetectResult(); refreshAnalysisDropdowns(); refreshT3GenoDropdown();
+    renderFileList(); renderDetectResult(); refreshAnalysisDropdowns(); refreshT3GenoDropdown(); refreshHeatmapDropdowns();
     return entry;
   }
 
@@ -2083,6 +2130,7 @@ async function handleFile(file) {
   renderDetectResult();
   refreshAnalysisDropdowns();
   refreshT3GenoDropdown();
+  refreshHeatmapDropdowns();
   return entry;
 }
 
@@ -2753,6 +2801,7 @@ async function runSma() {
     renderSmaResults(results, meta);
     renderManhattan(results, meta);
     refreshEnsemblMarkerDropdown(results);
+    refreshBoxplotDropdown(results);
     status.textContent = `완료 — ${sigCount}개 유의 (${elapsed}s)`;
     activateTab('visual');
   } catch (e) {
@@ -2782,6 +2831,210 @@ function _subgenOf(chr) {
   if (!chr) return 'unknown';
   const m = String(chr).toUpperCase().match(/[ABD]$/);
   return m ? m[0] : 'unknown';
+}
+
+// ============================================================
+// W2-3: Genotype heatmap (Plotly)
+// ============================================================
+const _GENOTYPE_COLORSCALE = [
+  [0.00, '#f5f9f7'],  // missing (-1) — 옅은 회색-청록
+  [0.25, '#f5f9f7'],
+  [0.26, '#E64B35'],  // A (0) — Okabe-Ito 빨강
+  [0.50, '#E64B35'],
+  [0.51, '#F2C94C'],  // H (1) — 노랑
+  [0.75, '#F2C94C'],
+  [0.76, '#4DBBD5'],  // B (2) — 청록
+  [1.00, '#4DBBD5']
+];
+
+function refreshHeatmapDropdowns() {
+  const sel = document.getElementById('hm-geno-sel');
+  const card = document.getElementById('heatmap-card');
+  if (!sel || !card) return;
+  const genoFiles = UPLOADED_FILES.filter(f => f.parsed && Array.isArray(f.parsed.records) && f.parsed.records.length);
+  if (!genoFiles.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  sel.innerHTML = '<option value="">-- 선택 --</option>' +
+    genoFiles.map(f => `<option value="${UPLOADED_FILES.indexOf(f)}">${f.name} (${f.parsed.samples.length}×${f.parsed.records.length})</option>`).join('');
+  if (genoFiles.length === 1) sel.value = String(UPLOADED_FILES.indexOf(genoFiles[0]));
+  _refreshHmChrDropdown();
+  sel.addEventListener('change', _refreshHmChrDropdown);
+}
+
+function _refreshHmChrDropdown() {
+  const genoSel = document.getElementById('hm-geno-sel');
+  const chrSel = document.getElementById('hm-chr-sel');
+  if (!genoSel.value) { chrSel.innerHTML = '<option value="all">전체 chr</option>'; return; }
+  const entry = UPLOADED_FILES[parseInt(genoSel.value)];
+  if (!entry?.parsed?.records) return;
+  const chrs = [...new Set(entry.parsed.records.map(r => r.chr).filter(c => c && c !== 'unknown'))].sort();
+  chrSel.innerHTML = '<option value="all">전체 chr</option>' +
+    chrs.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function renderHeatmap() {
+  const status = document.getElementById('hm-status');
+  const div = document.getElementById('heatmap-plot');
+  const genoSel = document.getElementById('hm-geno-sel');
+  const chrSel = document.getElementById('hm-chr-sel');
+  const limit = parseInt(document.getElementById('hm-marker-limit').value);
+  if (!genoSel.value) { status.textContent = '유전형 파일 선택 필요'; return; }
+  const entry = UPLOADED_FILES[parseInt(genoSel.value)];
+  if (!entry?.parsed?.records) return;
+  let records = entry.parsed.records;
+  if (chrSel.value !== 'all') {
+    records = records.filter(r => r.chr === chrSel.value);
+  }
+  // chr 정렬 (1A, 1B, ..., 7D 순) + chr 안에서는 pos 정렬
+  records.sort((a, b) => {
+    const ai = WHEAT_CHR_ORDER.indexOf(a.chr);
+    const bi = WHEAT_CHR_ORDER.indexOf(b.chr);
+    const ax = ai < 0 ? 999 : ai;
+    const bx = bi < 0 ? 999 : bi;
+    if (ax !== bx) return ax - bx;
+    return (a.pos || 0) - (b.pos || 0);
+  });
+  // downsample if too many
+  if (records.length > limit) {
+    const stride = Math.ceil(records.length / limit);
+    records = records.filter((_, i) => i % stride === 0);
+    log(`heatmap downsampled: ${records.length} 마커 (stride=${stride})`, 'warn');
+  }
+  if (!records.length) { status.textContent = '필터 결과 없음'; return; }
+
+  status.textContent = '렌더링 중...';
+  const samples = entry.parsed.samples;
+  // matrix: samples (row) × markers (col), value = -1/0/1/2 for missing/A/H/B
+  const codeNum = { 'A': 0, 'H': 1, 'B': 2, '-': -1 };
+  const z = samples.map((s, si) =>
+    records.map(r => codeNum[r.gts[si]] ?? -1)
+  );
+  // colorscale 0~3 (offset로)
+  const zNorm = z.map(row => row.map(v => (v + 1) / 3));
+  const xLabels = records.map(r => `${r.chr || '?'}:${r.marker}`);
+
+  const trace = {
+    type: 'heatmap',
+    z: zNorm,
+    x: xLabels,
+    y: samples,
+    colorscale: _GENOTYPE_COLORSCALE,
+    showscale: false,
+    hovertemplate: 'sample: %{y}<br>marker: %{x}<br>code: %{customdata}<extra></extra>',
+    customdata: z.map(row => row.map(v => ({ '-1': 'missing', '0': 'A', '1': 'H', '2': 'B' })[String(v)]))
+  };
+  const layout = {
+    title: { text: `Genotype heatmap — ${entry.name} (${samples.length} 시료 × ${records.length} 마커)`,
+             font: { family: 'KoPub Dotum Bold, sans-serif', size: 13, color: '#0c3026' } },
+    xaxis: { showticklabels: records.length <= 80, tickangle: -75, tickfont: { size: 8, family: 'JetBrains Mono, monospace' } },
+    yaxis: { showticklabels: samples.length <= 80, tickfont: { size: 9 }, autorange: 'reversed' },
+    margin: { l: 100, r: 20, t: 50, b: records.length > 80 ? 30 : 110 },
+    height: Math.min(800, Math.max(360, samples.length * 8 + 130))
+  };
+  Plotly.newPlot(div, [trace], layout, { responsive: true, displaylogo: false });
+  // 범례 (수동) — colorscale 미사용으로 별도 표시
+  const legend = `
+    <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;font-family:var(--font-mono)">
+      <span><span style="display:inline-block;width:14px;height:10px;background:#E64B35;vertical-align:middle"></span> A</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:#F2C94C;vertical-align:middle"></span> H</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:#4DBBD5;vertical-align:middle"></span> B</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:#f5f9f7;border:1px solid #d0d8d4;vertical-align:middle"></span> missing</span>
+    </div>
+  `;
+  div.insertAdjacentHTML('afterend', legend);
+  log(`heatmap 렌더링: ${samples.length} × ${records.length}`, 'ok');
+  status.textContent = `완료: ${samples.length} 시료 × ${records.length} 마커`;
+}
+
+// ============================================================
+// W2-3: Boxplot — 마커별 형질 분포 (A/H/B 그룹)
+// ============================================================
+function refreshBoxplotDropdown(results) {
+  const sel = document.getElementById('bx-marker-sel');
+  const card = document.getElementById('boxplot-card');
+  if (!sel || !card) return;
+  if (!results || !results.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  // top 30 SMA 마커만
+  const top = results.slice(0, 30);
+  sel.innerHTML = '<option value="">-- 마커 선택 --</option>' +
+    top.map((r, i) => {
+      const sigMark = r.sig ? '★ ' : '';
+      const lbl = `${sigMark}${r.marker} (${r.chr || '?'}, p=${r.p.toExponential(1)}, F=${r.F.toFixed(2)})`;
+      return `<option value="${r.marker}">${lbl}</option>`;
+    }).join('');
+  if (top.length) sel.value = top[0].marker;
+}
+
+function renderBoxplot() {
+  const div = document.getElementById('boxplot-plot');
+  const sel = document.getElementById('bx-marker-sel');
+  const violin = document.getElementById('bx-violin').checked;
+  if (!sel.value) return;
+  const markerName = sel.value;
+
+  // SMA에서 사용한 geno + pheno 조합 사용
+  const smaMeta = _SESSION_STATE.smaMeta || {};
+  const genoEntry = UPLOADED_FILES.find(f => f.name === smaMeta.geno_file);
+  const phenoTrait = smaMeta.trait;
+  if (!genoEntry || !phenoTrait) {
+    div.innerHTML = '<div class="placeholder">SMA 분석을 먼저 실행하세요</div>';
+    return;
+  }
+  const phenoEntry = UPLOADED_FILES.find(f => f.parsed?.data?.[phenoTrait]);
+  if (!phenoEntry) return;
+  const phenoData = phenoEntry.parsed.data[phenoTrait];
+
+  const record = genoEntry.parsed.records.find(r => r.marker === markerName);
+  if (!record) return;
+  const samples = genoEntry.parsed.samples;
+
+  const groups = { A: [], H: [], B: [] };
+  samples.forEach((s, si) => {
+    const code = record.gts[si];
+    const val = phenoData[s];
+    if (code in groups && Number.isFinite(val)) groups[code].push(val);
+  });
+
+  const traces = [];
+  ['A', 'H', 'B'].forEach((g, i) => {
+    if (!groups[g].length) return;
+    const trace = violin ? {
+      type: 'violin',
+      y: groups[g],
+      name: g,
+      box: { visible: true },
+      meanline: { visible: true },
+      points: 'outliers',
+      marker: { color: [SUBGEN_COLOR.A, '#F2C94C', SUBGEN_COLOR.B][i] }
+    } : {
+      type: 'box',
+      y: groups[g],
+      name: g,
+      boxpoints: 'all',
+      jitter: 0.3,
+      pointpos: 0,
+      marker: { color: [SUBGEN_COLOR.A, '#F2C94C', SUBGEN_COLOR.B][i], size: 5 }
+    };
+    traces.push(trace);
+  });
+
+  // 통계 (SMA에서 가져옴)
+  const sma = (_SESSION_STATE.smaResults || []).find(r => r.marker === markerName);
+  const statsLabel = sma
+    ? `F = ${sma.F.toFixed(2)}, p = ${sma.p.toExponential(2)}, −log₁₀p = ${sma.neg_log10_p.toFixed(2)}, n = ${sma.n}`
+    : '';
+
+  const layout = {
+    title: { text: `${markerName} (${record.chr || '?'}) — ${phenoTrait}<br><span style="font-size:11px;color:#5a6a62">${statsLabel}</span>`,
+             font: { family: 'KoPub Dotum Bold, sans-serif', size: 13, color: '#0c3026' } },
+    yaxis: { title: phenoTrait, gridcolor: '#e6ece8' },
+    xaxis: { title: 'Genotype' },
+    plot_bgcolor: '#fafbfa', paper_bgcolor: '#ffffff', height: 380,
+    margin: { l: 56, r: 28, t: 70, b: 50 },
+    showlegend: false
+  };
+  Plotly.newPlot(div, traces, layout, { responsive: true, displaylogo: false });
 }
 
 function renderManhattan(results, meta) {
@@ -3603,7 +3856,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 2 — W2-2 Interval Mapping (Haley-Knott) 활성 + W2-1 Permutation 유지');
+log('단계: Phase 2 — W2-3 Genotype heatmap + Marker boxplot 활성');
 
 // 분석 라디오 변경 → IM 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
@@ -3629,6 +3882,10 @@ document.getElementById('t3-fetch-btn')?.addEventListener('click', runT3Fetch);
 // W1-7: 보고서 생성/다운로드 버튼 바인딩
 document.getElementById('report-generate-btn')?.addEventListener('click', () => generateReport(true));
 document.getElementById('report-download-btn')?.addEventListener('click', () => generateReport(false));
+
+// W2-3: heatmap + boxplot 버튼
+document.getElementById('hm-render-btn')?.addEventListener('click', renderHeatmap);
+document.getElementById('bx-render-btn')?.addEventListener('click', renderBoxplot);
 loadAllData();
 setupUpload();
 bootPyodide();
