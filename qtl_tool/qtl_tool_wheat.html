@@ -787,9 +787,34 @@ body {
       <div class="card-subtitle" data-i18n="report.subtitle">
         한국어 PDF (농진청 표준 11섹션) + 영문 TAG/PBJ 양식 + 매개변수 로그 + SHA-256 해시
       </div>
-      <div class="placeholder">
-        <strong>W1-7</strong>
-        품종보호 출원품종 심사요령(예규 제190호) 호환 출력
+
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          언어
+          <select id="report-lang" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+            <option value="ko" selected>한국어 (농진청 표준 11섹션)</option>
+            <option value="en">English (TAG/PBJ template)</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          저자/기관 (선택)
+          <input type="text" id="report-author" placeholder="예: 홍길동 / 국립식량과학원"
+                 style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:240px">
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;margin-top:18px">
+          <input type="checkbox" id="report-include-hash" checked> 데이터 SHA-256 해시 포함
+        </label>
+      </div>
+
+      <button class="btn btn-primary" id="report-generate-btn">보고서 생성 (새 창)</button>
+      <button class="btn" id="report-download-btn" style="margin-left:8px">HTML 다운로드</button>
+      <span id="report-status" style="margin-left:10px;font-size:11px;color:var(--text-muted)"></span>
+
+      <div style="margin-top:14px;padding:10px;background:var(--bg-input);border-radius:6px;font-size:11.5px;color:var(--text-secondary);line-height:1.7">
+        <strong style="color:var(--primary-main)">출력 안내</strong> ·
+        보고서는 새 창에 HTML로 열립니다 — 브라우저 인쇄(Ctrl+P) → "PDF로 저장"으로 출력하세요.
+        포함 항목: 표지·요약·재료방법·표현형 통계·QTL 표·Manhattan plot 미리보기·
+        후보 유전자(Ensembl)·T3 시료 메타·매개변수 로그·SHA-256 해시·참고문헌.
       </div>
     </div>
   </div>
@@ -2224,6 +2249,8 @@ async function runSma() {
     log(`  SMA 완료: ${results.length} 마커 검정, 유의 ${sigCount}개 (${elapsed}초)`, 'ok');
 
     const meta = { trait: traitName, alpha, bonferroni, geno_file: genoEntry.name, n_markers: records.length };
+    _saveSessionForReport('smaResults', results);
+    _saveSessionForReport('smaMeta', meta);
     renderSmaResults(results, meta);
     renderManhattan(results, meta);
     refreshEnsemblMarkerDropdown(results);
@@ -2448,7 +2475,10 @@ async function runEnsemblFetch() {
     const genes = await fetchEnsemblGenes(chr, start, end);
     const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
     log(`Ensembl: ${chr}:${start}-${end} → ${genes.length} 유전자 (${elapsed}초, assembly ${genes[0]?.assembly || '?'})`, 'ok');
-    renderEnsemblGenes(genes, { marker: markerName, chr, start, end, windowKb, elapsed });
+    const ensMeta = { marker: markerName, chr, start, end, windowKb, elapsed };
+    _saveSessionForReport('ensemblGenes', genes);
+    _saveSessionForReport('ensemblMeta', ensMeta);
+    renderEnsemblGenes(genes, ensMeta);
     status.textContent = `완료 — ${genes.length} 유전자`;
   } catch (e) {
     log(`Ensembl REST 실패: ${e.message}`, 'error');
@@ -2608,7 +2638,10 @@ async function runT3Fetch() {
 
   const hits = results.filter(r => r.hit).length;
   log(`T3 완료: ${hits}/${targetSamples.length} 매칭 (${elapsed}초${errors.length ? ', ' + errors.length + ' 에러' : ''})`, hits ? 'ok' : 'warn');
-  renderT3Results(results, { genoName: entry.name, total: samples.length, queried: targetSamples.length, elapsed });
+  const t3Meta = { genoName: entry.name, total: samples.length, queried: targetSamples.length, elapsed };
+  _saveSessionForReport('t3Results', results);
+  _saveSessionForReport('t3Meta', t3Meta);
+  renderT3Results(results, t3Meta);
   status.textContent = `완료 — 매칭 ${hits}/${targetSamples.length} (${elapsed}s)`;
 }
 
@@ -2658,6 +2691,313 @@ function renderT3Results(results, meta) {
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+// ============================================================
+// W1-7: 보고서 자동 생성 (HTML, 새 창 / 다운로드)
+// ============================================================
+const _SESSION_STATE = {
+  smaResults: null,
+  smaMeta: null,
+  ensemblGenes: null,
+  ensemblMeta: null,
+  t3Results: null,
+  t3Meta: null
+};
+
+async function _sha256Hex(text) {
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function _reportMethodsKo(meta, params) {
+  return `본 연구에서는 밀(Triticum aestivum L., IWGSC RefSeq v2.1)에서 ` +
+    `${meta.n_samples ?? '—'}개 시료의 ${meta.n_markers ?? '—'}개 마커 유전자형과 ` +
+    `${meta.trait}형질 데이터를 사용해 단일 마커 ANOVA(SMA)를 수행하였다. ` +
+    `통계 분석은 Wheat QTL Mapping Tool v0.1(브라우저 기반, Pyodide WebAssembly + scipy.stats.f_oneway)로 ` +
+    `구현하였으며, 유의수준 α=${params.alpha}${params.bonferroni ? '에 Bonferroni 보정' : ' (보정 없음)'}을 적용하였다. ` +
+    `유의 마커 영역의 후보 유전자는 Ensembl Plants Wheat REST API(IWGSC RefSeq v2.1, ` +
+    `https://rest.ensembl.org/overlap/region/triticum_aestivum/)로 추출하였다. ` +
+    `시료 메타데이터는 T3/Wheat BrAPI v2(Triticeae Toolbox)에서 보강하였다.`;
+}
+
+function _reportMethodsEn(meta, params) {
+  return `Single-marker ANOVA (SMA) was performed on bread wheat (Triticum aestivum L., ` +
+    `IWGSC RefSeq v2.1) using genotype data of ${meta.n_markers ?? '—'} markers across ` +
+    `${meta.n_samples ?? '—'} accessions and the ${meta.trait} phenotype. Analysis was implemented in ` +
+    `Wheat QTL Mapping Tool v0.1 (browser-based, Pyodide WebAssembly with scipy.stats.f_oneway), ` +
+    `applying significance threshold α=${params.alpha}${params.bonferroni ? ' with Bonferroni correction' : ' (uncorrected)'}. ` +
+    `Candidate genes within significant marker regions were retrieved from Ensembl Plants ` +
+    `Wheat REST API (IWGSC RefSeq v2.1, https://rest.ensembl.org/overlap/region/triticum_aestivum/). ` +
+    `Germplasm metadata were enriched via T3/Wheat BrAPI v2 (Triticeae Toolbox).`;
+}
+
+function _reportReferences() {
+  return [
+    'Wang S, et al. (2014). Characterization of polyploid wheat genomic diversity using a high-density 90,000 single nucleotide polymorphism array. Plant Biotechnol J 12:787-796.',
+    'IWGSC (2018). Shifting the limits in wheat research and breeding using a fully annotated reference genome. Science 361:eaar7191.',
+    'Zhu T, Wang L, Rimbert H, et al. (2021). Optical maps refine the bread wheat IWGSC RefSeq v1.0 to RefSeq v2.1 assembly. Plant J.',
+    'Churchill GA, Doerge RW (1994). Empirical threshold values for quantitative trait mapping. Genetics 138:963-971.',
+    'Yates F (1934). The analysis of multiple classifications with unequal numbers in the different classes. JASA 29:51-66.',
+    'Cha JK, et al. (2025). KASP marker for early heading QTL qDH-3A in Korean wheat. BMC Plant Biology.',
+    'Cho SW, et al. (2023). NAM-B1 allelic distribution in Korean wheat varieties. Agronomy 13:1977.',
+    'Su Z, et al. (2019). Validation of FHB resistance in Korean wheat via PFT_KASP. Plant Pathology Journal.',
+    'Lim SH, et al. (2025). 530-accession core collection of Korean wheat: 5-year evaluation. PLoS ONE.',
+    'Broman KW, et al. (2019). R/qtl2: software for mapping quantitative trait loci with high-dimensional data and multiparent populations. Genetics 211:495-502.'
+  ];
+}
+
+function _reportTitleKo() {
+  return '밀 QTL 매핑 분석 보고서 — 농진청 표준 양식';
+}
+function _reportTitleEn() {
+  return 'Wheat QTL Mapping Analysis Report — RDA Format';
+}
+
+async function generateReportHtml(opts) {
+  opts = opts || {};
+  const lang = opts.lang || 'ko';
+  const author = opts.author || (lang === 'ko' ? '미지정' : 'Not specified');
+  const includeHash = opts.includeHash !== false;
+  const ko = lang === 'ko';
+
+  const sma = _SESSION_STATE.smaResults || [];
+  const smaMeta = _SESSION_STATE.smaMeta || {};
+  const ensemblGenes = _SESSION_STATE.ensemblGenes || [];
+  const ensemblMeta = _SESSION_STATE.ensemblMeta || {};
+  const t3Results = _SESSION_STATE.t3Results || [];
+
+  // 표현형/유전형 메타
+  const reportMeta = {
+    trait: smaMeta.trait || (ko ? '미선택' : 'not selected'),
+    n_markers: smaMeta.n_markers ?? '—',
+    n_samples: '—'
+  };
+  const genoFile = UPLOADED_FILES.find(f => f.name === smaMeta.geno_file);
+  if (genoFile?.parsed?.samples) reportMeta.n_samples = genoFile.parsed.samples.length;
+
+  // SHA-256 해시 (selected datasets)
+  let hash = '';
+  if (includeHash) {
+    const inputDigest = JSON.stringify({
+      uploads: UPLOADED_FILES.map(f => ({
+        name: f.name, size: f.size,
+        format: f.detected.format,
+        n_samples: f.parsed?.samples?.length,
+        n_markers: f.parsed?.records?.length
+      })),
+      sma_params: { trait: smaMeta.trait, alpha: smaMeta.alpha, bonferroni: smaMeta.bonferroni }
+    });
+    hash = await _sha256Hex(inputDigest);
+  }
+
+  // Manhattan plot은 Plotly에서 PNG 변환 (toImage)
+  let manhattanImg = '';
+  try {
+    const div = document.getElementById('manhattan-plot');
+    if (div && typeof Plotly !== 'undefined' && Plotly.toImage) {
+      manhattanImg = await Plotly.toImage(div, { format: 'png', width: 1000, height: 460 });
+    }
+  } catch (e) { log(`Manhattan PNG 변환 실패: ${e.message}`, 'warn'); }
+
+  const sigSma = sma.filter(r => r.sig);
+  const top10 = sma.slice(0, 10);
+  const methods = ko ? _reportMethodsKo(reportMeta, smaMeta) : _reportMethodsEn(reportMeta, smaMeta);
+
+  // 11 섹션 구성
+  const css = `
+    body { font-family: 'KoPub Dotum Light','맑은 고딕',Arial,sans-serif; max-width: 900px; margin: 30px auto; padding: 0 30px; color: #1a1a1a; line-height: 1.7; }
+    h1 { color: #0c3026; border-bottom: 3px solid #017f97; padding-bottom: 8px; font-size: 22px; }
+    h2 { color: #017f97; margin-top: 30px; padding-bottom: 4px; border-bottom: 1px solid #d0d8d4; font-size: 16px; }
+    h3 { color: #0c3026; margin-top: 18px; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
+    th { background: #0c3026; color: white; padding: 6px 8px; text-align: left; font-weight: 600; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e6ece8; }
+    .meta { background: #f5f9f7; padding: 12px; border-left: 4px solid #017f97; margin: 14px 0; font-size: 12px; }
+    .hash { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5a6a62; word-break: break-all; }
+    .ref { font-size: 11px; line-height: 1.5; color: #5a6a62; }
+    img.manhattan { width: 100%; max-width: 900px; border: 1px solid #d0d8d4; margin: 10px 0; }
+    .sig { background: #fef3c7; }
+    @media print { body { margin: 0; padding: 20px; } h1 { page-break-before: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; } }
+  `;
+
+  const tStr = (k_ko, k_en) => ko ? k_ko : k_en;
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  let html = `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+<meta charset="UTF-8">
+<title>${ko ? _reportTitleKo() : _reportTitleEn()}</title>
+<style>${css}</style>
+</head>
+<body>
+
+<!-- 1. 표지 -->
+<h1>${ko ? _reportTitleKo() : _reportTitleEn()}</h1>
+<div class="meta">
+  <strong>${tStr('작성', 'Author')}:</strong> ${author}<br>
+  <strong>${tStr('작성일', 'Date')}:</strong> ${dateStr}<br>
+  <strong>${tStr('도구', 'Tool')}:</strong> Wheat QTL Mapping Tool v0.1 (browser-based, Pyodide+Plotly+XLSX.js)<br>
+  <strong>${tStr('어셈블리', 'Assembly')}:</strong> IWGSC RefSeq v2.1
+</div>
+
+<!-- 2. 요약 -->
+<h2>${tStr('1. 요약', '1. Abstract')}</h2>
+<p>${tStr(
+  `본 보고서는 밀 ${reportMeta.n_samples}개 시료의 ${reportMeta.n_markers}개 마커 유전자형과 ${reportMeta.trait} 형질 데이터를 이용한 단일 마커 ANOVA(SMA) 결과를 정리한 것이다. 유의수준 α=${smaMeta.alpha}${smaMeta.bonferroni ? '에 Bonferroni 보정' : ''}으로 ${sigSma.length}개의 유의 마커가 검출되었다.`,
+  `This report summarises single-marker ANOVA (SMA) results on ${reportMeta.n_samples} wheat accessions × ${reportMeta.n_markers} markers, with the ${reportMeta.trait} phenotype. ${sigSma.length} significant markers were detected at α=${smaMeta.alpha}${smaMeta.bonferroni ? ' with Bonferroni correction' : ''}.`
+)}</p>
+
+<!-- 3. 재료 및 방법 -->
+<h2>${tStr('2. 재료 및 방법', '2. Materials and Methods')}</h2>
+<p>${methods}</p>
+
+<!-- 4. 표현형 통계 -->
+<h2>${tStr('3. 표현형 통계', '3. Phenotype statistics')}</h2>`;
+
+  // phenotype stats
+  const phEntries = UPLOADED_FILES.filter(f => f.parsed?.traits);
+  if (phEntries.length) {
+    html += '<table><thead><tr><th>' + tStr('파일', 'File') + '</th><th>' + tStr('형질', 'Trait')
+         + '</th><th>n</th><th>μ</th><th>σ</th><th>missing</th></tr></thead><tbody>';
+    phEntries.forEach(f => {
+      f.parsed.traits.forEach(t => {
+        const s = f.parsed.traitStats[t] || {};
+        html += `<tr><td>${f.name}</td><td>${t}</td><td>${s.n||'—'}</td><td>${s.mean?.toFixed(3) ?? '—'}</td><td>${s.sd?.toFixed(3) ?? '—'}</td><td>${s.missing||0}</td></tr>`;
+      });
+    });
+    html += '</tbody></table>';
+  } else {
+    html += `<p>${tStr('표현형 파일 미업로드', 'No phenotype file uploaded')}</p>`;
+  }
+
+  // 5. 연관지도 / Manhattan plot
+  html += `\n<h2>${tStr('4. 연관지도 (Manhattan plot)', '4. Manhattan plot')}</h2>`;
+  if (manhattanImg) {
+    html += `<img class="manhattan" src="${manhattanImg}" alt="Manhattan plot">`;
+  } else {
+    html += `<p>${tStr('Manhattan plot 미생성', 'Manhattan plot not generated')}</p>`;
+  }
+
+  // 6. QTL 표 (top 10 + 유의)
+  html += `\n<h2>${tStr('5. QTL 표 (상위 10개)', '5. QTL table (top 10)')}</h2>`;
+  if (top10.length) {
+    html += '<table><thead><tr><th>#</th><th>Marker</th><th>Chr</th><th>F</th><th>p</th><th>−log₁₀p</th><th>n</th><th>'
+         + tStr('유의', 'Sig') + '</th></tr></thead><tbody>';
+    top10.forEach((r, i) => {
+      html += `<tr ${r.sig ? 'class="sig"' : ''}>
+        <td>${i+1}</td><td>${r.marker}</td><td>${r.chr}</td><td>${r.F.toFixed(2)}</td>
+        <td>${r.p.toExponential(2)}</td><td>${r.neg_log10_p.toFixed(2)}</td><td>${r.n}</td>
+        <td>${r.sig ? '✓' : '−'}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  } else {
+    html += `<p>${tStr('SMA 결과 없음', 'No SMA results')}</p>`;
+  }
+
+  // 7. 후보 유전자 (Ensembl)
+  html += `\n<h2>${tStr('6. 후보 유전자 — Ensembl Plants Wheat', '6. Candidate genes — Ensembl Plants Wheat')}</h2>`;
+  if (ensemblGenes.length) {
+    html += `<p style="font-size:11px;color:#5a6a62">${tStr('마커', 'Marker')} ${ensemblMeta.marker || '—'} · ${ensemblMeta.chr}:${(ensemblMeta.start/1e6).toFixed(2)}-${(ensemblMeta.end/1e6).toFixed(2)} Mb</p>`;
+    html += '<table><thead><tr><th>Gene ID</th><th>Symbol</th><th>Position</th><th>Length (kb)</th><th>Biotype</th><th>Description</th></tr></thead><tbody>';
+    ensemblGenes.slice(0, 30).forEach(g => {
+      html += `<tr><td>${g.gene_id}</td><td>${g.symbol}</td><td>${g.chr}:${g.start.toLocaleString()}-${g.end.toLocaleString()}</td><td>${(g.length_bp/1000).toFixed(1)}</td><td>${g.biotype}</td><td>${(g.description || '').slice(0, 60)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    if (ensemblGenes.length > 30) html += `<p style="font-size:10px;color:#5a6a62">${tStr('상위 30개 표시', 'Top 30 shown')} (${ensemblGenes.length} ${tStr('전체', 'total')})</p>`;
+  } else {
+    html += `<p>${tStr('Ensembl 호출 미실행', 'Ensembl fetch not executed')}</p>`;
+  }
+
+  // 8. T3 시료 메타
+  html += `\n<h2>${tStr('7. T3/Wheat 시료 메타데이터', '7. T3/Wheat germplasm metadata')}</h2>`;
+  if (t3Results.length) {
+    const hits = t3Results.filter(r => r.hit);
+    html += `<p style="font-size:11px;color:#5a6a62">${hits.length}/${t3Results.length} ${tStr('매칭', 'hits')}</p>`;
+    html += '<table><thead><tr><th>' + tStr('업로드 ID', 'Upload ID') + '</th><th>T3 germplasmName</th><th>Accession</th><th>Species</th><th>' + tStr('국가', 'Country') + '</th></tr></thead><tbody>';
+    hits.forEach(r => {
+      html += `<tr><td>${r.query}</td><td>${r.hit.germplasmName || '—'}</td><td>${r.hit.accessionNumber || '—'}</td><td>${r.hit.commonCropName || '—'}</td><td>${r.hit.countryOfOriginCode || '—'}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  } else {
+    html += `<p>${tStr('T3 검색 미실행', 'T3 lookup not executed')}</p>`;
+  }
+
+  // 9. 매개변수 로그
+  html += `\n<h2>${tStr('8. 분석 매개변수', '8. Analysis parameters')}</h2>`;
+  html += '<table><tbody>';
+  html += `<tr><td><strong>${tStr('형질', 'Trait')}</strong></td><td>${smaMeta.trait || '—'}</td></tr>`;
+  html += `<tr><td><strong>α</strong></td><td>${smaMeta.alpha ?? '—'}</td></tr>`;
+  html += `<tr><td><strong>Bonferroni</strong></td><td>${smaMeta.bonferroni ? 'on' : 'off'}</td></tr>`;
+  html += `<tr><td><strong>${tStr('유전형 파일', 'Genotype file')}</strong></td><td>${smaMeta.geno_file || '—'}</td></tr>`;
+  html += `<tr><td><strong>${tStr('전체 마커', 'Total markers')}</strong></td><td>${reportMeta.n_markers}</td></tr>`;
+  html += `<tr><td><strong>${tStr('전체 시료', 'Total samples')}</strong></td><td>${reportMeta.n_samples}</td></tr>`;
+  html += `<tr><td><strong>${tStr('업로드 파일', 'Uploaded files')}</strong></td><td>${UPLOADED_FILES.map(f => f.name).join(', ') || '—'}</td></tr>`;
+  html += '</tbody></table>';
+
+  // 10. 부록 (해시)
+  if (includeHash) {
+    html += `\n<h2>${tStr('9. 부록 — 데이터 무결성 해시', '9. Appendix — data integrity hash')}</h2>`;
+    html += `<p>${tStr('아래 SHA-256 해시는 업로드 파일 메타와 SMA 매개변수의 직렬화 결과입니다 (재현성 검증용).', 'SHA-256 hash of uploaded file metadata + SMA parameters (for reproducibility).')}</p>`;
+    html += `<div class="hash">SHA-256: ${hash}</div>`;
+  }
+
+  // 11. 참고문헌
+  html += `\n<h2>${tStr('10. 참고문헌', '10. References')}</h2>`;
+  html += '<ol class="ref">';
+  _reportReferences().forEach(ref => { html += `<li>${ref}</li>`; });
+  html += '</ol>';
+
+  html += `\n<hr style="margin-top:40px;border:none;border-top:1px solid #d0d8d4">
+<p style="font-size:10px;color:#8a9d92">${tStr('생성', 'Generated')}: Wheat QTL Mapping Tool v0.1 · ${new Date().toISOString()}</p>
+</body></html>`;
+
+  return html;
+}
+
+function _saveSessionForReport(key, val) {
+  _SESSION_STATE[key] = val;
+}
+
+async function generateReport(toNewWindow) {
+  const status = document.getElementById('report-status');
+  const lang = document.getElementById('report-lang').value;
+  const author = document.getElementById('report-author').value;
+  const includeHash = document.getElementById('report-include-hash').checked;
+  status.textContent = '보고서 생성 중...';
+  log(`보고서 생성: lang=${lang}, hash=${includeHash}`);
+  try {
+    const html = await generateReportHtml({ lang, author, includeHash });
+    if (toNewWindow) {
+      const w = window.open('', '_blank');
+      if (!w) { log('팝업 차단됨 — HTML 다운로드로 전환', 'warn'); _downloadReport(html, lang); status.textContent = '팝업 차단 → 다운로드'; return; }
+      w.document.open(); w.document.write(html); w.document.close();
+      status.textContent = '새 창에서 열림 (인쇄로 PDF 저장)';
+      log('보고서 새 창 열림', 'ok');
+    } else {
+      _downloadReport(html, lang);
+      status.textContent = '다운로드 완료';
+    }
+  } catch (e) {
+    log(`보고서 생성 실패: ${e.message}`, 'error');
+    status.textContent = '실패: ' + e.message;
+  }
+}
+
+function _downloadReport(html, lang) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  a.download = `wheat_qtl_report_${lang}_${ts}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  log(`보고서 다운로드: ${a.download}`, 'ok');
 }
 
 // SMA 결과 → Ensembl 마커 dropdown 갱신 (W1-6a)
@@ -2747,7 +3087,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-6b 진행 — T3/Wheat BrAPI v2 시료 메타 검색 활성');
+log('단계: W1-7 진행 — Phase 1 MVP 완성 (한/영 보고서 자동 생성 + SHA-256 해시 + Manhattan PNG)');
 
 // SMA 실행 버튼 바인딩
 document.getElementById('sma-run-btn')?.addEventListener('click', runSma);
@@ -2757,6 +3097,10 @@ document.getElementById('ensembl-fetch-btn')?.addEventListener('click', runEnsem
 
 // W1-6b: T3 BrAPI 검색 버튼 바인딩
 document.getElementById('t3-fetch-btn')?.addEventListener('click', runT3Fetch);
+
+// W1-7: 보고서 생성/다운로드 버튼 바인딩
+document.getElementById('report-generate-btn')?.addEventListener('click', () => generateReport(true));
+document.getElementById('report-download-btn')?.addEventListener('click', () => generateReport(false));
 loadAllData();
 setupUpload();
 bootPyodide();
