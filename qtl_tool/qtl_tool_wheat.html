@@ -590,6 +590,37 @@ body {
       <div id="file-list" style="margin-top:14px"></div>
     </div>
 
+    <!-- W1-6b: T3/Wheat BrAPI 시료 메타 검색 -->
+    <div class="card" id="t3-card" style="display:none">
+      <div class="card-title">
+        T3/Wheat BrAPI 시료 메타데이터
+        <span class="format-badge tier-1" style="margin-left:8px">CORS *</span>
+      </div>
+      <div class="card-subtitle">
+        업로드된 시료 ID를 <a href="https://wheat.triticeaetoolbox.org" target="_blank" style="color:var(--primary-main)">T3/Wheat (Triticeae Toolbox)</a>의 BrAPI v2에서 lookup — pedigree·국가·species 메타 자동 부착
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          유전형 파일 (시료 ID 출처)
+          <select id="t3-geno-sel" style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:240px">
+            <option value="">-- 선택 --</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:12px">
+          최대 검색 수
+          <select id="t3-limit" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+            <option value="5">5개 (빠름)</option>
+            <option value="10" selected>10개</option>
+            <option value="25">25개</option>
+            <option value="50">50개</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" id="t3-fetch-btn">T3에서 검색</button>
+        <span id="t3-status" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <div id="t3-result-area"></div>
+    </div>
+
     <!-- 한국 default 패널 (참고용 — W1-3에서 데이터만 표시, 분석 연계는 W1-5) -->
     <div class="korea-panel">
       <div class="card">
@@ -1891,7 +1922,7 @@ async function handleFile(file) {
       parsed, qc
     };
     UPLOADED_FILES.push(entry);
-    renderFileList(); renderDetectResult(); refreshAnalysisDropdowns();
+    renderFileList(); renderDetectResult(); refreshAnalysisDropdowns(); refreshT3GenoDropdown();
     return entry;
   }
 
@@ -1976,6 +2007,7 @@ async function handleFile(file) {
   renderFileList();
   renderDetectResult();
   refreshAnalysisDropdowns();
+  refreshT3GenoDropdown();
   return entry;
 }
 
@@ -2493,7 +2525,142 @@ function _downloadGenesXlsx(genes, marker, chr, start, end) {
   log(`엑셀 다운로드: ${filename}`, 'ok');
 }
 
-// SMA 결과 → Ensembl 마커 dropdown 갱신
+// ============================================================
+// W1-6b: T3/Wheat BrAPI v2 (Triticeae Toolbox)
+// ============================================================
+// CORS: 허용 (BreedBase 기본)
+// Endpoints: /brapi/v2/serverinfo, /brapi/v2/germplasm, /brapi/v2/markers
+const T3_BASE = 'https://wheat.triticeaetoolbox.org/brapi/v2';
+
+async function fetchT3Germplasm(germplasmName, opts) {
+  opts = opts || {};
+  const pageSize = opts.pageSize || 10;
+  const params = new URLSearchParams({
+    germplasmName,
+    pageSize: String(pageSize)
+  });
+  const url = `${T3_BASE}/germplasm?${params.toString()}`;
+  const res = await fetch(url, {
+    headers: { 'Accept': 'application/json' },
+    cache: 'no-cache'
+  });
+  if (!res.ok) throw new Error(`T3 BrAPI HTTP ${res.status}`);
+  const json = await res.json();
+  // BrAPI 표준: { metadata: {...}, result: { data: [...] } }
+  return json?.result?.data || [];
+}
+
+function refreshT3GenoDropdown() {
+  const sel = document.getElementById('t3-geno-sel');
+  const card = document.getElementById('t3-card');
+  if (!sel || !card) return;
+  const genoFiles = UPLOADED_FILES.filter(f => f.parsed && Array.isArray(f.parsed.records) && f.parsed.records.length && f.parsed.samples?.length);
+  if (!genoFiles.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  sel.innerHTML = '<option value="">-- 유전형 파일 --</option>' +
+    genoFiles.map(f => `<option value="${UPLOADED_FILES.indexOf(f)}">${f.name} (${f.parsed.samples.length} 시료)</option>`).join('');
+  if (genoFiles.length === 1) sel.value = String(UPLOADED_FILES.indexOf(genoFiles[0]));
+}
+
+async function runT3Fetch() {
+  const status = document.getElementById('t3-status');
+  const resultArea = document.getElementById('t3-result-area');
+  const sel = document.getElementById('t3-geno-sel');
+  const limit = parseInt(document.getElementById('t3-limit').value) || 10;
+
+  if (!sel.value) {
+    status.textContent = '유전형 파일을 먼저 선택하세요';
+    return;
+  }
+  const entry = UPLOADED_FILES[parseInt(sel.value)];
+  const samples = entry?.parsed?.samples || [];
+  if (!samples.length) {
+    status.textContent = '시료 ID 없음';
+    return;
+  }
+  const targetSamples = samples.slice(0, limit);
+  status.textContent = `T3 검색 중... ${targetSamples.length}/${samples.length} 시료`;
+  resultArea.innerHTML = `<div class="placeholder">T3 BrAPI v2 호출 중... ${targetSamples.length}개 시료</div>`;
+  log(`T3 검색: ${entry.name} 시료 ${targetSamples.length}개 (${T3_BASE})`);
+
+  const results = [];
+  const errors = [];
+  const t0 = performance.now();
+  // 순차 호출 (rate limit 보호) — 큰 limit 시 느릴 수 있음
+  for (let i = 0; i < targetSamples.length; i++) {
+    const name = targetSamples[i];
+    status.textContent = `T3 검색: ${i+1}/${targetSamples.length} (${name})`;
+    try {
+      const matches = await fetchT3Germplasm(name);
+      if (matches.length) {
+        results.push({ query: name, hit: matches[0], total: matches.length });
+      } else {
+        results.push({ query: name, hit: null, total: 0 });
+      }
+    } catch (e) {
+      errors.push({ query: name, error: e.message });
+      results.push({ query: name, hit: null, error: e.message });
+    }
+    // 100ms 간격 (10 req/sec 안전 마진)
+    if (i < targetSamples.length - 1) await new Promise(r => setTimeout(r, 100));
+  }
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+  const hits = results.filter(r => r.hit).length;
+  log(`T3 완료: ${hits}/${targetSamples.length} 매칭 (${elapsed}초${errors.length ? ', ' + errors.length + ' 에러' : ''})`, hits ? 'ok' : 'warn');
+  renderT3Results(results, { genoName: entry.name, total: samples.length, queried: targetSamples.length, elapsed });
+  status.textContent = `완료 — 매칭 ${hits}/${targetSamples.length} (${elapsed}s)`;
+}
+
+function renderT3Results(results, meta) {
+  const wrap = document.getElementById('t3-result-area');
+  if (!results.length) {
+    wrap.innerHTML = '<div class="placeholder">결과 없음</div>';
+    return;
+  }
+  const hits = results.filter(r => r.hit);
+  const errs = results.filter(r => r.error);
+  let html = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="qc-stat"><span class="key">조회</span><span class="val">${meta.queried}/${meta.total}</span></span>
+      <span class="qc-stat"><span class="key">매칭</span><span class="val">${hits.length}</span></span>
+      <span class="qc-stat"><span class="key">실패</span><span class="val">${errs.length}</span></span>
+      <span class="qc-stat"><span class="key">${meta.elapsed}초</span><span class="val">BrAPI</span></span>
+    </div>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>#</th><th>업로드 ID</th><th>매칭</th><th>T3 germplasmName</th><th>Accession</th>
+        <th>Species</th><th>국가</th><th>Pedigree</th>
+      </tr></thead><tbody>
+  `;
+  results.forEach((r, i) => {
+    const h = r.hit;
+    if (h) {
+      const ped = h.pedigree || h.parentage || '-';
+      html += `<tr>
+        <td>${i+1}</td>
+        <td><code style="font-family:var(--font-mono);font-size:11px">${r.query}</code></td>
+        <td><span class="format-badge tier-1">✓ ${r.total}건</span></td>
+        <td><strong>${h.germplasmName || '—'}</strong>${h.germplasmDbId ? `<br><span style="color:var(--text-muted);font-size:10px">id=${h.germplasmDbId}</span>` : ''}</td>
+        <td><span style="font-family:var(--font-mono);font-size:11px">${h.accessionNumber || h.acquisitionDate || '—'}</span></td>
+        <td>${h.commonCropName || h.species || h.genus || '—'}</td>
+        <td>${h.countryOfOriginCode || h.instituteCode || '—'}</td>
+        <td title="${ped}" style="font-size:11px">${(ped || '').slice(0, 60)}${(ped || '').length > 60 ? '...' : ''}</td>
+      </tr>`;
+    } else {
+      html += `<tr style="opacity:0.55">
+        <td>${i+1}</td>
+        <td><code style="font-family:var(--font-mono);font-size:11px">${r.query}</code></td>
+        <td>${r.error ? '<span class="format-badge tier-unknown">err</span>' : '<span class="format-badge tier-3">no hit</span>'}</td>
+        <td colspan="5" style="font-size:11px;color:var(--text-muted)">${r.error || 'T3에서 매칭되는 germplasm 없음'}</td>
+      </tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// SMA 결과 → Ensembl 마커 dropdown 갱신 (W1-6a)
 function refreshEnsemblMarkerDropdown(results) {
   const sel = document.getElementById('ensembl-marker-sel');
   const card = document.getElementById('ensembl-card');
@@ -2580,13 +2747,16 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-6a 진행 — Ensembl Plants Wheat REST 후보 유전자 추출 활성 (CORS *)');
+log('단계: W1-6b 진행 — T3/Wheat BrAPI v2 시료 메타 검색 활성');
 
 // SMA 실행 버튼 바인딩
 document.getElementById('sma-run-btn')?.addEventListener('click', runSma);
 
 // W1-6a: Ensembl 유전자 fetch 버튼 바인딩
 document.getElementById('ensembl-fetch-btn')?.addEventListener('click', runEnsemblFetch);
+
+// W1-6b: T3 BrAPI 검색 버튼 바인딩
+document.getElementById('t3-fetch-btn')?.addEventListener('click', runT3Fetch);
 loadAllData();
 setupUpload();
 bootPyodide();
