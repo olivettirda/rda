@@ -642,9 +642,51 @@ body {
       <div class="card-subtitle" data-i18n="method.subtitle">
         SMA · IM · CIM (webR) · ICIM-ADD · GLM · MLM · FarmCPU · BLINK
       </div>
-      <div class="placeholder">
-        <strong>W1-5</strong>
-        방법별 카드 + 학술 근거 모달 (Churchill &amp; Doerge 1994 등)
+
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--primary-main);border-radius:6px;background:var(--bg-card-hover)">
+          <input type="radio" name="analysis-method" value="sma" checked>
+          <span><strong>SMA</strong> (Single Marker ANOVA) <span style="color:var(--text-muted);font-size:11px">— W1-5a 활성</span></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-color);border-radius:6px;opacity:0.5">
+          <input type="radio" name="analysis-method" value="im" disabled>
+          <span>IM <span style="color:var(--text-muted);font-size:11px">— 후속</span></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-color);border-radius:6px;opacity:0.5">
+          <input type="radio" name="analysis-method" value="cim" disabled>
+          <span>CIM (webR) <span style="color:var(--text-muted);font-size:11px">— 후속</span></span>
+        </label>
+      </div>
+
+      <div style="margin-top:18px;padding:14px;background:var(--bg-input);border-radius:6px">
+        <div style="font-family:var(--font-bold);margin-bottom:8px;color:var(--primary-dark)">SMA 매개변수</div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            형질 (phenotype)
+            <select id="sma-trait" style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:200px">
+              <option value="">-- 표현형 파일 업로드 후 자동 로드 --</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            유전형 파일
+            <select id="sma-geno" style="padding:6px;border:1px solid var(--border-color);border-radius:4px;min-width:200px">
+              <option value="">-- 유전형 파일 업로드 후 자동 로드 --</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            유의수준 α
+            <select id="sma-alpha" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="0.05" selected>0.05</option>
+              <option value="0.01">0.01</option>
+              <option value="0.001">0.001</option>
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;margin-top:18px">
+            <input type="checkbox" id="sma-bonferroni" checked> Bonferroni 보정
+          </label>
+        </div>
+        <button class="btn btn-primary" id="sma-run-btn" style="margin-top:12px" disabled>분석 실행</button>
+        <span id="sma-status" style="margin-left:10px;font-size:11px;color:var(--text-muted)"></span>
       </div>
     </div>
   </div>
@@ -667,10 +709,11 @@ body {
       <div class="card-subtitle">
         Manhattan (sub-genome A/B/D 색조) · LOD plot · 21 chr linkage map · genotype heatmap
       </div>
-      <div class="placeholder" id="manhattan-placeholder">
-        <strong>W1-5</strong>
-        Plotly scattergl Manhattan plot + 1A~7D 21개 chr 패널
+      <div id="manhattan-placeholder" class="placeholder">
+        <strong>W1-5b 대기</strong>
+        Plotly scattergl Manhattan plot + 1A~7D 21개 chr 패널 — W1-5a SMA 분석 결과 표는 아래
       </div>
+      <div id="sma-result-area" style="margin-top:18px"></div>
     </div>
   </div>
 
@@ -1008,6 +1051,7 @@ async function bootPyodide() {
     dot.classList.add('ready');
     text.textContent = (I18N[CURRENT_LANG] || I18N.ko)['status.ready'];
     log('Pyodide 준비 완료', 'ok');
+    refreshAnalysisDropdowns();
   } catch (e) {
     dot.classList.add('error');
     text.textContent = (I18N[CURRENT_LANG] || I18N.ko)['status.error'];
@@ -1090,8 +1134,35 @@ function autoDetectFormat(rawText) {
   const head = rawText.slice(0, 8000);  // 첫 8KB만 검사
   return detectTier1(head)
       || detectTier2(head)
+      || detectPhenotype(head)   // W1-5a: 표현형 파일 별도 분기 (Tier 2.5)
       || detectTier3(rawText)
       || { format: 'unknown', tier: 'unknown' };
+}
+
+// W1-5a: 표현형 파일 자동 감지
+// 첫 컬럼이 ID 후보 + 나머지 컬럼 대부분 숫자
+function detectPhenotype(headSample) {
+  const lines = headSample.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 3) return null;
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const header = lines[0].split(sep).map(c => c.trim());
+  if (header.length < 2) return null;
+  const idLike = /^(indiv|id|sample|genotype|line|entry|name|accession|cv)$/i;
+  if (!idLike.test(header[0])) return null;
+  // 데이터 라인 2개 샘플로 숫자 비율 확인
+  let numericCount = 0, totalCount = 0;
+  for (let i = 1; i < Math.min(lines.length, 6); i++) {
+    const cells = lines[i].split(sep).slice(1);
+    cells.forEach(c => {
+      totalCount++;
+      const v = parseFloat(c);
+      if (!isNaN(v) && Number.isFinite(v)) numericCount++;
+    });
+  }
+  if (totalCount === 0) return null;
+  const numericRatio = numericCount / totalCount;
+  if (numericRatio < 0.6) return null;  // 60% 이상 숫자여야 표현형으로 판정
+  return { format: 'Phenotype', tier: 2, numeric_ratio: numericRatio.toFixed(2), n_traits: header.length - 1 };
 }
 
 // VCF 파서 (간단형: chrom/pos/REF/ALT + 첫 N 시료 GT 필드)
@@ -1651,6 +1722,43 @@ function _kaspCellToCode(cell) {
   return '-';
 }
 
+// ============================================================
+// W1-5a: 표현형 파서 (Indiv/ID + 숫자 형질 컬럼)
+// ============================================================
+function parsePhenotype(rawText) {
+  const lines = rawText.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { samples: [], traits: [], data: {}, _error: 'empty' };
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const header = lines[0].split(sep).map(c => c.trim());
+  const traitNames = header.slice(1);
+  const samples = [];
+  // data: { traitName: { sampleId: numericValue } }
+  const data = {};
+  traitNames.forEach(t => { data[t] = {}; });
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(sep);
+    if (!cells[0]) continue;
+    const sample = cells[0].trim();
+    samples.push(sample);
+    traitNames.forEach((t, ti) => {
+      const raw = (cells[ti + 1] || '').trim();
+      const v = parseFloat(raw);
+      if (Number.isFinite(v)) data[t][sample] = v;
+      // 누락은 저장하지 않음 → SMA 시 NaN 처리
+    });
+  }
+  // 형질별 통계
+  const traitStats = {};
+  traitNames.forEach(t => {
+    const vals = Object.values(data[t]);
+    const n = vals.length;
+    const mean = n ? vals.reduce((a,b) => a+b, 0) / n : null;
+    const sd = n > 1 ? Math.sqrt(vals.reduce((a,b) => a + (b-mean)**2, 0) / (n-1)) : null;
+    traitStats[t] = { n, mean, sd, missing: samples.length - n };
+  });
+  return { samples, traits: traitNames, data, traitStats };
+}
+
 // 파일 처리 entry point
 async function handleFile(file) {
   log(`파일 처리: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
@@ -1674,7 +1782,7 @@ async function handleFile(file) {
       parsed, qc
     };
     UPLOADED_FILES.push(entry);
-    renderFileList(); renderDetectResult();
+    renderFileList(); renderDetectResult(); refreshAnalysisDropdowns();
     return entry;
   }
 
@@ -1716,6 +1824,13 @@ async function handleFile(file) {
       qc = computeQc(parsed);
       log(`  ${parsed.meta.format}: ${parsed.samples.length} 시료 × ${parsed.records.length} 마커 (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
     }
+  } else if (det.format === 'Phenotype') {
+    parsed = parsePhenotype(rawText);
+    if (parsed._error) {
+      log(`  Phenotype 파싱 실패: ${parsed._error}`, 'error');
+    } else {
+      log(`  Phenotype: ${parsed.samples.length} 시료 × ${parsed.traits.length} 형질 (${parsed.traits.slice(0,3).join(', ')}${parsed.traits.length > 3 ? '...' : ''})`, 'ok');
+    }
   } else if (det.format !== 'unknown') {
     log(`  ${det.format}: 파서 미구현`, 'warn');
   }
@@ -1729,6 +1844,7 @@ async function handleFile(file) {
   UPLOADED_FILES.push(entry);
   renderFileList();
   renderDetectResult();
+  refreshAnalysisDropdowns();
   return entry;
 }
 
@@ -1776,6 +1892,229 @@ function renderDetectResult() {
   wrap.innerHTML = html;
 }
 
+// ============================================================
+// W1-5a: 분석 메서드 — UI 동기화 + SMA Python
+// ============================================================
+function refreshAnalysisDropdowns() {
+  const genoFiles = UPLOADED_FILES.filter(f => f.parsed && Array.isArray(f.parsed.records) && f.parsed.records.length);
+  const phenoFiles = UPLOADED_FILES.filter(f => f.parsed && Array.isArray(f.parsed.traits));
+
+  const genoSel = document.getElementById('sma-geno');
+  const traitSel = document.getElementById('sma-trait');
+  if (!genoSel || !traitSel) return;
+  genoSel.innerHTML = '<option value="">-- 유전형 파일 --</option>' +
+    genoFiles.map((f, i) => `<option value="${UPLOADED_FILES.indexOf(f)}">${f.name} (${f.parsed.samples.length}×${f.parsed.records.length})</option>`).join('');
+  // 첫 번째 유전형 자동 선택
+  if (genoFiles.length === 1) genoSel.value = String(UPLOADED_FILES.indexOf(genoFiles[0]));
+
+  // 형질 옵션 — 모든 phenotype 파일의 traits를 fileIdx::trait 키로
+  const traitOptions = [];
+  phenoFiles.forEach(f => {
+    const fIdx = UPLOADED_FILES.indexOf(f);
+    f.parsed.traits.forEach(t => {
+      const stat = f.parsed.traitStats?.[t];
+      const label = stat ? `${t} (n=${stat.n}, μ=${stat.mean.toFixed(2)})` : t;
+      traitOptions.push(`<option value="${fIdx}::${t}">${f.name} :: ${label}</option>`);
+    });
+  });
+  traitSel.innerHTML = '<option value="">-- 형질 선택 --</option>' + traitOptions.join('');
+
+  // 실행 버튼 활성화 조건
+  const btn = document.getElementById('sma-run-btn');
+  const status = document.getElementById('sma-status');
+  if (genoFiles.length && phenoFiles.length && pyodide) {
+    btn.disabled = false;
+    status.textContent = `유전형 ${genoFiles.length}개, 표현형 ${phenoFiles.length}개 — 분석 가능`;
+  } else {
+    btn.disabled = true;
+    const missing = [];
+    if (!genoFiles.length) missing.push('유전형 파일');
+    if (!phenoFiles.length) missing.push('표현형 파일');
+    if (!pyodide) missing.push('Pyodide');
+    status.textContent = `대기 중: ${missing.join(', ')} 필요`;
+  }
+}
+
+const PY_SMA_FUNC = `
+import numpy as np
+from scipy import stats
+
+def run_sma(geno_codes, sample_ids, marker_names, marker_chrs, pheno_dict, alpha=0.05, bonferroni=True):
+    """
+    geno_codes: list of lists, [marker][sample] = 'A'/'B'/'H'/'-'
+    sample_ids: 시료 ID 순서 (geno와 동일)
+    marker_names, marker_chrs: 마커 메타
+    pheno_dict: {sample_id: numeric_value}  (누락은 키 없음)
+    Returns: list of dicts with marker, chr, F, p, neg_log10_p, n, sig
+    """
+    code_map = {'A': 0, 'H': 1, 'B': 2}
+    n_markers = len(geno_codes)
+    n_samples = len(sample_ids)
+    # 표현형 벡터 (NaN for missing)
+    y = np.array([pheno_dict.get(s, np.nan) for s in sample_ids], dtype=float)
+    valid_pheno = ~np.isnan(y)
+    if valid_pheno.sum() < 10:
+        return []
+
+    # Bonferroni 임계
+    sig_threshold = alpha / n_markers if bonferroni else alpha
+
+    results = []
+    for mi in range(n_markers):
+        codes = geno_codes[mi]
+        # 클래스별 그룹화 (A=0, H=1, B=2)
+        groups = [[], [], []]
+        for s in range(n_samples):
+            if not valid_pheno[s]:
+                continue
+            c = codes[s]
+            if c not in code_map:
+                continue
+            groups[code_map[c]].append(y[s])
+
+        # 최소 2개 그룹에 데이터 + 각 그룹 ≥3 시료
+        non_empty = [g for g in groups if len(g) >= 3]
+        if len(non_empty) < 2:
+            continue
+
+        try:
+            f_stat, p_val = stats.f_oneway(*non_empty)
+            if not np.isfinite(p_val) or p_val <= 0:
+                p_val = 1.0
+            neg_log10_p = -np.log10(max(p_val, 1e-300))
+            n_used = sum(len(g) for g in non_empty)
+            results.append({
+                'marker': marker_names[mi],
+                'chr': marker_chrs[mi],
+                'F': float(f_stat),
+                'p': float(p_val),
+                'neg_log10_p': float(neg_log10_p),
+                'n': int(n_used),
+                'sig': bool(p_val < sig_threshold)
+            })
+        except Exception:
+            continue
+
+    # p-value 오름차순 정렬
+    results.sort(key=lambda r: r['p'])
+    return results
+`;
+
+let _smaFuncReady = false;
+
+async function runSma() {
+  const btn = document.getElementById('sma-run-btn');
+  const status = document.getElementById('sma-status');
+  const resultArea = document.getElementById('sma-result-area');
+  if (!pyodide) { log('Pyodide 미준비', 'error'); return; }
+
+  const genoSel = document.getElementById('sma-geno');
+  const traitSel = document.getElementById('sma-trait');
+  const alpha = parseFloat(document.getElementById('sma-alpha').value);
+  const bonferroni = document.getElementById('sma-bonferroni').checked;
+
+  if (!genoSel.value || !traitSel.value) {
+    log('SMA: 유전형 + 형질 모두 선택 필요', 'warn');
+    return;
+  }
+
+  const genoEntry = UPLOADED_FILES[parseInt(genoSel.value)];
+  const [phenoIdxStr, traitName] = traitSel.value.split('::');
+  const phenoEntry = UPLOADED_FILES[parseInt(phenoIdxStr)];
+  if (!genoEntry?.parsed?.records?.length || !phenoEntry?.parsed?.data?.[traitName]) {
+    log('SMA: 데이터 부재', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = '분석 중...';
+  log(`SMA 시작: ${genoEntry.name} × ${traitName} (α=${alpha}, Bonferroni=${bonferroni})`);
+
+  try {
+    if (!_smaFuncReady) {
+      pyodide.runPython(PY_SMA_FUNC);
+      _smaFuncReady = true;
+      log('  SMA Python 함수 정의 완료', 'ok');
+    }
+    const t0 = performance.now();
+    const records = genoEntry.parsed.records;
+    const samples = genoEntry.parsed.samples;
+    const phenoData = phenoEntry.parsed.data[traitName];
+
+    // Python에 데이터 push
+    pyodide.globals.set('_geno_codes', records.map(r => r.gts));
+    pyodide.globals.set('_sample_ids', samples);
+    pyodide.globals.set('_marker_names', records.map(r => r.marker));
+    pyodide.globals.set('_marker_chrs', records.map(r => r.chr));
+    pyodide.globals.set('_pheno_dict', phenoData);
+    pyodide.globals.set('_alpha', alpha);
+    pyodide.globals.set('_bonferroni', bonferroni);
+
+    const resultsProxy = pyodide.runPython(
+      'run_sma(_geno_codes.to_py(), _sample_ids.to_py(), _marker_names.to_py(), _marker_chrs.to_py(), _pheno_dict.to_py(), _alpha, _bonferroni)'
+    );
+    const results = resultsProxy.toJs({ dict_converter: Object.fromEntries });
+    if (resultsProxy.destroy) resultsProxy.destroy();
+
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    const sigCount = results.filter(r => r.sig).length;
+    log(`  SMA 완료: ${results.length} 마커 검정, 유의 ${sigCount}개 (${elapsed}초)`, 'ok');
+
+    renderSmaResults(results, { trait: traitName, alpha, bonferroni, geno_file: genoEntry.name, n_markers: records.length });
+    status.textContent = `완료 — ${sigCount}개 유의 (${elapsed}s)`;
+    activateTab('visual');
+  } catch (e) {
+    log(`SMA 실행 실패: ${e.message}`, 'error');
+    resultArea.innerHTML = `<div style="padding:14px;background:var(--warning-bg);border-left:4px solid var(--error)">
+      <strong>SMA 실패:</strong> ${e.message}
+    </div>`;
+    status.textContent = '실패';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderSmaResults(results, meta) {
+  const wrap = document.getElementById('sma-result-area');
+  if (!results.length) {
+    wrap.innerHTML = `<div class="placeholder">유의한 마커 없음 — ${meta.n_markers} 검정, 모두 p≥α</div>`;
+    return;
+  }
+  const top = results.slice(0, 50);
+  const sig = results.filter(r => r.sig);
+  const sigThreshold = meta.bonferroni ? meta.alpha / meta.n_markers : meta.alpha;
+
+  let html = `
+    <div class="card-title">SMA 결과 — ${meta.trait}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="qc-stat"><span class="key">검정</span><span class="val">${meta.n_markers}</span></span>
+      <span class="qc-stat"><span class="key">유의</span><span class="val">${sig.length}</span></span>
+      <span class="qc-stat"><span class="key">α</span><span class="val">${meta.alpha}</span></span>
+      <span class="qc-stat"><span class="key">임계</span><span class="val">${sigThreshold.toExponential(2)}</span></span>
+      <span class="qc-stat"><span class="key">Bonferroni</span><span class="val">${meta.bonferroni ? 'on' : 'off'}</span></span>
+    </div>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>#</th><th>Marker</th><th>Chr</th><th>F</th><th>p</th><th>−log₁₀p</th><th>n</th><th>유의</th>
+      </tr></thead><tbody>
+  `;
+  top.forEach((r, i) => {
+    html += `<tr ${r.sig ? 'style="background:#fef3c7"' : ''}>
+      <td>${i+1}</td>
+      <td><strong>${r.marker}</strong></td>
+      <td>${r.chr}</td>
+      <td>${r.F.toFixed(2)}</td>
+      <td>${r.p.toExponential(2)}</td>
+      <td>${r.neg_log10_p.toFixed(2)}</td>
+      <td>${r.n}</td>
+      <td>${r.sig ? '<span class="format-badge tier-1">✓</span>' : '−'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (results.length > 50) html += `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">상위 50개 표시 (전체 ${results.length})</div>`;
+  wrap.innerHTML = html;
+}
+
 // Drag & drop 이벤트
 function setupUpload() {
   const zone = document.getElementById('upload-zone');
@@ -1803,7 +2142,10 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-4c 진행 — VCF/HapMap/90K + Axiom/DArT/KASP grid 파서 모두 활성');
+log('단계: W1-5a 진행 — 표현형 + SMA(scipy.stats.f_oneway) 분석 활성');
+
+// SMA 실행 버튼 바인딩
+document.getElementById('sma-run-btn')?.addEventListener('click', runSma);
 loadAllData();
 setupUpload();
 bootPyodide();
