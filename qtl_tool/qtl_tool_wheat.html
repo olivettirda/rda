@@ -375,6 +375,80 @@ body {
   color: var(--primary-dark);
 }
 
+/* W1-4a: Drag & Drop 업로드 zone */
+.upload-zone {
+  border: 2px dashed var(--accent-3);
+  border-radius: 8px;
+  padding: 30px 24px;
+  text-align: center;
+  background: var(--bg-input);
+  transition: all 0.18s;
+  cursor: pointer;
+}
+.upload-zone:hover { border-color: var(--primary-main); background: var(--bg-card-hover); }
+.upload-zone.dragover {
+  border-color: var(--primary-main);
+  background: var(--accent-1);
+  border-style: solid;
+}
+.upload-zone .label {
+  font-family: var(--font-medium);
+  font-size: 14px;
+  color: var(--primary-dark);
+  margin-bottom: 6px;
+}
+.upload-zone .hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+.upload-zone input[type="file"] { display: none; }
+
+/* 자동 감지 결과 표 */
+.detect-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.detect-result-table th, .detect-result-table td {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+}
+.detect-result-table thead th {
+  background: var(--primary-dark);
+  color: white;
+  font-family: var(--font-medium);
+}
+.format-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--primary-main);
+  color: white;
+}
+.format-badge.tier-1 { background: var(--success); }
+.format-badge.tier-2 { background: var(--primary-main); }
+.format-badge.tier-3 { background: var(--warning); }
+.format-badge.tier-unknown { background: var(--error); }
+.qc-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-input);
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+.qc-stat .key { color: var(--text-muted); }
+.qc-stat .val { color: var(--primary-dark); font-family: var(--font-bold); }
+
 /* 정보 배너 (벼 도구와의 차이/주의사항 안내) */
 .notice-banner {
   padding: 14px 18px;
@@ -505,10 +579,15 @@ body {
       <div class="card-subtitle" data-i18n="upload.subtitle">
         지원 형식: VCF · HapMap · Illumina 90K/15K Final Report · Affymetrix Axiom 35K/820K · DArTseq · KASP grid (XLSX/CSV)
       </div>
-      <div class="placeholder">
-        <strong>W1-4에서 채울 영역</strong>
-        drag&amp;drop 업로드 + Tier 1-3 자동 감지 + missing/MAF/segregation distortion 표
-      </div>
+
+      <!-- W1-4a: Drag & Drop -->
+      <label class="upload-zone" id="upload-zone" for="file-input">
+        <div class="label" data-i18n="upload.dropzone.label">파일을 끌어 놓거나 클릭하여 선택</div>
+        <div class="hint" data-i18n="upload.dropzone.hint">.vcf · .vcf.gz · .hmp.txt · .txt · .csv · .xlsx (다중 선택 가능)</div>
+        <input type="file" id="file-input" multiple
+               accept=".vcf,.gz,.hmp,.txt,.csv,.xlsx,.tsv">
+      </label>
+      <div id="file-list" style="margin-top:14px"></div>
     </div>
 
     <!-- 한국 default 패널 (참고용 — W1-3에서 데이터만 표시, 분석 연계는 W1-5) -->
@@ -536,9 +615,8 @@ body {
   <div class="tab-content" id="tab-detect">
     <div class="card">
       <div class="card-title" data-i18n="detect.title">2. 형식 자동 감지 결과</div>
-      <div class="placeholder">
-        <strong>W1-4</strong>
-        Tier 1-3 결과 + 마커 prefix 분포 + IWGSC v2.1 좌표 매핑 검증
+      <div id="detect-result">
+        <div class="placeholder" data-i18n="detect.empty"><strong>업로드 대기</strong> Tab 1에서 파일을 업로드하세요</div>
       </div>
     </div>
   </div>
@@ -661,7 +739,10 @@ const I18N = {
     'tbl.cv.name': '품종',
     'tbl.cv.year': '연도',
     'tbl.cv.type': '용도/특성',
-    'tbl.cv.note': '비고'
+    'tbl.cv.note': '비고',
+    'upload.dropzone.label': '파일을 끌어 놓거나 클릭하여 선택',
+    'upload.dropzone.hint': '.vcf · .vcf.gz · .hmp.txt · .txt · .csv · .xlsx (다중 선택 가능)',
+    'detect.empty': '<strong>업로드 대기</strong> Tab 1에서 파일을 업로드하세요'
   },
   en: {
     'app.title': 'Wheat QTL Mapping Tool',
@@ -698,7 +779,10 @@ const I18N = {
     'tbl.cv.name': 'Cultivar',
     'tbl.cv.year': 'Year',
     'tbl.cv.type': 'Type/Trait',
-    'tbl.cv.note': 'Note'
+    'tbl.cv.note': 'Note',
+    'upload.dropzone.label': 'Drop files or click to select',
+    'upload.dropzone.hint': '.vcf · .vcf.gz · .hmp.txt · .txt · .csv · .xlsx (multi-select)',
+    'detect.empty': '<strong>Awaiting upload</strong> Upload files in Tab 1'
   }
 };
 
@@ -932,12 +1016,300 @@ async function bootPyodide() {
 }
 
 // ============================================================
+// W1-4a: 자동 감지 알고리즘 (Tier 1-3) + VCF 파서
+// ============================================================
+const UPLOADED_FILES = [];   // {name, size, sample, format, tier, parsed?, qc?}
+
+// Tier 1: 매직 라인
+function detectTier1(headSample) {
+  if (/^##fileformat=VCFv?\d/m.test(headSample)) return { format: 'VCF', tier: 1 };
+  if (/\[Header\][\s\S]*?GSGT Version/.test(headSample)) return { format: 'Illumina_GenomeStudio', tier: 1 };
+  if (/^rs#\s+alleles\s+chrom\s+pos/im.test(headSample)) return { format: 'HapMap', tier: 1 };
+  return null;
+}
+
+// Tier 2: 헤더 컬럼 정확 매칭
+function detectTier2(headSample) {
+  const firstLine = (headSample.split(/\r?\n/).find(l => l.trim() && !l.startsWith('#')) || '').toLowerCase();
+  if (firstLine.includes('probeset_id')) return { format: 'Affymetrix_Axiom', tier: 2 };
+  if (/^\s*\*+\s*$/m.test(headSample.split(/\r?\n/).slice(0,10).join('\n'))) {
+    // DArT는 6줄 topskip 후 CloneID
+    const lines = headSample.split(/\r?\n/);
+    for (let i = 0; i < Math.min(lines.length, 12); i++) {
+      if (/CloneID/i.test(lines[i]) && /AlleleSequence/i.test(lines[i])) {
+        return { format: 'DArTseq', tier: 2 };
+      }
+    }
+  }
+  // 마스터플레이트 KASP grid
+  if (/MasterPlate/i.test(firstLine) && /SubjectID/i.test(firstLine)) return { format: 'KASP_grid', tier: 2 };
+  // Final Report (90K/15K) — header 후 SNP Name + Sample ID
+  if (/SNP\s*Name/i.test(headSample) && /Sample\s*ID/i.test(headSample) && /Allele1/i.test(headSample)) {
+    // 90K vs 15K는 마커 수로 판별 (Tier 3에서)
+    return { format: 'Illumina_FinalReport', tier: 2 };
+  }
+  return null;
+}
+
+// Tier 3: 마커 prefix 분포 (200행 샘플링)
+function detectTier3(rawText) {
+  const lines = rawText.split(/\r?\n/).slice(0, 500).filter(l => l.trim() && !l.startsWith('#'));
+  const sample = lines.slice(0, 200);
+  const tokens = sample.map(l => l.split(/[\t,]/)[0] || '').filter(Boolean);
+  const patterns = {
+    'AX-': /^AX-\d{8}/,
+    'IWB-': /^IWB-/,
+    'BS00': /^BS00/,
+    'wsnp_': /^wsnp_/i,
+    'Excalibur_': /^Excalibur_/i,
+    'Kukri_': /^Kukri_/i,
+    'RAC875_': /^RAC875_/i,
+    'BobWhite_': /^BobWhite_/i,
+    'Tdurum_': /^Tdurum_/i,
+    'S<chr>_pos (TASSEL)': /^S\d[ABD]?_\d+/i,
+    'DArT_pipe (\\d|F)': /^\d+\|F\|/
+  };
+  const counts = {};
+  for (const [name, re] of Object.entries(patterns)) {
+    counts[name] = tokens.filter(t => re.test(t)).length;
+  }
+  // 최대 prefix
+  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  if (!top || top[1] < 10) return null;  // 최소 10개 매칭 필요
+  let format = 'unknown';
+  if (top[0].startsWith('AX-')) format = 'Affymetrix_Axiom';
+  else if (top[0] === 'DArT_pipe (\\d|F)') format = 'DArTseq';
+  else if (top[0].startsWith('S<chr>')) format = 'HapMap_TASSEL';
+  else if (['IWB-','BS00','wsnp_','Excalibur_','Kukri_','RAC875_','BobWhite_','Tdurum_'].includes(top[0])) {
+    format = 'Illumina_FinalReport';
+  }
+  return { format, tier: 3, prefix_top: top[0], prefix_match_count: top[1], prefix_distribution: counts };
+}
+
+function autoDetectFormat(rawText) {
+  const head = rawText.slice(0, 8000);  // 첫 8KB만 검사
+  return detectTier1(head)
+      || detectTier2(head)
+      || detectTier3(rawText)
+      || { format: 'unknown', tier: 'unknown' };
+}
+
+// VCF 파서 (간단형: chrom/pos/REF/ALT + 첫 N 시료 GT 필드)
+function parseVcf(rawText, opts) {
+  opts = opts || {};
+  const maxMarkers = opts.maxMarkers || 20000;  // 메모리 보호
+  const lines = rawText.split(/\r?\n/);
+  const meta = { fileformat: '', contigs: [] };
+  let headerCols = null;
+  let samples = [];
+  const records = [];
+  let droppedMissing = 0, droppedNonSnp = 0;
+
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.startsWith('##')) {
+      if (line.startsWith('##fileformat=')) meta.fileformat = line.slice(13);
+      else if (line.startsWith('##contig=')) {
+        const m = line.match(/ID=([^,>]+)(?:,length=(\d+))?/);
+        if (m) meta.contigs.push({ id: m[1], length: m[2] ? +m[2] : null });
+      }
+      continue;
+    }
+    if (line.startsWith('#CHROM')) {
+      headerCols = line.split('\t');
+      samples = headerCols.slice(9);
+      continue;
+    }
+    if (!headerCols) continue;
+    if (records.length >= maxMarkers) break;
+    const f = line.split('\t');
+    if (f.length < 10) continue;
+    const [chrom, pos, id, ref, alt] = f;
+    if (alt.includes(',')) { droppedNonSnp++; continue; }       // 다중 alt 제외 (단순화)
+    if (ref.length !== 1 || alt.length !== 1) { droppedNonSnp++; continue; }  // SNP only
+    // GT 필드 추출
+    const fmt = f[8].split(':');
+    const gtIdx = fmt.indexOf('GT');
+    if (gtIdx < 0) continue;
+    const gts = f.slice(9).map(g => {
+      const gt = g.split(':')[gtIdx];
+      if (!gt || gt === '.' || gt === './.' || gt === '.|.') return '-';
+      const m = gt.split(/[\/|]/);
+      const a = m[0], b = m[1] || a;
+      if (a === '.' || b === '.') return '-';
+      if (a === '0' && b === '0') return 'A';   // REF homozygous
+      if (a === '1' && b === '1') return 'B';   // ALT homozygous
+      return 'H';
+    });
+    const missing = gts.filter(g => g === '-').length / gts.length;
+    if (missing > 0.5) { droppedMissing++; continue; }  // 시료 절반 이상 누락 마커 제외
+    records.push({
+      marker: id !== '.' ? id : `S${chrom}_${pos}`,
+      chr: chrom.replace(/^Chr/i, ''),
+      pos: +pos,
+      ref, alt,
+      gts
+    });
+  }
+  return { meta, samples, records, droppedMissing, droppedNonSnp };
+}
+
+// QC 통계 (missing, MAF, segregation distortion)
+function computeQc(parsed) {
+  const { samples, records } = parsed;
+  if (!records.length) return { n_samples: 0, n_markers: 0 };
+  let missing = 0, total = 0, mafSum = 0, distortedN = 0;
+  records.forEach(r => {
+    let a = 0, b = 0, h = 0, m = 0;
+    r.gts.forEach(g => {
+      total++;
+      if (g === 'A') a++;
+      else if (g === 'B') b++;
+      else if (g === 'H') h++;
+      else { m++; missing++; }
+    });
+    const called = a + b + h;
+    if (called === 0) return;
+    const p = (2*a + h) / (2*called);
+    const q = 1 - p;
+    const maf = Math.min(p, q);
+    mafSum += maf;
+    // segregation distortion: simple chi-square vs 1:2:1 (F2 가정 단순화)
+    const expA = called * 0.25, expH = called * 0.5, expB = called * 0.25;
+    const chi = ((a-expA)**2/expA) + ((h-expH)**2/expH) + ((b-expB)**2/expB);
+    if (chi > 7.815) distortedN++;  // df=2, p<0.05 임계
+  });
+  return {
+    n_samples: samples.length,
+    n_markers: records.length,
+    missing_pct: total ? (100*missing/total).toFixed(2) : '0.00',
+    mean_maf: (mafSum / records.length).toFixed(3),
+    distorted_pct: (100*distortedN/records.length).toFixed(1),
+    chr_dist: countByChr(records)
+  };
+}
+
+function countByChr(records) {
+  const dist = {};
+  records.forEach(r => { dist[r.chr] = (dist[r.chr] || 0) + 1; });
+  return dist;
+}
+
+// 파일 처리 entry point
+async function handleFile(file) {
+  log(`파일 처리: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
+  let rawText;
+  try {
+    if (file.name.endsWith('.gz')) {
+      log('  .gz 압축 — 현재 chunk 미지원, 압축 해제 후 업로드 필요', 'warn');
+      return null;
+    }
+    if (file.name.endsWith('.xlsx')) {
+      log('  .xlsx — W1-4b chunk에서 파싱 예정 (KASP grid)', 'warn');
+      return null;
+    }
+    rawText = await file.text();
+  } catch (e) {
+    log(`  읽기 실패: ${e.message}`, 'error');
+    return null;
+  }
+  const det = autoDetectFormat(rawText);
+  log(`  감지: ${det.format} (Tier ${det.tier})`, det.format === 'unknown' ? 'warn' : 'ok');
+  let parsed = null, qc = null;
+  if (det.format === 'VCF') {
+    parsed = parseVcf(rawText);
+    qc = computeQc(parsed);
+    log(`  VCF: ${parsed.samples.length} 시료 × ${parsed.records.length} SNP (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
+  } else if (det.format !== 'unknown') {
+    log(`  ${det.format}: 파서는 W1-4b chunk에서 추가 예정`, 'warn');
+  }
+  const entry = {
+    name: file.name,
+    size: file.size,
+    detected: det,
+    parsed,
+    qc
+  };
+  UPLOADED_FILES.push(entry);
+  renderFileList();
+  renderDetectResult();
+  return entry;
+}
+
+function renderFileList() {
+  const wrap = document.getElementById('file-list');
+  if (!UPLOADED_FILES.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = UPLOADED_FILES.map((f, i) => {
+    const tierCls = `tier-${f.detected.tier === 'unknown' ? 'unknown' : f.detected.tier}`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border-color);border-radius:6px;margin-bottom:6px">
+      <span><strong>${f.name}</strong> <span style="color:var(--text-muted);font-size:11px">${(f.size/1024).toFixed(1)} KB</span></span>
+      <span><span class="format-badge ${tierCls}">${f.detected.format} · T${f.detected.tier}</span></span>
+    </div>`;
+  }).join('');
+}
+
+function renderDetectResult() {
+  const wrap = document.getElementById('detect-result');
+  if (!UPLOADED_FILES.length) { return; }
+  let html = '<table class="detect-result-table"><thead><tr>' +
+    '<th>파일</th><th>형식</th><th>Tier</th><th>시료</th><th>마커</th><th>QC</th></tr></thead><tbody>';
+  UPLOADED_FILES.forEach(f => {
+    const tierCls = `tier-${f.detected.tier === 'unknown' ? 'unknown' : f.detected.tier}`;
+    const qc = f.qc;
+    const qcCell = qc
+      ? `<span class="qc-stat"><span class="key">missing</span><span class="val">${qc.missing_pct}%</span></span>` +
+        `<span class="qc-stat"><span class="key">MAF</span><span class="val">${qc.mean_maf}</span></span>` +
+        `<span class="qc-stat"><span class="key">distorted</span><span class="val">${qc.distorted_pct}%</span></span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+    html += `<tr>
+      <td><strong>${f.name}</strong></td>
+      <td><span class="format-badge ${tierCls}">${f.detected.format}</span></td>
+      <td>T${f.detected.tier}</td>
+      <td>${f.parsed ? f.parsed.samples.length : '—'}</td>
+      <td>${f.parsed ? f.parsed.records.length : '—'}</td>
+      <td>${qcCell}</td>
+    </tr>`;
+    // 염색체 분포
+    if (qc && qc.chr_dist) {
+      const chrEntries = Object.entries(qc.chr_dist).sort();
+      const chips = chrEntries.map(([c,n]) => `<span class="qc-stat"><span class="key">${c}</span><span class="val">${n}</span></span>`).join('');
+      html += `<tr><td colspan="6" style="padding:4px 9px 12px;font-size:11px">${chips}</td></tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// Drag & drop 이벤트
+function setupUpload() {
+  const zone = document.getElementById('upload-zone');
+  const input = document.getElementById('file-input');
+  if (!zone || !input) return;
+  ['dragenter', 'dragover'].forEach(ev => {
+    zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(ev => {
+    zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('dragover'); });
+  });
+  zone.addEventListener('drop', async (e) => {
+    const files = Array.from(e.dataTransfer.files);
+    for (const f of files) await handleFile(f);
+  });
+  input.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    for (const f of files) await handleFile(f);
+    input.value = '';  // 같은 파일 재선택 허용
+  });
+}
+
+// ============================================================
 // 초기화
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-3 진행 — W1-4 파서 · W1-5 분석 · W1-6 외부 API · W1-7 보고서');
+log('단계: W1-4a 진행 — VCF 파서 + Tier 1-3 자동 감지 활성');
 loadAllData();
+setupUpload();
 bootPyodide();
 </script>
 
