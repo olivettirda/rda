@@ -1403,24 +1403,284 @@ function parseIlluminaFinalReport(rawText, opts) {
   return { meta, samples, records: filtered, droppedMissing: records.length - filtered.length };
 }
 
+// ============================================================
+// W1-4c: Affymetrix Axiom 파서 (35K/820K/TaNG)
+// ============================================================
+// .calls.txt — probeset_id 첫 컬럼, 시료별 셀: AA/AB/BB/NoCall (또는 0/1/2/-1)
+// Cluster 기반 AA/AB/BB는 ref/alt와 다를 수 있어 정확 매핑은 lookup table 필요
+// — MVP에서는 AA→A, BB→B, AB→H 단순 매핑 (도구 UI에서 경고)
+function parseAxiom(rawText, opts) {
+  opts = opts || {};
+  const maxMarkers = opts.maxMarkers || 30000;
+  const lines = rawText.split(/\r?\n/);
+  let headerCols = null;
+  let samples = [];
+  const records = [];
+  let droppedMissing = 0;
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (line.startsWith('#')) continue;
+    const f = line.split('\t');
+    if (!headerCols) {
+      // 첫 비주석 행이 헤더
+      const lower = f.map(c => c.toLowerCase());
+      if (lower[0].includes('probeset_id') || lower[0].includes('probeset')) {
+        headerCols = f;
+        samples = headerCols.slice(1);
+        continue;
+      }
+      continue;
+    }
+    if (records.length >= maxMarkers) break;
+    const probeset = f[0];
+    if (!probeset || !probeset.startsWith('AX-')) continue;
+    const cells = f.slice(1);
+    const gts = cells.map(c => {
+      const v = (c || '').trim();
+      if (v === 'NoCall' || v === '-1' || v === '' || v === 'NA' || v === '.') return '-';
+      if (v === 'AA' || v === '0') return 'A';
+      if (v === 'BB' || v === '2') return 'B';
+      if (v === 'AB' || v === '1') return 'H';
+      return '-';
+    });
+    const missing = gts.filter(g => g === '-').length / Math.max(1, gts.length);
+    if (missing > 0.5) { droppedMissing++; continue; }
+    records.push({
+      marker: probeset,
+      chr: 'unknown',         // AX- → IWGSC v2.1 lookup은 W1-5 (CerealsDB Parquet)
+      pos: 0,
+      ref: 'A', alt: 'B',
+      gts
+    });
+  }
+  // 35K vs 820K 추정 (마커 수 기준)
+  let platform = 'Axiom';
+  if (records.length > 500000) platform = 'Axiom_820K';
+  else if (records.length > 30000) platform = 'Axiom_35K';
+  return { meta: { format: platform, n_markers: records.length }, samples, records, droppedMissing };
+}
+
+// ============================================================
+// W1-4c: DArTseq 파서 (silicoDArT dominant + SNP codominant)
+// ============================================================
+// 표준: 6줄 topskip 가능 (★ 라인) + 헤더 컬럼 — CloneID/AlleleSequence/Callrate/...
+// silicoDArT (dominant): 셀 1/0/null → A(presence)/B(absence)/-
+// SNP (codominant):       셀 0/1/2  → A/H/B  (또는 2-row 형식: ref-row + alt-row)
+function parseDart(rawText, opts) {
+  opts = opts || {};
+  const maxMarkers = opts.maxMarkers || 20000;
+  const lines = rawText.split(/\r?\n/);
+
+  // topskip — '*' 또는 빈 라인 스킵 후 CloneID 헤더 찾기
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    if (/CloneID/i.test(lines[i]) && /AlleleSequence/i.test(lines[i])) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx < 0) return { meta: { format: 'DArT' }, samples: [], records: [], _error: 'CloneID + AlleleSequence 헤더를 찾지 못함' };
+
+  const sep = lines[headerIdx].includes('\t') ? '\t' : ',';
+  const headerCols = lines[headerIdx].split(sep);
+  const lower = headerCols.map(c => c.trim().toLowerCase());
+  const cloneIdx = lower.indexOf('cloneid');
+  // sample 컬럼은 일반적으로 메타 컬럼들 다음. 표준 메타: CloneID, AlleleID, AlleleSequence,
+  //   TrimmedSequence, Chrom_*, ChromPos_*, CallRate, OneRatioRef, OneRatioSnp,
+  //   FreqHomRef, FreqHomSnp, FreqHets, PICRef, PICSnp, AvgPIC, AvgCountRef, AvgCountSnp, RatioAvgCountRefAvgCountSnp, RepAvg
+  // → "RepAvg" 또는 마지막 메타 컬럼 이후가 시료
+  const knownMeta = new Set(['cloneid','alleleid','allelesequence','trimmedsequence','chrom_dart','chrompos_dart','callrate','oneratioref','oneratiosnp','freqhomref','freqhomsnp','freqhets','picref','picsnp','avgpic','avgcountref','avgcountsnp','ratioavgcountrefavgcountsnp','repavg','snp','averagepic','reproducibilityaverage','sequence']);
+  let firstSampleIdx = headerCols.length;
+  for (let i = 0; i < headerCols.length; i++) {
+    if (!knownMeta.has(lower[i]) && i > cloneIdx) {
+      firstSampleIdx = i;
+      break;
+    }
+  }
+  if (firstSampleIdx >= headerCols.length) {
+    // fallback: AlleleSequence 컬럼 + 1
+    const aseqIdx = lower.indexOf('allelesequence');
+    firstSampleIdx = aseqIdx >= 0 ? aseqIdx + 1 : 18;
+  }
+  const samples = headerCols.slice(firstSampleIdx);
+
+  // SNP vs SilicoDArT 자동 판별 — 데이터 첫 행의 셀 값으로 결정
+  let mode = 'silicoDArT';
+  for (let i = headerIdx + 1; i < Math.min(lines.length, headerIdx + 30); i++) {
+    const sampleCells = lines[i].split(sep).slice(firstSampleIdx).map(c => (c || '').trim());
+    const vals = new Set(sampleCells.filter(c => c !== '' && c !== '-'));
+    if (vals.has('2')) { mode = 'SNP'; break; }
+  }
+
+  const records = [];
+  let droppedMissing = 0;
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (records.length >= maxMarkers) break;
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const f = line.split(sep);
+    if (f.length < firstSampleIdx + 1) continue;
+    const cloneId = f[cloneIdx];
+    if (!cloneId || cloneId.startsWith('*')) continue;
+    const cells = f.slice(firstSampleIdx);
+    let gts;
+    if (mode === 'SNP') {
+      gts = cells.map(c => {
+        const v = (c || '').trim();
+        if (v === '0') return 'A';
+        if (v === '1') return 'H';
+        if (v === '2') return 'B';
+        return '-';
+      });
+    } else {
+      gts = cells.map(c => {
+        const v = (c || '').trim();
+        if (v === '1') return 'A';   // presence
+        if (v === '0') return 'B';   // absence
+        return '-';
+      });
+    }
+    const missing = gts.filter(g => g === '-').length / Math.max(1, gts.length);
+    if (missing > 0.5) { droppedMissing++; continue; }
+    records.push({
+      marker: cloneId,
+      chr: 'unknown',
+      pos: 0,
+      ref: 'A', alt: 'B',
+      gts
+    });
+  }
+  return { meta: { format: 'DArTseq_' + mode, mode }, samples, records, droppedMissing };
+}
+
+// ============================================================
+// W1-4c: KASP grid 파서 (LGC KlusterCaller XLSX)
+// ============================================================
+// 셀 값: X:X / Y:Y / X:Y / Y:X / NTC / Failed / ? / Unknown
+// 시트는 보통 SubjectID 컬럼 + 마커별 컬럼들 또는 long-format
+async function parseKaspXlsx(arrayBuffer, opts) {
+  opts = opts || {};
+  if (typeof XLSX === 'undefined') {
+    return { meta: { format: 'KASP_grid' }, samples: [], records: [], _error: 'XLSX.js 미로드' };
+  }
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  // 첫 시트 또는 'Genotypes'/'Calls' 시트 우선
+  const preferred = ['Genotypes', 'Calls', 'KASP', 'Results'];
+  let sheetName = wb.SheetNames.find(n => preferred.includes(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (!aoa.length) return { meta: { format: 'KASP_grid', sheet: sheetName }, samples: [], records: [], _error: '빈 시트' };
+
+  // 헤더 라인 식별 — SubjectID 또는 SampleID 또는 MasterPlate 포함
+  let headerRow = -1;
+  for (let i = 0; i < Math.min(aoa.length, 20); i++) {
+    const row = aoa[i].map(c => String(c).toLowerCase());
+    if (row.some(c => c.includes('subjectid') || c.includes('sampleid') || c.includes('masterplate'))) {
+      headerRow = i; break;
+    }
+  }
+  if (headerRow < 0) return { meta: { format: 'KASP_grid', sheet: sheetName }, samples: [], records: [], _error: 'SubjectID/SampleID/MasterPlate 헤더 없음' };
+
+  const headerCols = aoa[headerRow].map(c => String(c));
+  const lower = headerCols.map(c => c.toLowerCase());
+  const subjectIdx = lower.findIndex(c => c.includes('subjectid') || c.includes('sampleid'));
+  // wide format: SubjectID + Marker1, Marker2, ... 컬럼
+  // 메타 컬럼 (MasterPlate, MasterWell, SubjectID 등) 이후가 마커
+  const metaCols = new Set(['masterplate','masterwell','subjectid','sampleid','plate','well','indexid']);
+  const firstMarkerIdx = headerCols.findIndex((_, i) => !metaCols.has(lower[i]) && i > 0 && lower[i] !== '');
+  const markerNames = headerCols.slice(firstMarkerIdx).filter(n => n);
+
+  // wide → long pivot: matrix[sample, marker]
+  const samplesArr = [];
+  const cellMatrix = {};   // cellMatrix[marker][sampleIdx] = code
+  markerNames.forEach(m => cellMatrix[m] = []);
+
+  for (let r = headerRow + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row[subjectIdx]) continue;
+    const sample = String(row[subjectIdx]);
+    const sampleIdx = samplesArr.length;
+    samplesArr.push(sample);
+    markerNames.forEach((m, mi) => {
+      const cell = String(row[firstMarkerIdx + mi] || '').trim();
+      const code = _kaspCellToCode(cell);
+      cellMatrix[m][sampleIdx] = code;
+    });
+  }
+
+  const records = markerNames.map(m => {
+    const gts = cellMatrix[m].map(c => c || '-');
+    return {
+      marker: m,
+      chr: 'unknown',
+      pos: 0,
+      ref: 'A', alt: 'B',
+      gts
+    };
+  });
+
+  // 50%+ missing 마커 제외
+  const filtered = records.filter(r => {
+    const miss = r.gts.filter(g => g === '-').length / Math.max(1, r.gts.length);
+    return miss <= 0.5;
+  });
+
+  return {
+    meta: { format: 'KASP_grid', sheet: sheetName, n_markers: markerNames.length },
+    samples: samplesArr,
+    records: filtered,
+    droppedMissing: records.length - filtered.length
+  };
+}
+
+function _kaspCellToCode(cell) {
+  const c = String(cell).trim();
+  if (!c || c === 'NTC' || c === 'Failed' || c === '?' || c === 'Unknown' || c === '-' || c === 'NA') return '-';
+  // X:X / Y:Y / X:Y / Y:X 표준
+  if (c === 'X:X' || c === 'XX' || c === 'X/X') return 'A';
+  if (c === 'Y:Y' || c === 'YY' || c === 'Y/Y') return 'B';
+  if (c === 'X:Y' || c === 'XY' || c === 'X/Y' || c === 'Y:X' || c === 'YX' || c === 'Y/X') return 'H';
+  // 변형: A:A, T:T 같은 실제 염기
+  if (/^([ACGT]):\1$/i.test(c)) return 'A';   // 임의로 첫 발견 동형 → A
+  if (/^([ACGT]):([ACGT])$/i.test(c)) {
+    const [_, a, b] = c.match(/^([ACGT]):([ACGT])$/i);
+    return (a.toUpperCase() === b.toUpperCase()) ? 'A' : 'H';
+    // 이 경우 정확한 ref/alt 매핑은 마커 메타 필요 — MVP는 동형/이형만 판별
+  }
+  return '-';
+}
+
 // 파일 처리 entry point
 async function handleFile(file) {
   log(`파일 처리: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
-  let rawText;
-  try {
-    if (file.name.endsWith('.gz')) {
-      log('  .gz 압축 — 현재 chunk 미지원, 압축 해제 후 업로드 필요', 'warn');
-      return null;
-    }
-    if (file.name.endsWith('.xlsx')) {
-      log('  .xlsx — W1-4b chunk에서 파싱 예정 (KASP grid)', 'warn');
-      return null;
-    }
-    rawText = await file.text();
-  } catch (e) {
-    log(`  읽기 실패: ${e.message}`, 'error');
+  if (file.name.endsWith('.gz')) {
+    log('  .gz 압축 — 현재 chunk 미지원, 압축 해제 후 업로드 필요', 'warn');
     return null;
   }
+
+  // .xlsx 분기 — KASP grid 등 (W1-4c)
+  if (file.name.toLowerCase().endsWith('.xlsx')) {
+    let buf;
+    try { buf = await file.arrayBuffer(); }
+    catch (e) { log(`  XLSX 읽기 실패: ${e.message}`, 'error'); return null; }
+    const parsed = await parseKaspXlsx(buf);
+    if (parsed._error) { log(`  KASP 파싱 실패: ${parsed._error}`, 'error'); return null; }
+    const qc = computeQc(parsed);
+    log(`  KASP grid: ${parsed.samples.length} 시료 × ${parsed.records.length} 마커 (sheet: ${parsed.meta.sheet})`, 'ok');
+    const entry = {
+      name: file.name, size: file.size,
+      detected: { format: 'KASP_grid', tier: 2 },
+      parsed, qc
+    };
+    UPLOADED_FILES.push(entry);
+    renderFileList(); renderDetectResult();
+    return entry;
+  }
+
+  let rawText;
+  try { rawText = await file.text(); }
+  catch (e) { log(`  읽기 실패: ${e.message}`, 'error'); return null; }
   const det = autoDetectFormat(rawText);
   log(`  감지: ${det.format} (Tier ${det.tier})`, det.format === 'unknown' ? 'warn' : 'ok');
   let parsed = null, qc = null;
@@ -1443,8 +1703,21 @@ async function handleFile(file) {
       log(`  Illumina ${platform} Final Report: ${parsed.samples.length} 시료 × ${parsed.records.length} 마커 (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
       log(`    chr/pos는 IWGSC v2.1 lookup 필요 — W1-5 chunk에서 통합`, 'warn');
     }
+  } else if (det.format === 'Affymetrix_Axiom') {
+    parsed = parseAxiom(rawText);
+    qc = computeQc(parsed);
+    log(`  ${parsed.meta.format}: ${parsed.samples.length} 시료 × ${parsed.records.length} 마커 (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
+    log(`    AA/BB/AB → A/B/H 단순 매핑 — cluster ↔ ref/alt 정확 매핑은 lookup table 필요`, 'warn');
+  } else if (det.format === 'DArTseq') {
+    parsed = parseDart(rawText);
+    if (parsed._error) {
+      log(`  DArT 파싱 실패: ${parsed._error}`, 'error');
+    } else {
+      qc = computeQc(parsed);
+      log(`  ${parsed.meta.format}: ${parsed.samples.length} 시료 × ${parsed.records.length} 마커 (missing ${qc.missing_pct}%, mean MAF ${qc.mean_maf})`, 'ok');
+    }
   } else if (det.format !== 'unknown') {
-    log(`  ${det.format}: 파서는 W1-4c chunk에서 추가 예정`, 'warn');
+    log(`  ${det.format}: 파서 미구현`, 'warn');
   }
   const entry = {
     name: file.name,
@@ -1530,7 +1803,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-4b 진행 — VCF/HapMap/Illumina 90K Final Report 파서 활성');
+log('단계: W1-4c 진행 — VCF/HapMap/90K + Axiom/DArT/KASP grid 파서 모두 활성');
 loadAllData();
 setupUpload();
 bootPyodide();
