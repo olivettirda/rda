@@ -701,7 +701,15 @@ body {
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--primary-main);border-radius:6px;background:var(--bg-card-hover)">
           <input type="radio" name="analysis-method" value="mlm">
-          <span><strong>MLM</strong> (EMMAX-P3D, kinship + REML) <span style="color:var(--text-muted);font-size:11px">— W3-4 활성</span></span>
+          <span><strong>MLM</strong> (EMMAX-P3D, kinship + REML) <span style="color:var(--text-muted);font-size:11px">— W3-4</span></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--primary-main);border-radius:6px;background:var(--bg-card-hover)">
+          <input type="radio" name="analysis-method" value="farmcpu">
+          <span><strong>FarmCPU</strong> (Liu 2016, 반복 GWAS) <span style="color:var(--text-muted);font-size:11px">— W3-5 활성</span></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--primary-main);border-radius:6px;background:var(--bg-card-hover)">
+          <input type="radio" name="analysis-method" value="blink">
+          <span><strong>BLINK</strong> (Huang 2019, LD-aware) <span style="color:var(--text-muted);font-size:11px">— W3-5 활성</span></span>
         </label>
         <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px dashed var(--border-color);border-radius:6px;opacity:0.5">
           <input type="radio" name="analysis-method" value="cim" disabled>
@@ -732,8 +740,37 @@ body {
           </label>
         </div>
         <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
-          <strong>GLM</strong>: y ~ μ + Σ(γ·PC) + β·G — 다양성 패널 GWAS 표준.
-          MLM(kinship + REML)은 후속 chunk (W3-2b).
+          <strong>GLM</strong>: y ~ μ + Σ(γ·PC) + β·G — 다양성 패널 GWAS 표준 ·
+          <strong>MLM</strong>: kinship + REML grid (EMMAX-P3D) ·
+          <strong>FarmCPU/BLINK</strong>: 반복적 fixed-effect GWAS (아래 매개변수)
+        </div>
+        <!-- W3-5: FarmCPU/BLINK 추가 매개변수 -->
+        <div id="farmcpu-params" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            최대 반복 횟수
+            <select id="fc-maxiter" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="3" selected>3 (권장)</option>
+              <option value="5">5</option>
+              <option value="10">10 (느림)</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            Pseudo QTL 임계 (p)
+            <select id="fc-pq-thr" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="1e-3">1e-3</option>
+              <option value="1e-4" selected>1e-4 (권장)</option>
+              <option value="1e-5">1e-5</option>
+              <option value="bonf">Bonferroni 0.05</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px" id="blink-ld-label">
+            BLINK LD window (kb)
+            <select id="fc-ld-kb" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="100">100 kb</option>
+              <option value="500" selected>500 kb</option>
+              <option value="1000">1 Mb</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -2578,6 +2615,168 @@ function refreshAnalysisDropdowns() {
   }
 }
 
+const PY_FARMCPU_FUNC = `
+def run_farmcpu(geno_codes, sample_ids, marker_names, marker_chrs, marker_pos,
+                pheno_dict, n_pca=3, max_iter=3, pq_threshold=1e-4,
+                method='farmcpu', ld_window_bp=500_000):
+    """FarmCPU (Liu 2016) / BLINK (Huang 2019) 단순 구현.
+    1) GLM(PC) 1차 → top markers를 pseudo-QTL (PQ)
+    2) PQ를 fixed effect로 추가 → 다시 모든 마커 검정
+    3) max_iter까지 반복 또는 PQ 변화 없으면 종료
+    BLINK은 PQ 선택 시 LD window 내 중복 마커 제거.
+    """
+    import numpy as np
+    from scipy import stats
+    code_map = {'A': 0.0, 'H': 1.0, 'B': 2.0}
+    n_markers = len(geno_codes)
+    n_samples = len(sample_ids)
+    y_orig = np.array([pheno_dict.get(s, np.nan) for s in sample_ids], dtype=float)
+    valid = ~np.isnan(y_orig)
+    if valid.sum() < 30:
+        return {'results': [], '_error': 'too few samples (<30)'}
+    y = y_orig[valid]
+    n = len(y)
+
+    # Genotype matrix
+    G_full = np.full((n_samples, n_markers), np.nan, dtype=float)
+    for mi in range(n_markers):
+        codes = geno_codes[mi]
+        for si in range(n_samples):
+            c = codes[si]
+            if c in code_map:
+                G_full[si, mi] = code_map[c]
+    G = G_full[valid]
+    for mi in range(n_markers):
+        col = G[:, mi]
+        m = np.isnan(col)
+        if m.all():
+            G[:, mi] = 0
+        elif m.any():
+            G[m, mi] = np.nanmean(col)
+
+    # PCA covariates
+    if n_pca > 0:
+        Gc = G - G.mean(axis=0, keepdims=True)
+        try:
+            U, S, _ = np.linalg.svd(Gc, full_matrices=False)
+            PC = U[:, :n_pca] * S[:n_pca]
+            X_base = np.column_stack([np.ones(n), PC])
+        except Exception:
+            X_base = np.ones((n, 1))
+    else:
+        X_base = np.ones((n, 1))
+
+    def _scan(X_cov):
+        out = []
+        k_cov = X_cov.shape[1]
+        for mi in range(n_markers):
+            g = G[:, mi]
+            if np.std(g) < 1e-8:
+                continue
+            X_full = np.column_stack([X_cov, g])
+            try:
+                beta, *_ = np.linalg.lstsq(X_full, y, rcond=None)
+                resid = y - X_full @ beta
+                df = n - X_full.shape[1]
+                if df <= 0:
+                    continue
+                mse = float(np.sum(resid ** 2) / df)
+                xtxi = np.linalg.pinv(X_full.T @ X_full)
+                se = float(np.sqrt(max(mse * xtxi[-1, -1], 1e-30)))
+                t_stat = float(beta[-1] / se) if se > 0 else 0.0
+                p = 2.0 * (1.0 - stats.t.cdf(abs(t_stat), df=df))
+                out.append({
+                    'idx': mi,
+                    'marker': marker_names[mi],
+                    'chr': marker_chrs[mi],
+                    'pos': float(marker_pos[mi]) if marker_pos[mi] else 0.0,
+                    'beta': float(beta[-1]),
+                    'se': se,
+                    't': t_stat,
+                    'p': float(max(p, 1e-300)),
+                    'neg_log10_p': float(-np.log10(max(p, 1e-300))),
+                    'n': n
+                })
+            except Exception:
+                continue
+        return out
+
+    # Bonferroni 임계 (PQ 자동 선택용)
+    pq_p = pq_threshold
+    if pq_threshold == 'bonf':
+        pq_p = 0.05 / max(1, n_markers)
+    elif isinstance(pq_threshold, str):
+        try:
+            pq_p = float(pq_threshold)
+        except Exception:
+            pq_p = 1e-4
+
+    # 반복
+    pq_indices = []   # current pseudo-QTL marker indices
+    iter_history = []
+    last_results = []
+    for it in range(max_iter):
+        # Build X_cov = X_base + PQ markers
+        if pq_indices:
+            pq_cols = G[:, pq_indices]
+            X_cov = np.column_stack([X_base, pq_cols])
+        else:
+            X_cov = X_base
+        results = _scan(X_cov)
+        last_results = results
+        if not results:
+            break
+        # PQ 후보 선택 (pq_threshold 기준)
+        candidates = sorted([r for r in results if r['p'] < pq_p],
+                            key=lambda r: r['p'])
+        # BLINK: LD-aware (chr 같고 pos 가까우면 제외)
+        new_pq = []
+        if method == 'blink':
+            picked = []
+            for r in candidates:
+                conflict = False
+                for q in picked:
+                    if r['chr'] == q['chr'] and abs(r['pos'] - q['pos']) <= ld_window_bp:
+                        conflict = True
+                        break
+                if not conflict:
+                    picked.append(r)
+                    if len(picked) >= 50:
+                        break
+            new_pq = [r['idx'] for r in picked]
+        else:
+            # FarmCPU: chr별 best peak 1개씩
+            seen_chr = {}
+            for r in candidates:
+                if r['chr'] in seen_chr:
+                    continue
+                seen_chr[r['chr']] = r
+                new_pq.append(r['idx'])
+                if len(new_pq) >= 30:
+                    break
+        iter_history.append({
+            'iter': it + 1,
+            'n_pq': len(new_pq),
+            'top_p': candidates[0]['p'] if candidates else None,
+            'pq_markers': [marker_names[i] for i in new_pq[:10]]
+        })
+        # 수렴 체크
+        if set(new_pq) == set(pq_indices):
+            break
+        pq_indices = new_pq
+
+    return {
+        'results': last_results,
+        'method': method,
+        'n_pca_used': n_pca,
+        'n_samples': n,
+        'n_markers_tested': len(last_results),
+        'final_pq': [marker_names[i] for i in pq_indices],
+        'iter_history': iter_history,
+        'iterations_used': len(iter_history)
+    }
+`;
+
 const PY_MLM_FUNC = `
 def run_mlm_emmax(geno_codes, sample_ids, marker_names, marker_chrs, marker_pos,
                   pheno_dict, n_pca=3):
@@ -3050,6 +3249,185 @@ let _smaFuncReady = false;
 let _imFuncReady = false;
 let _glmFuncReady = false;
 let _mlmFuncReady = false;
+let _farmcpuFuncReady = false;
+
+// W3-5: FarmCPU / BLINK 실행
+async function runFarmCpu(method) {
+  const btn = document.getElementById('sma-run-btn');
+  const status = document.getElementById('sma-status');
+  if (!pyodide) { log('Pyodide 미준비', 'error'); return; }
+  const genoSel = document.getElementById('sma-geno');
+  const traitSel = document.getElementById('sma-trait');
+  const nPca = parseInt(document.getElementById('glm-npca').value);
+  const thrMode = document.getElementById('glm-thr').value;
+  const maxIter = parseInt(document.getElementById('fc-maxiter').value);
+  const pqThrRaw = document.getElementById('fc-pq-thr').value;
+  const ldKb = parseInt(document.getElementById('fc-ld-kb').value);
+
+  if (!genoSel.value || !traitSel.value) {
+    log(`${method.toUpperCase()}: 유전형 + 형질 선택 필요`, 'warn');
+    return;
+  }
+  const genoEntry = UPLOADED_FILES[parseInt(genoSel.value)];
+  const [phenoIdxStr, traitName] = traitSel.value.split('::');
+  const phenoEntry = UPLOADED_FILES[parseInt(phenoIdxStr)];
+  if (!genoEntry?.parsed?.records?.length || !phenoEntry?.parsed?.data?.[traitName]) {
+    log(`${method.toUpperCase()}: 데이터 부재`, 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = `${method.toUpperCase()} (${maxIter} iter, PCA=${nPca}) 분석 중...`;
+  log(`${method.toUpperCase()} 시작: ${genoEntry.name} × ${traitName} (max_iter=${maxIter}, pq_thr=${pqThrRaw}${method === 'blink' ? `, LD=${ldKb}kb` : ''})`);
+
+  try {
+    if (!_farmcpuFuncReady) {
+      pyodide.runPython(PY_FARMCPU_FUNC);
+      _farmcpuFuncReady = true;
+      log('  FarmCPU/BLINK Python 함수 정의 완료', 'ok');
+    }
+    const t0 = performance.now();
+    const records = genoEntry.parsed.records;
+    const samples = genoEntry.parsed.samples;
+    const phenoData = phenoEntry.parsed.data[traitName];
+
+    pyodide.globals.set('_fc_geno_codes', records.map(r => r.gts));
+    pyodide.globals.set('_fc_sample_ids', samples);
+    pyodide.globals.set('_fc_marker_names', records.map(r => r.marker));
+    pyodide.globals.set('_fc_marker_chrs', records.map(r => r.chr));
+    pyodide.globals.set('_fc_marker_pos', records.map(r => r.pos || 0));
+    pyodide.globals.set('_fc_pheno_dict', phenoData);
+    pyodide.globals.set('_fc_npca', nPca);
+    pyodide.globals.set('_fc_max_iter', maxIter);
+    pyodide.globals.set('_fc_pq_thr', pqThrRaw);
+    pyodide.globals.set('_fc_method', method);
+    pyodide.globals.set('_fc_ld_bp', ldKb * 1000);
+
+    const proxy = pyodide.runPython(
+      'run_farmcpu(_fc_geno_codes.to_py(), _fc_sample_ids.to_py(), _fc_marker_names.to_py(), ' +
+      '_fc_marker_chrs.to_py(), _fc_marker_pos.to_py(), _fc_pheno_dict.to_py(), ' +
+      '_fc_npca, _fc_max_iter, _fc_pq_thr, _fc_method, _fc_ld_bp)'
+    );
+    const out = proxy.toJs({ dict_converter: Object.fromEntries });
+    if (proxy.destroy) proxy.destroy();
+    const results = out.results || [];
+    if (out._error) {
+      log(`${method.toUpperCase()} 실패: ${out._error}`, 'error');
+      status.textContent = '실패: ' + out._error;
+      btn.disabled = false;
+      return;
+    }
+
+    // 임계 (GLM/MLM과 동일)
+    let threshold, thrLabel;
+    const nT = results.length;
+    if (thrMode === 'fdr') {
+      const sorted = [...results].sort((a, b) => a.p - b.p);
+      const m = sorted.length;
+      let cutoff = 0;
+      for (let i = m - 1; i >= 0; i--) {
+        if (sorted[i].p <= ((i + 1) / m) * 0.05) { cutoff = sorted[i].p; break; }
+      }
+      threshold = cutoff || 0.05 / m;
+      thrLabel = `FDR B-H q=0.05 → p ≤ ${threshold.toExponential(2)}`;
+    } else if (thrMode === 'suggestive') {
+      threshold = 1 / nT;
+      thrLabel = `Suggestive 1/n = ${threshold.toExponential(2)}`;
+    } else {
+      threshold = 0.05 / nT;
+      thrLabel = `Bonferroni 0.05/${nT} = ${threshold.toExponential(2)}`;
+    }
+    results.forEach(r => { r.sig = r.p < threshold; });
+    const sigCount = results.filter(r => r.sig).length;
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+    log(`  ${method.toUpperCase()} 완료: ${out.iterations_used} iter, PQ ${out.final_pq.length}개, 유의 ${sigCount} (${elapsed}초)`, 'ok');
+    log(`    임계: ${thrLabel}`, 'ok');
+    out.iter_history.forEach(h => {
+      log(`    iter ${h.iter}: PQ=${h.n_pq}, top_p=${h.top_p?.toExponential(2) ?? 'NA'}`, 'ok');
+    });
+
+    const meta = {
+      method: method === 'blink' ? 'BLINK' : 'FarmCPU',
+      trait: traitName, geno_file: genoEntry.name,
+      n_markers: out.n_markers_tested, n_pca: out.n_pca_used,
+      n_samples: out.n_samples,
+      iterations_used: out.iterations_used,
+      final_pq: out.final_pq,
+      iter_history: out.iter_history,
+      threshold, thr_mode: thrMode, thr_label: thrLabel,
+      ld_window_kb: method === 'blink' ? ldKb : null,
+      elapsed,
+      alpha: 0.05, bonferroni: thrMode === 'bonferroni'
+    };
+    _saveSessionForReport('smaResults', results);
+    _saveSessionForReport('smaMeta', meta);
+    if (WHEAT_QTLDB) renderWheatQtldb();
+    renderFarmCpuResults(results, meta);
+    renderManhattan(results, meta);
+    refreshEnsemblMarkerDropdown(results);
+    refreshBoxplotDropdown(results);
+    status.textContent = `${meta.method} 완료 — ${out.iterations_used} iter, 유의 ${sigCount} (${elapsed}s)`;
+    activateTab('visual');
+  } catch (e) {
+    log(`${method.toUpperCase()} 실행 실패: ${e.message}`, 'error');
+    status.textContent = method.toUpperCase() + ' 실패';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderFarmCpuResults(results, meta) {
+  const wrap = document.getElementById('sma-result-area');
+  if (!results.length) {
+    wrap.innerHTML = `<div class="placeholder">${meta.method}: 결과 없음</div>`;
+    return;
+  }
+  const top = results.slice(0, 50);
+  const sig = results.filter(r => r.sig);
+  let html = `
+    <div class="card-title">${meta.method} 결과 — ${meta.trait}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="qc-stat"><span class="key">시료</span><span class="val">${meta.n_samples}</span></span>
+      <span class="qc-stat"><span class="key">마커</span><span class="val">${meta.n_markers}</span></span>
+      <span class="qc-stat"><span class="key">PC</span><span class="val">${meta.n_pca}</span></span>
+      <span class="qc-stat"><span class="key">반복</span><span class="val">${meta.iterations_used}</span></span>
+      <span class="qc-stat"><span class="key">최종 PQ</span><span class="val">${meta.final_pq.length}</span></span>
+      <span class="qc-stat"><span class="key">유의</span><span class="val">${sig.length}</span></span>
+      <span class="qc-stat"><span class="key">임계</span><span class="val">${meta.thr_label}</span></span>
+      ${meta.ld_window_kb ? `<span class="qc-stat"><span class="key">LD window</span><span class="val">${meta.ld_window_kb} kb</span></span>` : ''}
+      <span class="qc-stat"><span class="key">시간</span><span class="val">${meta.elapsed}s</span></span>
+    </div>
+    <h3 style="font-family:var(--font-bold);color:var(--primary-dark);font-size:13px;margin-top:10px">반복 이력</h3>
+    <table class="detect-result-table">
+      <thead><tr><th>iter</th><th>PQ 수</th><th>top p</th><th>PQ 마커 (상위 10)</th></tr></thead><tbody>`;
+  meta.iter_history.forEach(h => {
+    html += `<tr><td>${h.iter}</td><td>${h.n_pq}</td><td>${h.top_p?.toExponential(2) ?? '—'}</td><td style="font-size:11px;font-family:var(--font-mono)">${(h.pq_markers || []).join(', ') || '—'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  html += `<h3 style="font-family:var(--font-bold);color:var(--primary-dark);font-size:13px;margin-top:14px">최종 마커 결과 (top 50)</h3>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>#</th><th>Marker</th><th>Chr</th><th>Position</th><th>β</th><th>SE</th><th>t</th><th>p</th><th>−log₁₀p</th><th>유의</th>
+      </tr></thead><tbody>`;
+  top.forEach((r, i) => {
+    const isPq = meta.final_pq.includes(r.marker);
+    html += `<tr ${r.sig ? 'style="background:#fef3c7"' : (isPq ? 'style="background:#e8f4f8"' : '')}>
+      <td>${i+1}${isPq ? ' <span class="format-badge tier-2" style="font-size:9px">PQ</span>' : ''}</td>
+      <td><strong>${r.marker}</strong></td>
+      <td>${r.chr}</td>
+      <td style="font-size:11px">${r.pos > 0 ? r.pos.toLocaleString() : '—'}</td>
+      <td>${r.beta.toFixed(3)}</td>
+      <td>${r.se.toFixed(3)}</td>
+      <td>${r.t.toFixed(2)}</td>
+      <td>${r.p.toExponential(2)}</td>
+      <td>${r.neg_log10_p.toFixed(2)}</td>
+      <td>${r.sig ? '<span class="format-badge tier-1">✓</span>' : '−'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  if (results.length > 50) html += `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">상위 50개 (전체 ${results.length})</div>`;
+  wrap.innerHTML = html;
+}
 
 // W3-4: MLM (EMMAX-P3D) 실행
 async function runMlm() {
@@ -4790,24 +5168,33 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 3 — W3-4 MLM (EMMAX-P3D, kinship + REML grid) 활성');
+log('단계: Phase 3 — W3-5 FarmCPU (Liu 2016) + BLINK (Huang 2019) 활성');
 
-// 분석 라디오 변경 → IM/GLM/MLM 매개변수 표시 토글
+// 분석 라디오 변경 → IM/GLM/MLM/FarmCPU/BLINK 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
   r.addEventListener('change', () => {
     const v = document.querySelector('input[name="analysis-method"]:checked')?.value;
     document.getElementById('im-params').style.display = v === 'im' ? '' : 'none';
-    // GLM/MLM 동일 매개변수 영역 (PCA + 임계) 공유
-    document.getElementById('glm-params').style.display = (v === 'glm' || v === 'mlm') ? '' : 'none';
+    // GLM/MLM/FarmCPU/BLINK 동일 매개변수 영역 (PCA + 임계) 공유
+    const isMixed = (v === 'glm' || v === 'mlm' || v === 'farmcpu' || v === 'blink');
+    document.getElementById('glm-params').style.display = isMixed ? '' : 'none';
+    // FarmCPU/BLINK 추가 옵션은 farmcpu/blink만 표시
+    const fcParams = document.getElementById('farmcpu-params');
+    if (fcParams) fcParams.style.display = (v === 'farmcpu' || v === 'blink') ? '' : 'none';
+    // BLINK LD window는 blink만 의미 있음
+    const ldLabel = document.getElementById('blink-ld-label');
+    if (ldLabel) ldLabel.style.opacity = (v === 'blink') ? '1' : '0.4';
   });
 });
 
-// 실행 버튼 — SMA / IM / GLM / MLM 분기
+// 실행 버튼 — SMA / IM / GLM / MLM / FarmCPU / BLINK 분기
 document.getElementById('sma-run-btn')?.addEventListener('click', () => {
   const method = document.querySelector('input[name="analysis-method"]:checked')?.value;
   if (method === 'im') runIm();
   else if (method === 'glm') runGlm();
   else if (method === 'mlm') runMlm();
+  else if (method === 'farmcpu') runFarmCpu('farmcpu');
+  else if (method === 'blink') runFarmCpu('blink');
   else runSma();
 });
 
