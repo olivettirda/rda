@@ -298,6 +298,83 @@ body {
 .subgen-chip.B { background: var(--subgen-B); color: white; }
 .subgen-chip.D { background: var(--subgen-D); color: white; }
 
+/* Species info chip (헤더 우측 ploidy 토글 옆에 표시) */
+.species-info {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+.species-info .assembly { color: var(--primary-main); font-family: var(--font-bold); }
+.species-info .chr-count { color: var(--primary-dark); margin-left: 6px; }
+
+/* Korean panel (Tab 1) */
+.korea-panel {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 1100px) { .korea-panel { grid-template-columns: 1fr; } }
+
+.qtl-panel-table, .cultivar-panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.qtl-panel-table th, .qtl-panel-table td,
+.cultivar-panel-table th, .cultivar-panel-table td {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+.qtl-panel-table thead th, .cultivar-panel-table thead th {
+  background: var(--primary-dark);
+  color: white;
+  font-family: var(--font-medium);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+.qtl-panel-table tbody tr:nth-child(even),
+.cultivar-panel-table tbody tr:nth-child(even) {
+  background: var(--bg-input);
+}
+.qtl-priority {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+}
+.qtl-priority.highest { background: var(--error); color: white; }
+.qtl-priority.high { background: var(--warning); color: white; }
+.qtl-priority.medium { background: var(--accent-3); color: var(--primary-dark); }
+.kasp-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--success);
+  color: white;
+  margin-left: 4px;
+}
+.cultivar-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 3px;
+  border-radius: 8px;
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  background: var(--accent-1);
+  color: var(--primary-dark);
+}
+
 /* 정보 배너 (벼 도구와의 차이/주의사항 안내) */
 .notice-banner {
   padding: 14px 18px;
@@ -376,6 +453,11 @@ body {
       <button data-ploidy="synthetic">SHW</button>
       <button data-ploidy="wild">Wild</button>
     </div>
+    <!-- Species info chip (현재 ploidy의 어셈블리/염색체 수 표시) -->
+    <span class="species-info" id="species-info" title="현재 종/배수성의 어셈블리·염색체 정보">
+      <span class="assembly">—</span>
+      <span class="chr-count">—</span>
+    </span>
     <!-- 언어 토글 -->
     <div class="toggle-group" id="lang-toggle">
       <button class="active" data-lang="ko">한국어</button>
@@ -426,6 +508,26 @@ body {
       <div class="placeholder">
         <strong>W1-4에서 채울 영역</strong>
         drag&amp;drop 업로드 + Tier 1-3 자동 감지 + missing/MAF/segregation distortion 표
+      </div>
+    </div>
+
+    <!-- 한국 default 패널 (참고용 — W1-3에서 데이터만 표시, 분석 연계는 W1-5) -->
+    <div class="korea-panel">
+      <div class="card">
+        <div class="card-title" data-i18n="korea.qtl.title">한국 환경 적응성 default QTL 패널</div>
+        <div class="card-subtitle" id="korea-qtl-subtitle"></div>
+        <div id="korea-qtl-table-wrap">
+          <div class="placeholder" style="padding:18px"><strong>로딩 중</strong> data/wheat_qtl_korea_panel.json</div>
+        </div>
+        <div class="card-subtitle" style="margin-top:12px;font-size:11px" id="korea-vrn-status"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="korea.cultivar.title">농진청 육성 품종</div>
+        <div class="card-subtitle" id="korea-cultivar-subtitle"></div>
+        <div id="korea-cultivar-table-wrap">
+          <div class="placeholder" style="padding:18px"><strong>로딩 중</strong> data/wheat_cultivars_korea.json</div>
+        </div>
       </div>
     </div>
   </div>
@@ -548,7 +650,18 @@ const I18N = {
     'params.title': '5. 분석 매개변수',
     'visual.title': '6. 결과 시각화',
     'report.title': '7. 보고서 자동 생성',
-    'report.subtitle': '한국어 PDF (농진청 표준 11섹션) + 영문 TAG/PBJ 양식 + 매개변수 로그 + SHA-256 해시'
+    'report.subtitle': '한국어 PDF (농진청 표준 11섹션) + 영문 TAG/PBJ 양식 + 매개변수 로그 + SHA-256 해시',
+    'korea.qtl.title': '한국 환경 적응성 default QTL 패널',
+    'korea.cultivar.title': '농진청 육성 품종',
+    'tbl.qtl.id': 'QTL ID',
+    'tbl.qtl.trait': '형질',
+    'tbl.qtl.chr': '염색체',
+    'tbl.qtl.evidence': '근거',
+    'tbl.qtl.priority': '우선도',
+    'tbl.cv.name': '품종',
+    'tbl.cv.year': '연도',
+    'tbl.cv.type': '용도/특성',
+    'tbl.cv.note': '비고'
   },
   en: {
     'app.title': 'Wheat QTL Mapping Tool',
@@ -574,7 +687,18 @@ const I18N = {
     'params.title': '5. Analysis parameters',
     'visual.title': '6. Result visualization',
     'report.title': '7. Auto report generation',
-    'report.subtitle': 'Korean PDF (RDA 11-section standard) + English TAG/PBJ template + parameter log + SHA-256 hash'
+    'report.subtitle': 'Korean PDF (RDA 11-section standard) + English TAG/PBJ template + parameter log + SHA-256 hash',
+    'korea.qtl.title': 'Korean adaptation default QTL panel',
+    'korea.cultivar.title': 'RDA-bred Korean cultivars',
+    'tbl.qtl.id': 'QTL ID',
+    'tbl.qtl.trait': 'Trait',
+    'tbl.qtl.chr': 'Chr',
+    'tbl.qtl.evidence': 'Evidence',
+    'tbl.qtl.priority': 'Priority',
+    'tbl.cv.name': 'Cultivar',
+    'tbl.cv.year': 'Year',
+    'tbl.cv.type': 'Type/Trait',
+    'tbl.cv.note': 'Note'
   }
 };
 
@@ -638,6 +762,9 @@ document.querySelectorAll('#lang-toggle button').forEach(btn => {
     document.querySelectorAll('#lang-toggle button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     applyI18n(btn.dataset.lang);
+    // 한국 패널 표는 동적 렌더 — 언어 변경 시 다시 그림
+    if (KOREA_QTL_PANEL) renderKoreaQtlPanel();
+    if (KOREA_CULTIVARS) renderKoreaCultivars();
     log(`언어 변경: ${btn.dataset.lang}`);
   });
 });
@@ -647,10 +774,139 @@ document.querySelectorAll('#ploidy-toggle button').forEach(btn => {
     document.querySelectorAll('#ploidy-toggle button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     CURRENT_PLOIDY = btn.dataset.ploidy;
+    applySpeciesConfig(CURRENT_PLOIDY);
     log(`배수성 변경: ${CURRENT_PLOIDY}`, 'ok');
-    // W1-3에서 SPECIES_CONFIG 분기 적용
   });
 });
+
+// ============================================================
+// W1-3: 외부 JSON 데이터 로드 (SPECIES_CONFIG / 한국 QTL / 한국 품종)
+// ============================================================
+let SPECIES_CONFIG = null;
+let KOREA_QTL_PANEL = null;
+let KOREA_CULTIVARS = null;
+
+async function loadJson(path) {
+  const res = await fetch(path, { cache: 'no-cache' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${path}`);
+  return res.json();
+}
+
+async function loadAllData() {
+  const isFile = location.protocol === 'file:';
+  if (isFile) {
+    log('file:// 프로토콜 감지 — 외부 JSON fetch 제한 (HTTP 서버 사용 권장)', 'warn');
+  }
+  try {
+    const [cfg, qtl, cv] = await Promise.all([
+      loadJson('data/wheat_species_config.json'),
+      loadJson('data/wheat_qtl_korea_panel.json'),
+      loadJson('data/wheat_cultivars_korea.json')
+    ]);
+    SPECIES_CONFIG = cfg;
+    KOREA_QTL_PANEL = qtl;
+    KOREA_CULTIVARS = cv;
+    log(`데이터 로드 완료: SPECIES_CONFIG(${Object.keys(cfg).filter(k=>!k.startsWith('_')&&k!=='version'&&k!=='default').length}종) · QTL(${qtl.qtls.length}) · 품종(${cv.cultivars.length})`, 'ok');
+    applySpeciesConfig(CURRENT_PLOIDY);
+    renderKoreaQtlPanel();
+    renderKoreaCultivars();
+  } catch (e) {
+    log(`데이터 로드 실패: ${e.message} — file:// 또는 누락된 data/ 폴더 가능성`, 'error');
+    document.getElementById('korea-qtl-table-wrap').innerHTML =
+      `<div class="placeholder" style="color:var(--error)">로드 실패: ${e.message}</div>`;
+    document.getElementById('korea-cultivar-table-wrap').innerHTML =
+      `<div class="placeholder" style="color:var(--error)">로드 실패: ${e.message}</div>`;
+  }
+}
+
+function applySpeciesConfig(ploidy) {
+  if (!SPECIES_CONFIG) return;
+  const cfg = SPECIES_CONFIG[ploidy];
+  if (!cfg) { log(`SPECIES_CONFIG에 ${ploidy} 누락`, 'error'); return; }
+  const infoEl = document.getElementById('species-info');
+  if (infoEl) {
+    infoEl.querySelector('.assembly').textContent = cfg.assembly;
+    infoEl.querySelector('.chr-count').textContent = `chr ${cfg.chr_count} · ${cfg.subgenomes.join('/')}`;
+    infoEl.title = `${cfg.scientific} · ${cfg.ploidy}\n${cfg.assembly}\nchr: ${cfg.chromosomes.join(', ')}`;
+  }
+}
+
+function renderKoreaQtlPanel() {
+  if (!KOREA_QTL_PANEL) return;
+  const wrap = document.getElementById('korea-qtl-table-wrap');
+  const subtitle = document.getElementById('korea-qtl-subtitle');
+  subtitle.textContent = KOREA_QTL_PANEL._comment || '';
+  const tdict = I18N[CURRENT_LANG];
+  const rows = KOREA_QTL_PANEL.qtls.map(q => {
+    const chr = q.chr || (q.chr_homoeolog ? q.chr_homoeolog.join('/') : '—');
+    const trait = (CURRENT_LANG === 'ko') ? q.trait_ko : (q.trait_en || q.trait_ko);
+    const evid = [];
+    if (q.lod) evid.push(`LOD ${q.lod}`);
+    if (q.pve_pct) evid.push(`PVE ${q.pve_pct}%`);
+    if (q.effect) evid.push(q.effect);
+    if (q.reference) evid.push(`<span style="color:var(--text-muted);font-size:10px">${q.reference}</span>`);
+    const kasp = q.kasp_validated ? '<span class="kasp-badge">KASP ✓</span>' : '';
+    const prio = q.korea_priority || 'medium';
+    return `<tr>
+      <td><strong>${q.id}</strong>${kasp}</td>
+      <td>${trait}</td>
+      <td>${chr}</td>
+      <td style="font-size:11px">${evid.join(' · ') || '—'}</td>
+      <td><span class="qtl-priority ${prio}">${prio}</span></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="qtl-panel-table">
+      <thead><tr>
+        <th>${tdict['tbl.qtl.id']}</th>
+        <th>${tdict['tbl.qtl.trait']}</th>
+        <th>${tdict['tbl.qtl.chr']}</th>
+        <th>${tdict['tbl.qtl.evidence']}</th>
+        <th>${tdict['tbl.qtl.priority']}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+  const vrn = KOREA_QTL_PANEL.vrn_ppd_status_korea;
+  if (vrn) {
+    const summary = (CURRENT_LANG === 'ko') ? vrn.summary_ko : vrn.summary_en;
+    const impl = vrn.implication_ko || '';
+    document.getElementById('korea-vrn-status').innerHTML =
+      `<strong style="color:var(--primary-main)">VRN/PPD 상태:</strong> ${summary} ` +
+      `<br>${impl} (Lim 2025 신규 SNP: ${(vrn.novel_snps_lim_2025||[]).join(', ')})`;
+  }
+}
+
+function renderKoreaCultivars() {
+  if (!KOREA_CULTIVARS) return;
+  const wrap = document.getElementById('korea-cultivar-table-wrap');
+  const subtitle = document.getElementById('korea-cultivar-subtitle');
+  subtitle.textContent = KOREA_CULTIVARS._comment || '';
+  const tdict = I18N[CURRENT_LANG];
+  const rows = KOREA_CULTIVARS.cultivars.map(c => {
+    const tags = [];
+    if (c.type) tags.push(`<span class="cultivar-tag">${c.type}</span>`);
+    if (c.plastome_group_park2022) tags.push(`<span class="cultivar-tag">plastome ${c.plastome_group_park2022}</span>`);
+    if (c.nam_b1) tags.push(`<span class="cultivar-tag">NAM-B1 ${c.nam_b1.includes('non') ? '−' : '+'}</span>`);
+    return `<tr>
+      <td><strong>${c.name_ko}</strong>${c.name_en ? `<br><span style="color:var(--text-muted);font-size:10px">${c.name_en}</span>` : ''}</td>
+      <td style="font-size:11px">${c.year || '—'}</td>
+      <td>${tags.join('')}</td>
+      <td style="font-size:11px">${c.note_ko || c.trait_ko || c.use || '—'}</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="cultivar-panel-table">
+      <thead><tr>
+        <th>${tdict['tbl.cv.name']}</th>
+        <th>${tdict['tbl.cv.year']}</th>
+        <th>${tdict['tbl.cv.type']}</th>
+        <th>${tdict['tbl.cv.note']}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
 
 // ============================================================
 // Pyodide 부팅 (placeholder — W1-5에서 통계 함수 로드)
@@ -680,7 +936,8 @@ async function bootPyodide() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: W1-2 골격 — W1-3 SPECIES_CONFIG · W1-4 파서 · W1-5 분석 · W1-6 외부 API · W1-7 보고서');
+log('단계: W1-3 진행 — W1-4 파서 · W1-5 분석 · W1-6 외부 API · W1-7 보고서');
+loadAllData();
 bootPyodide();
 </script>
 
