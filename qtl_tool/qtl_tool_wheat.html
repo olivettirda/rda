@@ -544,6 +544,11 @@ body {
       <button data-jwidth="88">88mm</button>
       <button data-jwidth="180">180mm</button>
     </div>
+    <!-- W3-6: OPFS 세션 저장/복원 -->
+    <div class="toggle-group" id="session-toggle" title="OPFS 세션 영속화 (재방문 시 복원)">
+      <button data-session="save" title="현재 업로드 + 분석 결과를 브라우저 OPFS에 저장">💾 저장</button>
+      <button data-session="clear" title="저장된 OPFS 세션 삭제">🗑 삭제</button>
+    </div>
     <!-- 언어 토글 -->
     <div class="toggle-group" id="lang-toggle">
       <button class="active" data-lang="ko">한국어</button>
@@ -583,6 +588,16 @@ body {
 
   <!-- Tab 1: 데이터 업로드 -->
   <div class="tab-content active" id="tab-upload">
+    <!-- W3-6: 이전 세션 복원 배너 (시작 시 OPFS에 저장된 세션이 있으면 표시) -->
+    <div id="restore-banner" style="display:none;padding:14px 18px;margin-bottom:14px;background:var(--accent-1);border-left:4px solid var(--primary-main);border-radius:4px">
+      <div style="font-family:var(--font-bold);color:var(--primary-dark);margin-bottom:4px">이전 세션 발견</div>
+      <div style="font-size:12px;line-height:1.6" id="restore-info">로딩 중...</div>
+      <div style="margin-top:8px">
+        <button class="btn btn-primary" id="restore-btn" style="font-size:12px">복원</button>
+        <button class="btn" id="restore-dismiss-btn" style="font-size:12px;margin-left:6px">닫기</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">
         <span data-i18n="upload.title">1. 유전자형/표현형/마커 위치 파일 업로드</span>
@@ -1398,6 +1413,160 @@ function renderKoreaQtlPanel() {
       `<strong style="color:var(--primary-main)">VRN/PPD 상태:</strong> ${summary} ` +
       `<br>${impl} (Lim 2025 신규 SNP: ${(vrn.novel_snps_lim_2025||[]).join(', ')})`;
   }
+}
+
+// ============================================================
+// W3-6: OPFS 세션 영속화 (Origin Private File System)
+// ============================================================
+const OPFS_SESSION_FILE = 'wheat_qtl_session.json';
+const OPFS_VERSION = 1;
+
+function _opfsSupported() {
+  return typeof navigator !== 'undefined' &&
+         navigator.storage && typeof navigator.storage.getDirectory === 'function';
+}
+
+async function _opfsRoot() {
+  return await navigator.storage.getDirectory();
+}
+
+async function saveSessionToOpfs() {
+  if (!_opfsSupported()) {
+    log('OPFS 미지원 브라우저 — Chrome/Edge/Firefox 86+ 필요', 'warn');
+    return false;
+  }
+  try {
+    const data = {
+      version: OPFS_VERSION,
+      saved_at: new Date().toISOString(),
+      files: UPLOADED_FILES.map(f => ({
+        name: f.name,
+        size: f.size,
+        detected: f.detected,
+        // parsed 데이터 (records / samples / traits / data)
+        parsed: f.parsed,
+        qc: f.qc
+      })),
+      session_state: _SESSION_STATE,
+      ploidy: CURRENT_PLOIDY,
+      lang: CURRENT_LANG,
+      palette: CURRENT_PALETTE
+    };
+    const json = JSON.stringify(data);
+    const sizeMb = (json.length / 1_000_000).toFixed(2);
+    log(`OPFS 저장 시작: ${UPLOADED_FILES.length} 파일, ${sizeMb} MB...`);
+
+    const root = await _opfsRoot();
+    const fh = await root.getFileHandle(OPFS_SESSION_FILE, { create: true });
+    const writable = await fh.createWritable();
+    await writable.write(json);
+    await writable.close();
+    log(`OPFS 저장 완료: ${OPFS_SESSION_FILE} (${sizeMb} MB)`, 'ok');
+    showSessionToast(`세션 저장됨 — ${UPLOADED_FILES.length} 파일 / ${sizeMb} MB`);
+    return true;
+  } catch (e) {
+    log(`OPFS 저장 실패: ${e.message}`, 'error');
+    return false;
+  }
+}
+
+async function loadSessionFromOpfs() {
+  if (!_opfsSupported()) return null;
+  try {
+    const root = await _opfsRoot();
+    const fh = await root.getFileHandle(OPFS_SESSION_FILE);
+    const file = await fh.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  } catch (e) {
+    if (e.name === 'NotFoundError') return null;
+    log(`OPFS 로드 실패: ${e.message}`, 'warn');
+    return null;
+  }
+}
+
+async function clearSessionFromOpfs() {
+  if (!_opfsSupported()) return;
+  try {
+    const root = await _opfsRoot();
+    await root.removeEntry(OPFS_SESSION_FILE);
+    log('OPFS 세션 삭제 완료', 'ok');
+    showSessionToast('저장된 세션 삭제됨');
+    document.getElementById('restore-banner').style.display = 'none';
+  } catch (e) {
+    if (e.name === 'NotFoundError') {
+      log('저장된 세션 없음', 'warn');
+    } else {
+      log(`OPFS 삭제 실패: ${e.message}`, 'error');
+    }
+  }
+}
+
+async function restoreSessionFromOpfs(data) {
+  if (!data || data.version !== OPFS_VERSION) {
+    log(`OPFS 세션 버전 불일치 (${data?.version} vs ${OPFS_VERSION})`, 'warn');
+    return;
+  }
+  log(`세션 복원 시작: ${data.saved_at} 저장본`);
+  // UPLOADED_FILES 복원
+  UPLOADED_FILES.length = 0;
+  data.files.forEach(f => UPLOADED_FILES.push({
+    name: f.name, size: f.size,
+    detected: f.detected,
+    parsed: f.parsed,
+    qc: f.qc
+  }));
+  // _SESSION_STATE 복원
+  Object.assign(_SESSION_STATE, data.session_state || {});
+  // 토글 복원
+  if (data.ploidy) CURRENT_PLOIDY = data.ploidy;
+  if (data.lang) CURRENT_LANG = data.lang;
+  if (data.palette) CURRENT_PALETTE = data.palette;
+
+  // UI 갱신
+  renderFileList();
+  renderDetectResult();
+  refreshAnalysisDropdowns();
+  refreshT3GenoDropdown();
+  refreshHeatmapDropdowns();
+  if (KASP_LIBRARY) renderKaspLibrary();
+  if (WHEAT_QTLDB) renderWheatQtldb();
+  // 분석 결과가 있으면 Manhattan + Boxplot 다시 렌더
+  if (_SESSION_STATE.smaResults && _SESSION_STATE.smaMeta) {
+    renderManhattan(_SESSION_STATE.smaResults, _SESSION_STATE.smaMeta);
+    refreshEnsemblMarkerDropdown(_SESSION_STATE.smaResults);
+    refreshBoxplotDropdown(_SESSION_STATE.smaResults);
+  }
+  log(`세션 복원 완료: ${UPLOADED_FILES.length} 파일`, 'ok');
+  showSessionToast(`복원됨 — ${UPLOADED_FILES.length} 파일`);
+  document.getElementById('restore-banner').style.display = 'none';
+}
+
+function showSessionToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:240px;right:18px;padding:10px 16px;background:var(--primary-dark);color:white;border-radius:6px;font-size:12px;z-index:1100;box-shadow:0 4px 12px rgba(0,0,0,0.2);font-family:var(--font-medium)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// 페이지 시작 시 OPFS 세션 체크
+async function checkOpfsOnStart() {
+  if (!_opfsSupported()) {
+    log('OPFS 미지원 — 세션 영속화 비활성', 'warn');
+    return;
+  }
+  const data = await loadSessionFromOpfs();
+  if (!data) return;
+  // 배너 표시
+  const banner = document.getElementById('restore-banner');
+  const info = document.getElementById('restore-info');
+  if (!banner || !info) return;
+  const date = new Date(data.saved_at);
+  info.innerHTML = `<strong>${data.files.length}</strong>개 파일 / 분석 결과 ${data.session_state?.smaResults ? '있음' : '없음'} · 저장: ${date.toLocaleString()}`;
+  banner.style.display = '';
+  document.getElementById('restore-btn').onclick = () => restoreSessionFromOpfs(data);
+  document.getElementById('restore-dismiss-btn').onclick = () => { banner.style.display = 'none'; };
 }
 
 // W3-3: WheatQTLdb subset 렌더링 + 분석 결과 자동 매칭
@@ -5168,7 +5337,8 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 3 — W3-5 FarmCPU (Liu 2016) + BLINK (Huang 2019) 활성');
+log('단계: Phase 3 — W3-6 OPFS 세션 영속화 (재방문 시 복원) 활성');
+checkOpfsOnStart();
 
 // 분석 라디오 변경 → IM/GLM/MLM/FarmCPU/BLINK 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
@@ -5211,6 +5381,15 @@ document.getElementById('report-download-btn')?.addEventListener('click', () => 
 // W2-3: heatmap + boxplot 버튼
 document.getElementById('hm-render-btn')?.addEventListener('click', renderHeatmap);
 document.getElementById('bx-render-btn')?.addEventListener('click', renderBoxplot);
+
+// W3-6: 세션 저장/삭제 버튼
+document.querySelectorAll('#session-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const action = btn.dataset.session;
+    if (action === 'save') saveSessionToOpfs();
+    else if (action === 'clear') clearSessionFromOpfs();
+  });
+});
 loadAllData();
 setupUpload();
 bootPyodide();
