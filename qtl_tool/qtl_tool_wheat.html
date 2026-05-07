@@ -532,6 +532,18 @@ body {
       <span class="assembly">—</span>
       <span class="chr-count">—</span>
     </span>
+    <!-- W2-4: 시각화 팔레트 토글 -->
+    <div class="toggle-group" id="palette-toggle" title="시각화 팔레트 (Manhattan / heatmap / boxplot 즉시 반영)">
+      <button class="active" data-palette="default">기본</button>
+      <button data-palette="okabe">Okabe-Ito</button>
+      <button data-palette="gray">흑백</button>
+    </div>
+    <!-- W2-4: 학술지 폭 preset -->
+    <div class="toggle-group" id="journal-width-toggle" title="Plotly 다운로드 시 출력 폭 (88/180mm)">
+      <button class="active" data-jwidth="auto">auto</button>
+      <button data-jwidth="88">88mm</button>
+      <button data-jwidth="180">180mm</button>
+    </div>
     <!-- 언어 토글 -->
     <div class="toggle-group" id="lang-toggle">
       <button class="active" data-lang="ko">한국어</button>
@@ -1078,6 +1090,69 @@ document.querySelectorAll('#lang-toggle button').forEach(btn => {
     if (KOREA_QTL_PANEL) renderKoreaQtlPanel();
     if (KOREA_CULTIVARS) renderKoreaCultivars();
     log(`언어 변경: ${btn.dataset.lang}`);
+  });
+});
+
+// W2-4: 팔레트 토글 + 학술지 폭 preset
+let CURRENT_JOURNAL_WIDTH = 'auto';   // 'auto' / '88' / '180' (mm)
+
+function _journalWidthPx() {
+  if (CURRENT_JOURNAL_WIDTH === '88') return 332;   // 88mm @ 96dpi
+  if (CURRENT_JOURNAL_WIDTH === '180') return 680;
+  return null;  // auto
+}
+
+function _plotlyDownloadConfig(filename) {
+  const width = _journalWidthPx();
+  return {
+    responsive: true, displaylogo: false,
+    toImageButtonOptions: {
+      format: 'png',
+      filename: filename,
+      ...(width ? { width: width * 2, height: 460 * 2, scale: 2 } : { scale: 2 })
+    }
+  };
+}
+
+function _rerenderAllPlots() {
+  // SMA Manhattan
+  if (_SESSION_STATE.smaResults && _SESSION_STATE.smaMeta) {
+    renderManhattan(_SESSION_STATE.smaResults, _SESSION_STATE.smaMeta);
+  }
+  // IM LOD plot
+  if (_SESSION_STATE.imResults && _SESSION_STATE.imMeta) {
+    renderImLodPlot(_SESSION_STATE.imResults, _SESSION_STATE.imMeta);
+  }
+  // Heatmap (변경된 colorscale 적용)
+  const hmGeno = document.getElementById('hm-geno-sel');
+  if (hmGeno?.value && document.getElementById('heatmap-plot')?.children.length) {
+    renderHeatmap();
+  }
+  // Boxplot
+  const bxMarker = document.getElementById('bx-marker-sel');
+  if (bxMarker?.value && document.getElementById('boxplot-plot')?.children.length) {
+    renderBoxplot();
+  }
+}
+
+document.querySelectorAll('#palette-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#palette-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    CURRENT_PALETTE = btn.dataset.palette;
+    log(`팔레트 변경: ${CURRENT_PALETTE}`, 'ok');
+    _rerenderAllPlots();
+  });
+});
+
+document.querySelectorAll('#journal-width-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#journal-width-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    CURRENT_JOURNAL_WIDTH = btn.dataset.jwidth;
+    const px = _journalWidthPx();
+    log(`학술지 폭 preset: ${CURRENT_JOURNAL_WIDTH}${px ? ` (${px}px @ 96dpi)` : ''}`, 'ok');
+    _rerenderAllPlots();
   });
 });
 
@@ -2696,7 +2771,7 @@ function renderImLodPlot(results, meta) {
   div.style.width = '100%';
   div.style.height = '460px';
   placeholder.appendChild(div);
-  Plotly.newPlot(div, traces, layout, { responsive: true, displaylogo: false });
+  Plotly.newPlot(div, traces, layout, _plotlyDownloadConfig('plot'));
   log(`IM LOD plot 렌더링: chr ${allChrs.length}개 × ${results.length} 위치`, 'ok');
 }
 
@@ -2818,10 +2893,36 @@ async function runSma() {
 // ============================================================
 // W1-5b: Manhattan plot (Plotly scattergl, sub-genome A/B/D 색조)
 // ============================================================
-const SUBGEN_COLOR = {
-  A: '#E64B35', B: '#4DBBD5', D: '#8491B4',
-  unknown: '#888888'
+// W2-4: 팔레트 3종 (default / Okabe-Ito 색맹 안전 / Grayscale)
+const PALETTES = {
+  default: {
+    A: '#E64B35', B: '#4DBBD5', D: '#8491B4', unknown: '#888888',
+    H: '#F2C94C', missing_bg: '#f5f9f7',
+    threshold: '#dc3545', threshold_perm: '#888888'
+  },
+  okabe: {
+    // Okabe-Ito 8색 + Wong 2011 권장 (색맹·흑백 안전)
+    A: '#D55E00',     // vermillion (warm)
+    B: '#0072B2',     // blue
+    D: '#CC79A7',     // reddish purple
+    unknown: '#999999',
+    H: '#F0E442',     // yellow
+    missing_bg: '#f5f9f7',
+    threshold: '#000000',
+    threshold_perm: '#666666'
+  },
+  gray: {
+    A: '#1a1a1a', B: '#666666', D: '#bbbbbb', unknown: '#dddddd',
+    H: '#888888', missing_bg: '#fafafa',
+    threshold: '#000000', threshold_perm: '#444444'
+  }
 };
+let CURRENT_PALETTE = 'default';
+
+// 호환성 — 기존 코드가 SUBGEN_COLOR를 직접 참조
+const SUBGEN_COLOR = new Proxy({}, {
+  get(_, key) { return PALETTES[CURRENT_PALETTE]?.[key] ?? PALETTES.default[key]; }
+});
 const WHEAT_CHR_ORDER = [
   '1A','1B','1D','2A','2B','2D','3A','3B','3D',
   '4A','4B','4D','5A','5B','5D','6A','6B','6D','7A','7B','7D'
@@ -2836,16 +2937,15 @@ function _subgenOf(chr) {
 // ============================================================
 // W2-3: Genotype heatmap (Plotly)
 // ============================================================
-const _GENOTYPE_COLORSCALE = [
-  [0.00, '#f5f9f7'],  // missing (-1) — 옅은 회색-청록
-  [0.25, '#f5f9f7'],
-  [0.26, '#E64B35'],  // A (0) — Okabe-Ito 빨강
-  [0.50, '#E64B35'],
-  [0.51, '#F2C94C'],  // H (1) — 노랑
-  [0.75, '#F2C94C'],
-  [0.76, '#4DBBD5'],  // B (2) — 청록
-  [1.00, '#4DBBD5']
-];
+function _genotypeColorScale() {
+  const p = PALETTES[CURRENT_PALETTE];
+  return [
+    [0.00, p.missing_bg], [0.25, p.missing_bg],
+    [0.26, p.A],          [0.50, p.A],
+    [0.51, p.H],          [0.75, p.H],
+    [0.76, p.B],          [1.00, p.B]
+  ];
+}
 
 function refreshHeatmapDropdowns() {
   const sel = document.getElementById('hm-geno-sel');
@@ -2918,7 +3018,7 @@ function renderHeatmap() {
     z: zNorm,
     x: xLabels,
     y: samples,
-    colorscale: _GENOTYPE_COLORSCALE,
+    colorscale: _genotypeColorScale(),
     showscale: false,
     hovertemplate: 'sample: %{y}<br>marker: %{x}<br>code: %{customdata}<extra></extra>',
     customdata: z.map(row => row.map(v => ({ '-1': 'missing', '0': 'A', '1': 'H', '2': 'B' })[String(v)]))
@@ -2931,14 +3031,15 @@ function renderHeatmap() {
     margin: { l: 100, r: 20, t: 50, b: records.length > 80 ? 30 : 110 },
     height: Math.min(800, Math.max(360, samples.length * 8 + 130))
   };
-  Plotly.newPlot(div, [trace], layout, { responsive: true, displaylogo: false });
-  // 범례 (수동) — colorscale 미사용으로 별도 표시
+  Plotly.newPlot(div, [trace], layout, _plotlyDownloadConfig('heatmap'));
+  // 범례 (수동) — 팔레트 따라가는 색상
+  const p = PALETTES[CURRENT_PALETTE];
   const legend = `
     <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;font-family:var(--font-mono)">
-      <span><span style="display:inline-block;width:14px;height:10px;background:#E64B35;vertical-align:middle"></span> A</span>
-      <span><span style="display:inline-block;width:14px;height:10px;background:#F2C94C;vertical-align:middle"></span> H</span>
-      <span><span style="display:inline-block;width:14px;height:10px;background:#4DBBD5;vertical-align:middle"></span> B</span>
-      <span><span style="display:inline-block;width:14px;height:10px;background:#f5f9f7;border:1px solid #d0d8d4;vertical-align:middle"></span> missing</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:${p.A};vertical-align:middle"></span> A</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:${p.H};vertical-align:middle"></span> H</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:${p.B};vertical-align:middle"></span> B</span>
+      <span><span style="display:inline-block;width:14px;height:10px;background:${p.missing_bg};border:1px solid #d0d8d4;vertical-align:middle"></span> missing</span>
     </div>
   `;
   div.insertAdjacentHTML('afterend', legend);
@@ -3034,7 +3135,7 @@ function renderBoxplot() {
     margin: { l: 56, r: 28, t: 70, b: 50 },
     showlegend: false
   };
-  Plotly.newPlot(div, traces, layout, { responsive: true, displaylogo: false });
+  Plotly.newPlot(div, traces, layout, _plotlyDownloadConfig('plot'));
 }
 
 function renderManhattan(results, meta) {
@@ -3130,12 +3231,12 @@ function renderManhattan(results, meta) {
       {
         type: 'line', xref: 'paper', x0: 0, x1: 1,
         y0: sigThreshold, y1: sigThreshold,
-        line: { color: '#dc3545', width: 1.5, dash: 'solid' }
+        line: { color: PALETTES[CURRENT_PALETTE].threshold, width: 1.5, dash: 'solid' }
       },
       ...(meta.perm_threshold ? [{
         type: 'line', xref: 'paper', x0: 0, x1: 1,
         y0: meta.perm_threshold, y1: meta.perm_threshold,
-        line: { color: '#888888', width: 1.2, dash: 'dash' }
+        line: { color: PALETTES[CURRENT_PALETTE].threshold_perm, width: 1.2, dash: 'dash' }
       }] : [])
     ],
     annotations: [
@@ -3165,7 +3266,7 @@ function renderManhattan(results, meta) {
   div.style.width = '100%';
   div.style.height = '460px';
   placeholder.appendChild(div);
-  Plotly.newPlot(div, traces, layout, { responsive: true, displaylogo: false });
+  Plotly.newPlot(div, traces, layout, _plotlyDownloadConfig('plot'));
   log(`Manhattan plot 렌더링: ${withPos.length} 마커 (chr ${chrSequence.length}개)`, 'ok');
 }
 
@@ -3856,7 +3957,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 2 — W2-3 Genotype heatmap + Marker boxplot 활성');
+log('단계: Phase 2 — W2-4 색맹 안전 팔레트 (Okabe-Ito) + 학술지 폭 preset (88/180mm) 활성');
 
 // 분석 라디오 변경 → IM 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
