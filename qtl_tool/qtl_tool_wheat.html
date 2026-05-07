@@ -809,6 +809,27 @@ body {
       <div id="sma-result-area" style="margin-top:18px"></div>
     </div>
 
+    <!-- W3-1: KASP 라이브러리 (Rasheed 2016 + 한국 검증) -->
+    <div class="card" id="kasp-library-card">
+      <div class="card-title">
+        KASP 마커 라이브러리
+        <span class="format-badge tier-1" style="margin-left:8px">25 markers</span>
+      </div>
+      <div class="card-subtitle" id="kasp-lib-subtitle">로딩 중...</div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <input type="text" id="kasp-search" placeholder="검색: Vrn / Ppd / Rht / qDH-3A / Glu / Fhb / 형질명..."
+               style="padding:7px 10px;border:1px solid var(--border-color);border-radius:4px;min-width:280px;font-size:12px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px">
+          <input type="checkbox" id="kasp-korea-only"> 한국 검증만
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px">
+          <input type="checkbox" id="kasp-priority-only"> 우선순위 high+
+        </label>
+        <span id="kasp-status" style="font-size:11px;color:var(--text-muted)"></span>
+      </div>
+      <div id="kasp-library-table"></div>
+    </div>
+
     <!-- W2-3: Genotype heatmap -->
     <div class="card" id="heatmap-card" style="display:none">
       <div class="card-title">유전자형 heatmap</div>
@@ -1089,6 +1110,7 @@ document.querySelectorAll('#lang-toggle button').forEach(btn => {
     // 한국 패널 표는 동적 렌더 — 언어 변경 시 다시 그림
     if (KOREA_QTL_PANEL) renderKoreaQtlPanel();
     if (KOREA_CULTIVARS) renderKoreaCultivars();
+    if (KASP_LIBRARY) renderKaspLibrary();
     log(`언어 변경: ${btn.dataset.lang}`);
   });
 });
@@ -1172,6 +1194,7 @@ document.querySelectorAll('#ploidy-toggle button').forEach(btn => {
 let SPECIES_CONFIG = null;
 let KOREA_QTL_PANEL = null;
 let KOREA_CULTIVARS = null;
+let KASP_LIBRARY = null;
 
 async function loadJson(path) {
   const res = await fetch(path, { cache: 'no-cache' });
@@ -1185,18 +1208,21 @@ async function loadAllData() {
     log('file:// 프로토콜 감지 — 외부 JSON fetch 제한 (HTTP 서버 사용 권장)', 'warn');
   }
   try {
-    const [cfg, qtl, cv] = await Promise.all([
+    const [cfg, qtl, cv, kasp] = await Promise.all([
       loadJson('data/wheat_species_config.json'),
       loadJson('data/wheat_qtl_korea_panel.json'),
-      loadJson('data/wheat_cultivars_korea.json')
+      loadJson('data/wheat_cultivars_korea.json'),
+      loadJson('data/wheat_kasp_library.json').catch(() => null)
     ]);
     SPECIES_CONFIG = cfg;
     KOREA_QTL_PANEL = qtl;
     KOREA_CULTIVARS = cv;
-    log(`데이터 로드 완료: SPECIES_CONFIG(${Object.keys(cfg).filter(k=>!k.startsWith('_')&&k!=='version'&&k!=='default').length}종) · QTL(${qtl.qtls.length}) · 품종(${cv.cultivars.length})`, 'ok');
+    KASP_LIBRARY = kasp;
+    log(`데이터 로드 완료: SPECIES_CONFIG(${Object.keys(cfg).filter(k=>!k.startsWith('_')&&k!=='version'&&k!=='default').length}종) · QTL(${qtl.qtls.length}) · 품종(${cv.cultivars.length})${kasp ? ` · KASP(${kasp.markers.length})` : ''}`, 'ok');
     applySpeciesConfig(CURRENT_PLOIDY);
     renderKoreaQtlPanel();
     renderKoreaCultivars();
+    if (kasp) renderKaspLibrary();
   } catch (e) {
     log(`데이터 로드 실패: ${e.message} — file:// 또는 누락된 data/ 폴더 가능성`, 'error');
     document.getElementById('korea-qtl-table-wrap').innerHTML =
@@ -1262,6 +1288,93 @@ function renderKoreaQtlPanel() {
       `<strong style="color:var(--primary-main)">VRN/PPD 상태:</strong> ${summary} ` +
       `<br>${impl} (Lim 2025 신규 SNP: ${(vrn.novel_snps_lim_2025||[]).join(', ')})`;
   }
+}
+
+// W3-1: KASP 라이브러리 렌더링 + 검색 필터 + 업로드 매칭
+function renderKaspLibrary() {
+  if (!KASP_LIBRARY) return;
+  const subtitle = document.getElementById('kasp-lib-subtitle');
+  subtitle.innerHTML = KASP_LIBRARY._comment +
+    ' · <span style="color:var(--text-muted)">출처: ' +
+    Object.entries(KASP_LIBRARY.summary.by_panel).map(([k,v]) => `${k}(${v})`).join(' / ') + '</span>';
+
+  const searchInput = document.getElementById('kasp-search');
+  const koreaOnly = document.getElementById('kasp-korea-only');
+  const priorityOnly = document.getElementById('kasp-priority-only');
+  const wrap = document.getElementById('kasp-library-table');
+  const status = document.getElementById('kasp-status');
+
+  function _doRender() {
+    const q = (searchInput.value || '').trim().toLowerCase();
+    let markers = KASP_LIBRARY.markers;
+    if (q) {
+      markers = markers.filter(m =>
+        (m.marker_id + ' ' + m.gene + ' ' + m.chr + ' ' + (m.trait_ko || '') + ' ' + (m.trait_en || '')).toLowerCase().includes(q)
+      );
+    }
+    if (koreaOnly.checked) markers = markers.filter(m => m.source_panel === 'korea_validated' || m.korea_priority);
+    if (priorityOnly.checked) markers = markers.filter(m => m.korea_priority === 'highest' || m.korea_priority === 'high');
+
+    // 업로드된 유전형 마커와 매칭 (이름 contains)
+    const uploadedMarkers = new Set();
+    UPLOADED_FILES.forEach(f => {
+      f.parsed?.records?.forEach(r => uploadedMarkers.add(r.marker.toUpperCase()));
+    });
+
+    if (!markers.length) {
+      wrap.innerHTML = '<div class="placeholder" style="padding:20px;text-align:center">검색 결과 없음</div>';
+      status.textContent = '0개';
+      return;
+    }
+    let html = `<table class="detect-result-table">
+      <thead><tr>
+        <th>Marker ID</th><th>Gene</th><th>Chr</th><th>형질</th><th>출처</th><th>우선도</th><th>업로드 매칭</th>
+      </tr></thead><tbody>`;
+    markers.forEach(m => {
+      const trait = (CURRENT_LANG === 'ko') ? (m.trait_ko || m.trait_en) : (m.trait_en || m.trait_ko);
+      const prio = m.korea_priority || '';
+      const prioBadge = prio
+        ? `<span class="qtl-priority ${prio}">${prio}</span>`
+        : '—';
+      const dkasp = m.homoeolog_dkasp_wu_2023
+        ? '<span class="format-badge tier-2" style="margin-left:4px" title="Wu 2023 dKASP 호모이올로그 동시 검출">dKASP</span>'
+        : '';
+      // 업로드 마커 매칭 (gene 이름 substring)
+      const geneShort = (m.gene || '').split(/[\s(]/)[0].toUpperCase();
+      const matched = [...uploadedMarkers].some(u => u.includes(geneShort));
+      const matchBadge = matched
+        ? '<span class="format-badge tier-1">✓ 매칭</span>'
+        : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+      const koreaNote = m.korea_status_ko
+        ? `<br><span style="color:var(--accent-5);font-size:10px;font-style:italic">${m.korea_status_ko}</span>`
+        : '';
+      html += `<tr title="${m.reference || ''}">
+        <td><strong>${m.marker_id}</strong>${dkasp}</td>
+        <td><span style="font-family:var(--font-mono);font-size:11px">${m.gene}</span></td>
+        <td>${m.chr}</td>
+        <td style="font-size:11px">${trait || '—'}${koreaNote}</td>
+        <td><span class="format-badge ${m.source_panel === 'korea_validated' ? 'tier-1' : 'tier-2'}" style="font-size:9px">${m.source_panel}</span></td>
+        <td>${prioBadge}</td>
+        <td>${matchBadge}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    const matchedCount = markers.filter(m => {
+      const geneShort = (m.gene || '').split(/[\s(]/)[0].toUpperCase();
+      return [...uploadedMarkers].some(u => u.includes(geneShort));
+    }).length;
+    status.textContent = `${markers.length}개 표시${uploadedMarkers.size ? ` · 업로드 매칭 ${matchedCount}` : ''}`;
+  }
+
+  // 이벤트 (한 번만 바인딩)
+  if (!searchInput._kaspBound) {
+    searchInput.addEventListener('input', _doRender);
+    koreaOnly.addEventListener('change', _doRender);
+    priorityOnly.addEventListener('change', _doRender);
+    searchInput._kaspBound = true;
+  }
+  _doRender();
 }
 
 function renderKoreaCultivars() {
@@ -2120,6 +2233,7 @@ async function handleFile(file) {
     };
     UPLOADED_FILES.push(entry);
     renderFileList(); renderDetectResult(); refreshAnalysisDropdowns(); refreshT3GenoDropdown(); refreshHeatmapDropdowns();
+    if (KASP_LIBRARY) renderKaspLibrary();
     return entry;
   }
 
@@ -2206,6 +2320,7 @@ async function handleFile(file) {
   refreshAnalysisDropdowns();
   refreshT3GenoDropdown();
   refreshHeatmapDropdowns();
+  if (KASP_LIBRARY) renderKaspLibrary();
   return entry;
 }
 
@@ -3957,7 +4072,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 2 — W2-4 색맹 안전 팔레트 (Okabe-Ito) + 학술지 폭 preset (88/180mm) 활성');
+log('단계: Phase 3 시작 — W3-1 KASP 라이브러리 (Rasheed 2016 + 한국 검증) 활성');
 
 // 분석 라디오 변경 → IM 매개변수 표시 토글
 document.querySelectorAll('input[name="analysis-method"]').forEach(r => {
