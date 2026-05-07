@@ -759,7 +759,43 @@ body {
           <strong>MLM</strong>: kinship + REML grid (EMMAX-P3D) ·
           <strong>FarmCPU/BLINK</strong>: 반복적 fixed-effect GWAS (아래 매개변수)
         </div>
-        <!-- W3-5: FarmCPU/BLINK 추가 매개변수 -->
+        <!-- W3-7: 자가검증 (시뮬레이션) -->
+      <div style="margin-top:14px;padding:14px;background:var(--bg-input);border-radius:6px;border-left:3px solid var(--accent-5)">
+        <div style="font-family:var(--font-bold);margin-bottom:8px;color:var(--primary-dark)">🧪 자가검증 (시뮬레이션 RIL)</div>
+        <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px">
+          알려진 QTL 위치를 가진 가짜 데이터로 모든 분석 방법이 진짜 QTL을 검출하는지 검증.
+          진짜 QTL ± 10 cM 이내의 peak = TP (true positive), power = TP / 전체 진짜 QTL.
+        </div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            시료 수
+            <select id="sim-n-samples" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="100">100</option>
+              <option value="200" selected>200</option>
+              <option value="400">400</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            마커 수
+            <select id="sim-n-markers" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="200">200</option>
+              <option value="500" selected>500</option>
+              <option value="1000">1000</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:12px">
+            QTL 수 (배치)
+            <select id="sim-n-qtl" style="padding:6px;border:1px solid var(--border-color);border-radius:4px">
+              <option value="2">2 (강한 QTL 2)</option>
+              <option value="3" selected>3 (대/중/소)</option>
+              <option value="5">5 (분산)</option>
+            </select>
+          </label>
+          <button class="btn btn-primary" id="sim-run-btn">🧪 자가검증 실행</button>
+          <span id="sim-status" style="font-size:11px;color:var(--text-muted)"></span>
+        </div>
+        <div id="sim-result-area" style="margin-top:12px"></div>
+      </div>
         <div id="farmcpu-params" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);display:flex;gap:14px;align-items:center;flex-wrap:wrap">
           <label style="display:flex;flex-direction:column;font-size:12px">
             최대 반복 횟수
@@ -2784,6 +2820,103 @@ function refreshAnalysisDropdowns() {
   }
 }
 
+const PY_SIMULATION_FUNC = `
+def simulate_ril(n_samples=200, n_markers=500, n_qtl=3, n_chr=7, chr_len_cm=150,
+                 heritability=0.5, seed=42):
+    """RIL 시뮬레이션:
+    1) chr별 균등 분포 마커 (cM 좌표)
+    2) RIL genotype: 각 마커 0/1 (A/B) 확률 0.5, 인접 마커 간 약간의 LD 추가
+    3) n_qtl 개의 QTL을 랜덤 위치에 배치, PVE = heritability/n_qtl 균등
+    4) 표현형 = sum(QTL effects) + N(0, σ²)
+    Returns: dict with markers, samples, gts, true_qtls, pheno
+    """
+    import numpy as np
+    rng = np.random.default_rng(seed)
+
+    # 1) 마커 좌표 생성
+    markers = []
+    markers_per_chr = max(1, n_markers // n_chr)
+    extra = n_markers - markers_per_chr * n_chr
+    chr_names = ['1A','1B','1D','2A','2B','2D','3A'][:n_chr]  # wheat sub-genome 표기
+    mi = 0
+    for ci, chr_name in enumerate(chr_names):
+        n_this = markers_per_chr + (1 if ci < extra else 0)
+        positions_cm = np.linspace(0, chr_len_cm, n_this)
+        for pos_cm in positions_cm:
+            markers.append({
+                'name': f'sim_{mi:04d}_{chr_name}',
+                'chr': chr_name,
+                'pos_cm': float(pos_cm),
+                'pos_bp': int(pos_cm * 1_000_000)  # 1 cM ≈ 1 Mb 추정
+            })
+            mi += 1
+    n_markers_actual = len(markers)
+
+    # 2) Genotype matrix (n_samples × n_markers)
+    # RIL: 각 시료 각 chr마다 0.5 확률로 시작, 1 cM 당 ~1% recomb
+    sample_ids = [f'L{i+1:04d}' for i in range(n_samples)]
+    geno = np.zeros((n_samples, n_markers_actual), dtype=np.int8)
+    for si in range(n_samples):
+        for ci, chr_name in enumerate(chr_names):
+            # 이 chr의 마커 인덱스 범위
+            chr_idx = [i for i, m in enumerate(markers) if m['chr'] == chr_name]
+            if not chr_idx:
+                continue
+            current = rng.integers(0, 2)
+            prev_cm = 0
+            for ki in chr_idx:
+                pos_cm = markers[ki]['pos_cm']
+                # recomb 확률: r = (pos - prev) * 0.01
+                r = max(0.0, min(0.5, (pos_cm - prev_cm) * 0.01))
+                if rng.random() < r:
+                    current = 1 - current
+                geno[si, ki] = current
+                prev_cm = pos_cm
+
+    # 3) QTL 배치
+    rng_qtl = np.random.default_rng(seed + 1)
+    true_qtl_idx = sorted(rng_qtl.choice(n_markers_actual, size=n_qtl, replace=False).tolist())
+    pve_per_qtl = heritability / n_qtl
+
+    # 4) 표현형
+    # 효과 크기 a 결정 (PVE = 2pq·a² / Var(y)에서 역산, 단순화로 표준화)
+    pheno = np.zeros(n_samples)
+    qtl_effects = []
+    for qi in true_qtl_idx:
+        # additive: 0/1 → -0.5/+0.5 효과 (RIL 동형 가정)
+        x = geno[:, qi].astype(float) - 0.5
+        # 효과 크기: SD(x) ≈ 0.5, 원하는 PVE = pve_per_qtl
+        # var(a*x) = pve_per_qtl * Var(y) where Var(y) = 1
+        a = float(np.sqrt(pve_per_qtl) / max(np.std(x), 1e-6))
+        pheno = pheno + a * x
+        qtl_effects.append(a)
+    # 잔차 noise
+    noise = rng.normal(0, np.sqrt(1 - heritability), size=n_samples)
+    pheno = pheno + noise
+
+    # 5) gts 변환 (0=A, 1=B로 RIL 표기)
+    gt_codes = []
+    for ki in range(n_markers_actual):
+        col = geno[:, ki]
+        gt_codes.append(['A' if v == 0 else 'B' for v in col])
+
+    return {
+        'markers': markers,
+        'sample_ids': sample_ids,
+        'gts_per_marker': gt_codes,
+        'pheno_values': pheno.tolist(),
+        'true_qtl_indices': true_qtl_idx,
+        'true_qtls': [{
+            'idx': qi,
+            'marker': markers[qi]['name'],
+            'chr': markers[qi]['chr'],
+            'pos_cm': markers[qi]['pos_cm'],
+            'effect': qtl_effects[i]
+        } for i, qi in enumerate(true_qtl_idx)],
+        'heritability': float(heritability)
+    }
+`;
+
 const PY_FARMCPU_FUNC = `
 def run_farmcpu(geno_codes, sample_ids, marker_names, marker_chrs, marker_pos,
                 pheno_dict, n_pca=3, max_iter=3, pq_threshold=1e-4,
@@ -3419,6 +3552,225 @@ let _imFuncReady = false;
 let _glmFuncReady = false;
 let _mlmFuncReady = false;
 let _farmcpuFuncReady = false;
+
+// ============================================================
+// W3-7: 자가검증 (시뮬레이션 RIL → 모든 분석 방법 비교)
+// ============================================================
+let _simFuncReady = false;
+
+async function runSelfValidation() {
+  const status = document.getElementById('sim-status');
+  const resultArea = document.getElementById('sim-result-area');
+  const btn = document.getElementById('sim-run-btn');
+  if (!pyodide) { log('Pyodide 미준비', 'error'); return; }
+
+  const nSamples = parseInt(document.getElementById('sim-n-samples').value);
+  const nMarkers = parseInt(document.getElementById('sim-n-markers').value);
+  const nQtl = parseInt(document.getElementById('sim-n-qtl').value);
+
+  btn.disabled = true;
+  status.textContent = `시뮬레이션 RIL 생성 중 (${nSamples} × ${nMarkers}, QTL=${nQtl})...`;
+  log(`자가검증 시작: ${nSamples} × ${nMarkers}, QTL ${nQtl}개 배치`);
+
+  try {
+    if (!_simFuncReady) {
+      pyodide.runPython(PY_SIMULATION_FUNC);
+      if (!_smaFuncReady) { pyodide.runPython(PY_SMA_FUNC); _smaFuncReady = true; }
+      if (!_imFuncReady) { pyodide.runPython(PY_IM_FUNC); _imFuncReady = true; }
+      if (!_glmFuncReady) { pyodide.runPython(PY_GLM_FUNC); _glmFuncReady = true; }
+      if (!_farmcpuFuncReady) { pyodide.runPython(PY_FARMCPU_FUNC); _farmcpuFuncReady = true; }
+      _simFuncReady = true;
+      log('  시뮬레이션 + 모든 분석 함수 정의 완료', 'ok');
+    }
+
+    pyodide.globals.set('_sim_n_samples', nSamples);
+    pyodide.globals.set('_sim_n_markers', nMarkers);
+    pyodide.globals.set('_sim_n_qtl', nQtl);
+    const simProxy = pyodide.runPython(
+      'simulate_ril(_sim_n_samples, _sim_n_markers, _sim_n_qtl)'
+    );
+    const sim = simProxy.toJs({ dict_converter: Object.fromEntries });
+    if (simProxy.destroy) simProxy.destroy();
+    log(`  RIL 시뮬레이션 완료: ${sim.markers.length} 마커, ${sim.sample_ids.length} 시료, h²=${sim.heritability.toFixed(2)}`, 'ok');
+    log(`  진짜 QTL ${sim.true_qtls.length}개:`, 'ok');
+    sim.true_qtls.forEach(q => log(`    ${q.chr}:${q.pos_cm.toFixed(1)} cM (effect=${q.effect.toFixed(3)})`, 'ok'));
+
+    // pheno_dict 구성
+    const phenoDict = {};
+    sim.sample_ids.forEach((s, i) => { phenoDict[s] = sim.pheno_values[i]; });
+
+    // 모든 방법 실행
+    const tests = [
+      { name: 'SMA', fn: 'run_sma', wrapper: (gts, ids, names, chrs, _pos) =>
+          pyodide.runPython(`run_sma(${JSON.stringify(gts)}, ${JSON.stringify(ids)}, ${JSON.stringify(names)}, ${JSON.stringify(chrs)}, ${JSON.stringify(phenoDict)}, 0.05, True)`)
+      }
+    ];
+    // 메모리 효율을 위해 globals 통해 데이터 전달
+    pyodide.globals.set('_v_gts', sim.gts_per_marker);
+    pyodide.globals.set('_v_ids', sim.sample_ids);
+    pyodide.globals.set('_v_names', sim.markers.map(m => m.name));
+    pyodide.globals.set('_v_chrs', sim.markers.map(m => m.chr));
+    pyodide.globals.set('_v_pos_bp', sim.markers.map(m => m.pos_bp));
+    pyodide.globals.set('_v_pos_cm', sim.markers.map(m => m.pos_cm));
+    pyodide.globals.set('_v_pheno', phenoDict);
+
+    const methods = [];
+
+    // SMA
+    status.textContent = 'SMA 실행 중...';
+    let t0 = performance.now();
+    let p = pyodide.runPython('run_sma(_v_gts.to_py(), _v_ids.to_py(), _v_names.to_py(), _v_chrs.to_py(), _v_pheno.to_py(), 0.05, True)');
+    let res = p.toJs({ dict_converter: Object.fromEntries });
+    if (p.destroy) p.destroy();
+    methods.push({ name: 'SMA', results: res, x: 'pos_cm_via_idx', elapsed: ((performance.now() - t0)/1000).toFixed(2) });
+
+    // GLM
+    status.textContent = 'GLM 실행 중...';
+    t0 = performance.now();
+    p = pyodide.runPython('run_glm_gwas(_v_gts.to_py(), _v_ids.to_py(), _v_names.to_py(), _v_chrs.to_py(), _v_pos_bp.to_py(), _v_pheno.to_py(), 3)');
+    let glmOut = p.toJs({ dict_converter: Object.fromEntries });
+    if (p.destroy) p.destroy();
+    methods.push({ name: 'GLM (PCA=3)', results: glmOut.results || [], x: 'pos_cm_via_idx', elapsed: ((performance.now() - t0)/1000).toFixed(2) });
+
+    // MLM
+    status.textContent = 'MLM (kinship) 실행 중... (느림)';
+    t0 = performance.now();
+    p = pyodide.runPython('run_mlm_emmax(_v_gts.to_py(), _v_ids.to_py(), _v_names.to_py(), _v_chrs.to_py(), _v_pos_bp.to_py(), _v_pheno.to_py(), 3)');
+    let mlmOut = p.toJs({ dict_converter: Object.fromEntries });
+    if (p.destroy) p.destroy();
+    methods.push({ name: `MLM (h²=${(mlmOut.h2_estimated||0).toFixed(2)})`, results: mlmOut.results || [], x: 'pos_cm_via_idx', elapsed: ((performance.now() - t0)/1000).toFixed(2) });
+
+    // FarmCPU
+    status.textContent = 'FarmCPU 실행 중...';
+    t0 = performance.now();
+    p = pyodide.runPython('run_farmcpu(_v_gts.to_py(), _v_ids.to_py(), _v_names.to_py(), _v_chrs.to_py(), _v_pos_bp.to_py(), _v_pheno.to_py(), 3, 3, 1e-4, "farmcpu", 500000)');
+    let fcOut = p.toJs({ dict_converter: Object.fromEntries });
+    if (p.destroy) p.destroy();
+    methods.push({ name: 'FarmCPU', results: fcOut.results || [], x: 'pos_cm_via_idx', elapsed: ((performance.now() - t0)/1000).toFixed(2) });
+
+    // BLINK
+    status.textContent = 'BLINK 실행 중...';
+    t0 = performance.now();
+    p = pyodide.runPython('run_farmcpu(_v_gts.to_py(), _v_ids.to_py(), _v_names.to_py(), _v_chrs.to_py(), _v_pos_bp.to_py(), _v_pheno.to_py(), 3, 3, 1e-4, "blink", 500000)');
+    let blinkOut = p.toJs({ dict_converter: Object.fromEntries });
+    if (p.destroy) p.destroy();
+    methods.push({ name: 'BLINK', results: blinkOut.results || [], x: 'pos_cm_via_idx', elapsed: ((performance.now() - t0)/1000).toFixed(2) });
+
+    // 검증: 각 방법의 top peak (chr별 최대 -log10p)와 진짜 QTL 비교
+    const trueQtls = sim.true_qtls;
+    const TP_WINDOW_CM = 10;
+    const validation = methods.map(m => {
+      const sigCount = m.results.filter(r => r.sig).length;
+      // chr별 best peak
+      const chrPeaks = {};
+      m.results.forEach(r => {
+        if (!chrPeaks[r.chr] || r.neg_log10_p > chrPeaks[r.chr].neg_log10_p) {
+          chrPeaks[r.chr] = r;
+        }
+      });
+      // marker name → marker idx → pos_cm 매핑 (시뮬레이션 데이터)
+      const markerToCm = {};
+      sim.markers.forEach(mk => { markerToCm[mk.name] = mk.pos_cm; });
+
+      // True QTL 매칭
+      let tp = 0;
+      const tpDetails = trueQtls.map(qtl => {
+        const peak = chrPeaks[qtl.chr];
+        if (!peak) return { qtl, peak: null, dist_cm: null, hit: false };
+        const peakCm = markerToCm[peak.marker];
+        if (peakCm == null) return { qtl, peak, dist_cm: null, hit: false };
+        const dist = Math.abs(peakCm - qtl.pos_cm);
+        const hit = dist <= TP_WINDOW_CM;
+        if (hit) tp++;
+        return { qtl, peak, dist_cm: dist, hit };
+      });
+      const power = trueQtls.length > 0 ? tp / trueQtls.length : 0;
+      // false positive: 유의 마커가 진짜 QTL 영역에 없는 것
+      let fp = 0;
+      m.results.filter(r => r.sig).forEach(r => {
+        const rCm = markerToCm[r.marker];
+        if (rCm == null) return;
+        const isTrue = trueQtls.some(q => q.chr === r.chr && Math.abs(rCm - q.pos_cm) <= TP_WINDOW_CM);
+        if (!isTrue) fp++;
+      });
+      return {
+        method: m.name,
+        elapsed: m.elapsed,
+        n_results: m.results.length,
+        n_sig: sigCount,
+        tp, fp, power, tpDetails
+      };
+    });
+
+    log(`  자가검증 완료. Power 결과:`, 'ok');
+    validation.forEach(v => {
+      log(`    ${v.method}: power=${(v.power*100).toFixed(0)}% (TP=${v.tp}/${trueQtls.length}, FP=${v.fp}, ${v.elapsed}s)`, 'ok');
+    });
+
+    renderSimResults(sim, validation);
+    status.textContent = '검증 완료';
+  } catch (e) {
+    log(`자가검증 실패: ${e.message}`, 'error');
+    resultArea.innerHTML = `<div style="padding:14px;background:var(--warning-bg);border-left:4px solid var(--error)">
+      <strong>실패:</strong> ${e.message}
+    </div>`;
+    status.textContent = '실패';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderSimResults(sim, validation) {
+  const wrap = document.getElementById('sim-result-area');
+  let html = `
+    <h3 style="font-family:var(--font-bold);color:var(--primary-dark);font-size:13px;margin-top:10px">진짜 QTL (시뮬레이션 시 배치)</h3>
+    <table class="detect-result-table">
+      <thead><tr><th>QTL #</th><th>Chr</th><th>위치 (cM)</th><th>마커</th><th>효과 크기 (a)</th></tr></thead>
+      <tbody>`;
+  sim.true_qtls.forEach((q, i) => {
+    html += `<tr style="background:#fef3c7"><td>${i+1}</td><td>${q.chr}</td><td>${q.pos_cm.toFixed(1)}</td><td style="font-family:var(--font-mono);font-size:11px">${q.marker}</td><td>${q.effect.toFixed(3)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+
+  html += `
+    <h3 style="font-family:var(--font-bold);color:var(--primary-dark);font-size:13px;margin-top:14px">방법별 검증 결과</h3>
+    <table class="detect-result-table">
+      <thead><tr>
+        <th>방법</th><th>시간</th><th>마커</th><th>유의</th>
+        <th>TP</th><th>FP</th><th>Power</th><th>검출 상세</th>
+      </tr></thead><tbody>`;
+  validation.forEach(v => {
+    const powerColor = v.power >= 0.67 ? 'tier-1' : (v.power >= 0.33 ? 'tier-3' : 'tier-unknown');
+    let details = v.tpDetails.map(d => {
+      if (!d.peak) return `<span style="color:var(--text-muted)">${d.qtl.chr}:${d.qtl.pos_cm.toFixed(0)}cM (no peak)</span>`;
+      const cls = d.hit ? 'tier-1' : 'tier-3';
+      return `<span class="format-badge ${cls}" title="${d.peak.marker}">${d.qtl.chr}:${d.qtl.pos_cm.toFixed(0)}→${d.dist_cm?.toFixed(1) ?? '?'}cM</span>`;
+    }).join(' ');
+    html += `<tr>
+      <td><strong>${v.method}</strong></td>
+      <td>${v.elapsed}s</td>
+      <td>${v.n_results}</td>
+      <td>${v.n_sig}</td>
+      <td><span class="format-badge tier-1">${v.tp}</span></td>
+      <td><span class="format-badge ${v.fp === 0 ? 'tier-1' : (v.fp <= 5 ? 'tier-2' : 'tier-3')}">${v.fp}</span></td>
+      <td><span class="format-badge ${powerColor}">${(v.power*100).toFixed(0)}%</span></td>
+      <td style="font-size:11px">${details}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+
+  // 종합 요약
+  const sortedByPower = [...validation].sort((a, b) => b.power - a.power || a.fp - b.fp);
+  const winner = sortedByPower[0];
+  html += `
+    <div style="margin-top:12px;padding:10px 14px;background:var(--accent-1);border-left:3px solid var(--primary-main);border-radius:4px;font-size:12px">
+      <strong style="color:var(--primary-dark)">종합:</strong> Power 기준 상위 — <strong>${winner.method}</strong>
+      (power ${(winner.power*100).toFixed(0)}%, FP ${winner.fp}, ${winner.elapsed}s)
+      <br><span style="color:var(--text-secondary);font-size:11px">참고: 시뮬레이션 결과는 데이터 특성에 따라 다름. 실제 분석은 여러 방법 동시 사용 권장.</span>
+    </div>
+  `;
+  wrap.innerHTML = html;
+}
 
 // W3-5: FarmCPU / BLINK 실행
 async function runFarmCpu(method) {
@@ -5337,7 +5689,7 @@ function setupUpload() {
 // ============================================================
 applyI18n('ko');
 log('밀 QTL Mapping Tool v0.1 (skeleton) 시작');
-log('단계: Phase 3 — W3-6 OPFS 세션 영속화 (재방문 시 복원) 활성');
+log('단계: Phase 3 — W3-7 자가검증 (시뮬레이션 RIL + 5 방법 비교) 활성');
 checkOpfsOnStart();
 
 // 분석 라디오 변경 → IM/GLM/MLM/FarmCPU/BLINK 매개변수 표시 토글
@@ -5381,6 +5733,9 @@ document.getElementById('report-download-btn')?.addEventListener('click', () => 
 // W2-3: heatmap + boxplot 버튼
 document.getElementById('hm-render-btn')?.addEventListener('click', renderHeatmap);
 document.getElementById('bx-render-btn')?.addEventListener('click', renderBoxplot);
+
+// W3-7: 자가검증 버튼
+document.getElementById('sim-run-btn')?.addEventListener('click', runSelfValidation);
 
 // W3-6: 세션 저장/삭제 버튼
 document.querySelectorAll('#session-toggle button').forEach(btn => {
