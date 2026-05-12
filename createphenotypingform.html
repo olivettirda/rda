@@ -58,6 +58,12 @@
         .header { background: linear-gradient(135deg, var(--accent-7) 0%, var(--accent-6) 100%); padding: 30px; text-align: center; color: white; }
         .header h1 { font-size: 28px; margin-bottom: 10px; font-weight: 700; }
         .header p { font-size: 14px; opacity: 0.9; }
+        .header-template-bar { margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 12px 16px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); border-radius: 10px; backdrop-filter: blur(2px); }
+        .header-template-label { font-size: 13px; font-weight: 600; color: #fff; letter-spacing: 0.2px; }
+        .header-template-bar .btn-template { background: #fff; color: var(--accent-7); border: 1px solid #fff; padding: 8px 16px; font-size: 13px; font-weight: 600; min-height: 38px; }
+        .header-template-bar .btn-template:hover { background: var(--accent-1); color: var(--accent-7); border-color: var(--accent-1); }
+        .tab-subtitle { padding: 12px 24px; background: var(--accent-1); color: var(--accent-7); font-size: 13.5px; line-height: 1.5; border-bottom: 1px solid var(--border-color); }
+        .tab-subtitle strong { color: var(--accent-7); font-weight: 700; }
         .nav-tabs { display: flex; background: var(--bg-section); border-bottom: 2px solid var(--border-color); padding: 0 20px; overflow-x: auto; }
         .nav-tab { padding: 15px 25px; cursor: pointer; border: none; background: none; font-size: 15px; color: var(--text-secondary); transition: all 0.3s; position: relative; white-space: nowrap; }
         .nav-tab:hover { color: var(--accent-6); }
@@ -226,6 +232,11 @@
         <div class="header">
             <h1>농업 조사 통합 도구</h1>
             <p>품종 목록 생성, 생육조사, 데이터 분석을 한 곳에서 관리하세요</p>
+            <div class="header-template-bar">
+                <span class="header-template-label">📥 양식 빠른 다운로드:</span>
+                <button class="btn btn-secondary btn-template" onclick="downloadListTemplate()">품종목록 템플릿</button>
+                <button class="btn btn-secondary btn-template" onclick="downloadSurveyTemplate()">생육조사양식 템플릿</button>
+            </div>
         </div>
 
         <div class="nav-tabs">
@@ -234,6 +245,9 @@
             <button class="nav-tab" onclick="switchTab(event, 'analysis')">📊 데이터 분석</button>
             <button class="nav-tab" onclick="switchTab(event, 'label')">🏷️ 라벨 출력</button>
             <button class="nav-tab" onclick="switchTab(event, 'imageResize')">📸 이미지 크기 조절</button>
+        </div>
+        <div class="tab-subtitle" id="tabSubtitle">
+            품종명과 반복수를 입력해 시험구 라벨 또는 표기용 품종 목록을 만듭니다.
         </div>
 
         <div class="content">
@@ -334,12 +348,16 @@
 
                     <div id="customSurveyItems" style="display:none; margin-top: 20px;">
                         <label class="setting-label">조사 항목 입력 (한 줄에 하나씩)</label>
-                        <textarea id="customItems" placeholder="예:&#10;간장(cm)&#10;수장(cm)&#10;수수&#10;출수기(월.일)&#10;천립중(g)"></textarea>
+                        <textarea id="customItems" placeholder="예:&#10;간장(cm)&#10;수장(cm)&#10;수수&#10;출수기(월.일)&#10;천립중(g)" oninput="refreshConversionItems()" onchange="refreshConversionItems()"></textarea>
                     </div>
 
                     <!-- 단위 변환 설정 -->
                     <div id="conversionSection" class="conversion-section" style="display:none;">
                         <div class="panel-title" style="font-size: 15px; margin-bottom: 15px;">📏 단위 변환 설정</div>
+                        <div style="font-size: 13px; color: #0c3026; margin-bottom: 10px;">
+                            ✓ 체크박스를 켜면 배수와 곱셈/나눗셈을 직접 선택할 수 있습니다.<br>
+                            ✓ 예: 850mm 입력 → ÷10 → 85.0cm로 자동 환산
+                        </div>
                         <div id="conversionItems"></div>
                     </div>
                 </div>
@@ -1420,6 +1438,7 @@
             for (let i = 0; i < 3; i++) addInputRow();
             for (let i = 0; i < 3; i++) addDisplayLabelRow();
             updateSurveyItems();
+            updateTabSubtitle('list');
             initGlobalDropZone();
         });
         
@@ -1515,13 +1534,14 @@
         function switchTabByName(tabId) {
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            
-            const tabs = { 'list': 0, 'survey': 1, 'analysis': 2, 'label': 3 };
+
+            const tabs = { 'list': 0, 'survey': 1, 'analysis': 2, 'label': 3, 'imageResize': 4 };
             const tabBtns = document.querySelectorAll('.nav-tab');
             if (tabBtns[tabs[tabId]]) {
                 tabBtns[tabs[tabId]].classList.add('active');
             }
             document.getElementById(tabId + 'Tab').classList.add('active');
+            if (typeof updateTabSubtitle === 'function') updateTabSubtitle(tabId);
         }
         
         // 생육조사 양식 탭용 - 설정 템플릿 또는 품종목록 로드
@@ -1835,11 +1855,28 @@
         }
 
         // 탭 전환
+        // 탭별 한 줄 설명 (목적 안내)
+        const TAB_DESCRIPTIONS = {
+            'list': '🌾 <strong>품종목록 생성</strong> — 시험 품종명과 반복수를 입력해 시험구 라벨용 품종 목록을 자동으로 만듭니다.',
+            'survey': '📝 <strong>생육조사 양식</strong> — 품종·반복·조사항목별 입력 표를 만들고, 단위 환산(예: mm↔cm)을 적용해 현장 데이터를 정리합니다.',
+            'analysis': '📊 <strong>데이터 분석</strong> — 생육조사 데이터의 기초통계·ANOVA·DMRT(Duncan)·시각화를 한 번에 수행합니다.',
+            'label': '🏷️ <strong>라벨 출력</strong> — 시험 포장용 전시 라벨과 QR/바코드 라벨(폼텍·Datatrans 연동)을 인쇄용으로 생성합니다.',
+            'imageResize': '📸 <strong>이미지 크기 조절</strong> — 보고서·라벨에 쓸 사진을 원하는 해상도/용량으로 압축·리사이즈합니다.'
+        };
+
+        function updateTabSubtitle(tab) {
+            const el = document.getElementById('tabSubtitle');
+            if (el && TAB_DESCRIPTIONS[tab]) {
+                el.innerHTML = TAB_DESCRIPTIONS[tab];
+            }
+        }
+
         function switchTab(event, tab) {
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById(tab + 'Tab').classList.add('active');
+            updateTabSubtitle(tab);
         }
 
         // ========== 품종 목록 생성 기능 ==========
@@ -2019,34 +2056,64 @@
             const surveyType = document.getElementById('surveyType').value;
             const customItems = document.getElementById('customSurveyItems');
             const conversionSection = document.getElementById('conversionSection');
+            const items = getSurveyItems(surveyType);
             if (surveyType === 'custom') {
                 customItems.style.display = 'block';
-                conversionSection.style.display = 'none';
             } else {
                 customItems.style.display = 'none';
+            }
+            // 단위 변환 설정은 항상 표시 (사용자 정의 포함)
+            if (items.length > 0) {
                 conversionSection.style.display = 'block';
                 setupConversionItems(surveyType);
+            } else {
+                conversionSection.style.display = 'none';
+            }
+        }
+
+        // 사용자 정의 항목 변경 시 변환 설정 새로고침
+        function refreshConversionItems() {
+            const surveyType = document.getElementById('surveyType').value;
+            if (surveyType !== 'custom') return;
+            const conversionSection = document.getElementById('conversionSection');
+            const items = getSurveyItems('custom');
+            if (items.length > 0) {
+                conversionSection.style.display = 'block';
+                setupConversionItems('custom');
+            } else {
+                conversionSection.style.display = 'none';
+                conversionSettings = {};
             }
         }
 
         function setupConversionItems(surveyType) {
             const items = getSurveyItems(surveyType);
             const container = document.getElementById('conversionItems');
+            // 항목이 바뀌면 이전 변환 설정 중 범위를 벗어난 인덱스 제거
+            Object.keys(conversionSettings).forEach(key => {
+                if (parseInt(key) >= items.length) delete conversionSettings[key];
+            });
             let html = '';
             items.forEach((item, index) => {
+                const saved = conversionSettings[index];
+                const isChecked = saved && saved.enabled;
+                const savedMult = saved ? saved.multiplier : '';
+                const savedOp = saved ? saved.operation : 'divide';
+                const symbol = savedOp === 'multiply' ? '×' : '÷';
+                const displayText = isChecked && savedMult ? `원래값 = 입력값 ${symbol} ${savedMult}` : '';
                 html += `
                     <div class="conversion-item">
                         <label>
-                            <input type="checkbox" id="conv_${index}" onchange="updateConversion(${index})">
+                            <input type="checkbox" id="conv_${index}" onchange="updateConversion(${index})" ${isChecked ? 'checked' : ''}>
                             ${item}
                         </label>
-                        <input type="number" id="mult_${index}" placeholder="배수" step="0.1" min="0" 
-                               onchange="updateConversion(${index})" disabled>
-                        <select id="formula_${index}" onchange="updateConversion(${index})" disabled>
-                            <option value="divide">나누기 (÷)</option>
-                            <option value="multiply">곱하기 (×)</option>
+                        <input type="number" id="mult_${index}" placeholder="배수" step="0.1" min="0"
+                               value="${savedMult}" onchange="updateConversion(${index})" oninput="updateConversion(${index})" ${isChecked ? '' : 'disabled'}>
+                        <select id="formula_${index}" onchange="updateConversion(${index})" ${isChecked ? '' : 'disabled'}>
+                            <option value="divide" ${savedOp === 'divide' ? 'selected' : ''}>나누기 (÷)</option>
+                            <option value="multiply" ${savedOp === 'multiply' ? 'selected' : ''}>곱하기 (×)</option>
                         </select>
-                        <span class="formula-display" id="formula_display_${index}"></span>
+                        <span class="formula-display" id="formula_display_${index}">${displayText}</span>
                     </div>
                 `;
             });
