@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>농진청 R&D 과제 경제성 분석</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+
+<!-- 폰트: NanumSquare (CDN) + Noto Sans KR 폴백 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@1.0/nanumsquare.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- 외부 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs@gh-pages/qrcode.min.js"></script>
+
+<style>
+/* ============================================================
+   디자인 시스템 (DMRT 다크 스타일 - 필수 준수)
+   ============================================================ */
+:root{
+  --bg-primary:#0c3026;
+  --bg-card:#0d3a2d;
+  --bg-card-2:#0f4436;
+  --primary-main:#017f97;
+  --accent-5:#00a1b8;
+  --accent-4:#54b7c6;
+  --accent-3:#8dccd3;
+  --text-primary:#e8f5f2;
+  --text-secondary:#94b8aa;
+  --border-color:#1a5040;
+  --error:#dc3545;
+  --warn:#e0a800;
+  --ok:#28a745;
+  --radius:10px;
+  --space:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:'NanumSquare','Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--bg-primary);
+  color:var(--text-primary);
+  display:flex;flex-direction:column;min-height:100vh;
+  font-size:14px;line-height:1.55;
+}
+code,pre,.mono{font-family:'JetBrains Mono',monospace}
+a{color:var(--accent-4)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:6px}
+::-webkit-scrollbar-track{background:var(--bg-primary)}
+
+/* ===== 상단 헤더 ===== */
+header.app-header{
+  display:flex;align-items:center;gap:16px;
+  padding:12px 20px;background:var(--bg-card);
+  border-bottom:1px solid var(--border-color);
+  position:sticky;top:0;z-index:50;flex-wrap:wrap;
+}
+.app-header .brand{display:flex;align-items:center;gap:10px;font-weight:800}
+.app-header .brand img{width:34px;height:34px;border-radius:8px;background:#fff;padding:3px}
+.app-header h1{
+  font-size:18px;font-weight:800;
+  background:linear-gradient(135deg,var(--accent-5),var(--accent-3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;white-space:nowrap;
+}
+.app-header .proj-name{
+  flex:1;min-width:180px;background:var(--bg-primary);
+  border:1px solid var(--border-color);border-radius:8px;
+  padding:8px 12px;color:var(--text-primary);font-size:14px;font-weight:700;
+}
+.app-header .actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  border:1px solid var(--border-color);background:var(--bg-card-2);
+  color:var(--text-primary);padding:8px 14px;border-radius:8px;
+  cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;
+  transition:.15s;display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{background:var(--primary-main);border-color:var(--primary-main)}
+.btn.primary{background:var(--primary-main);border-color:var(--primary-main)}
+.btn.primary:hover{background:var(--accent-5)}
+.btn.danger:hover{background:var(--error);border-color:var(--error)}
+.btn:focus-visible{outline:2px solid var(--accent-3);outline-offset:2px}
+
+/* ===== 레이아웃 ===== */
+.layout{display:flex;flex:1;min-height:0}
+nav.sidebar{
+  width:230px;flex-shrink:0;background:var(--bg-card);
+  border-right:1px solid var(--border-color);
+  padding:14px 10px;overflow-y:auto;
+}
+.nav-title{font-size:11px;color:var(--text-secondary);font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;margin:14px 8px 6px}
+.nav-title:first-child{margin-top:0}
+.tab-btn{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:none;border:none;color:var(--text-secondary);
+  padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13.5px;
+  font-weight:700;font-family:inherit;margin-bottom:2px;transition:.15s;
+}
+.tab-btn .ic{width:22px;text-align:center;font-size:15px}
+.tab-btn:hover{background:var(--bg-card-2);color:var(--text-primary)}
+.tab-btn.active{background:var(--primary-main);color:#fff}
+.tab-btn:disabled{opacity:.38;cursor:not-allowed}
+.tab-btn:focus-visible{outline:2px solid var(--accent-3);outline-offset:-2px}
+
+main.content{flex:1;min-width:0;display:flex;overflow:hidden}
+.work-area{flex:1;overflow-y:auto;padding:22px 26px}
+.tab-pane{display:none;animation:fade .2s}
+.tab-pane.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pane-title{font-size:20px;font-weight:800;margin-bottom:4px}
+.pane-desc{color:var(--text-secondary);font-size:13px;margin-bottom:18px}
+
+/* ===== 우측 결과 패널 ===== */
+aside.result-rail{
+  width:280px;flex-shrink:0;border-left:1px solid var(--border-color);
+  background:var(--bg-card);padding:18px 16px;overflow-y:auto;
+}
+aside.result-rail .rail-sticky{position:sticky;top:0}
+.kpi{
+  background:var(--bg-card-2);border:1px solid var(--border-color);
+  border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;
+}
+.kpi .label{font-size:12px;color:var(--text-secondary);font-weight:700}
+.kpi .value{font-size:21px;font-weight:800;margin-top:3px}
+.kpi .unit{font-size:11px;color:var(--text-secondary);font-weight:600;margin-left:4px}
+.kpi.good .value{color:var(--accent-3)}
+.kpi.bad .value{color:var(--error)}
+.rail-note{font-size:11px;color:var(--text-secondary);margin-top:10px;line-height:1.5}
+
+/* ===== 카드/섹션/폼 ===== */
+.card{
+  background:var(--bg-card);border:1px solid var(--border-color);
+  border-radius:var(--radius);padding:18px;margin-bottom:18px;
+}
+.card h3{font-size:15px;font-weight:800;margin-bottom:4px;color:var(--accent-3)}
+.card .hint{font-size:12px;color:var(--text-secondary);margin-bottom:14px}
+.grid{display:grid;gap:14px}
+.grid.c2{grid-template-columns:repeat(2,1fr)}
+.grid.c3{grid-template-columns:repeat(3,1fr)}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12.5px;font-weight:700;color:var(--text-secondary)}
+.field label .req{color:var(--accent-4)}
+input[type=text],input[type=number],select,textarea{
+  background:var(--bg-primary);border:1px solid var(--border-color);
+  color:var(--text-primary);padding:9px 11px;border-radius:7px;
+  font-size:13.5px;font-family:inherit;width:100%;transition:.15s;
+}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--accent-5);
+  box-shadow:0 0 0 3px rgba(0,161,184,.18);
+}
+input.invalid{border-color:var(--error);box-shadow:0 0 0 3px rgba(220,53,69,.2)}
+input:disabled,select:disabled{
+  opacity:.4;cursor:not-allowed;background:#0a261f;
+}
+.field .err-msg{font-size:11px;color:var(--error);min-height:13px;font-weight:600}
+.field .src-row{display:flex;gap:6px;align-items:center;margin-top:2px}
+.field .src-row input{font-size:11.5px;padding:6px 8px}
+.field .src-row .src-tag{font-size:10px;color:var(--text-secondary);
+  white-space:nowrap;font-weight:700}
+.radio-row{display:flex;gap:14px;flex-wrap:wrap}
+.radio-opt{display:flex;align-items:center;gap:7px;background:var(--bg-card-2);
+  border:1px solid var(--border-color);padding:9px 14px;border-radius:8px;
+  cursor:pointer;font-weight:700;font-size:13px}
+.radio-opt input{width:auto}
+.radio-opt.sel{border-color:var(--accent-5);background:rgba(0,161,184,.15)}
+.tooltip-box{
+  background:rgba(224,168,0,.12);border:1px solid var(--warn);
+  color:#ffe9a8;padding:10px 13px;border-radius:8px;font-size:12.5px;
+  margin-top:10px;display:none;
+}
+.tooltip-box.show{display:block}
+table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.tbl th,table.tbl td{border:1px solid var(--border-color);
+  padding:7px 9px;text-align:center}
+table.tbl th{background:var(--bg-card-2);color:var(--accent-3);font-weight:700}
+table.tbl td input{padding:6px 7px;font-size:12.5px;text-align:right}
+.row-add{margin-top:10px}
+.mini-btn{font-size:12px;padding:6px 10px;border-radius:6px;
+  background:var(--bg-card-2);border:1px solid var(--border-color);
+  color:var(--text-primary);cursor:pointer;font-weight:700;font-family:inherit}
+.mini-btn:hover{background:var(--primary-main)}
+.del-btn{color:var(--error);background:none;border:none;cursor:pointer;
+  font-weight:800;font-size:14px}
+.chart-wrap{position:relative;height:300px;margin-top:8px}
+.chart-wrap.tall{height:360px}
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;
+  font-weight:800}
+.badge.b1{background:rgba(40,167,69,.2);color:#7be0a0}
+.badge.b2{background:rgba(220,53,69,.2);color:#f3a0ab}
+.formula{background:var(--bg-primary);border:1px dashed var(--border-color);
+  border-radius:7px;padding:10px 12px;font-size:12px;color:var(--text-secondary);
+  margin-top:10px;line-height:1.7}
+.formula b{color:var(--accent-3)}
+
+/* ===== 데이터 출처 패널 ===== */
+.src-panel{margin-top:18px;border-top:1px solid var(--border-color);padding-top:14px}
+.src-panel a{display:block;font-size:12px;color:var(--accent-4);
+  padding:6px 8px;border-radius:6px;text-decoration:none;font-weight:700}
+.src-panel a:hover{background:var(--bg-card-2)}
+.src-panel a small{display:block;color:var(--text-secondary);font-weight:500;
+  font-size:10.5px}
+
+/* ===== 모달/토스트 ===== */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+  align-items:center;justify-content:center;z-index:200}
+.modal-bg.show{display:flex}
+.modal{background:var(--bg-card);border:1px solid var(--border-color);
+  border-radius:12px;padding:24px;max-width:420px;width:90%}
+.modal h3{font-size:17px;margin-bottom:10px}
+.modal p{color:var(--text-secondary);font-size:13px;margin-bottom:18px}
+.modal .m-actions{display:flex;gap:10px;justify-content:flex-end}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--primary-main);color:#fff;padding:11px 22px;border-radius:24px;
+  font-weight:700;font-size:13px;z-index:300;opacity:0;pointer-events:none;
+  transition:.3s;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+/* ===== 보고서 미리보기 (인쇄 친화) ===== */
+#reportPreview{background:#fff;color:#111;padding:28px;border-radius:10px;
+  font-size:12.5px;display:none}
+#reportPreview.show{display:block}
+#reportPreview h2{font-size:18px;text-align:center;margin-bottom:4px;color:#0c3026}
+#reportPreview .sub{text-align:center;color:#555;margin-bottom:18px;font-size:12px}
+#reportPreview table{width:100%;border-collapse:collapse;margin-bottom:14px}
+#reportPreview th,#reportPreview td{border:1px solid #bbb;padding:6px 9px}
+#reportPreview th{background:#0c3026;color:#fff;font-weight:700}
+#reportPreview tr:nth-child(even) td{background:#e8f4f8}
+#reportPreview .foot{font-size:10.5px;color:#666;margin-top:12px;line-height:1.6}
+#reportPreview td.num{text-align:right;font-family:'JetBrains Mono',monospace}
+
+footer.app-footer{
+  background:var(--bg-card);border-top:1px solid var(--border-color);
+  padding:12px 20px;font-size:11.5px;color:var(--text-secondary);
+  text-align:center;line-height:1.7;
+}
+.hidden-canvas canvas{display:none!important}
+
+@media (max-width:1100px){
+  aside.result-rail{display:none}
+}
+@media (max-width:760px){
+  nav.sidebar{position:fixed;left:0;top:0;bottom:0;z-index:100;
+    transform:translateX(-100%);transition:.25s;box-shadow:4px 0 20px rgba(0,0,0,.5)}
+  nav.sidebar.open{transform:none}
+  .grid.c2,.grid.c3{grid-template-columns:1fr}
+  .work-area{padding:16px}
+  .menu-toggle{display:inline-flex!important}
+}
+.menu-toggle{display:none}
+
+@media print{
+  header.app-header,nav.sidebar,aside.result-rail,footer.app-footer,
+  .tab-pane:not(#tab-report),#tab-report .card:not(#reportCard){display:none!important}
+  body{background:#fff}
+  #reportPreview{display:block!important;box-shadow:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     상단 헤더
+     ============================================================ -->
+<header class="app-header">
+  <button class="btn menu-toggle" onclick="toggleSidebar()" aria-label="메뉴">☰</button>
+  <div class="brand">
+    <img src="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png" alt="logo">
+    <h1>R&D 경제성 분석</h1>
+  </div>
+  <input type="text" id="hdrProjectName" class="proj-name" placeholder="과제명을 입력하세요"
+         aria-label="과제명" oninput="syncProjectName(this.value)">
+  <div class="actions">
+    <button class="btn" onclick="saveData(true)">💾 저장</button>
+    <button class="btn" onclick="loadData()">📂 불러오기</button>
+    <button class="btn" onclick="exportProjectJSON()">⬇ JSON</button>
+    <button class="btn" onclick="document.getElementById('jsonImport').click()">⬆ JSON</button>
+    <input type="file" id="jsonImport" accept="application/json,.json" style="display:none"
+           onchange="importProjectJSON(event)">
+    <button class="btn danger" onclick="openResetModal()">🗑 초기화</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ============================================================
+       좌측 사이드바 - 탭 네비게이션 + 데이터 출처
+       ============================================================ -->
+  <nav class="sidebar" id="sidebar">
+    <div class="nav-title">분석 단계</div>
+    <button class="tab-btn active" data-tab="basic"   onclick="switchTab('basic')"><span class="ic">📋</span>1. 기본 정보</button>
+    <button class="tab-btn"        data-tab="revenue" onclick="switchTab('revenue')"><span class="ic">💰</span>2. 조수입</button>
+    <button class="tab-btn"        data-tab="cost"    onclick="switchTab('cost')"><span class="ic">📉</span>3. 경영비</button>
+    <button class="tab-btn"        data-tab="prodcost" onclick="switchTab('prodcost')"><span class="ic">🏠</span>4. 생산비 추가</button>
+    <button class="tab-btn"        data-tab="profit"  onclick="switchTab('profit')"><span class="ic">📊</span>5. 수익성 지표</button>
+    <button class="tab-btn"        data-tab="invest"  onclick="switchTab('invest')"><span class="ic">📈</span>6. 투자분석</button>
+    <button class="tab-btn"        data-tab="sens"    onclick="switchTab('sens')"><span class="ic">🌪</span>7. 민감도 분석</button>
+    <button class="tab-btn"        data-tab="diffuse" onclick="switchTab('diffuse')"><span class="ic">🌱</span>8. 보급률 시뮬</button>
+    <button class="tab-btn"        data-tab="report"  onclick="switchTab('report')"><span class="ic">📤</span>9. 결과 출력</button>
+
+    <div class="src-panel">
+      <div class="nav-title" style="margin-top:0">데이터 출처 안내</div>
+      <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">농업경영정보시스템<small>경영비·생산비 (amis.rda.go.kr)</small></a>
+      <a href="https://kosis.kr" target="_blank" rel="noopener">통계청 KOSIS<small>농산물생산비조사</small></a>
+      <a href="https://www.kamis.or.kr" target="_blank" rel="noopener">aT KAMIS<small>농산물 도·소매 가격</small></a>
+      <a href="https://ecos.bok.or.kr" target="_blank" rel="noopener">한국은행 ECOS<small>이자율·물가지수</small></a>
+      <a href="https://www.kistep.re.kr" target="_blank" rel="noopener">KISTEP<small>표준 할인율(4.5%)</small></a>
+      <a href="https://www.seed.go.kr" target="_blank" rel="noopener">국립종자원<small>종자·품종 정보</small></a>
+    </div>
+  </nav>
+
+  <main class="content">
+    <div class="work-area">
+
+      <!-- ===================== Tab 1: 기본 정보 ===================== -->
+      <section class="tab-pane active" id="tab-basic">
+        <div class="pane-title">1. 기본 정보 입력</div>
+        <div class="pane-desc">과제 개요와 경영 형태를 입력합니다. 경영 형태에 따라 감가상각비·생산비 항목이 자동 제어됩니다.</div>
+        <div class="card">
+          <h3>과제 개요</h3>
+          <div class="grid c2">
+            <div class="field">
+              <label for="f_projectName">과제명 <span class="req">*</span></label>
+              <input type="text" id="f_projectName" placeholder="예: 벼 신품종 OO 개발 및 보급"
+                     oninput="document.getElementById('hdrProjectName').value=this.value;onInput()">
+            </div>
+            <div class="field">
+              <label for="f_crop">작물/품목 <span class="req">*</span></label>
+              <input type="text" id="f_crop" placeholder="예: 벼, 콩, 사과" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_startYear">연구 시작년도</label>
+              <input type="number" id="f_startYear" placeholder="예: 2024" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_endYear">연구 종료년도</label>
+              <input type="number" id="f_endYear" placeholder="예: 2028" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_analysisYear">분석 시점 연도 (할인율 기준)</label>
+              <input type="number" id="f_analysisYear" placeholder="예: 2025" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_unitArea">분석 단위면적</label>
+              <input type="text" id="f_unitArea" value="10a (300평) 기준" disabled>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>경영 형태</h3>
+          <div class="hint">자가 경영 / 임차 경영 선택에 따라 회계 처리가 달라집니다.</div>
+          <div class="radio-row" id="mgmtRadioRow">
+            <label class="radio-opt sel" id="opt-own">
+              <input type="radio" name="mgmt" value="자가" checked onchange="applyRentalMode()">
+              자가 경영
+            </label>
+            <label class="radio-opt" id="opt-rent">
+              <input type="radio" name="mgmt" value="임차" onchange="applyRentalMode()">
+              임차 경영
+            </label>
+            <label class="radio-opt" style="margin-left:auto">
+              <input type="checkbox" id="f_newVariety" onchange="onInput();toggleNewVariety()">
+              신품종 분석 모드
+            </label>
+          </div>
+          <div class="tooltip-box" id="rentTip">
+            ⚠ 임차 경영에서는 감가상각비를 임차료에 반영하므로 별도 계상하지 않습니다.
+            (생산비 추가 항목 — 자가노력비·자기자본이자·자기토지용역비 — 도 비활성화됩니다.)
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 2: 조수입 ===================== -->
+      <section class="tab-pane" id="tab-revenue">
+        <div class="pane-title">2. 조수입 계산</div>
+        <div class="pane-desc">주산물·부산물 수량과 단가를 입력합니다. 등급별 가격·다개년 평균 단가 보조 계산기를 제공합니다.</div>
+
+        <div class="card">
+          <h3>주산물 / 부산물</h3>
+          <div class="grid c2">
+            <div class="field">
+              <label for="f_mainQty">주산물 수량 <span class="req">*</span></label>
+              <input type="text" id="f_mainQty" placeholder="kg/10a" oninput="onInput()">
+              <div class="src-row"><span class="src-tag">출처</span>
+                <input type="text" id="s_mainQty" placeholder="예: amis.rda.go.kr 2024"></div>
+            </div>
+            <div class="field">
+              <label for="f_mainPrice">주산물 단가 <span class="req">*</span></label>
+              <input type="text" id="f_mainPrice" placeholder="원/kg" oninput="onInput()">
+              <div class="src-row"><span class="src-tag">출처</span>
+                <input type="text" id="s_mainPrice" placeholder="예: KAMIS 2024 연평균"></div>
+            </div>
+            <div class="field">
+              <label for="f_byQty">부산물 수량 (선택)</label>
+              <input type="text" id="f_byQty" placeholder="kg/10a" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_byPrice">부산물 단가 (선택)</label>
+              <input type="text" id="f_byPrice" placeholder="원/kg" oninput="onInput()">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>등급별 가중평균 단가 계산기</h3>
+          <div class="hint">등급명·비율(%)·단가를 입력하면 가중평균 단가가 산출됩니다. 적용 시 주산물 단가에 반영됩니다.</div>
+          <table class="tbl" id="gradeTbl">
+            <thead><tr><th>등급명</th><th>비율(%)</th><th>단가(원/kg)</th><th></th></tr></thead>
+            <tbody id="gradeBody"></tbody>
+          </table>
+          <div class="row-add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="mini-btn" onclick="addGradeRow()">+ 등급 추가</button>
+            <span style="font-size:12.5px;color:var(--text-secondary)">가중평균 단가:
+              <b id="gradeAvg" style="color:var(--accent-3)">0</b> 원/kg</span>
+            <button class="mini-btn" onclick="applyGradeAvg()">→ 주산물 단가에 적용</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>3~5개년 평균 단가 계산기</h3>
+          <div class="hint">연도별 단가를 입력하면 산술평균이 자동 계산됩니다.</div>
+          <table class="tbl" id="myTbl">
+            <thead><tr><th>연도</th><th>단가(원/kg)</th><th></th></tr></thead>
+            <tbody id="myBody"></tbody>
+          </table>
+          <div class="row-add" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="mini-btn" onclick="addYearRow()">+ 연도 추가</button>
+            <span style="font-size:12.5px;color:var(--text-secondary)">산술평균:
+              <b id="myAvg" style="color:var(--accent-3)">0</b> 원/kg</span>
+            <button class="mini-btn" onclick="applyMyAvg()">→ 주산물 단가에 적용</button>
+          </div>
+        </div>
+
+        <div class="card" id="newVarietyCard" style="display:none">
+          <h3>신품종 프리미엄</h3>
+          <div class="hint">대조품종 단가 + 프리미엄(%)을 적용해 신품종 단가를 산출합니다.</div>
+          <div class="grid c3">
+            <div class="field">
+              <label for="f_controlPrice">대조품종 단가 (원/kg)</label>
+              <input type="text" id="f_controlPrice" placeholder="원/kg" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_premiumPct">프리미엄 (%)</label>
+              <input type="text" id="f_premiumPct" placeholder="예: 15" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label>신품종 적용 단가</label>
+              <input type="text" id="f_newPriceCalc" disabled>
+            </div>
+          </div>
+          <button class="mini-btn" style="margin-top:10px" onclick="applyNewVarietyPrice()">→ 주산물 단가에 적용</button>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 3: 경영비 ===================== -->
+      <section class="tab-pane" id="tab-cost">
+        <div class="pane-title">3. 경영비 입력</div>
+        <div class="pane-desc">항목별 비용(원/10a)과 데이터 출처를 입력합니다. 임차 경영 시 감가상각비는 자동 비활성화됩니다.</div>
+        <div class="card">
+          <h3>경영비 항목</h3>
+          <div class="grid c2" id="costGrid"></div>
+          <div class="card" style="margin:16px 0 0;background:var(--bg-card-2)">
+            <h3 style="font-size:14px">기타 항목 (사용자 정의)</h3>
+            <table class="tbl" id="otherCostTbl">
+              <thead><tr><th>항목명</th><th>금액(원/10a)</th><th>출처</th><th></th></tr></thead>
+              <tbody id="otherCostBody"></tbody>
+            </table>
+            <button class="mini-btn row-add" onclick="addOtherCost()">+ 기타 항목 추가</button>
+          </div>
+          <div class="formula">
+            <b>경영비</b> = 종자/종묘 + 비료(무기+유기) + 농약 + 광열동력 + 수리 + 제재료
+            + (자가 경영 시) 감가상각 + 위탁영농 + 고용노력 + 임차료(토지+기계) + 기타<br>
+            현재 경영비 합계: <b id="costSumLive">0</b> 원/10a
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 4: 생산비 추가 ===================== -->
+      <section class="tab-pane" id="tab-prodcost">
+        <div class="pane-title">4. 생산비 추가 항목</div>
+        <div class="pane-desc">자가 경영 시에만 활성화됩니다. 자가 자원의 기회비용을 계상합니다.</div>
+        <div class="card">
+          <h3>자가 자원 용역비</h3>
+          <div class="grid c2">
+            <div class="field">
+              <label for="f_familyHours">가족 노동시간 (시간/10a)</label>
+              <input type="text" id="f_familyHours" placeholder="시간/10a" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_wageRate">농업노임 (원/시간)</label>
+              <input type="text" id="f_wageRate" placeholder="원/시간" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label>자가노력비 (자동 계산)</label>
+              <input type="text" id="f_familyLaborCalc" disabled>
+            </div>
+            <div class="field">
+              <label for="f_ownCapital">자기자본 (원/10a)</label>
+              <input type="text" id="f_ownCapital" placeholder="원/10a" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_capitalRate">자기자본 이자율 (%)</label>
+              <input type="text" id="f_capitalRate" placeholder="예: 2.5" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_ownLandService">자기토지 용역비 (원/10a)</label>
+              <input type="text" id="f_ownLandService" placeholder="원/10a" oninput="onInput()">
+            </div>
+          </div>
+          <div class="formula">
+            <b>자가노력비</b> = 가족노동시간 × 농업노임 ·
+            <b>자기자본이자</b> = 자기자본 × 이자율 ·
+            <b>생산비</b> = 경영비 + 자가노력비 + 자기자본이자 + 자기토지용역비
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 5: 수익성 지표 ===================== -->
+      <section class="tab-pane" id="tab-profit">
+        <div class="pane-title">5. 수익성 지표</div>
+        <div class="pane-desc">입력값을 기반으로 실시간 계산된 수익성 지표입니다.</div>
+        <div class="card">
+          <h3>핵심 지표</h3>
+          <div class="result-grid" id="profitCards"></div>
+          <div class="formula">
+            <b>소득</b> = 조수입 − 경영비 · <b>순수익</b> = 조수입 − 생산비 ·
+            <b>소득률</b> = 소득 ÷ 조수입 × 100<br>
+            <b>부가가치</b> = 조수입 − 중간재비(종자·비료·농약·광열동력·수리·제재료·위탁영농) − 감가상각비(자가) ·
+            <b>부가가치율</b> = 부가가치 ÷ 조수입 × 100
+          </div>
+        </div>
+        <div class="card">
+          <h3>경영비 구성비</h3>
+          <div class="chart-wrap"><canvas id="costDonut"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 6: 투자분석 ===================== -->
+      <section class="tab-pane" id="tab-invest">
+        <div class="pane-title">6. 투자분석 (다년 과제)</div>
+        <div class="pane-desc">연도별 투자비·편익과 할인율로 NPV·IRR·B/C를 산출합니다.</div>
+        <div class="card">
+          <h3>할인율</h3>
+          <div class="grid c3">
+            <div class="field">
+              <label for="f_discountRate">할인율 (%) — KISTEP 표준 4.5%</label>
+              <input type="text" id="f_discountRate" value="4.5" oninput="onInput()">
+              <div class="err-msg" id="e_discountRate"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>연도별 현금흐름 (단위: 천원 또는 원, 일관 유지)</h3>
+          <table class="tbl" id="cfTbl">
+            <thead><tr><th>차년도(t)</th><th>비용</th><th>편익</th><th>순현금흐름</th><th></th></tr></thead>
+            <tbody id="cfBody"></tbody>
+          </table>
+          <button class="mini-btn row-add" onclick="addCfRow()">+ 연차 추가</button>
+        </div>
+        <div class="card">
+          <h3>투자분석 결과</h3>
+          <div class="result-grid" id="investCards"></div>
+          <div class="chart-wrap"><canvas id="cfChart"></canvas></div>
+          <div class="formula">
+            <b>NPV</b> = Σ (편익ₜ − 비용ₜ) / (1+r)ᵗ ·
+            <b>IRR</b> = NPV=0 이 되는 r (이분법 탐색) ·
+            <b>B/C</b> = Σ편익ₜ/(1+r)ᵗ ÷ Σ비용ₜ/(1+r)ᵗ
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 7: 민감도 ===================== -->
+      <section class="tab-pane" id="tab-sens">
+        <div class="pane-title">7. 민감도 분석</div>
+        <div class="pane-desc">단가·수량·경영비를 ±10%, ±20% 변동시켜 소득 변화를 분석합니다.</div>
+        <div class="card">
+          <h3>시나리오별 소득 (원/10a)</h3>
+          <table class="tbl" id="sensTbl">
+            <thead><tr><th>변동 요인</th><th>−20%</th><th>−10%</th><th>기준</th><th>+10%</th><th>+20%</th></tr></thead>
+            <tbody id="sensBody"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>토네이도 차트 (±20% 기준 소득 범위)</h3>
+          <div class="chart-wrap"><canvas id="tornadoChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>손익분기점</h3>
+          <div class="result-grid" id="bepCards"></div>
+          <div class="formula">
+            <b>손익분기 단가</b> = 경영비 ÷ 주산물 수량 (소득=0 단가) ·
+            <b>손익분기 수량</b> = 경영비 ÷ 주산물 단가
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 8: 보급률 시뮬 ===================== -->
+      <section class="tab-pane" id="tab-diffuse">
+        <div class="pane-title">8. 보급률 시뮬레이션 (신품종)</div>
+        <div class="pane-desc">연도별 보급률·재배 가능 면적으로 농가소득 파급효과를 추정합니다.</div>
+        <div class="card">
+          <h3>전제 조건</h3>
+          <div class="grid c2">
+            <div class="field">
+              <label for="f_totalArea">대상 작물 총 재배면적 (ha)</label>
+              <input type="text" id="f_totalArea" placeholder="ha" oninput="onInput()">
+            </div>
+            <div class="field">
+              <label for="f_incomeGain">신품종 단위면적당 소득 증가 (원/10a)</label>
+              <input type="text" id="f_incomeGain" placeholder="원/10a" oninput="onInput()">
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>연도별 보급률</h3>
+          <table class="tbl" id="diffTbl">
+            <thead><tr><th>연차</th><th>보급률(%)</th><th>보급면적(ha)</th><th>농가소득 증가(원)</th><th></th></tr></thead>
+            <tbody id="diffBody"></tbody>
+          </table>
+          <button class="mini-btn row-add" onclick="addDiffRow()">+ 연차 추가</button>
+          <div class="formula">
+            <b>보급면적</b> = 총 재배면적 × 보급률 ·
+            <b>농가소득 증가</b> = 보급면적(ha) × 10 × 단위면적당 소득증가(원/10a)
+            <span style="color:var(--text-secondary)">(1ha = 10 × 10a)</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>연도별 파급효과</h3>
+          <div class="chart-wrap"><canvas id="diffChart"></canvas></div>
+        </div>
+      </section>
+
+      <!-- ===================== Tab 9: 결과 출력 ===================== -->
+      <section class="tab-pane" id="tab-report">
+        <div class="pane-title">9. 결과 출력</div>
+        <div class="pane-desc">엑셀 다운로드, 인쇄용 보고서 미리보기, 결과 요약 카드를 제공합니다.</div>
+        <div class="card">
+          <h3>내보내기</h3>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn primary" onclick="exportExcel()">📊 엑셀 다운로드 (.xlsx)</button>
+            <button class="btn" onclick="buildReport();window.print()">🖨 보고서 인쇄/PDF</button>
+            <button class="btn" onclick="buildReport()">👁 보고서 미리보기</button>
+          </div>
+        </div>
+        <div class="card" id="summaryCard">
+          <h3>결과 요약 (스크린샷용)</h3>
+          <div class="result-grid" id="summaryCards"></div>
+          <div id="qrcode" class="hidden-canvas" style="margin-top:14px"></div>
+        </div>
+        <div class="card" id="reportCard">
+          <h3>보고서 미리보기 — 농업경영 표준진단표 손익계산서 양식</h3>
+          <div id="reportPreview"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- 우측 결과 레일 -->
+    <aside class="result-rail">
+      <div class="rail-sticky">
+        <div class="kpi"><div class="label">조수입</div>
+          <div class="value"><span id="rail_revenue">0</span><span class="unit">원/10a</span></div></div>
+        <div class="kpi good"><div class="label">소득</div>
+          <div class="value"><span id="rail_income">0</span><span class="unit">원/10a</span></div></div>
+        <div class="kpi"><div class="label">순수익</div>
+          <div class="value"><span id="rail_net">0</span><span class="unit">원/10a</span></div></div>
+        <div class="kpi"><div class="label">소득률</div>
+          <div class="value"><span id="rail_incomeRate">0</span><span class="unit">%</span></div></div>
+        <div class="rail-note" id="railMode">경영형태: 자가 경영</div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<footer class="app-footer">
+  농촌진흥청 R&D 과제 경제성 분석 도구 · 데이터 출처: 농업경영정보시스템(amis.rda.go.kr) · 통계청 KOSIS · aT KAMIS · KISTEP<br>
+  본 도구의 산출값은 참고용이며, 공식 보고서 제출 전 출처 데이터로 검증하시기 바랍니다. · 밭작물개발부 경지이용작물과
+</footer>
+
+<!-- 초기화 확인 모달 -->
+<div class="modal-bg" id="resetModal">
+  <div class="modal">
+    <h3>전체 초기화</h3>
+    <p>모든 입력값과 저장된 데이터가 삭제됩니다. 계속하시겠습니까?</p>
+    <div class="m-actions">
+      <button class="btn" onclick="closeResetModal()">취소</button>
+      <button class="btn danger" onclick="doReset()">초기화</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   상수 / 전역 상태
+   ============================================================ */
+const STORAGE_KEY = 'rda_econ_analysis_v1';
+
+// 경영비 항목 정의 (id, 라벨, 단위, 출처기본값)
+const COST_ITEMS = [
+  {id:'seed',         label:'종자/종묘비',        src:'국립종자원 / amis'},
+  {id:'fertInorg',    label:'무기질 비료비',      src:'amis.rda.go.kr'},
+  {id:'fertOrg',      label:'유기질 비료비',      src:'amis.rda.go.kr'},
+  {id:'pesticide',    label:'농약비',             src:'amis.rda.go.kr'},
+  {id:'energy',       label:'광열동력비',         src:'KOSIS / ECOS'},
+  {id:'repair',       label:'수리비',             src:'amis.rda.go.kr'},
+  {id:'materials',    label:'제재료비',           src:'amis.rda.go.kr'},
+  {id:'depreciation', label:'농기계·시설 감가상각비', src:'자산대장', deprec:true},
+  {id:'consignment',  label:'위탁영농비',         src:'amis.rda.go.kr'},
+  {id:'hiredLabor',   label:'고용노력비',         src:'KOSIS 농업노임'},
+  {id:'rentLand',     label:'임차료(토지)',       src:'지역 임차료 조사', rent:true},
+  {id:'rentMachine',  label:'임차료(기계)',       src:'농기계 임대',     rent:true}
+];
+
+let otherCosts = [];   // [{name,value,src}]
+let charts = {};       // Chart 인스턴스 저장
+
+/* ============================================================
+   유틸: 숫자 파싱/포맷, 토스트, 디버그
+   ============================================================ */
+function parseNum(v){
+  if(v===null||v===undefined) return 0;
+  const n = parseFloat(String(v).replace(/[, ]/g,''));
+  return isNaN(n)?0:n;
+}
+function fmt(n,dec=0){
+  if(!isFinite(n)) return '0';
+  return Number(n).toLocaleString('ko-KR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+function gv(id){ const el=document.getElementById(id); return el?parseNum(el.value):0; }
+function gt(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function dbg(tag,obj){ console.log('[ECON] '+tag, obj!==undefined?JSON.stringify(obj):''); }
+
+/* ============================================================
+   탭 전환 / 사이드바
+   ============================================================ */
+function switchTab(name){
+  dbg('탭 전환', name);
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const pane=document.getElementById('tab-'+name);
+  const btn=document.querySelector('.tab-btn[data-tab="'+name+'"]');
+  if(pane) pane.classList.add('active');
+  if(btn) btn.classList.add('active');
+  document.getElementById('sidebar').classList.remove('open');
+  recalc();
+  if(name==='report'){ buildReport(); renderQR(); }
+}
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('open'); }
+function syncProjectName(v){
+  const f=document.getElementById('f_projectName');
+  if(f) f.value=v;
+  onInput();
+}
+
+/* ============================================================
+   동적 행: 경영비 그리드, 등급/연도/현금흐름/보급률
+   ============================================================ */
+function buildCostGrid(){
+  const grid=document.getElementById('costGrid');
+  grid.innerHTML = COST_ITEMS.map(it=>`
+    <div class="field" id="wrap_${it.id}">
+      <label for="c_${it.id}">${it.label}${it.rent?' <span class="req">＊임차 핵심</span>':''}</label>
+      <input type="text" id="c_${it.id}" placeholder="원/10a" oninput="onInput()">
+      <div class="err-msg" id="e_c_${it.id}"></div>
+      <div class="src-row"><span class="src-tag">출처</span>
+        <input type="text" id="cs_${it.id}" placeholder="${it.src}"></div>
+    </div>`).join('');
+}
+function renderOtherCosts(){
+  const b=document.getElementById('otherCostBody');
+  b.innerHTML = otherCosts.map((o,i)=>`
+    <tr>
+      <td><input type="text" value="${o.name||''}" oninput="otherCosts[${i}].name=this.value;onInput()" placeholder="항목명"></td>
+      <td><input type="text" value="${o.value||''}" oninput="otherCosts[${i}].value=this.value;onInput()" placeholder="원/10a"></td>
+      <td><input type="text" value="${o.src||''}" oninput="otherCosts[${i}].src=this.value" placeholder="출처"></td>
+      <td><button class="del-btn" onclick="otherCosts.splice(${i},1);renderOtherCosts();onInput()">✕</button></td>
+    </tr>`).join('');
+}
+function addOtherCost(){ otherCosts.push({name:'',value:'',src:''}); renderOtherCosts(); }
+
+// 등급별 가중평균
+let gradeRows=[{name:'특',ratio:'',price:''}];
+function renderGrade(){
+  document.getElementById('gradeBody').innerHTML = gradeRows.map((g,i)=>`
+    <tr>
+      <td><input type="text" value="${g.name||''}" oninput="gradeRows[${i}].name=this.value"></td>
+      <td><input type="text" value="${g.ratio||''}" oninput="gradeRows[${i}].ratio=this.value;calcGradeAvg()" placeholder="%"></td>
+      <td><input type="text" value="${g.price||''}" oninput="gradeRows[${i}].price=this.value;calcGradeAvg()" placeholder="원/kg"></td>
+      <td><button class="del-btn" onclick="gradeRows.splice(${i},1);renderGrade();calcGradeAvg()">✕</button></td>
+    </tr>`).join('');
+}
+function addGradeRow(){ gradeRows.push({name:'',ratio:'',price:''}); renderGrade(); }
+function calcGradeAvg(){
+  let wsum=0,rsum=0;
+  gradeRows.forEach(g=>{ const r=parseNum(g.ratio),p=parseNum(g.price); wsum+=r*p; rsum+=r; });
+  const avg = rsum>0 ? wsum/rsum : 0;
+  document.getElementById('gradeAvg').textContent=fmt(avg);
+  return avg;
+}
+function applyGradeAvg(){
+  const a=calcGradeAvg();
+  document.getElementById('f_mainPrice').value=fmt(a);
+  onInput(); showToast('가중평균 단가를 주산물 단가에 적용했습니다');
+}
+
+// 다개년 평균
+let yearRows=[{year:'',price:''},{year:'',price:''},{year:'',price:''}];
+function renderYear(){
+  document.getElementById('myBody').innerHTML = yearRows.map((y,i)=>`
+    <tr>
+      <td><input type="text" value="${y.year||''}" oninput="yearRows[${i}].year=this.value" placeholder="2022"></td>
+      <td><input type="text" value="${y.price||''}" oninput="yearRows[${i}].price=this.value;calcMyAvg()" placeholder="원/kg"></td>
+      <td><button class="del-btn" onclick="yearRows.splice(${i},1);renderYear();calcMyAvg()">✕</button></td>
+    </tr>`).join('');
+}
+function addYearRow(){ yearRows.push({year:'',price:''}); renderYear(); }
+function calcMyAvg(){
+  const vals=yearRows.map(y=>parseNum(y.price)).filter(v=>v>0);
+  const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  document.getElementById('myAvg').textContent=fmt(avg);
+  return avg;
+}
+function applyMyAvg(){
+  const a=calcMyAvg();
+  document.getElementById('f_mainPrice').value=fmt(a);
+  onInput(); showToast('연평균 단가를 주산물 단가에 적용했습니다');
+}
+
+// 신품종 프리미엄
+function toggleNewVariety(){
+  const on=document.getElementById('f_newVariety').checked;
+  document.getElementById('newVarietyCard').style.display = on?'block':'none';
+}
+function applyNewVarietyPrice(){
+  const cp=gv('f_controlPrice'), pr=gv('f_premiumPct');
+  const np=cp*(1+pr/100);
+  document.getElementById('f_newPriceCalc').value=fmt(np);
+  document.getElementById('f_mainPrice').value=fmt(np);
+  onInput(); showToast('신품종 단가를 주산물 단가에 적용했습니다');
+}
+
+// 투자 현금흐름
+let cfRows=[{cost:'',benefit:''},{cost:'',benefit:''},{cost:'',benefit:''}];
+function renderCf(){
+  document.getElementById('cfBody').innerHTML = cfRows.map((r,i)=>
+    `<tr>
+      <td>${i+1}차년 (t=${i})</td>
+      <td><input type="text" value="${r.cost||''}" oninput="cfRows[${i}].cost=this.value;updateCfNet();onInput()"></td>
+      <td><input type="text" value="${r.benefit||''}" oninput="cfRows[${i}].benefit=this.value;updateCfNet();onInput()"></td>
+      <td id="cfNet_${i}"></td>
+      <td><button class="del-btn" onclick="cfRows.splice(${i},1);renderCf();onInput()">✕</button></td>
+    </tr>`).join('');
+  updateCfNet();
+}
+function updateCfNet(){
+  cfRows.forEach((r,i)=>{
+    const cell=document.getElementById('cfNet_'+i); if(!cell) return;
+    const net=parseNum(r.benefit)-parseNum(r.cost);
+    cell.textContent=fmt(net);
+    cell.style.color = net<0?'var(--error)':'var(--accent-3)';
+  });
+}
+function addCfRow(){ cfRows.push({cost:'',benefit:''}); renderCf(); onInput(); }
+
+// 보급률
+let diffRows=[{year:'1년차',rate:'1'},{year:'2년차',rate:'3'},{year:'3년차',rate:'5'},
+              {year:'4년차',rate:'10'},{year:'5년차',rate:'15'}];
+function renderDiff(){
+  document.getElementById('diffBody').innerHTML = diffRows.map((d,i)=>
+    `<tr>
+      <td><input type="text" value="${d.year||''}" oninput="diffRows[${i}].year=this.value"></td>
+      <td><input type="text" value="${d.rate||''}" oninput="diffRows[${i}].rate=this.value;updateDiffComputed();onInput()" placeholder="%"></td>
+      <td id="diffArea_${i}"></td>
+      <td id="diffInc_${i}"></td>
+      <td><button class="del-btn" onclick="diffRows.splice(${i},1);renderDiff();onInput()">✕</button></td>
+    </tr>`).join('');
+  updateDiffComputed();
+}
+function updateDiffComputed(){
+  const totalHa=gv('f_totalArea'), gain=gv('f_incomeGain');
+  diffRows.forEach((d,i)=>{
+    const a=document.getElementById('diffArea_'+i), inc=document.getElementById('diffInc_'+i);
+    if(!a||!inc) return;
+    const area=totalHa*parseNum(d.rate)/100;
+    a.textContent=fmt(area,1);
+    inc.textContent=fmt(area*10*gain);
+  });
+}
+function addDiffRow(){ diffRows.push({year:diffRows.length+1+'년차',rate:''}); renderDiff(); onInput(); }
+
+/* ============================================================
+   경영형태(자가/임차) 제어
+   ============================================================ */
+function getMgmt(){
+  const r=document.querySelector('input[name="mgmt"]:checked');
+  return r?r.value:'자가';
+}
+function applyRentalMode(){
+  const mode=getMgmt();
+  dbg('경영형태 적용', mode);
+  document.getElementById('opt-own').classList.toggle('sel',mode==='자가');
+  document.getElementById('opt-rent').classList.toggle('sel',mode==='임차');
+  const isRent = mode==='임차';
+  // 감가상각비 비활성화 + 0 강제 (검증 로직 1)
+  const dep=document.getElementById('c_depreciation');
+  const depSrc=document.getElementById('cs_depreciation');
+  if(dep){ dep.disabled=isRent; if(isRent) dep.value=''; }
+  if(depSrc) depSrc.disabled=isRent;
+  document.getElementById('wrap_depreciation').title =
+    isRent ? '임차 경영에서는 감가상각비를 임차료에 반영하므로 별도 계상하지 않습니다' : '';
+  // 생산비 추가 탭(자가만) 비활성화
+  ['f_familyHours','f_wageRate','f_ownCapital','f_capitalRate','f_ownLandService']
+    .forEach(id=>{ const e=document.getElementById(id); if(e){ e.disabled=isRent; if(isRent)e.value=''; }});
+  document.querySelector('.tab-btn[data-tab="prodcost"]').disabled=isRent;
+  document.getElementById('rentTip').classList.toggle('show',isRent);
+  document.getElementById('railMode').textContent='경영형태: '+mode+' 경영';
+  onInput();
+}
+
+/* ============================================================
+   검증 로직
+   ============================================================ */
+function validateField(el,min,max,label){
+  if(!el) return true;
+  const wrap=el.closest('.field');
+  const errEl = wrap?wrap.querySelector('.err-msg'):document.getElementById('e_'+el.id.replace(/^[a-z]_/,''));
+  const raw=el.value.trim();
+  let ok=true,msg='';
+  if(raw!==''){
+    const n=parseNum(raw);
+    if(n<0){ ok=false; msg='음수는 입력할 수 없습니다'; }
+    else if(min!==undefined && n<min){ ok=false; msg=label+' 최소 '+min; }
+    else if(max!==undefined && n>max){ ok=false; msg=label+' 최대 '+max; }
+  }
+  el.classList.toggle('invalid',!ok);
+  if(errEl) errEl.textContent=msg;
+  return ok;
+}
+function validateAll(){
+  let ok=true;
+  // 모든 비용/수량/단가: 0 이상
+  COST_ITEMS.forEach(it=>{ if(!validateField(document.getElementById('c_'+it.id))) ok=false; });
+  ['f_mainQty','f_mainPrice','f_byQty','f_byPrice','f_familyHours','f_wageRate',
+   'f_ownCapital','f_ownLandService','f_totalArea','f_incomeGain']
+    .forEach(id=>{ if(!validateField(document.getElementById(id))) ok=false; });
+  // 할인율 0~50
+  if(!validateField(document.getElementById('f_discountRate'),0,50,'할인율')) ok=false;
+  // 자기자본 이자율 0~50
+  if(!validateField(document.getElementById('f_capitalRate'),0,50,'이자율')) ok=false;
+  // 보급률 0~100
+  diffRows.forEach(d=>{ const r=parseNum(d.rate); if(d.rate!=='' && (r<0||r>100)){ ok=false; } });
+  return ok;
+}
+
+/* ============================================================
+   핵심 계산 엔진
+   ============================================================ */
+function compute(){
+  const mode=getMgmt();
+  const isOwn = mode==='자가';
+
+  // --- 조수입 ---
+  const mainQty=gv('f_mainQty'), mainPrice=gv('f_mainPrice');
+  const byQty=gv('f_byQty'), byPrice=gv('f_byPrice');
+  const mainRev=mainQty*mainPrice, byRev=byQty*byPrice;
+  const revenue=mainRev+byRev;
+
+  // --- 경영비 ---
+  const c={};
+  COST_ITEMS.forEach(it=> c[it.id]=gv('c_'+it.id));
+  if(!isOwn) c.depreciation=0; // 임차 시 감가상각 제외 (검증 1)
+  const otherSum = otherCosts.reduce((s,o)=>s+parseNum(o.value),0);
+  const mgmtCost =
+      c.seed+c.fertInorg+c.fertOrg+c.pesticide+c.energy+c.repair+c.materials
+    + (isOwn?c.depreciation:0)
+    + c.consignment+c.hiredLabor+c.rentLand+c.rentMachine+otherSum;
+
+  // --- 생산비 (자가 추가) ---
+  const familyLabor = isOwn ? gv('f_familyHours')*gv('f_wageRate') : 0;
+  const capInterest = isOwn ? gv('f_ownCapital')*gv('f_capitalRate')/100 : 0;
+  const landService = isOwn ? gv('f_ownLandService') : 0;
+  const addProd = familyLabor+capInterest+landService;
+  const prodCost = mgmtCost + addProd;
+
+  // --- 수익성 ---
+  const income = revenue - mgmtCost;
+  const netProfit = revenue - prodCost;
+  const incomeRate = revenue>0 ? income/revenue*100 : 0;
+  // 부가가치 = 조수입 - 중간재비 - 감가상각(자가)
+  const intermediate = c.seed+c.fertInorg+c.fertOrg+c.pesticide+c.energy+c.repair+c.materials+c.consignment;
+  const valueAdded = revenue - intermediate - (isOwn?c.depreciation:0);
+  const valueAddedRate = revenue>0 ? valueAdded/revenue*100 : 0;
+
+  // --- 투자분석 ---
+  const r = gv('f_discountRate')/100;
+  let npv=0, pvB=0, pvC=0;
+  cfRows.forEach((row,t)=>{
+    const b=parseNum(row.benefit), co=parseNum(row.cost);
+    const d=Math.pow(1+r,t);
+    npv += (b-co)/d; pvB += b/d; pvC += co/d;
+  });
+  const bcRatio = pvC>0 ? pvB/pvC : 0;
+  const irr = calcIRR(cfRows);
+
+  // --- 보급률 ---
+  const totalHa=gv('f_totalArea'), gain=gv('f_incomeGain');
+  const diffSeries = diffRows.map(d=>{
+    const rate=parseNum(d.rate);
+    const area=totalHa*rate/100;
+    return { year:d.year, rate, area, income:area*10*gain };
+  });
+
+  return {mode,isOwn,mainQty,mainPrice,byQty,byPrice,mainRev,byRev,revenue,
+    c,otherSum,mgmtCost,familyLabor,capInterest,landService,addProd,prodCost,
+    income,netProfit,incomeRate,intermediate,valueAdded,valueAddedRate,
+    npv,bcRatio,irr,discountRate:r*100,diffSeries};
+}
+
+// IRR — 이분법(bisection)
+function calcIRR(rows){
+  const npvAt=(rate)=>{
+    let s=0; rows.forEach((row,t)=>{
+      s += (parseNum(row.benefit)-parseNum(row.cost))/Math.pow(1+rate,t);
+    }); return s;
+  };
+  let lo=-0.9, hi=2.0; // -90% ~ 200%
+  let fLo=npvAt(lo), fHi=npvAt(hi);
+  if(fLo*fHi>0) return null; // 해 없음
+  for(let i=0;i<200;i++){
+    const mid=(lo+hi)/2, fMid=npvAt(mid);
+    if(Math.abs(fMid)<1e-6) return mid*100;
+    if(fLo*fMid<0){ hi=mid; fHi=fMid; } else { lo=mid; fLo=fMid; }
+  }
+  return ((lo+hi)/2)*100;
+}
+
+// 민감도: 요인별 ±20/10 변동 시 소득
+function computeSensitivity(R){
+  const factors=[
+    {key:'단가', base:R.mainPrice, calc:(v)=> (R.mainQty*v + R.byRev) - R.mgmtCost },
+    {key:'수량', base:R.mainQty,  calc:(v)=> (v*R.mainPrice + R.byRev) - R.mgmtCost },
+    {key:'경영비',base:R.mgmtCost, calc:(v)=> R.revenue - v }
+  ];
+  const pcts=[-0.2,-0.1,0,0.1,0.2];
+  return factors.map(f=>({
+    key:f.key,
+    vals:pcts.map(p=>f.calc(f.base*(1+p)))
+  }));
+}
+
+/* ============================================================
+   렌더링: 결과 카드 / 차트
+   ============================================================ */
+function kpiCard(label,val,unit,cls){
+  return `<div class="kpi ${cls||''}"><div class="label">${label}</div>
+    <div class="value">${val}<span class="unit">${unit||''}</span></div></div>`;
+}
+function recalc(){
+  if(!validateAll()){ dbg('검증 실패 - 일부 입력 보정 필요'); }
+  const R=compute();
+  dbg('계산 결과', {조수입:R.revenue,경영비:R.mgmtCost,소득:R.income,순수익:R.netProfit,NPV:R.npv,IRR:R.irr});
+
+  // 우측 레일
+  document.getElementById('rail_revenue').textContent=fmt(R.revenue);
+  document.getElementById('rail_income').textContent=fmt(R.income);
+  document.getElementById('rail_net').textContent=fmt(R.netProfit);
+  document.getElementById('rail_incomeRate').textContent=fmt(R.incomeRate,1);
+
+  // Tab5 카드
+  document.getElementById('profitCards').innerHTML =
+    kpiCard('조수입',fmt(R.revenue),'원/10a') +
+    kpiCard('경영비',fmt(R.mgmtCost),'원/10a') +
+    kpiCard('생산비',fmt(R.prodCost),'원/10a') +
+    kpiCard('소득',fmt(R.income),'원/10a', R.income>=0?'good':'bad') +
+    kpiCard('순수익',fmt(R.netProfit),'원/10a', R.netProfit>=0?'good':'bad') +
+    kpiCard('소득률',fmt(R.incomeRate,1),'%') +
+    kpiCard('부가가치',fmt(R.valueAdded),'원/10a') +
+    kpiCard('부가가치율',fmt(R.valueAddedRate,1),'%');
+
+  document.getElementById('costSumLive').textContent=fmt(R.mgmtCost);
+  document.getElementById('f_familyLaborCalc').value=fmt(R.familyLabor);
+  if(document.getElementById('f_newVariety').checked){
+    document.getElementById('f_newPriceCalc').value=fmt(gv('f_controlPrice')*(1+gv('f_premiumPct')/100));
+  }
+
+  // Tab6 카드
+  document.getElementById('investCards').innerHTML =
+    kpiCard('NPV',fmt(R.npv),'', R.npv>=0?'good':'bad') +
+    kpiCard('IRR', R.irr==null?'산출불가':fmt(R.irr,2)+'%','', (R.irr!=null&&R.irr>=R.discountRate)?'good':'bad') +
+    kpiCard('B/C ratio',fmt(R.bcRatio,2),'', R.bcRatio>=1?'good':'bad') +
+    kpiCard('할인율',fmt(R.discountRate,1),'%') +
+    `<div class="kpi"><div class="label">투자 타당성</div><div class="value">
+      ${R.npv>=0&&R.bcRatio>=1?'<span class="badge b1">타당</span>':'<span class="badge b2">재검토</span>'}
+    </div></div>`;
+
+  // Tab7 민감도
+  const S=computeSensitivity(R);
+  document.getElementById('sensBody').innerHTML = S.map(f=>
+    `<tr><td><b>${f.key}</b></td>${f.vals.map((v,i)=>
+      `<td style="${i===2?'background:var(--bg-card-2);font-weight:800':''};color:${v<0?'var(--error)':'inherit'}">${fmt(v)}</td>`
+    ).join('')}</tr>`).join('');
+  const bepPrice = R.mainQty>0 ? R.mgmtCost/R.mainQty : 0;
+  const bepQty   = R.mainPrice>0 ? R.mgmtCost/R.mainPrice : 0;
+  document.getElementById('bepCards').innerHTML =
+    kpiCard('손익분기 단가',fmt(bepPrice),'원/kg') +
+    kpiCard('손익분기 수량',fmt(bepQty,1),'kg/10a') +
+    kpiCard('현재 단가 여유', fmt(R.mainPrice-bepPrice),'원/kg', (R.mainPrice-bepPrice)>=0?'good':'bad');
+
+  // Tab8 보급률 (입력 행은 재생성하지 않고 계산 셀만 갱신 → 포커스 유지)
+  updateDiffComputed();
+  updateCfNet();
+
+  drawCharts(R,S);
+  saveData(false);
+}
+
+function destroyChart(k){ if(charts[k]){ charts[k].destroy(); delete charts[k]; } }
+const BLUES=['#08306b','#08519c','#2171b5','#4292c6','#6baed6','#9ecae1','#c6dbef','#54b7c6','#8dccd3','#017f97','#00a1b8','#0c3026'];
+function chartFont(){ return {color:'#94b8aa',font:{family:'Noto Sans KR'}}; }
+
+function drawCharts(R,S){
+  // 경영비 도넛
+  const items=[
+    ['종자/종묘',R.c.seed],['무기질비료',R.c.fertInorg],['유기질비료',R.c.fertOrg],
+    ['농약',R.c.pesticide],['광열동력',R.c.energy],['수리',R.c.repair],['제재료',R.c.materials],
+    ['감가상각',R.isOwn?R.c.depreciation:0],['위탁영농',R.c.consignment],['고용노력',R.c.hiredLabor],
+    ['임차료(토지)',R.c.rentLand],['임차료(기계)',R.c.rentMachine],['기타',R.otherSum]
+  ].filter(x=>x[1]>0);
+  destroyChart('donut');
+  const dc=document.getElementById('costDonut');
+  if(dc){
+    charts.donut=new Chart(dc,{type:'doughnut',
+      data:{labels:items.map(i=>i[0]),datasets:[{data:items.map(i=>i[1]),
+        backgroundColor:BLUES,borderColor:'#0c3026',borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'right',labels:chartFont()},
+          tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.parsed)}원 (${(c.parsed/items.reduce((s,i)=>s+i[1],0)*100).toFixed(1)}%)`}}}}});
+  }
+  // 누적 현금흐름
+  destroyChart('cf');
+  const cfc=document.getElementById('cfChart');
+  if(cfc){
+    let cum=0; const labels=[],cumArr=[],netArr=[];
+    cfRows.forEach((row,t)=>{ const net=parseNum(row.benefit)-parseNum(row.cost);
+      cum+=net; labels.push((t+1)+'차'); netArr.push(net); cumArr.push(cum); });
+    charts.cf=new Chart(cfc,{type:'line',
+      data:{labels,datasets:[
+        {label:'순현금흐름',data:netArr,borderColor:'#54b7c6',backgroundColor:'rgba(84,183,198,.15)',tension:.2},
+        {label:'누적 현금흐름',data:cumArr,borderColor:'#00a1b8',backgroundColor:'rgba(0,161,184,.2)',fill:true,tension:.2}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:chartFont()}},
+        scales:{x:{ticks:chartFont(),grid:{color:'#1a5040'}},
+          y:{ticks:chartFont(),grid:{color:'#1a5040'}}}}});
+  }
+  // 토네이도
+  destroyChart('tor');
+  const tc=document.getElementById('tornadoChart');
+  if(tc){
+    const base=R.income;
+    charts.tor=new Chart(tc,{type:'bar',
+      data:{labels:S.map(f=>f.key),datasets:[
+        {label:'−20%',data:S.map(f=>f.vals[0]-base),backgroundColor:'#2171b5'},
+        {label:'+20%',data:S.map(f=>f.vals[4]-base),backgroundColor:'#6baed6'}
+      ]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:chartFont()},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: 기준대비 ${fmt(c.parsed.x)}원`}}},
+        scales:{x:{ticks:chartFont(),grid:{color:'#1a5040'},title:{display:true,text:'기준 소득 대비 변화(원/10a)',color:'#94b8aa'}},
+          y:{ticks:chartFont(),grid:{color:'#1a5040'}}}}});
+  }
+  // 보급 파급효과
+  destroyChart('diff');
+  const dfc=document.getElementById('diffChart');
+  if(dfc){
+    charts.diff=new Chart(dfc,{type:'line',
+      data:{labels:R.diffSeries.map(d=>d.year),datasets:[
+        {label:'농가소득 증가(원)',data:R.diffSeries.map(d=>d.income),
+         borderColor:'#00a1b8',backgroundColor:'rgba(0,161,184,.2)',fill:true,tension:.25},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:chartFont()}},
+        scales:{x:{ticks:chartFont(),grid:{color:'#1a5040'}},
+          y:{ticks:chartFont(),grid:{color:'#1a5040'}}}}});
+  }
+}
+
+/* ============================================================
+   입력 핸들러 (디바운스)
+   ============================================================ */
+let _deb;
+function onInput(){
+  clearTimeout(_deb);
+  _deb=setTimeout(()=>{ validateAll(); recalc(); },120);
+}
+
+/* ============================================================
+   영속성: LocalStorage / JSON
+   ============================================================ */
+function collectState(){
+  const st={ basic:{}, revenue:{}, cost:{cs:{}}, prodcost:{},
+    invest:{}, mgmt:getMgmt(), newVariety:document.getElementById('f_newVariety').checked,
+    otherCosts, gradeRows, yearRows, cfRows, diffRows };
+  ['f_projectName','f_crop','f_startYear','f_endYear','f_analysisYear'].forEach(id=>st.basic[id]=gt(id));
+  ['f_mainQty','f_mainPrice','f_byQty','f_byPrice','f_controlPrice','f_premiumPct',
+   's_mainQty','s_mainPrice'].forEach(id=>st.revenue[id]=gt(id));
+  COST_ITEMS.forEach(it=>{ st.cost['c_'+it.id]=gt('c_'+it.id); st.cost.cs['cs_'+it.id]=gt('cs_'+it.id); });
+  ['f_familyHours','f_wageRate','f_ownCapital','f_capitalRate','f_ownLandService']
+    .forEach(id=>st.prodcost[id]=gt(id));
+  ['f_discountRate','f_totalArea','f_incomeGain'].forEach(id=>st.invest[id]=gt(id));
+  return st;
+}
+function applyState(st){
+  if(!st) return;
+  dbg('상태 복원', {프로젝트:st.basic&&st.basic.f_projectName});
+  const set=(id,v)=>{ const e=document.getElementById(id); if(e&&v!==undefined) e.value=v; };
+  Object.entries(st.basic||{}).forEach(([k,v])=>set(k,v));
+  Object.entries(st.revenue||{}).forEach(([k,v])=>set(k,v));
+  Object.entries((st.cost&&st.cost)||{}).forEach(([k,v])=>{ if(k!=='cs') set(k,v); });
+  Object.entries((st.cost&&st.cost.cs)||{}).forEach(([k,v])=>set(k,v));
+  Object.entries(st.prodcost||{}).forEach(([k,v])=>set(k,v));
+  Object.entries(st.invest||{}).forEach(([k,v])=>set(k,v));
+  document.getElementById('hdrProjectName').value=(st.basic&&st.basic.f_projectName)||'';
+  if(st.newVariety){ document.getElementById('f_newVariety').checked=true; toggleNewVariety(); }
+  if(st.mgmt==='임차'){ document.querySelector('input[name="mgmt"][value="임차"]').checked=true; }
+  otherCosts = Array.isArray(st.otherCosts)?st.otherCosts:[];
+  gradeRows = Array.isArray(st.gradeRows)&&st.gradeRows.length?st.gradeRows:gradeRows;
+  yearRows = Array.isArray(st.yearRows)&&st.yearRows.length?st.yearRows:yearRows;
+  cfRows = Array.isArray(st.cfRows)&&st.cfRows.length?st.cfRows:cfRows;
+  diffRows = Array.isArray(st.diffRows)&&st.diffRows.length?st.diffRows:diffRows;
+  renderOtherCosts(); renderGrade(); renderYear(); renderCf(); renderDiff();
+  applyRentalMode();
+}
+function saveData(notify){
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(collectState()));
+    if(notify) showToast('저장되었습니다');
+  }catch(e){ console.error('[ECON] 저장 실패', e); if(notify) showToast('저장 실패'); }
+}
+function loadData(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw){ showToast('저장된 데이터가 없습니다'); return; }
+    applyState(JSON.parse(raw)); recalc();
+    showToast('불러왔습니다');
+  }catch(e){ console.error('[ECON] 불러오기 실패', e); showToast('불러오기 실패'); }
+}
+function exportProjectJSON(){
+  const blob=new Blob([JSON.stringify(collectState(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(gt('f_projectName')||'경제성분석')+'_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(a.href);
+  showToast('JSON 내보내기 완료');
+}
+function importProjectJSON(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ applyState(JSON.parse(rd.result)); recalc(); showToast('JSON 가져오기 완료'); }
+    catch(e){ console.error('[ECON] JSON 파싱 실패',e); showToast('JSON 형식 오류'); } };
+  rd.readAsText(file); ev.target.value='';
+}
+function openResetModal(){ document.getElementById('resetModal').classList.add('show'); }
+function closeResetModal(){ document.getElementById('resetModal').classList.remove('show'); }
+function doReset(){
+  localStorage.removeItem(STORAGE_KEY);
+  closeResetModal();
+  location.reload();
+}
+
+/* ============================================================
+   엑셀 내보내기 (xlsx-js-style 스타일 적용)
+   ============================================================ */
+const XL_HEADER={font:{name:'KoPubDotum Medium',sz:11,bold:true,color:{rgb:'FFFFFF'}},
+  fill:{fgColor:{rgb:'0C3026'}},alignment:{horizontal:'center',vertical:'center'},
+  border:bd()};
+const XL_CELL={font:{name:'KoPubDotum Light',sz:10},border:bd()};
+const XL_ALT ={font:{name:'KoPubDotum Light',sz:10},fill:{fgColor:{rgb:'E8F4F8'}},border:bd()};
+function bd(){ const s={style:'thin',color:{rgb:'BBBBBB'}};
+  return {top:s,bottom:s,left:s,right:s}; }
+
+function aoaSheet(rows){
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let r=range.s.r;r<=range.e.r;r++){
+    for(let cc=range.s.c;cc<=range.e.c;cc++){
+      const ad=XLSX.utils.encode_cell({r,c:cc});
+      if(!ws[ad]) continue;
+      if(r===0) ws[ad].s=XL_HEADER;
+      else ws[ad].s=(r%2===0)?XL_ALT:XL_CELL;
+      if(typeof ws[ad].v==='number' && r>0) ws[ad].z='#,##0';
+    }
+  }
+  ws['!cols']=rows[0].map(()=>({wch:18}));
+  ws['!freeze']={xSplit:0,ySplit:1};
+  ws['!autofilter']={ref:ws['!ref']};
+  return ws;
+}
+function exportExcel(){
+  const R=compute();
+  dbg('엑셀 내보내기 시작', {조수입:R.revenue});
+  const wb=XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb,aoaSheet([
+    ['항목','내용'],
+    ['과제명',gt('f_projectName')],['작물/품목',gt('f_crop')],
+    ['연구기간',gt('f_startYear')+' ~ '+gt('f_endYear')],
+    ['분석시점',gt('f_analysisYear')],['경영형태',R.mode+' 경영'],
+    ['분석단위','10a 기준']
+  ]),'기본정보');
+
+  XLSX.utils.book_append_sheet(wb,aoaSheet([
+    ['구분','수량','단가','금액(원/10a)','출처'],
+    ['주산물',R.mainQty,R.mainPrice,R.mainRev,gt('s_mainPrice')],
+    ['부산물',R.byQty,R.byPrice,R.byRev,''],
+    ['조수입 합계','','',R.revenue,'']
+  ]),'조수입');
+
+  const costRows=[['항목','금액(원/10a)','출처']];
+  COST_ITEMS.forEach(it=> costRows.push([it.label, (it.id==='depreciation'&&!R.isOwn)?0:gv('c_'+it.id), gt('cs_'+it.id)]));
+  otherCosts.forEach(o=> costRows.push([o.name||'기타',parseNum(o.value),o.src||'']));
+  costRows.push(['경영비 합계',R.mgmtCost,'']);
+  XLSX.utils.book_append_sheet(wb,aoaSheet(costRows),'경영비');
+
+  XLSX.utils.book_append_sheet(wb,aoaSheet([
+    ['항목','금액(원/10a)'],
+    ['경영비',R.mgmtCost],['자가노력비',R.familyLabor],
+    ['자기자본이자',R.capInterest],['자기토지용역비',R.landService],
+    ['생산비 합계',R.prodCost]
+  ]),'생산비');
+
+  XLSX.utils.book_append_sheet(wb,aoaSheet([
+    ['지표','값','단위'],
+    ['조수입',R.revenue,'원/10a'],['경영비',R.mgmtCost,'원/10a'],
+    ['생산비',R.prodCost,'원/10a'],['소득',R.income,'원/10a'],
+    ['순수익',R.netProfit,'원/10a'],['소득률',Number(R.incomeRate.toFixed(1)),'%'],
+    ['부가가치',R.valueAdded,'원/10a'],['부가가치율',Number(R.valueAddedRate.toFixed(1)),'%']
+  ]),'수익성지표');
+
+  const inv=[['차년도','비용','편익','순현금흐름']];
+  cfRows.forEach((row,t)=> inv.push([(t+1)+'차',parseNum(row.cost),parseNum(row.benefit),
+    parseNum(row.benefit)-parseNum(row.cost)]));
+  inv.push(['NPV','','',Number(R.npv.toFixed(0))]);
+  inv.push(['IRR(%)','','',R.irr==null?'산출불가':Number(R.irr.toFixed(2))]);
+  inv.push(['B/C','','',Number(R.bcRatio.toFixed(2))]);
+  XLSX.utils.book_append_sheet(wb,aoaSheet(inv),'투자분석');
+
+  const S=computeSensitivity(R);
+  const sens=[['변동요인','-20%','-10%','기준','+10%','+20%']];
+  S.forEach(f=> sens.push([f.key,...f.vals.map(v=>Number(v.toFixed(0)))]));
+  XLSX.utils.book_append_sheet(wb,aoaSheet(sens),'민감도');
+
+  const dif=[['연차','보급률(%)','보급면적(ha)','농가소득증가(원)']];
+  R.diffSeries.forEach(d=> dif.push([d.year,d.rate,Number(d.area.toFixed(1)),Number(d.income.toFixed(0))]));
+  XLSX.utils.book_append_sheet(wb,aoaSheet(dif),'보급률');
+
+  const fn=(gt('f_projectName')||'경제성분석')+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  XLSX.writeFile(wb,fn);
+  showToast('엑셀 다운로드 완료');
+}
+
+/* ============================================================
+   보고서 미리보기 (손익계산서 양식)
+   ============================================================ */
+function buildReport(){
+  const R=compute();
+  const fn='데이터 출처: ' +
+    [gt('s_mainPrice'),gt('s_mainQty')].filter(Boolean).join(' · ');
+  const row=(a,b,note)=>`<tr><td>${a}</td><td class="num">${b}</td><td>${note||''}</td></tr>`;
+  const html=`
+    <h2>${gt('f_projectName')||'(과제명 미입력)'} — 경제성 분석 손익계산서</h2>
+    <div class="sub">작물: ${gt('f_crop')||'-'} · 연구기간: ${gt('f_startYear')||'-'}~${gt('f_endYear')||'-'}
+      · 분석시점: ${gt('f_analysisYear')||'-'} · ${R.mode} 경영 · 단위: 원/10a</div>
+    <table>
+      <tr><th>구분</th><th>금액(원/10a)</th><th>비고</th></tr>
+      ${row('주산물 조수입',fmt(R.mainRev),fmt(R.mainQty)+'kg × '+fmt(R.mainPrice)+'원')}
+      ${row('부산물 조수입',fmt(R.byRev),'')}
+      ${row('<b>조수입 계</b>','<b>'+fmt(R.revenue)+'</b>','')}
+      ${row('경영비',fmt(R.mgmtCost),R.isOwn?'감가상각 포함':'감가상각 제외(임차)')}
+      ${row('자가노력비',fmt(R.familyLabor),R.isOwn?'':'해당없음')}
+      ${row('자기자본이자',fmt(R.capInterest),'')}
+      ${row('자기토지용역비',fmt(R.landService),'')}
+      ${row('<b>생산비 계</b>','<b>'+fmt(R.prodCost)+'</b>','')}
+      ${row('<b>소득</b> (조수입−경영비)','<b>'+fmt(R.income)+'</b>','')}
+      ${row('<b>순수익</b> (조수입−생산비)','<b>'+fmt(R.netProfit)+'</b>','')}
+      ${row('소득률',fmt(R.incomeRate,1)+' %','')}
+      ${row('부가가치율',fmt(R.valueAddedRate,1)+' %','')}
+    </table>
+    ${cfRows.length?`<table>
+      <tr><th>투자분석</th><th>값</th><th>비고</th></tr>
+      ${row('NPV',fmt(R.npv),'할인율 '+fmt(R.discountRate,1)+'%')}
+      ${row('IRR',R.irr==null?'산출불가':fmt(R.irr,2)+' %','')}
+      ${row('B/C ratio',fmt(R.bcRatio,2),R.bcRatio>=1?'타당':'재검토')}
+    </table>`:''}
+    <div class="foot">
+      ※ ${fn||'데이터 출처: 입력 시 출처 필드에 명시'}<br>
+      ※ 경영비/생산비 산식은 농촌진흥청 농업경영 표준진단표 손익계산서 기준.
+      임차 경영 시 감가상각비는 임차료에 반영되어 별도 계상하지 않습니다.<br>
+      ※ 본 산출값은 참고용이며 공식 제출 전 원자료(amis.rda.go.kr 등) 검증이 필요합니다.
+    </div>`;
+  const pv=document.getElementById('reportPreview');
+  pv.innerHTML=html; pv.classList.add('show');
+
+  document.getElementById('summaryCards').innerHTML =
+    kpiCard('조수입',fmt(R.revenue),'원/10a') +
+    kpiCard('소득',fmt(R.income),'원/10a',R.income>=0?'good':'bad') +
+    kpiCard('순수익',fmt(R.netProfit),'원/10a',R.netProfit>=0?'good':'bad') +
+    kpiCard('소득률',fmt(R.incomeRate,1),'%') +
+    kpiCard('NPV',fmt(R.npv),'',R.npv>=0?'good':'bad') +
+    kpiCard('B/C',fmt(R.bcRatio,2),'',R.bcRatio>=1?'good':'bad');
+}
+
+/* ============================================================
+   QR 코드 (데이터 출처 안내 — canvas 중복 방지)
+   ============================================================ */
+let _qr;
+function renderQR(){
+  const box=document.getElementById('qrcode');
+  if(!box || typeof QRCode==='undefined') return;
+  box.innerHTML=''; // canvas 중복 제거
+  try{
+    _qr=new QRCode(box,{text:'https://amis.rda.go.kr',width:96,height:96,
+      colorDark:'#0c3026',colorLight:'#ffffff'});
+  }catch(e){ console.error('[ECON] QR 생성 실패',e); }
+}
+
+/* ============================================================
+   초기화
+   ============================================================ */
+function init(){
+  dbg('앱 초기화 시작');
+  buildCostGrid();
+  renderOtherCosts(); renderGrade(); renderYear(); renderCf(); renderDiff();
+  document.getElementById('f_analysisYear').value=new Date().getFullYear();
+  // 출처/기타 입력 변경 시에도 저장
+  document.querySelectorAll('input[id^="s_"],input[id^="cs_"]').forEach(e=>
+    e.addEventListener('input',()=>saveData(false)));
+  const raw=localStorage.getItem(STORAGE_KEY);
+  if(raw){ try{ applyState(JSON.parse(raw)); }catch(e){ console.error('[ECON] 초기 복원 실패',e); } }
+  else { applyRentalMode(); }
+  recalc();
+  dbg('앱 초기화 완료');
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
