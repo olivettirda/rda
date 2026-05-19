@@ -297,6 +297,7 @@ footer.app-footer{
   <nav class="sidebar" id="sidebar">
     <div class="nav-title">분석 단계</div>
     <button class="tab-btn active" data-tab="basic"   onclick="switchTab('basic')"><span class="ic">📋</span>1. 기본 정보</button>
+    <button class="tab-btn"        data-tab="cropsys" onclick="switchTab('cropsys')"><span class="ic">🔁</span>1-B. 작부체계</button>
     <button class="tab-btn"        data-tab="revenue" onclick="switchTab('revenue')"><span class="ic">💰</span>2. 조수입</button>
     <button class="tab-btn"        data-tab="cost"    onclick="switchTab('cost')"><span class="ic">📉</span>3. 경영비</button>
     <button class="tab-btn"        data-tab="prodcost" onclick="switchTab('prodcost')"><span class="ic">🏠</span>4. 생산비 추가</button>
@@ -307,7 +308,9 @@ footer.app-footer{
     <button class="tab-btn"        data-tab="report"  onclick="switchTab('report')"><span class="ic">📤</span>9. 결과 출력</button>
 
     <div class="src-panel">
-      <div class="nav-title" style="margin-top:0">데이터 출처 안내</div>
+      <div class="nav-title" style="margin-top:0">작목별 데이터 출처</div>
+      <div id="cropSrcPanel"><a style="opacity:.6;cursor:default">작목 선택 시 표시됩니다</a></div>
+      <div class="nav-title">공통 데이터 출처</div>
       <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">농업경영정보시스템<small>경영비·생산비 (amis.rda.go.kr)</small></a>
       <a href="https://kosis.kr" target="_blank" rel="noopener">통계청 KOSIS<small>농산물생산비조사</small></a>
       <a href="https://www.kamis.or.kr" target="_blank" rel="noopener">aT KAMIS<small>농산물 도·소매 가격</small></a>
@@ -356,6 +359,27 @@ footer.app-footer{
         </div>
 
         <div class="card">
+          <h3>작목 선택 (1차 대상 4종)</h3>
+          <div class="hint">작목을 고르면 농진청 표준 항목 중 해당 작목 필수 항목이 자동 활성화되고, 작목별 출처·표준값 안내가 표시됩니다.</div>
+          <div class="radio-row" id="cropRadioRow">
+            <label class="radio-opt" id="crop-rice"><input type="radio" name="crop" value="rice" onchange="applyCrop(this.value)">벼 (미곡 01001)</label>
+            <label class="radio-opt" id="crop-soybean"><input type="radio" name="crop" value="soybean" onchange="applyCrop(this.value)">콩 (두류 03001)</label>
+            <label class="radio-opt" id="crop-wheat"><input type="radio" name="crop" value="wheat" onchange="applyCrop(this.value)">밀 (맥류 02002)</label>
+            <label class="radio-opt" id="crop-sorghum"><input type="radio" name="crop" value="sorghum" onchange="applyCrop(this.value)">수수 (잡곡 04003)</label>
+          </div>
+          <div id="cropInfo" class="formula" style="display:none"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="mini-btn" id="btnStdFill" onclick="fillStandard()" disabled>표준값(예시)으로 단가·수량 채우기</button>
+            <button class="mini-btn" onclick="toggleOptionalCost()">경영비 선택(비필수) 항목 표시/숨김</button>
+          </div>
+          <div class="tooltip-box show" id="stdWarn" style="margin-top:12px;display:none">
+            ⚠ <b>표준값은 예시(placeholder)입니다.</b> 농진청 <b>2024 농산물소득자료집</b> 최신 확정치로 반드시 검증·교체하세요.
+            본 값으로 입력 시 출처 필드에 "농진청 소득자료집 YYYY" 명시 필요.
+            <span id="stdWarnLinks" style="display:block;margin-top:6px"></span>
+          </div>
+        </div>
+
+        <div class="card">
           <h3>경영 형태</h3>
           <div class="hint">자가 경영 / 임차 경영 선택에 따라 회계 처리가 달라집니다.</div>
           <div class="radio-row" id="mgmtRadioRow">
@@ -379,10 +403,97 @@ footer.app-footer{
         </div>
       </section>
 
+      <!-- ===================== Tab 1-B: 작부체계 ===================== -->
+      <section class="tab-pane" id="tab-cropsys">
+        <div class="pane-title">1-B. 작부체계</div>
+        <div class="pane-desc">단작/이모작에 따라 입력·계산이 달라집니다. 단작 상세분석은 2~9 탭, 본 탭은 이모작 연간 합산·단작 대비 비교용입니다. (윤작·사이짓기는 후속 단계)</div>
+        <div class="card">
+          <h3>작부체계 선택</h3>
+          <div class="radio-row" id="cropsysRow">
+            <label class="radio-opt sel"><input type="radio" name="cropsys" value="single" checked onchange="applyCropSys()">단작 (Single)</label>
+            <label class="radio-opt"><input type="radio" name="cropsys" value="double" onchange="applyCropSys()">이모작 (Double)</label>
+            <label class="radio-opt" title="후속 단계 예정"><input type="radio" name="cropsys" value="rotation" disabled>윤작 (준비중)</label>
+            <label class="radio-opt" title="후속 단계 예정"><input type="radio" name="cropsys" value="relay" disabled>사이짓기 (준비중)</label>
+          </div>
+          <div class="formula" id="cropsysHint">단작: 기존 2~9 탭에서 단일 작목을 상세 분석합니다.</div>
+        </div>
+
+        <div id="doubleBox" style="display:none">
+          <div class="card">
+            <h3>이모작 패턴 / 작목 입력</h3>
+            <div class="grid c2">
+              <div class="field">
+                <label for="dcPattern">이모작 패턴 (참고 — 단작대비 소득배수는 실증 추정)</label>
+                <select id="dcPattern" onchange="onPatternPick()"></select>
+              </div>
+              <div class="field"><label>패턴 비고</label><input type="text" id="dcPatternNote" disabled></div>
+            </div>
+            <table class="tbl" style="margin-top:12px">
+              <thead><tr><th>구분</th><th>작목</th><th>조수입(원/10a)</th><th>경영비(원/10a)</th><th>노동시간(시간/10a)</th></tr></thead>
+              <tbody>
+                <tr><td>동계작물</td>
+                  <td><input type="text" id="dcW_name" placeholder="예: 밀/보리"></td>
+                  <td><input type="text" id="dcW_rev" placeholder="원/10a" oninput="onInput()"></td>
+                  <td><input type="text" id="dcW_cost" placeholder="원/10a" oninput="onInput()"></td>
+                  <td><input type="text" id="dcW_labor" placeholder="시간" oninput="onInput()"></td></tr>
+                <tr><td>하계작물</td>
+                  <td><input type="text" id="dcS_name" placeholder="예: 벼/콩"></td>
+                  <td><input type="text" id="dcS_rev" placeholder="원/10a" oninput="onInput()"></td>
+                  <td><input type="text" id="dcS_cost" placeholder="원/10a" oninput="onInput()"></td>
+                  <td><input type="text" id="dcS_labor" placeholder="시간" oninput="onInput()"></td></tr>
+              </tbody>
+            </table>
+            <div class="hint" style="margin-top:8px">조수입·경영비는 단일작목 기준 값(2·3탭 산식으로 산정한 값)을 입력하세요.</div>
+          </div>
+
+          <div class="card">
+            <h3>공통비용 분담 (동계 : 하계, 합 100%)</h3>
+            <div class="hint">농기계·시설 상각비, 임차료, 보험료 등 공동 사용 비용의 분담 비율. 위 경영비에 이미 포함된 경우 중복 계상하지 않도록 주의.</div>
+            <table class="tbl" id="sharedTbl">
+              <thead><tr><th>항목</th><th>동계 %</th><th>하계 %</th><th>공통 금액(원/10a)</th><th>비고</th></tr></thead>
+              <tbody id="sharedBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <h3>시너지 효과 (선택 적용)</h3>
+            <label class="radio-opt" style="display:inline-flex">
+              <input type="checkbox" id="synN" onchange="onInput()">콩 후작 → 다음작물 비료비 −15% (질소고정)
+            </label>
+            <label class="radio-opt" style="display:inline-flex;margin-left:8px">
+              <input type="checkbox" id="synP" onchange="onInput()">윤작/이모작 → 농약비 −10% (병해충 경감)
+            </label>
+            <div class="hint" style="margin-top:8px">체크 시 하계작물 경영비에서 추정 절감액을 차감 반영(권장 추정치, 실측 보정 권장).</div>
+          </div>
+
+          <div class="card">
+            <h3>작부체계 종합 결과</h3>
+            <div class="result-grid" id="dcCards"></div>
+            <div class="chart-wrap"><canvas id="dcChart"></canvas></div>
+            <div class="formula">
+              <b>연간소득</b> = 동계소득 + 하계소득(시너지 반영) ·
+              <b>단작대비</b> = 연간소득 ÷ 하계작물 단작소득 ·
+              <b>토지생산성</b> = 연간소득 ÷ 10a/년 ·
+              <b>노동생산성</b> = 연간소득 ÷ 총 노동시간
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===================== Tab 2: 조수입 ===================== -->
       <section class="tab-pane" id="tab-revenue">
         <div class="pane-title">2. 조수입 계산</div>
         <div class="pane-desc">주산물·부산물 수량과 단가를 입력합니다. 등급별 가격·다개년 평균 단가 보조 계산기를 제공합니다.</div>
+        <div class="card" style="border-color:var(--accent-5)">
+          <h3>📍 단가·수량 어디서 찾나요? (검색 경로)</h3>
+          <div class="hint">실시간 자동연동은 공공 API의 CORS·인증키 제약으로 정적 웹앱에서 불가합니다. 아래 공식 포털에서 <b>전년도 확정치</b> 기준으로 조회 후 입력하세요(3~5개년 평균 권장).</div>
+          <ul style="margin:0 0 0 18px;font-size:12.5px;line-height:1.9">
+            <li><b>단가</b> — aT KAMIS <a href="https://www.kamis.or.kr" target="_blank" rel="noopener">kamis.or.kr</a> → 가격정보 &gt; 연도별 도·소매가격 &gt; 품목·기간 선택 / 농진청 소득조사 <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">amis.rda.go.kr</a></li>
+            <li><b>수량(단수)</b> — 통계청 KOSIS <a href="https://kosis.kr" target="_blank" rel="noopener">kosis.kr</a> → 통계검색 "농작물생산조사"(면적·10a당 생산량)</li>
+            <li><b>등급·품위</b> — 국립농산물품질관리원 <a href="https://www.naqs.go.kr" target="_blank" rel="noopener">naqs.go.kr</a></li>
+            <li id="cropSrcInline" style="color:var(--text-secondary)">작목 선택 시 작목 전용 출처가 우측 사이드바에 표시됩니다.</li>
+          </ul>
+        </div>
 
         <div class="card">
           <h3>주산물 / 부산물</h3>
@@ -464,7 +575,17 @@ footer.app-footer{
       <!-- ===================== Tab 3: 경영비 ===================== -->
       <section class="tab-pane" id="tab-cost">
         <div class="pane-title">3. 경영비 입력</div>
-        <div class="pane-desc">항목별 비용(원/10a)과 데이터 출처를 입력합니다. 임차 경영 시 감가상각비는 자동 비활성화됩니다.</div>
+        <div class="pane-desc">항목별 비용(원/10a)과 데이터 출처를 입력합니다. 임차 경영 시 상각비는 자동 비활성화됩니다.</div>
+        <div class="card" style="border-color:var(--accent-5)">
+          <h3>📍 경영비 항목 어디서 찾나요? (검색 경로)</h3>
+          <ul style="margin:0 0 0 18px;font-size:12.5px;line-height:1.9">
+            <li><b>항목별 경영비(가장 직접)</b> — 농진청 농산물소득조사 <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">amis.rda.go.kr</a> → 농산물 소득정보 &gt; 작목 선택 &gt; 연도 &gt; 경영비 비목별 표(10a)</li>
+            <li><b>생산비 비목</b> — 통계청 KOSIS <a href="https://kosis.kr" target="_blank" rel="noopener">kosis.kr</a> → "농축산물생산비조사"(쌀·콩 생산비 등 비목별)</li>
+            <li><b>고용노력비·노임</b> — KOSIS "농업노동임금조사" / 농가경제조사</li>
+            <li><b>원자료 일괄</b> — 공공데이터포털 <a href="https://www.data.go.kr" target="_blank" rel="noopener">data.go.kr</a> 검색 "농촌진흥청 농산물소득자료"</li>
+            <li>※ <b>관개수리비(水利)</b>=관개·수세, <b>수선비(修理)</b>=농기계 수리 — 혼동 주의</li>
+          </ul>
+        </div>
         <div class="card">
           <h3>경영비 항목</h3>
           <div class="grid c2" id="costGrid"></div>
@@ -706,24 +827,181 @@ footer.app-footer{
    ============================================================ */
 const STORAGE_KEY = 'rda_econ_analysis_v1';
 
-// 경영비 항목 정의 (id, 라벨, 단위, 출처기본값)
+// 경영비 항목 정의 — 농진청 농산물소득조사 표준 항목 정합
+//  flags: deprec(상각비·임차 시 제외) / rent(임차 핵심) / mid(중간재비=부가가치 차감대상)
+//  기존 id 보존(localStorage 호환). 水利(관개수리)·修理(수선) 명시 구분.
 const COST_ITEMS = [
-  {id:'seed',         label:'종자/종묘비',        src:'국립종자원 / amis'},
-  {id:'fertInorg',    label:'무기질 비료비',      src:'amis.rda.go.kr'},
-  {id:'fertOrg',      label:'유기질 비료비',      src:'amis.rda.go.kr'},
-  {id:'pesticide',    label:'농약비',             src:'amis.rda.go.kr'},
-  {id:'energy',       label:'광열동력비',         src:'KOSIS / ECOS'},
-  {id:'repair',       label:'수리비',             src:'amis.rda.go.kr'},
-  {id:'materials',    label:'제재료비',           src:'amis.rda.go.kr'},
-  {id:'depreciation', label:'농기계·시설 감가상각비', src:'자산대장', deprec:true},
-  {id:'consignment',  label:'위탁영농비',         src:'amis.rda.go.kr'},
-  {id:'hiredLabor',   label:'고용노력비',         src:'KOSIS 농업노임'},
-  {id:'rentLand',     label:'임차료(토지)',       src:'지역 임차료 조사', rent:true},
-  {id:'rentMachine',  label:'임차료(기계)',       src:'농기계 임대',     rent:true}
+  {id:'seed',         label:'종묘비',                 src:'국립종자원 / amis', mid:true},
+  {id:'fertInorg',    label:'무기질 비료비',          src:'amis.rda.go.kr',    mid:true},
+  {id:'fertOrg',      label:'유기질 비료비',          src:'amis.rda.go.kr',    mid:true},
+  {id:'pesticide',    label:'농약비',                 src:'amis.rda.go.kr',    mid:true},
+  {id:'energy',       label:'영농광열비',             src:'KOSIS / ECOS',      mid:true},
+  {id:'irrigation',   label:'관개수리비(水利)',       src:'지역 수리계 / amis', mid:true},
+  {id:'materials',    label:'기타재료비',             src:'amis.rda.go.kr',    mid:true},
+  {id:'smallTools',   label:'소농구비',               src:'amis.rda.go.kr',    mid:true},
+  {id:'depreciation', label:'대농구상각비(농기계)',   src:'자산대장',          deprec:true},
+  {id:'facilityDeprec',label:'영농시설상각비',        src:'자산대장',          deprec:true},
+  {id:'repair',       label:'수선비(修理)',           src:'amis.rda.go.kr'},
+  {id:'rentLand',     label:'임차료(토지)',           src:'지역 임차료 조사', rent:true},
+  {id:'rentMachine',  label:'임차료(기계)',           src:'농기계 임대',     rent:true},
+  {id:'consignment',  label:'위탁영농비',             src:'amis.rda.go.kr',    mid:true},
+  {id:'hiredLabor',   label:'고용노력비',             src:'KOSIS 농업노임'},
+  {id:'insurance',    label:'보험료(농작물재해보험)', src:'NH농협손해보험'}
 ];
 
 let otherCosts = [];   // [{name,value,src}]
 let charts = {};       // Chart 인스턴스 저장
+let CURRENT_CROP = ''; // '' | 'rice' | 'soybean' | 'wheat' | 'sorghum'
+let showOptionalCost = false; // 작목별 선택(비필수) 경영비 항목 표시 여부
+
+/* ============================================================
+   작목별 설정 (농진청 농산물소득조사 표준 기반)
+   - item: COST_ITEMS id → {req:필수여부, ratio:경영비 내 통상 비중, note}
+   - std/avgRatio/표준값은 예시(placeholder)이며 농진청 2024 소득자료집 검증 필요
+   ============================================================ */
+const CROP_CONFIG = {
+  rice: { name:'벼', category:'미곡', code:'01001',
+    standardYield:{v:520,unit:'kg/10a',note:'정곡(조곡 환산 별도)'},
+    byproduct:{name:'볏짚',exists:true},
+    item:{
+      seed:{req:true,ratio:0.03,note:'벼 종자 또는 육묘비'},
+      fertInorg:{req:true,ratio:0.08}, fertOrg:{req:false,ratio:0.03},
+      pesticide:{req:true,ratio:0.06,note:'제초·살균·살충제'},
+      energy:{req:true,ratio:0.05,note:'농기계 연료·건조비'},
+      irrigation:{req:true,ratio:0.02,note:'관개수리비·수세'},
+      materials:{req:true,ratio:0.04}, smallTools:{req:true,ratio:0.01},
+      depreciation:{req:true,ratio:0.10}, facilityDeprec:{req:true,ratio:0.05},
+      repair:{req:true,ratio:0.03},
+      rentLand:{req:true,ratio:0.15}, rentMachine:{req:false,ratio:0.05},
+      consignment:{req:true,ratio:0.20,note:'이앙·수확 위탁 비중 높음'},
+      hiredLabor:{req:true,ratio:0.08}, insurance:{req:true,ratio:0.02,note:'농작물재해보험'}
+    },
+    special:['육묘비','이앙비','도정비'],
+    subsidies:[{name:'공익직불금(기본형)',perHa:1340000},
+      {name:'전략작물직불(타작물 전환 시)',perHa:null,note:'벼→타작물 전환 시 해당'}],
+    diffusion:{ceiling:20,years:5} },
+
+  soybean: { name:'콩', category:'두류', code:'03001',
+    standardYield:{v:200,unit:'kg/10a'},
+    byproduct:{name:'콩대',exists:true},
+    item:{
+      seed:{req:true,ratio:0.05,note:'콩 종자'},
+      fertInorg:{req:true,ratio:0.06,note:'질소 적게·인산/칼리 위주'},
+      fertOrg:{req:false,ratio:0.04},
+      pesticide:{req:true,ratio:0.08,note:'제초제·노린재 방제 중요'},
+      energy:{req:true,ratio:0.04},
+      irrigation:{req:false,ratio:0.01,note:'논콩은 배수가 중요'},
+      materials:{req:true,ratio:0.05}, smallTools:{req:true,ratio:0.01},
+      depreciation:{req:true,ratio:0.12}, facilityDeprec:{req:true,ratio:0.03},
+      repair:{req:true,ratio:0.02},
+      rentLand:{req:true,ratio:0.10}, rentMachine:{req:false,ratio:0.05},
+      consignment:{req:true,ratio:0.15,note:'파종·수확 위탁'},
+      hiredLabor:{req:true,ratio:0.10,note:'선별·정선 노동집약'},
+      insurance:{req:true,ratio:0.02}
+    },
+    special:['종자소독비','선별비','정선비','근류균접종비'],
+    subsidies:[{name:'공익직불금(기본형)',perHa:1340000},
+      {name:'전략작물직불(논콩)',perHa:1000000,note:'논콩 재배 시'}],
+    diffusion:{ceiling:15,years:5} },
+
+  wheat: { name:'밀', category:'맥류', code:'02002',
+    standardYield:{v:400,unit:'kg/10a'},
+    byproduct:{name:'밀짚',exists:true},
+    item:{
+      seed:{req:true,ratio:0.07,note:'밀 종자(자가채종 가능)'},
+      fertInorg:{req:true,ratio:0.10,note:'질소 추비 중요'},
+      fertOrg:{req:false,ratio:0.03},
+      pesticide:{req:true,ratio:0.05,note:'붉은곰팡이병·녹병 방제'},
+      energy:{req:true,ratio:0.06,note:'건조비 부담'},
+      irrigation:{req:false,ratio:0.00,note:'동계작물·수리비 거의 없음'},
+      materials:{req:true,ratio:0.04}, smallTools:{req:true,ratio:0.01},
+      depreciation:{req:true,ratio:0.13}, facilityDeprec:{req:true,ratio:0.04},
+      repair:{req:true,ratio:0.03},
+      rentLand:{req:true,ratio:0.10}, rentMachine:{req:false,ratio:0.06},
+      consignment:{req:true,ratio:0.18,note:'파종·수확 위탁 비중 높음'},
+      hiredLabor:{req:true,ratio:0.05}, insurance:{req:true,ratio:0.02}
+    },
+    special:['건조비','저장비'],
+    subsidies:[{name:'공익직불금(기본형)',perHa:1340000},
+      {name:'전략작물직불(밀)',perHa:500000,note:'밀 재배 시'},
+      {name:'밀산업육성 지원',perHa:null,note:'국산밀 자급률 제고(지침 확인)'}],
+    diffusion:{ceiling:10,years:5} },
+
+  sorghum: { name:'수수', category:'잡곡', code:'04003',
+    standardYield:{v:250,unit:'kg/10a'},
+    byproduct:{name:'수수대',exists:true},
+    item:{
+      seed:{req:true,ratio:0.04},
+      fertInorg:{req:true,ratio:0.07}, fertOrg:{req:false,ratio:0.04},
+      pesticide:{req:true,ratio:0.04,note:'병해충 비교적 적음'},
+      energy:{req:true,ratio:0.05},
+      irrigation:{req:false,ratio:0.00,note:'내한성 강해 관개 적음'},
+      materials:{req:true,ratio:0.05,note:'조류피해방지망 등'},
+      smallTools:{req:true,ratio:0.02},
+      depreciation:{req:true,ratio:0.10}, facilityDeprec:{req:true,ratio:0.03},
+      repair:{req:true,ratio:0.02},
+      rentLand:{req:true,ratio:0.08}, rentMachine:{req:false,ratio:0.04},
+      consignment:{req:true,ratio:0.12},
+      hiredLabor:{req:true,ratio:0.20,note:'수확·탈곡 노동집약'},
+      insurance:{req:false,ratio:0.01}
+    },
+    special:['조류피해방지망비','탈곡비','도정비'],
+    subsidies:[{name:'공익직불금(기본형)',perHa:1340000},
+      {name:'잡곡류 지원(지자체)',perHa:null,note:'지자체별 상이'}],
+    diffusion:{ceiling:8,years:5} }
+};
+
+// 이모작 패턴 (동계·하계 / 단작대비 소득배수는 농진청 실증 사례 추정)
+const DOUBLE_CROPPING_PATTERNS = {
+  '벼 단작':         {winter:'',       summer:'rice',    mult:1.0},
+  '벼-보리 이모작':  {winter:'barley', summer:'rice',    mult:1.4},
+  '벼-밀 이모작':    {winter:'wheat',  summer:'rice',    mult:1.5},
+  '콩-보리 이모작':  {winter:'barley', summer:'soybean', mult:1.6},
+  '콩-밀 이모작':    {winter:'wheat',  summer:'soybean', mult:1.8},
+  '콩-감자 이모작':  {winter:'potato', summer:'soybean', mult:2.6},
+  '밀-콩 이모작':    {winter:'wheat',  summer:'soybean', mult:1.8},
+  '청보리-고구마':   {winter:'청보리', summer:'고구마',  mult:3.2},
+  '수수-보리 이모작':{winter:'barley', summer:'sorghum', mult:1.3},
+  '수수-밀 이모작':  {winter:'wheat',  summer:'sorghum', mult:1.4}
+};
+
+// 이모작 공통비용 분담 기본값 [동계,하계] (사용자 조정 가능, 합=100%)
+const SHARED_COST_DEFAULTS = {
+  depreciation:   {split:[50,50],note:'경운기·트랙터 공동 사용'},
+  facilityDeprec: {split:[50,50],note:'창고·건조시설 공동'},
+  rentLand:       {split:[40,60],note:'하계작물에 더 배분(관례)'},
+  rentMachine:    {split:[50,50]},
+  insurance:      {split:[30,70],note:'주작물 비중 높게'}
+};
+
+// 작목별 데이터 출처 (검증된 공식 포털 + 사이트 내 검색 경로)
+const DATA_SOURCES_BY_CROP = {
+  rice:[
+    {n:'농진청 농산물소득조사 - 미곡',u:'https://amis.rda.go.kr',p:'농산물 소득정보 > 작목(미곡/벼) > 연도'},
+    {n:'통계청 KOSIS - 산지쌀값/생산비',u:'https://kosis.kr',p:'통계검색 "산지쌀값" · "쌀 생산비조사"'},
+    {n:'aT KAMIS - 쌀 도·소매가',u:'https://www.kamis.or.kr',p:'가격정보 > 연도별 > 양곡(쌀)'},
+    {n:'국립농산물품질관리원',u:'https://www.naqs.go.kr',p:'양곡 등급·검사 기준'}],
+  soybean:[
+    {n:'농진청 농산물소득조사 - 콩',u:'https://amis.rda.go.kr',p:'농산물 소득정보 > 두류(콩) > 연도'},
+    {n:'aT KAMIS - 콩 가격',u:'https://www.kamis.or.kr',p:'가격정보 > 연도별 > 두류(콩)'},
+    {n:'한국농수산식품유통공사',u:'https://www.at.or.kr',p:'콩 수매·비축 정보'}],
+  wheat:[
+    {n:'농진청 농산물소득조사 - 밀',u:'https://amis.rda.go.kr',p:'농산물 소득정보 > 맥류(밀) > 연도'},
+    {n:'농식품부 - 밀산업 육성',u:'https://www.mafra.go.kr',p:'정책자료 "밀산업 육성 기본계획"'},
+    {n:'aT KAMIS - 맥류 가격',u:'https://www.kamis.or.kr',p:'가격정보 > 연도별 > 맥류'}],
+  sorghum:[
+    {n:'농진청 농산물소득조사 - 잡곡',u:'https://amis.rda.go.kr',p:'농산물 소득정보 > 잡곡(수수) > 연도'},
+    {n:'aT KAMIS - 잡곡 가격',u:'https://www.kamis.or.kr',p:'가격정보 > 연도별 > 잡곡'},
+    {n:'국립식량과학원 - 잡곡 품종',u:'https://www.nics.go.kr',p:'연구·품종 정보(수수)'}]
+};
+
+// 작목별 표준 요약값 — ⚠ 예시(placeholder). 농진청 2024 소득자료집으로 반드시 검증.
+const STANDARD_VALUES = {
+  rice:    {조수입:974000, 경영비:521000, 소득:453000, 소득률:46.5, 단가:1873, 수량:520},
+  soybean: {조수입:845000, 경영비:412000, 소득:433000, 소득률:51.2, 단가:4225, 수량:200},
+  wheat:   {조수입:632000, 경영비:398000, 소득:234000, 소득률:37.0, 단가:1580, 수량:400},
+  sorghum: {조수입:1250000,경영비:615000, 소득:635000, 소득률:50.8, 단가:5000, 수량:250}
+};
 
 /* ============================================================
    유틸: 숫자 파싱/포맷, 토스트, 디버그
@@ -775,12 +1053,103 @@ function buildCostGrid(){
   const grid=document.getElementById('costGrid');
   grid.innerHTML = COST_ITEMS.map(it=>`
     <div class="field" id="wrap_${it.id}">
-      <label for="c_${it.id}">${it.label}${it.rent?' <span class="req">＊임차 핵심</span>':''}</label>
+      <label for="c_${it.id}">${it.label}${it.rent?' <span class="req">＊임차 핵심</span>':''}
+        <span id="tag_${it.id}" style="font-size:10px;font-weight:700"></span></label>
       <input type="text" id="c_${it.id}" placeholder="원/10a" oninput="onInput()">
       <div class="err-msg" id="e_c_${it.id}"></div>
       <div class="src-row"><span class="src-tag">출처</span>
         <input type="text" id="cs_${it.id}" placeholder="${it.src}"></div>
     </div>`).join('');
+  applyCropToCostGrid();
+}
+
+/* ============================================================
+   작목 선택 / 표준값 / 작목별 출처
+   ============================================================ */
+function applyCrop(crop){
+  CURRENT_CROP=crop;
+  dbg('작목 선택', crop);
+  ['rice','soybean','wheat','sorghum'].forEach(k=>{
+    const el=document.getElementById('crop-'+k);
+    if(el) el.classList.toggle('sel',k===crop);
+  });
+  const cfg=CROP_CONFIG[crop];
+  if(cfg){
+    const cropF=document.getElementById('f_crop'); if(cropF && !cropF.value) cropF.value=cfg.name;
+    const subs=cfg.subsidies.map(s=>s.name+(s.perHa?(' '+fmt(s.perHa)+'원/ha'):'')+(s.note?('('+s.note+')'):'')).join(' · ');
+    document.getElementById('cropInfo').style.display='block';
+    document.getElementById('cropInfo').innerHTML=
+      `<b>${cfg.name}</b> · ${cfg.category} · 표준수량 약 <b>${cfg.standardYield.v}</b> ${cfg.standardYield.unit}`
+      +` · 부산물: ${cfg.byproduct.name}<br>특화항목(기타로 추가): ${cfg.special.join(', ')}`
+      +`<br>관련 보조금(조수입 외 별도): ${subs}`;
+    document.getElementById('btnStdFill').disabled=false;
+    document.getElementById('stdWarn').style.display='block';
+  }
+  applyCropToCostGrid();
+  renderCropSources();
+  populatePatternSelect();
+  onInput();
+}
+function toggleOptionalCost(){ showOptionalCost=!showOptionalCost; applyCropToCostGrid(); }
+function applyCropToCostGrid(){
+  const cfg=CROP_CONFIG[CURRENT_CROP];
+  COST_ITEMS.forEach(it=>{
+    const wrap=document.getElementById('wrap_'+it.id);
+    const tag=document.getElementById('tag_'+it.id);
+    const inp=document.getElementById('c_'+it.id);
+    if(!wrap) return;
+    if(!cfg){ wrap.style.display=''; if(tag) tag.textContent=''; return; }
+    const ci=cfg.item[it.id];
+    const req = ci ? ci.req : false;
+    const inUse = !!ci;
+    wrap.style.display = (inUse && (req || showOptionalCost)) ? '' : 'none';
+    if(tag){
+      tag.textContent = !inUse ? '' : (req?' [필수]':' [선택]');
+      tag.style.color = req?'var(--accent-3)':'var(--text-secondary)';
+    }
+    if(inp && ci){
+      const pct=Math.round((ci.ratio||0)*100);
+      inp.placeholder='원/10a · 통상 경영비의 약 '+pct+'%';
+      wrap.title = ci.note || '';
+    }
+  });
+}
+function renderCropSources(){
+  const box=document.getElementById('cropSrcPanel');
+  const inl=document.getElementById('cropSrcInline');
+  const list=DATA_SOURCES_BY_CROP[CURRENT_CROP];
+  if(!box) return;
+  if(!list){ box.innerHTML='<a style="opacity:.6;cursor:default">작목 선택 시 표시됩니다</a>'; return; }
+  box.innerHTML=list.map(s=>
+    `<a href="${s.u}" target="_blank" rel="noopener" title="${s.p}">${s.n}<small>경로: ${s.p}</small></a>`).join('');
+  if(inl) inl.innerHTML='<b>'+CROP_CONFIG[CURRENT_CROP].name+'</b> 전용 출처: '+
+    list.map(s=>`<a href="${s.u}" target="_blank" rel="noopener">${s.n.split(' - ')[0]}</a>`).join(' · ');
+  const wl=document.getElementById('stdWarnLinks');
+  if(wl) wl.innerHTML=list.map(s=>`<a href="${s.u}" target="_blank" rel="noopener" style="margin-right:10px">${s.n}</a>`).join('');
+}
+function fillStandard(){
+  const sv=STANDARD_VALUES[CURRENT_CROP];
+  if(!sv){ showToast('먼저 작목을 선택하세요'); return; }
+  document.getElementById('f_mainQty').value=fmt(sv.수량);
+  document.getElementById('f_mainPrice').value=fmt(sv.단가);
+  const sP=document.getElementById('s_mainPrice'), sQ=document.getElementById('s_mainQty');
+  if(sP&&!sP.value) sP.value='농진청 소득자료집(예시값-검증필요)';
+  if(sQ&&!sQ.value) sQ.value='농진청 소득자료집(예시값-검증필요)';
+  onInput();
+  showToast('예시 표준값 입력 — 농진청 자료집으로 검증하세요');
+}
+function checkStdDeviation(R){
+  const sv=STANDARD_VALUES[CURRENT_CROP];
+  const banner=document.getElementById('stdWarn');
+  if(!sv||!banner||banner.style.display==='none') return;
+  if(R.revenue<=0) return;
+  const dev=Math.abs(R.revenue-sv.조수입)/sv.조수입;
+  banner.style.borderColor = dev>0.5?'var(--error)':(dev>0.2?'var(--warn)':'var(--warn)');
+  let extra='';
+  if(dev>0.5) extra=` <b style="color:var(--error)">⚠ 조수입이 표준 예시값과 ${(dev*100).toFixed(0)}% 차이 — 출처 입력 필수</b>`;
+  else if(dev>0.2) extra=` <b style="color:#7a5b00">표준 예시값과 ${(dev*100).toFixed(0)}% 차이 — 값·출처 재확인 권장</b>`;
+  const base=banner.querySelector('#stdDevMsg');
+  if(base) base.innerHTML=extra; else banner.insertAdjacentHTML('beforeend','<span id="stdDevMsg">'+extra+'</span>');
 }
 function renderOtherCosts(){
   const b=document.getElementById('otherCostBody');
@@ -905,6 +1274,119 @@ function updateDiffComputed(){
 function addDiffRow(){ diffRows.push({year:diffRows.length+1+'년차',rate:''}); renderDiff(); onInput(); }
 
 /* ============================================================
+   작부체계 (단작 / 이모작)
+   ============================================================ */
+let sharedSplits = {}; // {itemId:{w,s,amt}}
+function getCropSys(){
+  const r=document.querySelector('input[name="cropsys"]:checked');
+  return r?r.value:'single';
+}
+function applyCropSys(){
+  const sys=getCropSys();
+  document.querySelectorAll('#cropsysRow .radio-opt').forEach(l=>{
+    const i=l.querySelector('input'); l.classList.toggle('sel', i&&i.checked);
+  });
+  const isDouble=sys==='double';
+  document.getElementById('doubleBox').style.display=isDouble?'':'none';
+  document.getElementById('cropsysHint').textContent = isDouble
+    ? '이모작: 동계+하계 작목을 입력하면 연간 합산·단작 대비 비교가 계산됩니다.'
+    : '단작: 기존 2~9 탭에서 단일 작목을 상세 분석합니다.';
+  if(isDouble && !Object.keys(sharedSplits).length) initSharedSplits();
+  renderSharedTbl();
+  onInput();
+}
+function populatePatternSelect(){
+  const sel=document.getElementById('dcPattern');
+  if(!sel) return;
+  sel.innerHTML=Object.keys(DOUBLE_CROPPING_PATTERNS)
+    .map(k=>`<option value="${k}">${k}</option>`).join('');
+}
+function onPatternPick(){
+  const k=document.getElementById('dcPattern').value;
+  const p=DOUBLE_CROPPING_PATTERNS[k];
+  if(!p) return;
+  const nm=(c)=> CROP_CONFIG[c]?CROP_CONFIG[c].name:(c||'');
+  document.getElementById('dcW_name').value=nm(p.winter);
+  document.getElementById('dcS_name').value=nm(p.summer);
+  document.getElementById('dcPatternNote').value='단작대비 소득 약 '+p.mult+'배 (실증 추정·검증 필요)';
+  onInput();
+}
+function initSharedSplits(){
+  sharedSplits={};
+  Object.entries(SHARED_COST_DEFAULTS).forEach(([id,d])=>{
+    sharedSplits[id]={w:d.split[0],s:d.split[1],amt:''};
+  });
+}
+function renderSharedTbl(){
+  const b=document.getElementById('sharedBody');
+  if(!b) return;
+  if(!Object.keys(sharedSplits).length) initSharedSplits();
+  b.innerHTML=Object.entries(SHARED_COST_DEFAULTS).map(([id,d])=>{
+    const it=COST_ITEMS.find(x=>x.id===id); const ss=sharedSplits[id];
+    return `<tr>
+      <td>${it?it.label:id}</td>
+      <td><input type="text" value="${ss.w}" oninput="sharedSplits['${id}'].w=parseNum(this.value);onInput()"></td>
+      <td><input type="text" value="${ss.s}" oninput="sharedSplits['${id}'].s=parseNum(this.value);onInput()"></td>
+      <td><input type="text" value="${ss.amt}" placeholder="원/10a" oninput="sharedSplits['${id}'].amt=this.value;onInput()"></td>
+      <td style="font-size:11px;color:var(--text-secondary)">${d.note||''}</td>
+    </tr>`;
+  }).join('');
+}
+function computeDouble(){
+  const wRev=gv('dcW_rev'), wCost=gv('dcW_cost'), wLab=gv('dcW_labor');
+  const sRev=gv('dcS_rev'), sCost=gv('dcS_cost'), sLab=gv('dcS_labor');
+  // 시너지: 콩 후작 비료 -15%(하계 경영비의 8% 가정분), 윤작 농약 -10%(하계 경영비의 6% 가정분)
+  let synAmt=0;
+  if(document.getElementById('synN') && document.getElementById('synN').checked) synAmt += sCost*0.08*0.15;
+  if(document.getElementById('synP') && document.getElementById('synP').checked) synAmt += sCost*0.06*0.10;
+  // 공통비용 분담 검증/배분
+  let sharedWarn=false, sharedW=0, sharedS=0;
+  Object.entries(sharedSplits).forEach(([id,ss])=>{
+    const sum=parseNum(ss.w)+parseNum(ss.s);
+    if(parseNum(ss.amt)>0 && Math.abs(sum-100)>0.5) sharedWarn=true;
+    sharedW += parseNum(ss.amt)*parseNum(ss.w)/100;
+    sharedS += parseNum(ss.amt)*parseNum(ss.s)/100;
+  });
+  const wInc = wRev - (wCost + sharedW);
+  const sInc = sRev - (sCost + sharedS - synAmt);
+  const annual = wInc + sInc;
+  const singleBase = sInc; // 하계작물 단작 기준
+  const mult = singleBase>0 ? annual/singleBase : 0;
+  const totalLab = wLab + sLab;
+  return {wRev,wCost,wLab,sRev,sCost,sLab,wInc,sInc,annual,mult,
+    landProd:annual, laborProd: totalLab>0?annual/totalLab:0,
+    synAmt,sharedWarn,
+    wName:gt('dcW_name')||'동계',sName:gt('dcS_name')||'하계'};
+}
+function renderDouble(){
+  if(getCropSys()!=='double') return;
+  const D=computeDouble();
+  dbg('이모작 계산',{연간소득:D.annual,단작대비:D.mult});
+  document.getElementById('dcCards').innerHTML =
+    kpiCard(D.wName+' 소득',fmt(D.wInc),'원/10a',D.wInc>=0?'good':'bad') +
+    kpiCard(D.sName+' 소득',fmt(D.sInc),'원/10a',D.sInc>=0?'good':'bad') +
+    kpiCard('연간 소득 합계',fmt(D.annual),'원/10a/년',D.annual>=0?'good':'bad') +
+    kpiCard('하계 단작 대비',fmt(D.mult,2)+'배','') +
+    kpiCard('토지생산성',fmt(D.landProd),'원/10a/년') +
+    kpiCard('노동생산성',fmt(D.laborProd),'원/시간') +
+    kpiCard('시너지 절감',fmt(D.synAmt),'원/10a') +
+    (D.sharedWarn?'<div class="kpi bad"><div class="label">공통비용 분담</div><div class="value"><span class="badge b2">합≠100%</span></div></div>':'');
+  destroyChart('dc');
+  const el=document.getElementById('dcChart');
+  if(el){
+    charts.dc=new Chart(el,{type:'bar',
+      data:{labels:['조수입','경영비','소득'],datasets:[
+        {label:D.wName+'(동계)',data:[D.wRev,D.wCost,D.wInc],backgroundColor:'#6baed6'},
+        {label:D.sName+'(하계)',data:[D.sRev,D.sCost,D.sInc],backgroundColor:'#08519c'}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:chartFont()}},
+        scales:{x:{stacked:true,ticks:chartFont(),grid:{color:GRID_COLOR}},
+          y:{stacked:true,ticks:chartFont(),grid:{color:GRID_COLOR}}}}});
+  }
+}
+
+/* ============================================================
    경영형태(자가/임차) 제어
    ============================================================ */
 function getMgmt(){
@@ -917,13 +1399,16 @@ function applyRentalMode(){
   document.getElementById('opt-own').classList.toggle('sel',mode==='자가');
   document.getElementById('opt-rent').classList.toggle('sel',mode==='임차');
   const isRent = mode==='임차';
-  // 감가상각비 비활성화 + 0 강제 (검증 로직 1)
-  const dep=document.getElementById('c_depreciation');
-  const depSrc=document.getElementById('cs_depreciation');
-  if(dep){ dep.disabled=isRent; if(isRent) dep.value=''; }
-  if(depSrc) depSrc.disabled=isRent;
-  document.getElementById('wrap_depreciation').title =
-    isRent ? '임차 경영에서는 감가상각비를 임차료에 반영하므로 별도 계상하지 않습니다' : '';
+  // 상각비(deprec) 항목 전체 비활성화 + 0 강제 (검증 로직 1)
+  COST_ITEMS.filter(it=>it.deprec).forEach(it=>{
+    const dep=document.getElementById('c_'+it.id);
+    const depSrc=document.getElementById('cs_'+it.id);
+    const wrap=document.getElementById('wrap_'+it.id);
+    if(dep){ dep.disabled=isRent; if(isRent) dep.value=''; }
+    if(depSrc) depSrc.disabled=isRent;
+    if(wrap) wrap.title = isRent
+      ? '임차 경영에서는 상각비를 임차료에 반영하므로 별도 계상하지 않습니다' : '';
+  });
   // 생산비 추가 탭(자가만) 비활성화
   ['f_familyHours','f_wageRate','f_ownCapital','f_capitalRate','f_ownLandService']
     .forEach(id=>{ const e=document.getElementById(id); if(e){ e.disabled=isRent; if(isRent)e.value=''; }});
@@ -981,15 +1466,15 @@ function compute(){
   const mainRev=mainQty*mainPrice, byRev=byQty*byPrice;
   const revenue=mainRev+byRev;
 
-  // --- 경영비 ---
+  // --- 경영비 (COST_ITEMS 기반 일반 합산, deprec 항목은 임차 시 제외) ---
   const c={};
-  COST_ITEMS.forEach(it=> c[it.id]=gv('c_'+it.id));
-  if(!isOwn) c.depreciation=0; // 임차 시 감가상각 제외 (검증 1)
+  COST_ITEMS.forEach(it=>{
+    let v=gv('c_'+it.id);
+    if(it.deprec && !isOwn) v=0; // 임차 시 상각비 제외 (검증 1)
+    c[it.id]=v;
+  });
   const otherSum = otherCosts.reduce((s,o)=>s+parseNum(o.value),0);
-  const mgmtCost =
-      c.seed+c.fertInorg+c.fertOrg+c.pesticide+c.energy+c.repair+c.materials
-    + (isOwn?c.depreciation:0)
-    + c.consignment+c.hiredLabor+c.rentLand+c.rentMachine+otherSum;
+  const mgmtCost = COST_ITEMS.reduce((s,it)=>s+c[it.id],0) + otherSum;
 
   // --- 생산비 (자가 추가) ---
   const familyLabor = isOwn ? gv('f_familyHours')*gv('f_wageRate') : 0;
@@ -1002,9 +1487,10 @@ function compute(){
   const income = revenue - mgmtCost;
   const netProfit = revenue - prodCost;
   const incomeRate = revenue>0 ? income/revenue*100 : 0;
-  // 부가가치 = 조수입 - 중간재비 - 감가상각(자가)
-  const intermediate = c.seed+c.fertInorg+c.fertOrg+c.pesticide+c.energy+c.repair+c.materials+c.consignment;
-  const valueAdded = revenue - intermediate - (isOwn?c.depreciation:0);
+  // 부가가치 = 조수입 - 중간재비(mid) - 상각비(deprec, 자가 시)
+  const intermediate = COST_ITEMS.filter(it=>it.mid).reduce((s,it)=>s+c[it.id],0);
+  const deprecSum = COST_ITEMS.filter(it=>it.deprec).reduce((s,it)=>s+c[it.id],0); // 임차 시 이미 0
+  const valueAdded = revenue - intermediate - deprecSum;
   const valueAddedRate = revenue>0 ? valueAdded/revenue*100 : 0;
 
   // --- 투자분석 ---
@@ -1127,6 +1613,8 @@ function recalc(){
   updateCfNet();
 
   drawCharts(R,S);
+  checkStdDeviation(R);
+  renderDouble();
   saveData(false);
 }
 
@@ -1136,19 +1624,15 @@ function chartFont(){ return {color:'#5a6a62',font:{family:'Noto Sans KR'}}; }
 const GRID_COLOR='#e2e8e5';
 
 function drawCharts(R,S){
-  // 경영비 도넛
-  const items=[
-    ['종자/종묘',R.c.seed],['무기질비료',R.c.fertInorg],['유기질비료',R.c.fertOrg],
-    ['농약',R.c.pesticide],['광열동력',R.c.energy],['수리',R.c.repair],['제재료',R.c.materials],
-    ['감가상각',R.isOwn?R.c.depreciation:0],['위탁영농',R.c.consignment],['고용노력',R.c.hiredLabor],
-    ['임차료(토지)',R.c.rentLand],['임차료(기계)',R.c.rentMachine],['기타',R.otherSum]
-  ].filter(x=>x[1]>0);
+  // 경영비 도넛 (COST_ITEMS 기반)
+  const items=COST_ITEMS.map(it=>[it.label.replace(/\(.*?\)/g,''),R.c[it.id]])
+    .concat([['기타',R.otherSum]]).filter(x=>x[1]>0);
   destroyChart('donut');
   const dc=document.getElementById('costDonut');
   if(dc){
     charts.donut=new Chart(dc,{type:'doughnut',
       data:{labels:items.map(i=>i[0]),datasets:[{data:items.map(i=>i[1]),
-        backgroundColor:BLUES,borderColor:'#ffffff',borderWidth:2}]},
+        backgroundColor:items.map((_,i)=>BLUES[i%BLUES.length]),borderColor:'#ffffff',borderWidth:2}]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{position:'right',labels:chartFont()},
           tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.parsed)}원 (${(c.parsed/items.reduce((s,i)=>s+i[1],0)*100).toFixed(1)}%)`}}}}});
@@ -1225,6 +1709,12 @@ function collectState(){
   ['f_familyHours','f_wageRate','f_ownCapital','f_capitalRate','f_ownLandService']
     .forEach(id=>st.prodcost[id]=gt(id));
   ['f_discountRate','f_totalArea','f_incomeGain'].forEach(id=>st.invest[id]=gt(id));
+  st.crop=CURRENT_CROP; st.cropsys=getCropSys(); st.sharedSplits=sharedSplits;
+  st.double={};
+  ['dcW_name','dcW_rev','dcW_cost','dcW_labor','dcS_name','dcS_rev','dcS_cost','dcS_labor','dcPattern']
+    .forEach(id=>st.double[id]=gt(id));
+  st.double.synN=!!(document.getElementById('synN')&&document.getElementById('synN').checked);
+  st.double.synP=!!(document.getElementById('synP')&&document.getElementById('synP').checked);
   return st;
 }
 function applyState(st){
@@ -1246,6 +1736,19 @@ function applyState(st){
   cfRows = Array.isArray(st.cfRows)&&st.cfRows.length?st.cfRows:cfRows;
   diffRows = Array.isArray(st.diffRows)&&st.diffRows.length?st.diffRows:diffRows;
   renderOtherCosts(); renderGrade(); renderYear(); renderCf(); renderDiff();
+  if(st.sharedSplits && Object.keys(st.sharedSplits).length) sharedSplits=st.sharedSplits;
+  populatePatternSelect(); renderSharedTbl();
+  if(st.double){
+    Object.entries(st.double).forEach(([k,v])=>{ if(k!=='synN'&&k!=='synP') set(k,v); });
+    if(document.getElementById('synN')) document.getElementById('synN').checked=!!st.double.synN;
+    if(document.getElementById('synP')) document.getElementById('synP').checked=!!st.double.synP;
+  }
+  if(st.cropsys==='double'){ const r=document.querySelector('input[name="cropsys"][value="double"]'); if(r) r.checked=true; }
+  applyCropSys();
+  if(st.crop && CROP_CONFIG[st.crop]){
+    const cr=document.querySelector('input[name="crop"][value="'+st.crop+'"]'); if(cr) cr.checked=true;
+    applyCrop(st.crop);
+  }
   applyRentalMode();
 }
 function saveData(notify){
@@ -1334,7 +1837,7 @@ function exportExcel(){
   ]),'조수입');
 
   const costRows=[['항목','금액(원/10a)','출처']];
-  COST_ITEMS.forEach(it=> costRows.push([it.label, (it.id==='depreciation'&&!R.isOwn)?0:gv('c_'+it.id), gt('cs_'+it.id)]));
+  COST_ITEMS.forEach(it=> costRows.push([it.label, R.c[it.id], gt('cs_'+it.id)]));
   otherCosts.forEach(o=> costRows.push([o.name||'기타',parseNum(o.value),o.src||'']));
   costRows.push(['경영비 합계',R.mgmtCost,'']);
   XLSX.utils.book_append_sheet(wb,aoaSheet(costRows),'경영비');
@@ -1370,6 +1873,20 @@ function exportExcel(){
   const dif=[['연차','보급률(%)','보급면적(ha)','농가소득증가(원)']];
   R.diffSeries.forEach(d=> dif.push([d.year,d.rate,Number(d.area.toFixed(1)),Number(d.income.toFixed(0))]));
   XLSX.utils.book_append_sheet(wb,aoaSheet(dif),'보급률');
+
+  if(getCropSys()==='double'){
+    const D=computeDouble();
+    XLSX.utils.book_append_sheet(wb,aoaSheet([
+      ['구분','작목','조수입','경영비','소득','노동시간'],
+      ['동계',D.wName,D.wRev,D.wCost,D.wInc,D.wLab],
+      ['하계',D.sName,D.sRev,D.sCost,D.sInc,D.sLab],
+      ['연간합계','',D.wRev+D.sRev,D.wCost+D.sCost,D.annual,D.wLab+D.sLab],
+      ['하계 단작대비(배)','','','',Number(D.mult.toFixed(2)),''],
+      ['토지생산성(원/10a/년)','','','',Number(D.landProd.toFixed(0)),''],
+      ['노동생산성(원/시간)','','','',Number(D.laborProd.toFixed(0)),''],
+      ['시너지 절감(원/10a)','','','',Number(D.synAmt.toFixed(0)),'']
+    ]),'작부체계');
+  }
 
   const fn=(gt('f_projectName')||'경제성분석')+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
   XLSX.writeFile(wb,fn);
@@ -1448,6 +1965,7 @@ function init(){
   dbg('앱 초기화 시작');
   buildCostGrid();
   renderOtherCosts(); renderGrade(); renderYear(); renderCf(); renderDiff();
+  populatePatternSelect(); initSharedSplits(); renderSharedTbl(); applyCropSys();
   document.getElementById('f_analysisYear').value=new Date().getFullYear();
   // 출처/기타 입력 변경 시에도 저장
   document.querySelectorAll('input[id^="s_"],input[id^="cs_"]').forEach(e=>
