@@ -1,0 +1,44 @@
+name: harvest econ_stats
+
+# 농업 소득/생산비 통계는 연 1회 갱신 → 주간 수집이면 사실상 최신.
+# 키/설정이 없으면 안전하게 skip(기존 econ_stats.json 보존)하고 성공 종료.
+on:
+  schedule:
+    - cron: '17 19 * * 1'   # 매주 월요일 04:17 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harvest-econ-stats
+  cancel-in-progress: false
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Harvest stats
+        env:
+          AMIS_API_KEY: ${{ secrets.AMIS_API_KEY }}
+          AMIS_USE_DOMAIN: ${{ secrets.AMIS_USE_DOMAIN }}
+          KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
+        run: node scripts/harvest-econ-stats.mjs
+
+      - name: Commit if changed
+        run: |
+          if [ -n "$(git status --porcelain econ_stats.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add econ_stats.json
+            git commit -m "chore(econ): econ_stats.json 자동 수집 갱신 [skip ci]"
+            git push
+          else
+            echo "변경 없음 — 커밋 생략"
+          fi

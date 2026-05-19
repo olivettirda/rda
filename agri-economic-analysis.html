@@ -376,7 +376,10 @@ footer.app-footer{
           <div id="cropRadioRow"></div>
           <div id="cropInfo" class="formula" style="display:none"></div>
           <div id="cropPeriod" class="formula" style="display:none"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+            <label style="font-size:12px;color:var(--text-secondary);font-weight:700">데이터 연도
+              <select id="stdYear" onchange="onStdYearChange()" style="width:auto;display:inline-block;padding:5px 8px;margin-left:4px"><option value="">내장 기본</option></select>
+            </label>
             <button class="mini-btn" id="btnStdFill" onclick="fillStandard()" disabled>표준값 채우기 (✅ 공식 등급만)</button>
             <button class="mini-btn" onclick="toggleOptionalCost()">경영비 선택(비필수) 항목 표시/숨김</button>
           </div>
@@ -1316,6 +1319,37 @@ const STANDARD_VALUES = {
 };
 
 /* ============================================================
+   외부 통계 자동로드 (동일출처 econ_stats.json) — 작목·연도 자동입력
+   GitHub Actions(.github/workflows/harvest-econ-stats.yml)가 주기 갱신
+   ============================================================ */
+let EXT_STATS=null, selectedStatYear='';
+function statYears(crop){
+  return (EXT_STATS && EXT_STATS[crop]) ? Object.keys(EXT_STATS[crop]).sort().reverse() : [];
+}
+// 작목 표준값: 외부 JSON(선택 연도) 우선, 없으면 내장 STANDARD_VALUES 폴백
+function getStd(crop){
+  if(EXT_STATS && EXT_STATS[crop]){
+    const ys=statYears(crop);
+    const y=(selectedStatYear && EXT_STATS[crop][selectedStatYear]) ? selectedStatYear : ys[0];
+    if(y && EXT_STATS[crop][y]) return Object.assign({_year:y},EXT_STATS[crop][y]);
+  }
+  return STANDARD_VALUES[crop];
+}
+function loadExtStats(){
+  fetch('econ_stats.json',{cache:'no-store'})
+    .then(r=>r.ok?r.json():null)
+    .then(j=>{
+      if(j){ EXT_STATS=j; dbg('외부통계 로드', j._meta&&j._meta.updated);
+        if(CURRENT_CROP) applyCrop(CURRENT_CROP); }
+    })
+    .catch(e=>{ console.warn('[ECON] econ_stats.json 미로드(폴백 사용)', e.message); });
+}
+function onStdYearChange(){
+  selectedStatYear=gt('stdYear');
+  if(CURRENT_CROP) applyCrop(CURRENT_CROP);
+}
+
+/* ============================================================
    유틸: 숫자 파싱/포맷, 토스트, 디버그
    ============================================================ */
 function parseNum(v){
@@ -1407,7 +1441,8 @@ function applyCrop(crop){
   document.querySelectorAll('#cropRadioRow .radio-opt').forEach(el=>{
     const inp=el.querySelector('input'); el.classList.toggle('sel', inp&&inp.value===crop);
   });
-  const cfg=CROP_CONFIG[crop], sv=STANDARD_VALUES[crop];
+  populateStdYear(crop);
+  const cfg=CROP_CONFIG[crop], sv=getStd(crop);
   const badge=document.getElementById('cropBadge');
   if(cfg){
     const cropF=document.getElementById('f_crop'); if(cropF && !cropF.value) cropF.value=cfg.name;
@@ -1432,11 +1467,15 @@ function applyCrop(crop){
     document.getElementById('stdWarn').style.display='block';
     const dm=document.getElementById('stdDevMsg'); if(dm) dm.innerHTML='';
     const noteEl=document.getElementById('stdNote');
-    const html = sv ? `<b>${sv.tier==='ok'?'':'⚠ '}${sv.note||''}</b>`
+    const fresh = (sv&&sv._year)
+      ? `데이터 기준연도 <b>${sv._year}</b>`+(EXT_STATS&&EXT_STATS._meta?` · 갱신 ${EXT_STATS._meta.updated}`:'')+' · '
+      : '';
+    const html = sv ? fresh+`<b>${sv.tier==='ok'?'':'⚠ '}${sv.note||''}</b>`
       +(sv.url?` <a href="${sv.url}" target="_blank" rel="noopener">출처</a>`:'') : '';
     if(noteEl) noteEl.innerHTML=html;
     else document.getElementById('stdWarn').insertAdjacentHTML('beforeend','<div id="stdNote" style="margin-top:6px">'+html+'</div>');
     if(sv && sv.tier!=='ok') openStdModal(cfg.name, sv);
+    autoFillFromStd(sv); // 공식 등급 + 빈 입력일 때만 자동입력
   }
   applyCropToCostGrid();
   renderCropSources();
@@ -1624,22 +1663,44 @@ function renderCropSources(){
   const wl=document.getElementById('stdWarnLinks');
   if(wl) wl.innerHTML=list.map(s=>`<a href="${s.u}" target="_blank" rel="noopener" style="margin-right:10px">${s.n}</a>`).join('');
 }
-function fillStandard(){
-  const sv=STANDARD_VALUES[CURRENT_CROP];
-  if(!sv){ showToast('먼저 작목을 선택하세요'); return; }
+// 작목 선택 시 연도 드롭다운 채움 (외부 JSON 보유 연도)
+function populateStdYear(crop){
+  const sel=document.getElementById('stdYear');
+  if(!sel) return;
+  const ys=statYears(crop);
+  if(!ys.length){ sel.innerHTML='<option value="">내장 기본</option>'; sel.disabled=true; return; }
+  sel.disabled=false;
+  sel.innerHTML=ys.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(selectedStatYear && ys.includes(selectedStatYear)) sel.value=selectedStatYear;
+  else selectedStatYear=ys[0];
+}
+// 공식(ok) 등급 + 주산물 단가/수량이 비어 있을 때만 자동입력 (덮어쓰기 안 함)
+function autoFillFromStd(sv){
+  if(!sv || sv.tier!=='ok') return;
+  const q=document.getElementById('f_mainQty'), p=document.getElementById('f_mainPrice');
+  if(!q||!p) return;
+  if(q.value.trim()!=='' || p.value.trim()!=='') return; // 사용자 입력 보호
+  if(!sv.수량 && !sv.단가) return;
+  fillStandard(true);
+  showToast('자동입력: '+(sv._year||'')+' '+(CROP_CONFIG[CURRENT_CROP]?CROP_CONFIG[CURRENT_CROP].name:'')+' (출처 검증 권장)');
+}
+function fillStandard(silent){
+  const sv=getStd(CURRENT_CROP);
+  if(!sv){ if(!silent) showToast('먼저 작목을 선택하세요'); return; }
   if(sv.tier!=='ok'){
-    showToast('이 작목은 표준값 미확정 — 실측값을 직접 입력하세요');
-    openStdModal(CROP_CONFIG[CURRENT_CROP].name, sv); return;
+    if(!silent){ showToast('이 작목은 표준값 미확정 — 실측값을 직접 입력하세요');
+      openStdModal(CROP_CONFIG[CURRENT_CROP].name, sv); }
+    return;
   }
   let filled=[];
   if(sv.수량){ document.getElementById('f_mainQty').value=fmt(sv.수량); filled.push('수량'); }
   if(sv.단가){ document.getElementById('f_mainPrice').value=fmt(sv.단가); filled.push('단가'); }
-  const src='출처: '+(sv.note||'공식통계')+' (검증 권장)';
+  const src='출처: '+(sv._year?sv._year+' ':'')+(sv.note||'공식통계')+' (검증 권장)';
   const sP=document.getElementById('s_mainPrice'), sQ=document.getElementById('s_mainQty');
   if(sP&&!sP.value) sP.value=src;
   if(sQ&&!sQ.value) sQ.value=src;
   onInput();
-  showToast(filled.length?('표준값 입력('+filled.join('·')+') — 출처 검증 권장'):'채울 수치가 없습니다(자료집 확인)');
+  if(!silent) showToast(filled.length?('표준값 입력('+filled.join('·')+') — 출처 검증 권장'):'채울 수치가 없습니다(자료집 확인)');
 }
 // 재배일수 변경 → 수량 보정 계수 (단축 시 감수, 적정범위 내 연장 시 소폭 증수)
 function yieldFactor(){
@@ -1656,7 +1717,7 @@ function yieldFactor(){
   return f;
 }
 function checkStdDeviation(R){
-  const sv=STANDARD_VALUES[CURRENT_CROP];
+  const sv=getStd(CURRENT_CROP);
   const banner=document.getElementById('stdWarn');
   if(!sv||!banner||banner.style.display==='none') return;
   yieldFactor();
@@ -2506,6 +2567,7 @@ function init(){
   renderOtherCosts(); renderGrade(); renderYear(); renderCf(); renderDiff();
   populatePatternSelect(); initSharedSplits(); renderSharedTbl(); applyCropSys();
   loadApiKey();
+  loadExtStats();
   document.getElementById('f_analysisYear').value=new Date().getFullYear();
   // 출처/기타 입력 변경 시에도 저장
   document.querySelectorAll('input[id^="s_"],input[id^="cs_"]').forEach(e=>
