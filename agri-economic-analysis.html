@@ -202,6 +202,18 @@ table.tbl td input{padding:6px 7px;font-size:12.5px;text-align:right}
   margin-top:10px;line-height:1.7}
 .formula b{color:var(--accent-3)}
 
+/* ===== 접이식 안내 (다듬기: 기본 접힘으로 화면 정돈) ===== */
+details.guide{border:1px solid var(--border-color);border-radius:8px;
+  background:#f4f8f7;margin:12px 0;overflow:hidden}
+details.guide>summary{cursor:pointer;padding:10px 14px;font-weight:700;
+  font-size:13px;color:var(--accent-3);list-style:none;user-select:none}
+details.guide>summary::-webkit-details-marker{display:none}
+details.guide>summary::before{content:'▸ ';color:var(--text-secondary)}
+details.guide[open]>summary::before{content:'▾ '}
+details.guide>summary:hover{background:#e9f2ef}
+details.guide .gbody{padding:4px 14px 14px;font-size:12.5px;line-height:1.85}
+details.guide .gbody ul{margin:0 0 0 18px}
+
 /* ===== 데이터 출처 패널 ===== */
 .src-panel{margin-top:18px;border-top:1px solid var(--border-color);padding-top:14px}
 .src-panel a{display:block;font-size:12px;color:var(--accent-4);
@@ -365,12 +377,13 @@ footer.app-footer{
           <div id="cropInfo" class="formula" style="display:none"></div>
           <div id="cropPeriod" class="formula" style="display:none"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-            <button class="mini-btn" id="btnStdFill" onclick="fillStandard()" disabled>표준값(예시)으로 단가·수량 채우기</button>
+            <button class="mini-btn" id="btnStdFill" onclick="fillStandard()" disabled>표준값 채우기 (✅ 공식 등급만)</button>
             <button class="mini-btn" onclick="toggleOptionalCost()">경영비 선택(비필수) 항목 표시/숨김</button>
           </div>
           <div class="tooltip-box show" id="stdWarn" style="margin-top:12px;display:none">
-            ⚠ <b>표준값은 예시(placeholder)입니다.</b> 농진청 <b>2024 농산물소득자료집</b> 최신 확정치로 반드시 검증·교체하세요.
-            본 값으로 입력 시 출처 필드에 "농진청 소득자료집 YYYY" 명시 필요.
+            표준값은 작목별 <b>신뢰도 등급</b>(✅공식 통계 / ⚠검증 필요 / ❌공식 없음)에 따라 다릅니다.
+            ✅ 외 등급은 자동 채움이 차단되니 <b>실측·시험성적을 직접 입력</b>하세요. 모든 값은 출처·연도 검증을 권장합니다.
+            <span id="stdNote" style="display:block;margin-top:6px"></span>
             <span id="stdWarnLinks" style="display:block;margin-top:6px"></span>
           </div>
         </div>
@@ -481,16 +494,18 @@ footer.app-footer{
       <section class="tab-pane" id="tab-revenue">
         <div class="pane-title">2. 조수입 계산</div>
         <div class="pane-desc">주산물·부산물 수량과 단가를 입력합니다. 등급별 가격·다개년 평균 단가 보조 계산기를 제공합니다.</div>
-        <div class="card" style="border-color:var(--accent-5)">
-          <h3>📍 단가·수량 어디서 찾나요? (검색 경로)</h3>
-          <div class="hint">실시간 자동연동은 공공 API의 CORS·인증키 제약으로 정적 웹앱에서 불가합니다. 아래 공식 포털에서 <b>전년도 확정치</b> 기준으로 조회 후 입력하세요(3~5개년 평균 권장).</div>
-          <ul style="margin:0 0 0 18px;font-size:12.5px;line-height:1.9">
-            <li><b>단가</b> — aT KAMIS <a href="https://www.kamis.or.kr" target="_blank" rel="noopener">kamis.or.kr</a> → 가격정보 &gt; 연도별 도·소매가격 &gt; 품목·기간 선택 / 농진청 소득조사 <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">amis.rda.go.kr</a></li>
-            <li><b>수량(단수)</b> — 통계청 KOSIS <a href="https://kosis.kr" target="_blank" rel="noopener">kosis.kr</a> → 통계검색 "농작물생산조사"(면적·10a당 생산량)</li>
-            <li><b>등급·품위</b> — 국립농산물품질관리원 <a href="https://www.naqs.go.kr" target="_blank" rel="noopener">naqs.go.kr</a></li>
-            <li id="cropSrcInline" style="color:var(--text-secondary)">작목 선택 시 작목 전용 출처가 우측 사이드바에 표시됩니다.</li>
-          </ul>
-        </div>
+        <details class="guide">
+          <summary>📍 단가·수량 어디서 찾나요? (검색 경로)</summary>
+          <div class="gbody">
+            실시간 자동연동은 공공 API의 CORS·인증키 제약으로 정적 웹앱에서 불가합니다. 공식 포털에서 <b>전년도 확정치</b> 기준 조회 후 입력하세요(3~5개년 평균 권장).
+            <ul>
+              <li><b>단가</b> — aT KAMIS <a href="https://www.kamis.or.kr" target="_blank" rel="noopener">kamis.or.kr</a> → 가격정보 &gt; 연도별 도·소매가격 &gt; 품목·기간 / 농진청 <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">amis.rda.go.kr</a></li>
+              <li><b>수량(단수)</b> — 통계청 KOSIS <a href="https://kosis.kr" target="_blank" rel="noopener">kosis.kr</a> → "농작물생산조사"(10a당 생산량)</li>
+              <li><b>등급·품위</b> — 국립농산물품질관리원 <a href="https://www.naqs.go.kr" target="_blank" rel="noopener">naqs.go.kr</a></li>
+              <li id="cropSrcInline" style="color:var(--text-secondary)">작목 선택 시 작목 전용 출처가 우측 사이드바에 표시됩니다.</li>
+            </ul>
+          </div>
+        </details>
 
         <div class="card">
           <h3>주산물 / 부산물</h3>
@@ -521,13 +536,15 @@ footer.app-footer{
         <div class="card">
           <h3>등급별 가중평균 단가 계산기</h3>
           <div class="hint">등급명·비율(%)·단가를 입력하면 가중평균 단가가 산출됩니다. 적용 시 주산물 단가에 반영됩니다.</div>
-          <div class="tooltip-box show" style="margin-bottom:12px;background:#eef6f8;border-color:var(--accent-5);color:var(--text-primary)">
-            📍 <b>등급별 가격 출처 — 농림축산식품부(MAFRA)</b>
-            <a href="https://www.mafra.go.kr" target="_blank" rel="noopener">mafra.go.kr</a>
-            → 보도자료/정책정보 검색 <b>"산지쌀값"</b> 또는 <b>"양곡 등급별 가격"</b>
-            (벼는 <b>40kg 환산가격</b> 기준 — 예: 산지쌀값 230,940원/쌀80kg ≈ 벼 1등급 80,160원/벼40kg, 시점별 변동·공표치 확인).
-            등급별 비율은 농관원 검사실적 참조.
-          </div>
+          <details class="guide">
+            <summary>📍 등급별 가격 출처 — 농림축산식품부(MAFRA)</summary>
+            <div class="gbody">
+              <a href="https://www.mafra.go.kr" target="_blank" rel="noopener">mafra.go.kr</a>
+              → 보도자료/정책정보 검색 <b>"산지쌀값"</b> 또는 <b>"양곡 등급별 가격"</b>
+              (벼는 <b>40kg 환산가격</b> 기준 — 예: 산지쌀값 230,940원/쌀80kg ≈ 벼 1등급 80,160원/벼40kg, 시점별 변동·공표치 확인).
+              등급별 비율은 농관원 검사실적 참조.
+            </div>
+          </details>
           <table class="tbl" id="gradeTbl">
             <thead><tr><th>등급명</th><th>비율(%)</th><th>단가(원/kg)</th><th></th></tr></thead>
             <tbody id="gradeBody"></tbody>
@@ -555,9 +572,10 @@ footer.app-footer{
           </div>
         </div>
 
-        <div class="card" style="border-color:var(--accent-5)">
-          <h3>AMIS 농축산물 소득자료 Open API 연동 (선택)</h3>
-          <div class="hint">
+        <details class="guide" style="border-color:var(--accent-5)">
+          <summary>AMIS 농축산물 소득자료 Open API 연동 (승인 후 사용 · 선택)</summary>
+          <div class="gbody">
+          <div class="hint" style="background:none;padding:0">
             농진청 AMIS Open API(<code>profitAnalysisxml</code>)로 연도·작목별 소득자료를 조회합니다.
             <b>신청 시 "화면직접 호출방식"을 반드시 체크</b>해야 브라우저에서 직접 호출됩니다(미체크 시 서버 호출용).
             <b>사용 도메인</b>은 <u>오리진만</u> 등록하세요 — 예: <code>https://olivettirda.github.io</code>
@@ -590,7 +608,8 @@ footer.app-footer{
             <button class="mini-btn" style="margin-top:6px" onclick="parseAmisXml(document.getElementById('amisXml').value)">붙여넣은 XML 파싱</button>
           </div>
           <div id="amisResult" style="margin-top:12px;font-size:12px;overflow:auto"></div>
-        </div>
+          </div>
+        </details>
 
         <div class="card" id="newVarietyCard" style="display:none">
           <h3>신품종 프리미엄</h3>
@@ -617,16 +636,18 @@ footer.app-footer{
       <section class="tab-pane" id="tab-cost">
         <div class="pane-title">3. 경영비 입력</div>
         <div class="pane-desc">항목별 비용(원/10a)과 데이터 출처를 입력합니다. 임차 경영 시 상각비는 자동 비활성화됩니다.</div>
-        <div class="card" style="border-color:var(--accent-5)">
-          <h3>📍 경영비 항목 어디서 찾나요? (검색 경로)</h3>
-          <ul style="margin:0 0 0 18px;font-size:12.5px;line-height:1.9">
-            <li><b>항목별 경영비(가장 직접)</b> — 농진청 농산물소득조사 <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">amis.rda.go.kr</a> → 농산물 소득정보 &gt; 작목 선택 &gt; 연도 &gt; 경영비 비목별 표(10a)</li>
-            <li><b>생산비 비목</b> — 통계청 KOSIS <a href="https://kosis.kr" target="_blank" rel="noopener">kosis.kr</a> → "농축산물생산비조사"(쌀·콩 생산비 등 비목별)</li>
-            <li><b>고용노력비·노임</b> — KOSIS "농업노동임금조사" / 농가경제조사</li>
-            <li><b>원자료 일괄</b> — 공공데이터포털 <a href="https://www.data.go.kr" target="_blank" rel="noopener">data.go.kr</a> 검색 "농촌진흥청 농산물소득자료"</li>
-            <li>※ <b>관개수리비(水利)</b>=관개·수세, <b>수선비(修理)</b>=농기계 수리 — 혼동 주의</li>
-          </ul>
-        </div>
+        <details class="guide">
+          <summary>📍 경영비 항목 어디서 찾나요? (검색 경로)</summary>
+          <div class="gbody">
+            <ul>
+              <li><b>항목별 경영비(가장 직접)</b> — 농진청 <a href="https://amis.rda.go.kr" target="_blank" rel="noopener">amis.rda.go.kr</a> → 농산물 소득정보 &gt; 작목 &gt; 연도 &gt; 경영비 비목별 표(10a)</li>
+              <li><b>생산비 비목</b> — 통계청 <a href="https://kosis.kr" target="_blank" rel="noopener">kosis.kr</a> → "농축산물생산비조사"</li>
+              <li><b>고용노력비·노임</b> — KOSIS "농업노동임금조사" / 농가경제조사</li>
+              <li><b>원자료 일괄</b> — <a href="https://www.data.go.kr" target="_blank" rel="noopener">data.go.kr</a> 검색 "농촌진흥청 농산물소득자료"</li>
+              <li>※ <b>관개수리비(水利)</b>=관개·수세, <b>수선비(修理)</b>=농기계 수리 — 혼동 주의</li>
+            </ul>
+          </div>
+        </details>
         <div class="card">
           <h3>경영비 항목</h3>
           <div class="grid c2" id="costGrid"></div>
