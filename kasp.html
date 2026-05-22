@@ -1787,10 +1787,24 @@
 
             // 데이터 포인트
             ctx.lineWidth = 2;
+            const r = chartSettings.pointSize;
             result.samples.forEach(s => {
+                const px = sx(s.allele1), py = sy(s.allele2);
+                if (s.genotype === 'X') {
+                    // X(신호 미약/제외)는 X자 마커로 표시
+                    const xr = r + 1;
+                    ctx.strokeStyle = s.manual ? '#000000' : 'rgba(120,120,120,0.95)';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(px - xr, py - xr); ctx.lineTo(px + xr, py + xr);
+                    ctx.moveTo(px - xr, py + xr); ctx.lineTo(px + xr, py - xr);
+                    ctx.stroke();
+                    ctx.lineWidth = 2;
+                    return;
+                }
                 ctx.fillStyle = colors[s.genotype] || colors.X;
                 ctx.beginPath();
-                ctx.arc(sx(s.allele1), sy(s.allele2), chartSettings.pointSize, 0, Math.PI * 2);
+                ctx.arc(px, py, r, 0, Math.PI * 2);
                 ctx.fill();
                 if (s.manual) {
                     ctx.strokeStyle = '#000000';
@@ -1805,12 +1819,22 @@
                 ctx.textBaseline = 'middle';
                 let lx = padL + 4;
                 const ly = padT - 6;
-                [['CK1', 'CK1 (=1)'], ['CK2', 'CK2 (=0)'], ['H', 'H'], ['X', 'X'], ['NTC', 'NTC']].forEach(([g, label]) => {
+                [['CK1', 'CK1 (=1)'], ['CK2', 'CK2 (=0)'], ['H', 'H'], ['X', 'X (제외)'], ['NTC', 'NTC']].forEach(([g, label]) => {
                     if (!result.samples.some(s => s.genotype === g)) return;
-                    ctx.fillStyle = colors[g];
-                    ctx.beginPath();
-                    ctx.arc(lx + 5, ly + 5, 5, 0, Math.PI * 2);
-                    ctx.fill();
+                    if (g === 'X') {
+                        ctx.strokeStyle = 'rgba(120,120,120,0.95)';
+                        ctx.lineWidth = 2.5;
+                        ctx.beginPath();
+                        ctx.moveTo(lx + 1, ly + 1); ctx.lineTo(lx + 9, ly + 9);
+                        ctx.moveTo(lx + 1, ly + 9); ctx.lineTo(lx + 9, ly + 1);
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+                    } else {
+                        ctx.fillStyle = colors[g];
+                        ctx.beginPath();
+                        ctx.arc(lx + 5, ly + 5, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                     ctx.fillStyle = '#333333';
                     ctx.fillText(label, lx + 14, ly + 5);
                     lx += ctx.measureText(label).width + 32;
@@ -1869,7 +1893,7 @@
             };
             
             const datasets = ['CK1', 'CK2', 'H', 'X', 'NTC'].map(geno => ({
-                label: geno === 'CK1' ? 'CK1 (=1)' : geno === 'CK2' ? 'CK2 (=0)' : geno,
+                label: geno === 'CK1' ? 'CK1 (=1)' : geno === 'CK2' ? 'CK2 (=0)' : geno === 'X' ? 'X (제외)' : geno,
                 data: result.samples.filter(s => s.genotype === geno && !s.manual).map(s => ({
                     x: s.allele1,
                     y: s.allele2,
@@ -1877,7 +1901,11 @@
                     ratio: s.ratio
                 })),
                 backgroundColor: colors[geno],
-                pointRadius: chartSettings.pointSize,
+                // X(신호 미약/제외)는 X자 마커로 표시
+                pointStyle: geno === 'X' ? 'crossRot' : 'circle',
+                borderColor: geno === 'X' ? 'rgba(120,120,120,0.95)' : colors[geno],
+                borderWidth: geno === 'X' ? 2 : 0,
+                pointRadius: geno === 'X' ? chartSettings.pointSize + 1 : chartSettings.pointSize,
                 pointHoverRadius: chartSettings.pointSize + 2
             })).filter(ds => ds.data.length > 0);
             
@@ -1894,6 +1922,7 @@
                             ratio: s.ratio
                         })),
                         backgroundColor: colors[geno],
+                        pointStyle: geno === 'X' ? 'crossRot' : 'circle',
                         borderColor: '#000',
                         borderWidth: 2,
                         pointRadius: chartSettings.pointSize + 1,
@@ -1936,7 +1965,7 @@
             
             const legendConfig = chartSettings.legendPos === 'false' 
                 ? { display: false }
-                : { position: chartSettings.legendPos, labels: { boxWidth: 12, font: { size: chartSettings.fontSize - 1 }, filter: (item) => !item.text.includes('경계') && !item.text.includes('수동') } };
+                : { position: chartSettings.legendPos, labels: { usePointStyle: true, boxWidth: 12, font: { size: chartSettings.fontSize - 1 }, filter: (item) => !item.text.includes('경계') && !item.text.includes('수동') } };
             
             charts[geneName] = new Chart(ctx, {
                 type: 'scatter',
@@ -2111,20 +2140,38 @@
             return 'ABCDEFGH'[Math.floor(idx / 12)] + ((idx % 12) + 1);
         }
 
-        // 품종/유전자 조합으로 결정적 유전자형 부여 (0:40%, 1:40%, H:20%)
+        // 품종/유전자 조합으로 결정적 유전자형 부여
+        // 0:35%  1:35%  H:20%  M(중간지대/애매):5%  X(신호미약/실패):5%
         function demoGenotypeFor(vIdx, gIdx) {
-            const h = (vIdx * 7 + gIdx * 13 + 3) % 10;
-            if (h < 4) return '0';
-            if (h < 8) return '1';
-            return 'H';
+            const h = (vIdx * 7 + gIdx * 13 + 3) % 20;
+            if (h < 7) return '0';
+            if (h < 14) return '1';
+            if (h < 18) return 'H';
+            if (h === 18) return 'M';
+            return 'X';
         }
 
-        // 유전자형에 맞는 형광값 생성 (약간의 노이즈 포함)
+        // 근사 정규분포 노이즈 (균등난수 3개 합 → 종형 분포, 실제 KASP 산점도처럼 퍼짐)
+        function demoNoise(sd) {
+            return ((Math.random() + Math.random() + Math.random() - 1.5) / 1.5) * sd;
+        }
+
+        // 유전자형에 맞는 형광값 생성 — 클러스터별로 충분히 퍼지게, 중간지대/실패 포함
         function demoFluor(genotype) {
-            const n = () => (Math.random() - 0.5) * 0.08;
-            if (genotype === '1') return { hex: 0.14 + Math.abs(n()), fam: 1.12 + n() };
-            if (genotype === '0') return { hex: 1.05 + n(), fam: 0.12 + Math.abs(n()) };
-            return { hex: 0.58 + n(), fam: 0.74 + n() };
+            const g = demoNoise;
+            // 1 = FAM 우세 (HEX 낮음, FAM 높음)
+            if (genotype === '1') return { hex: Math.max(0.02, 0.18 + Math.abs(g(0.13))), fam: 1.05 + g(0.24) };
+            // 0 = HEX 우세 (HEX 높음, FAM 낮음)
+            if (genotype === '0') return { hex: 1.0 + g(0.24), fam: Math.max(0.02, 0.16 + Math.abs(g(0.13))) };
+            // H = 이형접합 — 넓게 퍼진 중앙 클러스터
+            if (genotype === 'H') return { hex: 0.6 + g(0.2), fam: 0.66 + g(0.2) };
+            // X = 신호 미약/반응 실패 — 원점 근처 (NTC 임계값 이하 → 자동 X 제외)
+            if (genotype === 'X') return { hex: 0.02 + Math.random() * 0.03, fam: 0.02 + Math.random() * 0.035 };
+            // M = 중간지대 — 클러스터 사이 경계 영역에 흩어진 애매한 점
+            const zone = Math.floor(Math.random() * 3);
+            if (zone === 0) return { hex: 0.34 + g(0.12), fam: 0.92 + g(0.18) };  // CK1 ↔ H 사이
+            if (zone === 1) return { hex: 0.86 + g(0.16), fam: 0.38 + g(0.12) };  // CK2 ↔ H 사이
+            return { hex: 0.46 + g(0.22), fam: 0.52 + g(0.22) };                  // 전반적 확산
         }
 
         function makeDemoSample(well, sampleName, task, hex, fam) {
