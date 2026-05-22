@@ -1503,8 +1503,39 @@
                                 💡 <strong>클릭</strong>=CK2경계, <strong>Shift+클릭</strong>=CK1경계, <strong>Ctrl+클릭</strong>=개별 수정
                             </div>
                             
-                            <div class="ntc-info">
-                                ⚠️ 최소신호: HEX≥${result.thresholds.minHex.toFixed(3)}, FAM≥${result.thresholds.minFam.toFixed(3)} ${result._autoAdjusted ? '<span style="color:#2e7d32;">(분포 기반 자동조정)</span>' : '(NTC 기반)'}
+                            <div class="threshold-section">
+                                <div class="threshold-section-title">
+                                    ⚠️ 최소 신호 임계값 (이하 → X 제외)
+                                </div>
+                                <div class="threshold-row">
+                                    <div class="threshold-item">
+                                        <label>🟢 HEX 최소신호</label>
+                                        <div class="threshold-input-group">
+                                            <input type="number" id="minHexinput-${safeId}" value="${result.thresholds.minHex}"
+                                                   step="0.01" min="0" max="2"
+                                                   onchange="setThresholdDirect('${geneName}', 'minHex', this.value)">
+                                            <input type="range" id="minHexrange-${safeId}" min="0" max="1" step="0.01"
+                                                   value="${Math.min(result.thresholds.minHex, 1)}"
+                                                   oninput="setThresholdDirect('${geneName}', 'minHex', this.value)">
+                                        </div>
+                                    </div>
+                                    <div class="threshold-item">
+                                        <label>🔷 FAM 최소신호</label>
+                                        <div class="threshold-input-group">
+                                            <input type="number" id="minFaminput-${safeId}" value="${result.thresholds.minFam}"
+                                                   step="0.01" min="0" max="2"
+                                                   onchange="setThresholdDirect('${geneName}', 'minFam', this.value)">
+                                            <input type="range" id="minFamrange-${safeId}" min="0" max="1" step="0.01"
+                                                   value="${Math.min(result.thresholds.minFam, 1)}"
+                                                   oninput="setThresholdDirect('${geneName}', 'minFam', this.value)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ntc-info">
+                                    기준: <strong>NTC 최고신호 × 1.5</strong> (HEX·FAM 각각, 최저 0.05/0.08)${result._autoAdjusted ? ' · <span style="color:#2e7d32;">분포 기반 자동조정됨</span>' : ''}
+                                    <button type="button" class="geno-btn" style="margin-left:8px;padding:2px 8px;font-size:0.75rem;color:var(--primary);"
+                                            onclick="resetMinSignal('${geneName}')">🔄 NTC 기준값으로 복원</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1515,24 +1546,43 @@
             });
         }
         
+        // 임계값별 슬라이더 최대치
+        const THRESHOLD_SLIDER_MAX = { ck1: 20, ck2: 5, minHex: 1, minFam: 1 };
+
         window.setThresholdDirect = function(geneName, key, value) {
             const safeId = geneName.replace(/\s/g, '_');
-            const numValue = parseFloat(value);
-            
+            let numValue = parseFloat(value);
+            if (isNaN(numValue) || numValue < 0) return;
+
             // Update both input and range
-            document.getElementById(`${key}input-${safeId}`).value = numValue;
-            document.getElementById(`${key}range-${safeId}`).value = Math.min(numValue, key === 'ck1' ? 20 : 5);
-            
+            const sliderMax = THRESHOLD_SLIDER_MAX[key] || 5;
+            const inp = document.getElementById(`${key}input-${safeId}`);
+            const rng = document.getElementById(`${key}range-${safeId}`);
+            if (inp) inp.value = numValue;
+            if (rng) rng.value = Math.min(numValue, sliderMax);
+
             // Apply threshold
             geneResults[geneName].thresholds[key] = numValue;
-            
-            // Update het zone display
-            const ck1 = geneResults[geneName].thresholds.ck1;
-            const ck2 = geneResults[geneName].thresholds.ck2;
-            document.getElementById(`hetZone-${safeId}`).textContent = `${ck2} < ratio < ${ck1}`;
-            
+
+            // Update het zone display (ck1/ck2 변경 시)
+            const hetZone = document.getElementById(`hetZone-${safeId}`);
+            if (hetZone) {
+                const t = geneResults[geneName].thresholds;
+                hetZone.textContent = `${t.ck2} < ratio < ${t.ck1}`;
+            }
+
             // Reclassify and update
             updateGeneClassification(geneName);
+        };
+
+        // 최소 신호 임계값을 NTC 기준값으로 복원
+        window.resetMinSignal = function(geneName) {
+            const result = geneResults[geneName];
+            const ntcHex = Math.round(Math.max(0.05, (result._ntcMaxHex || 0) * 1.5) * 1000) / 1000;
+            const ntcFam = Math.round(Math.max(0.08, (result._ntcMaxFam || 0) * 1.5) * 1000) / 1000;
+            console.log('최소신호 NTC 복원:', { geneName, ntcHex, ntcFam });
+            setThresholdDirect(geneName, 'minHex', ntcHex);
+            setThresholdDirect(geneName, 'minFam', ntcFam);
         };
         
         window.setThresholdFromChart = function(geneName, ratio, isShift) {
