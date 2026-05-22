@@ -6112,7 +6112,29 @@ for i, pheno_name in enumerate(phenotype_names):
     if valid_idx.sum() < 10:
         print(f"⚠️  {pheno_name}: 학습 데이터 부족 (skip)")
         continue
-    
+
+    # 연속형 표현형 자동 이진화 (분류기 파이프라인 호환)
+    # ML 모델이 분류기(RandomForestClassifier 등)이므로 표현형은 0/1이어야 한다.
+    # 연속값(수량·출수기 등)이 들어오면 중앙값 기준으로 이진화한다.
+    y_valid_vals = y[valid_idx]
+    uniq = np.unique(y_valid_vals)
+    is_binary = len(uniq) <= 2 and np.all(np.isin(uniq, [0.0, 1.0]))
+    if not is_binary:
+        median_val = float(np.median(y_valid_vals))
+        y_bin = y.copy()
+        y_bin[valid_idx] = (y_valid_vals > median_val).astype(float)
+        # 중앙값 기준 분할 후 한쪽 클래스만 남으면(예: 다수가 중앙값과 동일) 평균 기준 재시도
+        if len(np.unique(y_bin[valid_idx])) < 2:
+            mean_val = float(np.mean(y_valid_vals))
+            y_bin[valid_idx] = (y_valid_vals >= mean_val).astype(float)
+        y = y_bin
+        print(f"🔄 {pheno_name}: 연속형 표현형 자동 이진화 (기준값 {median_val:.3f})")
+
+    # 이진화 후에도 단일 클래스면 학습 불가 (skip)
+    if len(np.unique(y[valid_idx])) < 2:
+        print(f"⚠️  {pheno_name}: 표현형이 단일 클래스 - 학습 불가 (skip)")
+        continue
+
     # Option A: 관련 유전자만 선택
     used_gene_indices = None
     if use_related_genes and pheno_name in trait_gene_mapping:
@@ -6155,12 +6177,15 @@ for i, pheno_name in enumerate(phenotype_names):
     roc_all_models = {}
     pheno_best_params = {}  # 각 모델의 최적 파라미터 저장
     
+    # CV fold 수는 소수 클래스 표본 수를 넘을 수 없다 (StratifiedKFold 제약).
+    # 소표본 데이터(예: 데모 11품종)에서 cv가 과다하면 cross_val_score가 예외 발생 → 학습 실패.
+    _cls, _cnts = np.unique(y_train, return_counts=True)
+    _min_class = int(_cnts.min()) if len(_cls) >= 2 else 0
+    cv_fold = min(5, max(2, _min_class))
+
     for model_name, model_info in models_to_test.items():
         try:
-            cv_fold = min(5, int(valid_idx.sum())//2)
-            if cv_fold < 2:
-                cv_fold = 2
-            
+
             # GridSearch 모드
             if use_grid_search and isinstance(model_info, tuple):
                 base_model, param_grid = model_info
