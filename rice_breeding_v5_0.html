@@ -4711,17 +4711,23 @@ function generateHeatmap() {
         if (v === 'S' || v === 0 || v === '0') return 0;
         return 0.5;
     }));
-    Plotly.newPlot('heatmapPlot', [{
-        z: matrix, x: geneNames, y: varietyNames, type: 'heatmap', 
-        colorscale: [[0, 'white'], [0.5, '#cccccc'], [1, '#0c3026']],
-        showscale: true
-    }], { 
-        title: '유전자형 히트맵 (청록색: 보유, 흰색: 미보유, 회색: 미검정)', 
-        xaxis: { title: '유전자', tickangle: -45 },
-        yaxis: { title: '품종' },
-        height: Math.max(600, varietyNames.length * 15),
-        margin: { l: 150, r: 50, t: 100, b: 150 }
-    }, { responsive: true });
+    if (typeof Plotly !== 'undefined') {
+        Plotly.newPlot('heatmapPlot', [{
+            z: matrix, x: geneNames, y: varietyNames, type: 'heatmap',
+            colorscale: [[0, 'white'], [0.5, '#cccccc'], [1, '#0c3026']],
+            showscale: true
+        }], {
+            title: '유전자형 히트맵 (청록색: 보유, 흰색: 미보유, 회색: 미검정)',
+            xaxis: { title: '유전자', tickangle: -45 },
+            yaxis: { title: '품종' },
+            height: Math.max(600, varietyNames.length * 15),
+            margin: { l: 150, r: 50, t: 100, b: 150 }
+        }, { responsive: true });
+    } else {
+        // 오프라인: 캔버스 폴백 히트맵
+        console.log('Plotly 미로딩 - 캔버스 폴백으로 히트맵 렌더');
+        OfflineChart.heatmap('heatmapPlot', { z: matrix, x: geneNames, y: varietyNames });
+    }
 }
 
 function runGeneticAlgorithm() {
@@ -7790,6 +7796,16 @@ function resetChartSettings() {
 
 // 모든 시각화 한번에 생성
 function generateAllVisualizations() {
+    // 오프라인(Plotly CDN 미로딩) 시 종합 리포트 차트는 렌더 불가 → 안내 후 중단
+    if (typeof Plotly === 'undefined') {
+        console.log('Plotly 미로딩 - 종합 리포트 시각화 건너뜀 (오프라인)');
+        const slots = ['phenotypePlotAll', 'confusionMatrixPlot', 'rocCurvePlot', 'featureImportancePlot', 'shapPlot', 'traitCorrelationPlot'];
+        slots.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '<div style="padding:30px; text-align:center; color:#888; background:var(--dmrt-bg-light); border-radius:8px;">📡 오프라인 상태 — 이 차트는 인터넷 연결 시 표시됩니다.<br><small>데모 데이터 로드·히트맵·염색체 페인팅은 오프라인에서도 동작합니다.</small></div>';
+        });
+        return;
+    }
     // 1. 먼저 옵션 드롭다운 채우기
     updateConfusionMatrixOptions();
     updateROCOptions();
@@ -10145,9 +10161,17 @@ function downloadTemplate() {
     XLSX.writeFile(wb, '벼육종_v4.16_양식.xlsx');
 }
 
+// ==================== 안전한 스토리지 접근 ====================
+// 일부 환경(시크릿 모드·file:// 제한·정책 차단)에서 localStorage 접근 자체가
+// 예외를 던질 수 있으므로 try/catch로 감싼다. 데모/오프라인 동작 보장.
+const safeStorage = {
+    get(key) { try { return window.localStorage.getItem(key); } catch (e) { console.log('localStorage 접근 불가:', e.message); return null; } },
+    remove(key) { try { window.localStorage.removeItem(key); } catch (e) { console.log('localStorage 접근 불가:', e.message); } }
+};
+
 // ==================== KASP 데이터 연동 ====================
 function checkKaspData() {
-    const kaspData = localStorage.getItem('kaspDataForSimulator');
+    const kaspData = safeStorage.get('kaspDataForSimulator');
     if (kaspData) {
         try {
             const data = JSON.parse(kaspData);
@@ -10165,7 +10189,7 @@ function checkKaspData() {
 }
 
 function importKaspData() {
-    const kaspData = localStorage.getItem('kaspDataForSimulator');
+    const kaspData = safeStorage.get('kaspDataForSimulator');
     if (!kaspData) {
         alert('가져올 KASP 데이터가 없습니다.');
         return;
@@ -10249,12 +10273,12 @@ function importKaspData() {
 function clearKaspData() {
     const card = document.getElementById('kaspImportCard');
     if (card) card.style.display = 'none';
-    localStorage.removeItem('kaspDataForSimulator');
+    safeStorage.remove('kaspDataForSimulator');
 }
 
 // ==================== Gel 데이터 연동 ====================
 function checkGelData() {
-    const gelData = localStorage.getItem('gelDataForSimulator');
+    const gelData = safeStorage.get('gelDataForSimulator');
     if (gelData) {
         try {
             const data = JSON.parse(gelData);
@@ -10274,7 +10298,7 @@ function checkGelData() {
 }
 
 function importGelData() {
-    const gelData = localStorage.getItem('gelDataForSimulator');
+    const gelData = safeStorage.get('gelDataForSimulator');
     if (!gelData) {
         alert('가져올 Gel 데이터가 없습니다.');
         return;
@@ -10370,12 +10394,12 @@ function importGelData() {
 function clearGelData() {
     const card = document.getElementById('gelImportCard');
     if (card) card.style.display = 'none';
-    localStorage.removeItem('gelDataForSimulator');
+    safeStorage.remove('gelDataForSimulator');
 }
 
 // ==================== 표현형 데이터 연동 ====================
 function checkPhenotypeData() {
-    const phenoData = localStorage.getItem('phenotypeDataForSimulator');
+    const phenoData = safeStorage.get('phenotypeDataForSimulator');
     if (phenoData) {
         try {
             const data = JSON.parse(phenoData);
@@ -10393,7 +10417,7 @@ function checkPhenotypeData() {
 }
 
 function importPhenotypeData() {
-    const phenoData = localStorage.getItem('phenotypeDataForSimulator');
+    const phenoData = safeStorage.get('phenotypeDataForSimulator');
     if (!phenoData) {
         alert('가져올 표현형 데이터가 없습니다.');
         return;
@@ -10483,7 +10507,7 @@ function importPhenotypeData() {
 function clearPhenotypeData() {
     const card = document.getElementById('phenotypeImportCard');
     if (card) card.style.display = 'none';
-    localStorage.removeItem('phenotypeDataForSimulator');
+    safeStorage.remove('phenotypeDataForSimulator');
 }
 
 function updateDataStatusDisplay() {
@@ -12664,28 +12688,175 @@ function renderPaintingCharts() {
         return avgChrCm / (2 * i - 1 + 1); // 근사
     });
 
-    const hetLayout = {
-        margin: { l: 50, r: 20, t: 20, b: 40 },
-        xaxis: { title: '세대' },
-        yaxis: { title: '이형접합률', range: [0, 1.05], tickformat: '.0%' },
-        legend: { orientation: 'h', y: -0.2 }
-    };
-    Plotly.newPlot('paintHetChart', [
-        { x: gens, y: stats.hetRates, mode: 'lines+markers', name: '시뮬 측정', line: { color: '#017f97', width: 3 }, marker: { size: 8 } },
-        { x: gens, y: hetTheory, mode: 'lines', name: '이론 (0.5ⁿ⁻¹)', line: { color: '#888', dash: 'dot', width: 2 } }
-    ], hetLayout, { responsive: true, displaylogo: false });
+    if (typeof Plotly !== 'undefined') {
+        const hetLayout = {
+            margin: { l: 50, r: 20, t: 20, b: 40 },
+            xaxis: { title: '세대' },
+            yaxis: { title: '이형접합률', range: [0, 1.05], tickformat: '.0%' },
+            legend: { orientation: 'h', y: -0.2 }
+        };
+        Plotly.newPlot('paintHetChart', [
+            { x: gens, y: stats.hetRates, mode: 'lines+markers', name: '시뮬 측정', line: { color: '#017f97', width: 3 }, marker: { size: 8 } },
+            { x: gens, y: hetTheory, mode: 'lines', name: '이론 (0.5ⁿ⁻¹)', line: { color: '#888', dash: 'dot', width: 2 } }
+        ], hetLayout, { responsive: true, displaylogo: false });
 
-    const segLayout = {
-        margin: { l: 60, r: 20, t: 20, b: 40 },
-        xaxis: { title: '세대' },
-        yaxis: { title: '평균 segment 길이 (cM)', rangemode: 'tozero' },
-        legend: { orientation: 'h', y: -0.2 }
-    };
-    Plotly.newPlot('paintSegChart', [
-        { x: gens, y: stats.segLengths, mode: 'lines+markers', name: '시뮬 측정', line: { color: '#0c3026', width: 3 }, marker: { size: 8 } },
-        { x: gens, y: segTheory, mode: 'lines', name: '이론 근사', line: { color: '#888', dash: 'dot', width: 2 } }
-    ], segLayout, { responsive: true, displaylogo: false });
+        const segLayout = {
+            margin: { l: 60, r: 20, t: 20, b: 40 },
+            xaxis: { title: '세대' },
+            yaxis: { title: '평균 segment 길이 (cM)', rangemode: 'tozero' },
+            legend: { orientation: 'h', y: -0.2 }
+        };
+        Plotly.newPlot('paintSegChart', [
+            { x: gens, y: stats.segLengths, mode: 'lines+markers', name: '시뮬 측정', line: { color: '#0c3026', width: 3 }, marker: { size: 8 } },
+            { x: gens, y: segTheory, mode: 'lines', name: '이론 근사', line: { color: '#888', dash: 'dot', width: 2 } }
+        ], segLayout, { responsive: true, displaylogo: false });
+    } else {
+        // 오프라인: 캔버스 폴백 렌더러
+        console.log('Plotly 미로딩 - 캔버스 폴백으로 페인팅 차트 렌더');
+        OfflineChart.lines('paintHetChart', [
+            { x: gens, y: stats.hetRates, name: '시뮬 측정', color: '#017f97', width: 3, markers: true },
+            { x: gens, y: hetTheory, name: '이론 (0.5ⁿ⁻¹)', color: '#888', width: 2, dash: true }
+        ], { yMin: 0, yMax: 1.05, percent: true });
+        OfflineChart.lines('paintSegChart', [
+            { x: gens, y: stats.segLengths, name: '시뮬 측정', color: '#0c3026', width: 3, markers: true },
+            { x: gens, y: segTheory, name: '이론 근사', color: '#888', width: 2, dash: true }
+        ], { yMin: 0, yDecimals: 0 });
+    }
 }
+
+// ==================== 오프라인 캔버스 차트 폴백 ====================
+// CDN Plotly 미로딩(오프라인) 시 순수 Canvas API로 차트를 직접 그린다.
+// kasp.html의 캔버스 폴백 패턴과 동일한 접근.
+const OfflineChart = {
+    _prep(divId, defH) {
+        const div = document.getElementById(divId);
+        if (!div) return null;
+        div.innerHTML = '';
+        const w = div.clientWidth || div.offsetWidth || 600;
+        const h = div.clientHeight || parseInt(div.style.height) || defH || 320;
+        const canvas = document.createElement('canvas');
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        div.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        return { ctx, w, h };
+    },
+
+    // 다중 선형 차트 (염색체 페인팅 이형접합률/segment 길이용)
+    lines(divId, traces, opts) {
+        opts = opts || {};
+        const p = this._prep(divId, 320);
+        if (!p) return;
+        const { ctx, w, h } = p;
+        const padL = 56, padR = 16, padT = 16, padB = 52;
+        const plotW = w - padL - padR, plotH = h - padT - padB;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+
+        const allY = traces.flatMap(t => t.y).filter(v => isFinite(v));
+        let yMin = opts.yMin != null ? opts.yMin : Math.min(0, ...allY);
+        let yMax = opts.yMax != null ? opts.yMax : Math.max(...allY) * 1.05;
+        if (yMax === yMin) yMax = yMin + 1;
+        const n = traces[0] ? traces[0].x.length : 0;
+        const xAt = i => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+        const yAt = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+        // 그리드 + y축 눈금
+        ctx.strokeStyle = '#e0e0e0'; ctx.fillStyle = '#666';
+        ctx.font = '11px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        for (let g = 0; g <= 4; g++) {
+            const v = yMin + (yMax - yMin) * g / 4;
+            const y = yAt(v);
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+            const label = opts.percent ? (v * 100).toFixed(0) + '%' : v.toFixed(opts.yDecimals != null ? opts.yDecimals : 1);
+            ctx.fillText(label, padL - 6, y);
+        }
+        // x축 라벨
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        for (let i = 0; i < n; i++) {
+            ctx.fillText(traces[0].x[i], xAt(i), padT + plotH + 6);
+        }
+        // 축선
+        ctx.strokeStyle = '#999'; ctx.beginPath();
+        ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
+
+        // 각 trace 선/점
+        traces.forEach(t => {
+            ctx.strokeStyle = t.color || '#017f97';
+            ctx.lineWidth = t.width || 2;
+            if (t.dash) ctx.setLineDash([4, 3]); else ctx.setLineDash([]);
+            ctx.beginPath();
+            t.y.forEach((v, i) => { i ? ctx.lineTo(xAt(i), yAt(v)) : ctx.moveTo(xAt(i), yAt(v)); });
+            ctx.stroke();
+            ctx.setLineDash([]);
+            if (t.markers) {
+                ctx.fillStyle = t.color || '#017f97';
+                t.y.forEach((v, i) => {
+                    ctx.beginPath(); ctx.arc(xAt(i), yAt(v), 4, 0, Math.PI * 2); ctx.fill();
+                });
+            }
+        });
+        // 범례
+        let lx = padL + 4;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = '11px sans-serif';
+        traces.forEach(t => {
+            ctx.strokeStyle = t.color || '#017f97'; ctx.lineWidth = 2;
+            if (t.dash) ctx.setLineDash([4, 3]); else ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(lx, h - 16); ctx.lineTo(lx + 22, h - 16); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#444';
+            ctx.fillText(t.name, lx + 27, h - 16);
+            lx += 37 + ctx.measureText(t.name).width;
+        });
+    },
+
+    // 히트맵 (유전자형 매트릭스용)
+    heatmap(divId, cfg) {
+        const rows = cfg.z.length, cols = cfg.z[0] ? cfg.z[0].length : 0;
+        const p = this._prep(divId, Math.max(400, rows * 16 + 160));
+        if (!p) return;
+        const { ctx, w, h } = p;
+        const padL = 150, padR = 20, padT = 20, padB = 130;
+        const cellW = (w - padL - padR) / Math.max(cols, 1);
+        const cellH = (h - padT - padB) / Math.max(rows, 1);
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        const colorFor = v => {
+            if (v >= 0.99) return '#0c3026';
+            if (v <= 0.01) return '#ffffff';
+            return '#cccccc';
+        };
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                ctx.fillStyle = colorFor(cfg.z[r][c]);
+                ctx.fillRect(padL + c * cellW, padT + r * cellH, cellW, cellH);
+                ctx.strokeStyle = '#eee';
+                ctx.strokeRect(padL + c * cellW, padT + r * cellH, cellW, cellH);
+            }
+        }
+        // y 라벨 (품종)
+        ctx.fillStyle = '#333'; ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        (cfg.y || []).forEach((label, r) => {
+            ctx.fillText(label, padL - 6, padT + r * cellH + cellH / 2);
+        });
+        // x 라벨 (유전자, 회전)
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        (cfg.x || []).forEach((label, c) => {
+            ctx.save();
+            ctx.translate(padL + c * cellW + cellW / 2, padT + rows * cellH + 6);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillText(label, 0, 0);
+            ctx.restore();
+        });
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
+        ctx.fillText('(오프라인 캔버스 렌더 · 청록=보유, 흰=미보유, 회=미검정)', padL, 2);
+    }
+};
 
 </script>
 
