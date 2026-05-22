@@ -784,6 +784,12 @@
                             <p>Well Position과 품종명이 포함된 Excel/CSV</p>
                         </div>
                         <input type="file" id="sampleInput" accept=".xls,.xlsx,.csv" class="hidden">
+                        <div style="margin-top: 10px; text-align: center;">
+                            <button class="btn btn-secondary" id="sampleTemplateBtn" style="font-size: 0.85rem; padding: 8px 16px;">📋 시료 목록 양식 받기 (CSV)</button>
+                            <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 6px;">
+                                양식을 내려받아 품종명을 채운 뒤 위에 업로드하세요. (오프라인 가능)
+                            </p>
+                        </div>
                         <div id="samplePreview" class="hidden" style="margin-top: 16px;">
                             <div class="column-selector">
                                 <div>
@@ -1025,6 +1031,7 @@
         
         analyzeBtn.addEventListener('click', runAnalysis);
         document.getElementById('demoBtn').addEventListener('click', loadDemoData);
+        document.getElementById('sampleTemplateBtn').addEventListener('click', downloadSampleTemplate);
         document.getElementById('confirmBtn').addEventListener('click', generateResults);
         document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
         document.getElementById('downloadCsvBtn').addEventListener('click', downloadCsv);
@@ -2182,6 +2189,42 @@
 
             document.getElementById('analysisSection').scrollIntoView({ behavior: 'smooth' });
             console.log('데모 데이터 로드 완료:', { genes: DEMO_GENES, varieties: DEMO_VARIETIES.length });
+        }
+
+        // 시료 목록 양식(CSV) 생성 — XLSX 불필요, 오프라인 동작
+        function downloadSampleTemplate() {
+            console.log('시료 목록 양식 다운로드 시작');
+            const rows = [['Well Position', '품종명', '구분']];
+            // 작성 예시 (대조구 + 시험구)
+            const examples = {
+                'A1': ['PC1', 'CK'],
+                'A2': ['PC2', 'CK'],
+                'A3': ['NTC', 'CK'],
+                'A4': ['일품벼', '시험구'],
+                'A5': ['삼광벼', '시험구']
+            };
+            // 96-well 플레이트 전체 (A1~H12), Well Position은 미리 채움
+            'ABCDEFGH'.split('').forEach(r => {
+                for (let c = 1; c <= 12; c++) {
+                    const well = r + c;
+                    const ex = examples[well];
+                    rows.push([well, ex ? ex[0] : '', ex ? ex[1] : '']);
+                }
+            });
+
+            const escapeCsv = v => {
+                const s = String(v);
+                return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+            };
+            const csv = '﻿' + rows.map(r => r.map(escapeCsv).join(',')).join('\r\n') + '\r\n';
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'KASP_시료목록_양식.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+            console.log('시료 목록 양식 다운로드 완료:', rows.length - 1 + '개 well');
         }
 
         function renderDemoSamplePreview() {
