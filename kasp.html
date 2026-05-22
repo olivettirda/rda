@@ -823,7 +823,7 @@
                     <button class="btn btn-primary" id="analyzeBtn" disabled>🔬 분석 시작</button>
                     <button class="btn btn-secondary" id="demoBtn">🧪 데모 데이터 불러오기</button>
                 </div>
-                <p style="font-size: 0.8rem; color: var(--text-light); margin-top: 8px;">
+                <p id="demoHint" style="font-size: 0.8rem; color: var(--text-light); margin-top: 8px;">
                     💡 파일이 없다면 <strong>데모 데이터</strong>로 분석 흐름을 미리 체험할 수 있습니다.
                 </p>
             </div>
@@ -974,6 +974,7 @@
         let rawFiles = [];
         let geneResults = {};
         let charts = {};
+        let demoMode = false;  // 데모 데이터 로드 여부 (true면 runAnalysis가 파일 파싱을 건너뜀)
         
         // Chart Settings
         let chartSettings = {
@@ -1045,6 +1046,7 @@
                 alert('⚠️ Excel 라이브러리(XLSX)를 불러오지 못했습니다.\n오프라인 환경에서는 실제 파일 업로드 대신 "🧪 데모 데이터 불러오기"를 사용하세요.');
                 return;
             }
+            demoMode = false;  // 실제 파일 업로드 → 데모 모드 해제
             const reader = new FileReader();
             reader.onload = function(e) {
                 const data = new Uint8Array(e.target.result);
@@ -1093,6 +1095,7 @@
         }
         
         function processRawFiles(files) {
+            demoMode = false;  // 실제 파일 업로드 → 데모 모드 해제
             Array.from(files).forEach(file => {
                 // 확장자 제거 후 유전자명 추출
                 const baseName = file.name.replace(/\.(xls|xlsx)$/i, '');
@@ -1147,33 +1150,42 @@
         }
         
         async function runAnalysis() {
-            if (typeof XLSX === 'undefined') {
+            // 데모 모드가 아닐 때만 XLSX 필요 (실제 로우데이터 파싱)
+            if (!demoMode && typeof XLSX === 'undefined') {
                 alert('⚠️ Excel 라이브러리(XLSX)를 불러오지 못했습니다.\n오프라인 환경에서는 실제 로우데이터 분석 대신 "🧪 데모 데이터 불러오기"를 사용하세요.');
                 return;
             }
             document.getElementById('step1').classList.remove('active');
             document.getElementById('step1').classList.add('completed');
             document.getElementById('step2').classList.add('active');
-            
-            geneResults = {};
-            
-            const sampleMap = {};
-            sampleData.forEach(row => {
-                const well = normalizeWell(String(row[wellCol] || ''));
-                sampleMap[well] = row[sampleCol] || '';
-            });
-            
-            for (const item of rawFiles) {
-                const result = await processRawData(item.file, item.geneName, sampleMap);
-                geneResults[item.geneName] = result;
-                item.status = 'done';
+
+            if (demoMode) {
+                // 데모 데이터: geneResults가 loadDemoData에서 이미 생성됨 → 파일 파싱 건너뜀
+                console.log('데모 데이터 분석 실행 (파일 파싱 생략)');
+                rawFiles.forEach(item => item.status = 'done');
+            } else {
+                geneResults = {};
+
+                const sampleMap = {};
+                sampleData.forEach(row => {
+                    const well = normalizeWell(String(row[wellCol] || ''));
+                    sampleMap[well] = row[sampleCol] || '';
+                });
+
+                for (const item of rawFiles) {
+                    const result = await processRawData(item.file, item.geneName, sampleMap);
+                    geneResults[item.geneName] = result;
+                    item.status = 'done';
+                }
             }
-            
+
             document.getElementById('analysisSection').classList.remove('hidden');
             document.getElementById('geneBadge').textContent = `${rawFiles.length} genes`;
-            
+
             createAnalysisCharts();
             showInfoSection();
+
+            document.getElementById('analysisSection').scrollIntoView({ behavior: 'smooth' });
         }
         
         function normalizeWell(well) {
@@ -2058,8 +2070,14 @@
 
         function silentReset() {
             sampleData = null; sampleColumns = []; wellCol = null; sampleCol = null;
-            rawFiles = []; geneResults = {};
+            rawFiles = []; geneResults = {}; demoMode = false;
             Object.values(charts).forEach(c => c.destroy()); charts = {};
+
+            const hint = document.getElementById('demoHint');
+            if (hint) {
+                hint.innerHTML = '💡 파일이 없다면 <strong>데모 데이터</strong>로 분석 흐름을 미리 체험할 수 있습니다.';
+                hint.style.color = 'var(--text-light)';
+            }
 
             document.getElementById('sampleZone').innerHTML = '<div class="icon">📋</div><h3>시료 목록 파일</h3><p>Well Position과 품종명이 포함된 Excel/CSV</p>';
             document.getElementById('sampleZone').classList.remove('has-file');
@@ -2171,24 +2189,23 @@
             updateFileList();
             rawDataZone.classList.add('has-file');
 
-            // 시료 업로드 영역 UI 갱신
+            // 시료 업로드 영역 UI 갱신 (업로드 완료 상태 표시)
             sampleZone.classList.add('has-file');
-            sampleZone.innerHTML = `<div class="icon">🧪</div><h3>데모 시료 목록</h3><p>${sampleData.length}개 시료 (데모 데이터)</p>`;
+            sampleZone.innerHTML = `<div class="icon">✅</div><h3>데모 시료 목록 (업로드됨)</h3><p>${sampleData.length}개 시료 (데모 데이터)</p>`;
             renderDemoSamplePreview();
 
-            // Step 전환 및 분석 화면 표시
-            document.getElementById('step1').classList.remove('active');
-            document.getElementById('step1').classList.add('completed');
-            document.getElementById('step2').classList.add('active');
-            document.getElementById('analysisSection').classList.remove('hidden');
-            document.getElementById('geneBadge').textContent = `${DEMO_GENES.length} genes`;
-            analyzeBtn.disabled = true;
+            // 분석은 자동 실행하지 않음 — 사용자가 "🔬 분석 시작"을 직접 누름
+            demoMode = true;
+            checkReady();  // sampleData·rawFiles 충족 → 분석 버튼 활성화
 
-            createAnalysisCharts();
-            showInfoSection();
+            const hint = document.getElementById('demoHint');
+            if (hint) {
+                hint.innerHTML = '✅ <strong>데모 데이터가 업로드되었습니다.</strong> 시료 목록·유전자 파일을 확인한 뒤 <strong>🔬 분석 시작</strong> 버튼을 누르세요.';
+                hint.style.color = 'var(--success)';
+            }
 
-            document.getElementById('analysisSection').scrollIntoView({ behavior: 'smooth' });
-            console.log('데모 데이터 로드 완료:', { genes: DEMO_GENES, varieties: DEMO_VARIETIES.length });
+            document.getElementById('analyzeBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            console.log('데모 데이터 로드 완료 (분석 대기):', { genes: DEMO_GENES, varieties: DEMO_VARIETIES.length });
         }
 
         // 시료 목록 양식(CSV) 생성 — XLSX 불필요, 오프라인 동작
