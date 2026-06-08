@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>만드니까 되는데요 — AI로 만든 농업 업무 웹툴 (AI 아이디어톤)</title>
+<!--
+  단일 자기완결 HTML 발표 덱.
+  - 외부 네트워크 호출 0건: CDN/웹폰트/애널리틱스 없음. CSS/JS 전부 인라인, 폰트는 시스템 폰트.
+  - 디자인: getdesign "nintendo-2001"(DESIGN.md)의 Y2K 콘솔 크롬 토큰을 단일 소스로 매칭.
+  - 1920x1080 좌표계 고정 + scale-to-fit. 더블클릭(file://)만으로 열림.
+  - 이 자료 자체가 "AI로 만든 단일 HTML"이라는 증거물.
+-->
+<style>
+/* ============================================================
+   DESIGN.md (nintendo-2001) — 색상/타입/간격 토큰
+   ============================================================ */
+:root{
+  /* colors */
+  --primary:#e60012;      /* Nintendo Red — 브랜드/경고 */
+  --signal:#f68d1f;       /* Signal Orange — 전진/Submit */
+  --amber:#ecab37;        /* Amber — 유틸 칩/뱃지 */
+  --nav-gold:#e48600;     /* Nav Gold — 상단 메뉴 단어 */
+  --canvas:#7a8aba;       /* Periwinkle metallic — 본체 크롬 */
+  --canvas-soft:#9fbee7;  /* Pale Sky — 보조 네비/인셋 */
+  --lavender:#acace7;     /* Pale Lavender — 홈 히어로 */
+  --ice:#c0d5e6;          /* Pale Ice — 뉴스 히어로 */
+  --periwinkle:#8ba1d4;   /* Light Periwinkle — 라이즈드 패널 */
+  --chrome-indigo:#3d4f97;/* 베벨 경계/그림자선 */
+  --muted-indigo:#60619c; /* 비활성/리세스 */
+  --platinum:#dedede;     /* 리스트행/콘텐츠 인셋 */
+  --surface:#ffffff;      /* 카드/필드 */
+  --carbon:#21242e;       /* Carbon Navy — 커맨드 슬랩 */
+  --hairline:#5a5f8c;
+  --ink:#21242e;
+  --ink-soft:#3d4f97;
+  --on-primary:#ffffff;
+  --systems-teal:#206479;
+  --games-red:#a7282b;
+  --error:#e60012;
+
+  /* spacing */
+  --xxs:2px; --xs:4px; --sm:8px; --md:12px; --lg:16px; --xl:24px; --xxl:32px; --section:48px;
+
+  /* radius */
+  --r-none:0px; --r-xs:2px; --r-sm:4px; --r-md:6px; --r-lg:10px; --r-full:9999px;
+
+  /* fonts (시스템 폰트만 — 외부 폰트 금지) */
+  --f-ui:Arial, "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --f-disp:"Arial Black", Arial, "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --f-mono:"Consolas","D2Coding",ui-monospace,monospace;
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--carbon);                 /* 남는 여백 = 중립 배경 밴드 */
+  font-family:var(--f-ui);
+  color:var(--ink);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ===== scale-to-fit 무대 ===== */
+#stage{
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(rgba(255,255,255,.025) 1px, transparent 1px) 0 0/4px 4px,
+    var(--carbon);
+}
+#deck{
+  position:relative;
+  width:1920px; height:1080px;
+  transform-origin:center center;
+  background:var(--canvas);
+  /* 브러시드 메탈 본체 + 상단 하이라이트/하단 챔퍼 베벨 */
+  box-shadow:
+    inset 0 4px 0 rgba(255,255,255,.30),
+    inset 0 -5px 0 rgba(0,0,0,.22),
+    0 0 0 2px var(--chrome-indigo),
+    0 30px 80px rgba(0,0,0,.55);
+  clip-path:polygon(18px 0,calc(100% - 18px) 0,100% 18px,100% calc(100% - 18px),calc(100% - 18px) 100%,18px 100%,0 calc(100% - 18px),0 18px);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+
+/* ===== 상단 커맨드 바(carbon, 하프톤) ===== */
+.topbar{
+  height:74px; flex:0 0 74px;
+  background:
+    radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px) 0 0/4px 4px,
+    var(--carbon);
+  display:flex; align-items:center; gap:var(--lg);
+  padding:0 var(--xl);
+  border-bottom:2px solid var(--chrome-indigo);
+}
+.logo-pill{
+  background:var(--surface); color:var(--primary);
+  font-family:var(--f-disp); font-weight:900; font-size:26px; letter-spacing:1px;
+  border-radius:var(--r-full);
+  padding:6px 22px;
+  border:2px solid var(--chrome-indigo);
+  box-shadow:0 2px 0 rgba(0,0,0,.4);
+}
+.logo-pill small{font-family:var(--f-ui); font-size:11px; font-weight:700; color:var(--ink); margin-left:8px; vertical-align:middle;}
+.nav-words{display:flex; gap:26px; margin-left:8px;}
+.nav-words span{
+  color:var(--nav-gold); font-weight:700; font-size:15px; letter-spacing:.5px;
+  text-transform:uppercase; opacity:.55; transition:.25s;
+}
+.nav-words span.on{opacity:1; color:var(--amber); text-shadow:0 0 10px rgba(236,171,55,.5);}
+.util-chip{
+  margin-left:auto;
+  background:var(--amber); color:var(--carbon);
+  font-weight:700; font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+  border-radius:var(--r-xs); padding:8px 14px;
+  border-top:1px solid rgba(255,255,255,.6); border-bottom:2px solid rgba(0,0,0,.35);
+}
+
+/* ===== 보조 네비 스트립 ===== */
+.subnav{
+  height:38px; flex:0 0 38px;
+  background:var(--canvas-soft);
+  display:flex; align-items:center; gap:14px;
+  padding:0 var(--xl);
+  font-size:12px; font-weight:700; letter-spacing:.5px; color:var(--ink); text-transform:uppercase;
+  border-bottom:1px solid var(--chrome-indigo);
+}
+.subnav .dot{color:var(--muted-indigo);}
+.subnav .grow{margin-left:auto; color:var(--ink-soft);}
+
+/* ===== 슬라이드 영역 ===== */
+.slides{position:relative; flex:1 1 auto;}
+.slide{
+  position:absolute; inset:0;
+  padding:34px 56px;
+  opacity:0; transform:translateX(34px) scale(.995);
+  transition:opacity .42s ease, transform .42s ease;
+  pointer-events:none;
+  display:flex; flex-direction:column;
+}
+.slide.active{opacity:1; transform:none; pointer-events:auto;}
+.slide.prev{transform:translateX(-34px) scale(.995);}
+
+/* ===== 푸터 슬랩 ===== */
+.footer{
+  height:54px; flex:0 0 54px;
+  background:
+    radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px) 0 0/4px 4px,
+    var(--carbon);
+  display:flex; align-items:center; gap:var(--lg);
+  padding:0 var(--xl);
+  color:var(--canvas-soft); font-size:12px;
+  border-top:2px solid var(--chrome-indigo);
+}
+.footer .esrb{
+  background:var(--amber); color:var(--carbon); font-weight:700; font-size:11px;
+  letter-spacing:.5px; text-transform:uppercase;
+  padding:5px 10px; border-radius:var(--r-xs);
+}
+.footer .grow{margin-left:auto;}
+
+/* ============================================================
+   공통 컴포넌트 — 베벨 플레이트 / 라벨바 / 칩
+   ============================================================ */
+.plate{
+  background:var(--canvas);
+  border:1px solid var(--chrome-indigo);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.35), inset 0 -3px 0 rgba(0,0,0,.18), 0 1px 0 var(--chrome-indigo);
+  border-radius:var(--r-md);
+}
+.plate.light{background:var(--platinum);}
+.plate.sky{background:var(--canvas-soft);}
+.plate.peri{background:var(--periwinkle);}
+.plate.surf{background:var(--surface);}
+.chamfer{
+  clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);
+}
+.label-bar{
+  display:inline-flex; align-items:center; gap:10px;
+  background:var(--carbon); color:var(--amber);
+  font-weight:700; font-size:15px; letter-spacing:1px; text-transform:uppercase;
+  padding:9px 16px; border-radius:var(--r-xs) var(--r-xs) 0 0;
+  border-top:1px solid rgba(255,255,255,.25);
+}
+.label-bar .glyph{
+  width:14px; height:14px; background:var(--signal); display:inline-block;
+  clip-path:polygon(0 0,100% 50%,0 100%);
+}
+.eyebrow{
+  font-size:14px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:var(--ink-soft);
+}
+.kicker-chip{
+  display:inline-block; background:var(--signal); color:#fff; font-weight:700; font-size:13px;
+  letter-spacing:.5px; padding:5px 12px; border-radius:var(--r-xs); text-transform:uppercase;
+  border-top:1px solid rgba(255,255,255,.5); border-bottom:2px solid rgba(0,0,0,.3);
+}
+
+/* 박스아트 디스플레이 워드마크: 아웃라인 + 하드 드롭섀도 */
+.boxart{
+  font-family:var(--f-disp); font-weight:900; line-height:.98; color:var(--surface);
+  -webkit-text-stroke:2.5px var(--carbon);
+  text-shadow:5px 5px 0 var(--chrome-indigo);
+  letter-spacing:-.5px;
+}
+.h-title{font-size:120px;}
+.h-big{font-size:78px;}
+.h-mid{font-size:54px; -webkit-text-stroke-width:2px; text-shadow:4px 4px 0 var(--chrome-indigo);}
+
+h2.slide-h{
+  font-family:var(--f-disp); font-weight:900; font-size:46px; color:var(--carbon);
+  letter-spacing:-.5px; line-height:1.04;
+}
+h2.slide-h em{font-style:normal; color:var(--chrome-indigo);}
+
+p.lead{font-size:21px; line-height:1.45; color:var(--ink);}
+.muted{color:var(--ink-soft);}
+.small{font-size:14px;}
+
+/* 정보 카드 */
+.info-card{
+  background:var(--surface); border:1px solid var(--chrome-indigo); border-radius:var(--r-sm);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.7), 0 2px 0 var(--chrome-indigo);
+  padding:22px 22px;
+}
+.info-card .tab{
+  display:inline-block; background:var(--amber); color:var(--carbon);
+  font-weight:700; font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+  padding:4px 10px; border-radius:var(--r-xs); margin-bottom:12px;
+}
+.info-card h3{font-size:22px; color:var(--carbon); margin-bottom:8px;}
+.info-card p{font-size:16px; line-height:1.5; color:var(--ink);}
+
+.keybox{
+  background:var(--canvas-soft); border:2px solid var(--signal); border-radius:var(--r-sm);
+  padding:18px 22px; font-size:20px; line-height:1.5; color:var(--carbon);
+}
+.keybox b{color:var(--chrome-indigo);}
+
+/* 코드 패널 */
+.code{
+  background:#1b1e27; color:#cdd3e8; font-family:var(--f-mono); font-size:15px; line-height:1.6;
+  border:1px solid var(--chrome-indigo); border-radius:var(--r-sm); padding:18px 20px;
+  white-space:pre; overflow:auto;
+}
+.code .c{color:#7f8aa8;}
+.code .k{color:#f68d1f;}
+.code .s{color:#9fd0a0;}
+.code .v{color:#ecab37;}
+
+/* 시행착오 핀 */
+.trace{
+  display:flex; gap:12px; align-items:flex-start;
+  background:var(--platinum); border-left:5px solid var(--signal);
+  border-radius:var(--r-sm); padding:14px 16px;
+}
+.trace .pr{
+  flex:0 0 auto; background:var(--carbon); color:var(--amber); font-weight:700; font-size:13px;
+  padding:4px 9px; border-radius:var(--r-xs); white-space:nowrap;
+}
+.trace p{font-size:15px; line-height:1.45; color:var(--ink);}
+
+/* 데모 클립 영역 */
+.clip{
+  position:relative; flex:1 1 auto; min-height:0;
+  background:var(--platinum);
+  border:3px solid var(--chrome-indigo); border-radius:var(--r-sm);
+  overflow:hidden;
+}
+.clip video, .clip img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#0b0d13; z-index:2;
+}
+.clip .ph{
+  position:absolute; inset:0; z-index:1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  background:
+    repeating-linear-gradient(45deg, rgba(61,79,151,.10) 0 12px, transparent 12px 24px),
+    var(--platinum);
+  color:var(--ink-soft); text-align:center; padding:24px;
+}
+.clip .ph .play{
+  width:64px; height:64px; border-radius:var(--r-full); background:var(--signal);
+  display:flex; align-items:center; justify-content:center; color:#fff; font-size:26px;
+  border:3px solid #fff; box-shadow:0 4px 0 rgba(0,0,0,.3);
+}
+.clip .ph .t{font-size:20px; font-weight:700; color:var(--carbon);}
+.clip .ph .s{font-size:13px;}
+
+/* 버튼 */
+.btn{
+  font-family:var(--f-ui); cursor:pointer; border:none;
+  font-weight:700; font-size:14px; letter-spacing:.5px; text-transform:uppercase;
+  padding:12px 18px; border-radius:var(--r-xs);
+  border-top:1px solid rgba(255,255,255,.5); border-bottom:3px solid rgba(0,0,0,.32);
+  transition:transform .08s, filter .15s;
+}
+.btn:active{transform:translateY(2px); border-bottom-width:1px;}
+.btn-run{background:var(--signal); color:#fff;}
+.btn-run:hover{filter:brightness(1.06);}
+.btn-amber{background:var(--amber); color:var(--carbon);}
+.btn-dark{background:var(--carbon); color:#fff; border-top-color:rgba(255,255,255,.18);}
+
+/* 메트릭 */
+.metric{
+  background:var(--surface); border:1px solid var(--chrome-indigo); border-radius:var(--r-sm);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.7), 0 3px 0 var(--chrome-indigo);
+  padding:20px; text-align:center; display:flex; flex-direction:column; justify-content:center;
+}
+.metric .num{font-family:var(--f-disp); font-weight:900; font-size:60px; color:var(--chrome-indigo); line-height:1;}
+.metric .num small{font-size:26px; color:var(--signal);}
+.metric .cap{font-size:15px; font-weight:700; color:var(--ink); margin-top:8px; letter-spacing:.3px;}
+.metric .sub{font-size:12px; color:var(--ink-soft); margin-top:3px;}
+
+/* 도구 스트립 타일 */
+.tool-tile{
+  background:var(--periwinkle); border:1px solid var(--chrome-indigo); border-radius:var(--r-sm);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.4), 0 2px 0 var(--chrome-indigo);
+  padding:14px; display:flex; flex-direction:column; gap:8px;
+}
+.tool-tile .nm{font-weight:700; font-size:16px; color:var(--carbon); line-height:1.2;}
+.tool-tile .ds{font-size:12px; color:var(--ink-soft); flex:1;}
+.tool-tile .btn{font-size:11px; padding:8px 10px;}
+
+ul.ticks{list-style:none; display:flex; flex-direction:column; gap:10px;}
+ul.ticks li{position:relative; padding-left:30px; font-size:18px; line-height:1.4; color:var(--ink);}
+ul.ticks li::before{
+  content:""; position:absolute; left:0; top:4px; width:16px; height:16px;
+  background:var(--signal); clip-path:polygon(0 0,100% 50%,0 100%);
+}
+
+.grid{display:grid; gap:18px;}
+
+/* ============================================================
+   발표자 노트 패널 (전체화면 자동 숨김)
+   ============================================================ */
+#notes{
+  position:fixed; left:14px; bottom:64px; z-index:50;
+  width:480px; max-width:42vw;
+  background:rgba(33,36,46,.96); color:#e9ecf6;
+  border:2px solid var(--amber); border-radius:var(--r-md);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
+  font-size:14px; line-height:1.5;
+  transition:transform .3s, opacity .3s;
+}
+#notes .nhead{
+  display:flex; align-items:center; gap:8px; cursor:pointer;
+  background:var(--amber); color:var(--carbon); font-weight:700; font-size:12px; letter-spacing:.5px;
+  text-transform:uppercase; padding:8px 12px; border-radius:4px 4px 0 0;
+}
+#notes .nhead .grow{margin-left:auto;}
+#notes .nbody{padding:14px 16px; max-height:300px; overflow:auto;}
+#notes.collapsed .nbody{display:none;}
+#notes.hidden{transform:translateY(20px); opacity:0; pointer-events:none;}
+body.fs #notes{display:none;}
+
+/* ============================================================
+   컨트롤 바
+   ============================================================ */
+#controls{
+  position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:60;
+  display:flex; align-items:center; gap:8px;
+  background:rgba(33,36,46,.92); border:1px solid var(--hairline); border-radius:var(--r-full);
+  padding:6px 8px; box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+#controls button{
+  cursor:pointer; border:none; background:var(--chrome-indigo); color:#fff;
+  font-family:var(--f-ui); font-weight:700; font-size:13px;
+  width:38px; height:38px; border-radius:var(--r-full);
+  display:flex; align-items:center; justify-content:center;
+  border-top:1px solid rgba(255,255,255,.25); border-bottom:2px solid rgba(0,0,0,.4);
+}
+#controls button:hover{background:var(--muted-indigo);}
+#controls .arrow{background:var(--signal);}
+#controls .counter{color:#fff; font-weight:700; font-size:14px; padding:0 10px; min-width:62px; text-align:center;}
+#controls .wide{width:auto; padding:0 14px; border-radius:var(--r-full);}
+
+/* 토스트 */
+#toast{
+  position:fixed; left:50%; bottom:74px; transform:translateX(-50%) translateY(20px);
+  z-index:80; background:var(--surface); color:var(--ink);
+  border:2px solid var(--chrome-indigo); border-radius:var(--r-md);
+  padding:12px 18px; font-size:14px; box-shadow:0 10px 30px rgba(0,0,0,.4);
+  opacity:0; pointer-events:none; transition:.3s; max-width:560px;
+}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+/* 자체 증거 뱃지 */
+.self-badge{
+  display:inline-flex; align-items:center; gap:10px;
+  background:var(--carbon); color:#fff; border-radius:var(--r-full);
+  padding:10px 18px; font-size:15px; font-weight:700;
+  border:2px solid var(--amber);
+}
+.self-badge .led{width:11px; height:11px; border-radius:50%; background:var(--signal); box-shadow:0 0 10px var(--signal);}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="deck">
+
+    <!-- 상단 커맨드 바 -->
+    <div class="topbar">
+      <div class="logo-pill">RDA<small>국립식량과학원</small></div>
+      <div class="nav-words" id="navWords">
+        <span data-sec="intro">개요</span>
+        <span data-sec="method">방법</span>
+        <span data-sec="demo">데모</span>
+        <span data-sec="result">성과</span>
+        <span data-sec="close">결론</span>
+      </div>
+      <div class="util-chip">▶ Single-File · Offline</div>
+    </div>
+
+    <!-- 보조 네비 -->
+    <div class="subnav">
+      <span>AI 아이디어톤 최종평가</span><span class="dot">·</span>
+      <span>경지이용작물과</span><span class="dot">·</span>
+      <span>이소명</span>
+      <span class="grow" id="subRight">CLAUDE.md 협업 · 작동하는 결과물로 증명</span>
+    </div>
+
+    <!-- ===================== 슬라이드들 ===================== -->
+    <div class="slides" id="slides">
+
+      <!-- 1. 타이틀 -->
+      <section class="slide" data-sec="intro" data-note="안녕하세요. 경지이용작물과 이소명입니다. 오늘 발표의 핵심은 한 문장입니다 — '설명하지 않고, 작동하는 결과물로 증명한다.' 저는 비전공 연구사인데, AI(Claude Code)와 규칙 파일 CLAUDE.md만으로 실제 현장에서 쓰는 농업 업무 웹툴 5종을 직접 만들었습니다. 그리고 지금 보시는 이 발표 자료 자체도 똑같은 방식으로 만든 단일 HTML 파일 한 장입니다. 자료가 곧 증거물입니다. (자체 증거 뱃지 가리키며) 인터넷 없이, 더블클릭만으로 열립니다.">
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:26px;">
+          <div><span class="kicker-chip">농촌진흥청 · AI 아이디어톤 최종평가</span></div>
+          <div class="boxart h-title">만드니까<br>되는데요</div>
+          <p class="lead" style="font-size:26px; max-width:1200px;">
+            <b>AI(Claude Code · CLAUDE.md)</b>로 직접 만든, 망분리 PC에서도 <b>실제 작동하는</b> 농업 업무 웹툴 5종.
+          </p>
+          <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+            <div class="self-badge"><span class="led"></span> 이 발표 자료도 같은 방식으로 만든 <b>단일 HTML</b>입니다 — 외부 호출 0건</div>
+          </div>
+          <div style="margin-top:8px; font-size:18px; color:var(--carbon); font-weight:700;">
+            농촌진흥청 국립식량과학원 밭작물개발부 경지이용작물과 &nbsp;·&nbsp; 발표자 <b>이소명</b>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 문제 -->
+      <section class="slide" data-sec="method" data-note="현장 연구사의 하루는 '연구'보다 '반복 작업'에 더 많이 쓰입니다. 조사 양식은 시험마다 엑셀로 손수 만들고, 라벨도 매번 새로 짭니다. 통계·마커 분석은 프로그램을 바꿔가며 수작업으로 돌립니다. 게다가 우리 업무 PC는 망분리라 온라인 SaaS 도구나 설치형 프로그램을 자유롭게 못 씁니다. 결론은 명확합니다 — 업무 자체를 '내 손으로 도구화'하지 않으면 시간은 계속 새어 나갑니다.">
+        <div class="label-bar"><span class="glyph"></span> Problem · 현장의 반복 비효율</div>
+        <div class="plate light chamfer" style="flex:1; padding:34px; display:flex; flex-direction:column; gap:24px;">
+          <h2 class="slide-h">연구사의 시간은 <em>연구</em>가 아니라<br>반복 작업에 새어 나간다</h2>
+          <div class="grid" style="grid-template-columns:repeat(3,1fr); flex:1;">
+            <div class="info-card">
+              <span class="tab">조사·기록</span>
+              <h3>양식·라벨을 매번 손수</h3>
+              <p>시험마다 엑셀로 조사 양식을 다시 만들고, 표찰/라벨도 새로 편집해 인쇄. 같은 작업의 무한 반복.</p>
+            </div>
+            <div class="info-card">
+              <span class="tab">분석</span>
+              <h3>도구마다 수작업 전환</h3>
+              <p>DMRT 통계, KASP 마커 판독, 배경 선발 분석을 각기 다른 프로그램·엑셀 매크로로 따로따로 처리.</p>
+            </div>
+            <div class="info-card">
+              <span class="tab">환경 제약</span>
+              <h3>망분리 = 온라인 도구 불가</h3>
+              <p>업무 PC는 인터넷 분리. SaaS·클라우드 분석 도구, 설치형 소프트웨어 도입이 까다롭다.</p>
+            </div>
+          </div>
+          <div class="keybox">
+            핵심 질문 — <b>비전공 연구사가</b> 직접, 망분리 PC에서 더블클릭만으로 돌아가는 도구를 만들 수 있을까?
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 방법론 -->
+      <section class="slide" data-sec="method" data-note="답은 CLAUDE.md였습니다. CLAUDE.md는 AI(Claude Code)에게 주는 '협업 규칙 설명서'입니다. 디자인 색상 토큰, 디버깅 로그 필수 규칙, 도메인 표준(벼 참조게놈 IRGSP-1.0, KASP 프라이머 Tm 계산법), 그리고 PR·머지 워크플로까지 한 파일에 박제해 둡니다. 그러면 제가 매번 설명하지 않아도 AI가 항상 같은 규칙으로 코드를 만듭니다. 중요한 건, 이 규칙 파일 자체도 시행착오로 진화했다는 점입니다. 머지 규칙 하나만 PR #278~#280에 걸쳐 4단계로 바꿨습니다. 역할 분담은 분명합니다 — AI가 코드를 짜고, 사람은 규칙·검증·도메인 판단을 합니다.">
+        <div class="label-bar"><span class="glyph"></span> Method · 설명서를 코드 옆에 둔다</div>
+        <div class="plate sky chamfer" style="flex:1; padding:30px; display:flex; flex-direction:column; gap:18px;">
+          <h2 class="slide-h">규칙을 한 파일에 박제한다 — <em>CLAUDE.md</em></h2>
+          <div class="grid" style="grid-template-columns:1.05fr .95fr; flex:1; align-items:stretch;">
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <ul class="ticks">
+                <li><b>디자인 규칙</b> — DMRT 색상 토큰·8px 간격·접근성을 고정 → 5개 도구의 UI가 일관</li>
+                <li><b>디버깅 규칙</b> — 모든 API 호출·핵심 함수에 콘솔 로그 필수</li>
+                <li><b>도메인 표준</b> — IRGSP-1.0 참조게놈, KASP Tm(tail 제외) 계산법까지 코드화</li>
+                <li><b>협업 워크플로</b> — PR 자동 생성·모드별 머지 분기를 규칙으로 명시</li>
+              </ul>
+              <div class="trace">
+                <span class="pr">#278→#280</span>
+                <p><b>규칙도 시행착오로 진화.</b> "PR 자동 머지 → 사용자 확인 → 다시 자동 → 모드별 분기"까지 머지 규칙을 4단계로 바꿔 절충안에 도달.</p>
+              </div>
+              <div class="keybox" style="font-size:18px;">AI가 <b>코드</b>를 짜고, 사람은 <b>규칙·검증·도메인 판단</b>을 한다.</div>
+            </div>
+            <div class="code">/* <span class="c">CLAUDE.md — 협업 규칙(발췌)</span> */
+<span class="k">색상</span>: --primary-dark:<span class="s">#0c3026</span>;
+       --primary-main:<span class="s">#017f97</span>;
+<span class="k">디버깅</span>: <span class="v">console.log</span>(<span class="s">'API 요청:'</span>, data);
+<span class="k">게놈</span>:  참조 = <span class="s">IRGSP-1.0</span>;  마커 = <span class="s">ChrXX_Position</span>;
+<span class="k">KASP</span>:  Tm = NearestNeighbor(seq <span class="c">// tail 제거 후</span>);
+<span class="k">PR</span>:    push 후 PR 자동 생성 → 링크 출력;
+<span class="k">머지</span>:  if (mode === <span class="s">'auto-accept'</span>) autoMerge();
+       else askUser();   <span class="c">// #280 절충</span>
+</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 데모 1 — 디지털육종 시뮬레이터 -->
+      <section class="slide" data-sec="demo" data-note="첫 번째 도구, 디지털육종 시뮬레이터 v5.0입니다. (클립 가리키며) 부모 품종을 고르면 F1부터 F7세대까지 자손의 형질을 미리 예측합니다. Kosambi 함수로 유전자 재조합을, 동원체 억제까지 반영하고, NSGA-II 다목적 최적화로 최적 교배조합을 추천합니다. 표현형 예측 정확도 87.2%. 이게 전부 외부 서버 없이 HTML 한 장 안에서 돕니다. (현장 실행 버튼 누르며) 지금 띄워 보겠습니다. 만들면서 가장 인상적인 시행착오 — 처음엔 계산 코드를 9개 모듈로 깔끔하게 분리했는데(4,783줄), 더블클릭으로 쓰는 연구실 환경에선 부품이 안 끼워졌습니다. 그래서 46분 만에 PR #245로 전부 한 파일에 다시 합쳤습니다.">
+        <div class="label-bar"><span class="glyph"></span> Live Demo 1 · 디지털육종 시뮬레이터 v5.0</div>
+        <div class="plate chamfer" style="flex:1; padding:24px; display:flex; gap:22px;">
+          <div style="flex:1.25; display:flex; flex-direction:column; gap:12px;">
+            <div class="clip">
+              <video muted loop playsinline autoplay onerror="this.style.display='none'">
+                <source src="assets/demo_breeding.mp4" type="video/mp4">
+              </video>
+              <img src="assets/demo_breeding.gif" onerror="this.style.display='none'">
+              <div class="ph">
+                <div class="play">▶</div>
+                <div class="t">여기에 디지털육종 시뮬레이터 데모 클립</div>
+                <div class="s">assets/demo_breeding.mp4 (또는 .gif) 를 넣으면 자동 재생 · 없으면 이 플레이스홀더</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-run" onclick="runTool('rice_breeding_v5_0.html')">▶ 현장 실행 (시연용)</button>
+              <span class="small muted" style="align-self:center;">같은 폴더의 <b>rice_breeding_v5_0.html</b>을 새 탭에서 엽니다</span>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:14px;">
+            <ul class="ticks">
+              <li>F1~F7 세대 교배·여교배·DH 시뮬레이션</li>
+              <li>Kosambi 재조합 + 동원체 억제(12염색체)</li>
+              <li>NSGA-II 다목적 최적화 → 교배조합 추천</li>
+              <li><b>표현형 예측 정확도 87.2%</b></li>
+              <li>Pyodide+Plotly <b>단일 HTML</b> — 서버 0</li>
+            </ul>
+            <div class="trace">
+              <span class="pr">#244→#245</span>
+              <p><b>모듈 9개 분리(4,783줄) → 46분 만에 한 파일로 통합.</b> "더블클릭 한 장"이 현장 제약이라, 분리 가설을 빠르게 검증·폐기.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. 데모 2 — 농업 조사 통합 도구 -->
+      <section class="slide" data-sec="demo" data-note="두 번째, 농업 조사 통합 도구입니다. 포장 조사 양식을 드래그로 만들고, 표찰/라벨 인쇄, 현장 데이터 입력·검증까지 한 화면에서 끝냅니다. 매번 엑셀로 새 양식을 만들던 일을 도구 하나로 대체했습니다. (현장 실행) 이 도구는 7,497줄 규모로 한 번에 등장했는데, 노트 배치(메이슨리) 레이아웃이 한 번에 안 잡혀서 #232부터 #247까지 같은 영역을 반복 수정했습니다. 컬럼 X좌표가 어긋나는 문제를 3단계 알고리즘으로 재구현했고, 그 과정이 전부 PR로 남아 있습니다.">
+        <div class="label-bar"><span class="glyph"></span> Live Demo 2 · 농업 조사 통합 도구</div>
+        <div class="plate chamfer" style="flex:1; padding:24px; display:flex; gap:22px;">
+          <div style="flex:1.25; display:flex; flex-direction:column; gap:12px;">
+            <div class="clip">
+              <video muted loop playsinline autoplay onerror="this.style.display='none'">
+                <source src="assets/demo_survey.mp4" type="video/mp4">
+              </video>
+              <img src="assets/demo_survey.gif" onerror="this.style.display='none'">
+              <div class="ph">
+                <div class="play">▶</div>
+                <div class="t">여기에 농업 조사 통합 도구 데모 클립</div>
+                <div class="s">assets/demo_survey.mp4 (또는 .gif)</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-run" onclick="runTool('createphenotypingform.html')">▶ 현장 실행 (시연용)</button>
+              <span class="small muted" style="align-self:center;">같은 폴더의 <b>createphenotypingform.html</b>을 엽니다</span>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:14px;">
+            <ul class="ticks">
+              <li>드래그로 포장 조사 양식 생성·템플릿화</li>
+              <li>표찰/라벨 인쇄 (1pt≈0.3528mm, 96dpi 기준)</li>
+              <li>현장 입력 + 범위·필수 검증, 사진 압축 연동</li>
+              <li>조사→보고서 자동 생성까지 한 화면</li>
+            </ul>
+            <div class="trace">
+              <span class="pr">#232→#247</span>
+              <p><b>7,497줄로 정식 데뷔.</b> 가변 너비 노트 배치가 한 번에 안 잡혀 컬럼 정렬을 3단계 알고리즘으로 재구현 — 반복 수정 과정이 PR로 보존.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. 데모 3 — 배경 선발 분석기 -->
+      <section class="slide" data-sec="demo" data-note="세 번째, 백그라운드 셀렉션 분석기입니다. 여교배 후대에서 반복친 유전체 회복률을 계산하고, 12개 염색체에 마커를 물리적 위치 기준으로 그려 줍니다. 이 도구가 'AI 협업의 시행착오'를 가장 잘 보여줍니다. 시각화 UX를 한 Claude 세션 안에서 다섯 번 갈아엎었습니다 — 탭 → 고정 드로어 → 드래그 플로팅 창 → 다시 탭으로 복원. #271은 제목에 '복원'이 들어간 공식 되돌리기입니다. 그리고 마커 위치는 클러스터 기반에서 개별 물리적 위치 기반으로 알고리즘을 통째로 교체했습니다(#272). AI와 함께라 가설을 빠르게 세우고, 빠르게 버릴 수 있었습니다.">
+        <div class="label-bar"><span class="glyph"></span> Live Demo 3 · 백그라운드 셀렉션 분석기</div>
+        <div class="plate chamfer" style="flex:1; padding:24px; display:flex; gap:22px;">
+          <div style="flex:1.25; display:flex; flex-direction:column; gap:12px;">
+            <div class="clip">
+              <video muted loop playsinline autoplay onerror="this.style.display='none'">
+                <source src="assets/demo_bgselection.mp4" type="video/mp4">
+              </video>
+              <img src="assets/demo_bgselection.gif" onerror="this.style.display='none'">
+              <div class="ph">
+                <div class="play">▶</div>
+                <div class="t">여기에 배경 선발 분석기 데모 클립</div>
+                <div class="s">assets/demo_bgselection.mp4 (또는 .gif)</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-run" onclick="runTool('background_selection_v3.HTML')">▶ 현장 실행 (시연용)</button>
+              <span class="small muted" style="align-self:center;">같은 폴더의 <b>background_selection_v3.HTML</b>을 엽니다</span>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:14px;">
+            <ul class="ticks">
+              <li>여교배 후대 반복친 회복률(%) 계산·정렬</li>
+              <li>12염색체 마커 시각화 (cM 단위·라벨)</li>
+              <li>회복률 Top 3 자동 식별 + SVG 내보내기</li>
+            </ul>
+            <div class="trace">
+              <span class="pr">#267→#271</span>
+              <p><b>한 세션에서 시각화 UX 5번 교체.</b> 탭 → 드로어 → 플로팅 창 → 탭 복원(#271, 공식 REVERT). AI와 함께라 가설을 빠르게 폐기.</p>
+            </div>
+            <div class="trace">
+              <span class="pr">#272</span>
+              <p><b>알고리즘 교체:</b> 클러스터 기반 → 개별 마커 물리적 위치 기반 X좌표 계산.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. 성과 -->
+      <section class="slide" data-sec="result" data-note="성과를 숫자로 보겠습니다. 비전공 연구사 한 명이 AI와 함께 머지된 PR 355개를 쌓았습니다. 출품 도구는 5종, 레포 전체로는 24개 HTML 도구. 육종 예측 정확도 87.2%, 벼 유전자 DB 4,567개를 내장했고, 무엇보다 외부 호출 0건으로 100% 오프라인에서 작동합니다. 아래 다섯 도구는 지금 이 자리에서 바로 실행할 수 있습니다. 라벨 프린터까지 다섯 개 모두 현장 실행 버튼이 달려 있습니다.">
+        <div class="label-bar"><span class="glyph"></span> Result · 숫자로 보는 결과</div>
+        <div class="plate light chamfer" style="flex:1; padding:26px; display:flex; flex-direction:column; gap:18px;">
+          <div class="grid" style="grid-template-columns:repeat(5,1fr);">
+            <div class="metric"><div class="num">355</div><div class="cap">머지된 PR</div><div class="sub">전부 claude/ 브랜치</div></div>
+            <div class="metric"><div class="num">5<small>+24</small></div><div class="cap">출품 도구 (전체 24)</div><div class="sub">HTML 단일 파일</div></div>
+            <div class="metric"><div class="num">87.2<small>%</small></div><div class="cap">표현형 예측 정확도</div><div class="sub">육종 시뮬레이터</div></div>
+            <div class="metric"><div class="num">4,567</div><div class="cap">벼 유전자 DB</div><div class="sub">내장(funRiceGenes)</div></div>
+            <div class="metric"><div class="num">0<small>건</small></div><div class="cap">외부 네트워크 호출</div><div class="sub">100% 오프라인</div></div>
+          </div>
+          <div class="eyebrow">출품 도구 5종 — 지금 바로 실행</div>
+          <div class="grid" style="grid-template-columns:repeat(5,1fr); flex:1;">
+            <div class="tool-tile"><div class="nm">① 농업 조사 통합</div><div class="ds">양식 생성·라벨·데이터·보고서</div><button class="btn btn-amber" onclick="runTool('createphenotypingform.html')">▶ 실행</button></div>
+            <div class="tool-tile"><div class="nm">② 배경 선발 분석기</div><div class="ds">여교배 회복률·마커 시각화</div><button class="btn btn-amber" onclick="runTool('background_selection_v3.HTML')">▶ 실행</button></div>
+            <div class="tool-tile"><div class="nm">③ 디지털육종 시뮬레이터</div><div class="ds">F1~F7·NSGA-II·후대예측</div><button class="btn btn-amber" onclick="runTool('rice_breeding_v5_0.html')">▶ 실행</button></div>
+            <div class="tool-tile"><div class="nm">④ KASP 멀티유전자 분석</div><div class="ds">마커 판독·클러스터·QC</div><button class="btn btn-amber" onclick="runTool('kasp.html')">▶ 실행</button></div>
+            <div class="tool-tile"><div class="nm">⑤ 표찰 인쇄 웹앱</div><div class="ds">포텍 라벨 규격 인쇄</div><button class="btn btn-amber" onclick="runTool('label_printer.html')">▶ 실행</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. 차별점 -->
+      <section class="slide" data-sec="result" data-note="차별점은 한 문장입니다 — 설명이 아니라, 작동하는 결과물로 증명한다. 첫째, 이 발표 자료부터가 증거입니다. 외부 CDN·웹폰트·서버 호출 0건, 단일 HTML 한 장. 둘째, 그래서 망분리·오프라인 PC에서 더블클릭만으로 돌아갑니다. 정부 업무 환경에 그대로 맞습니다. 셋째, 시행착오가 숨겨지지 않고 PR로 전부 남아 있습니다 — 46분 만의 통합, 공식 되돌리기, 규칙 4단계 진화. 마지막으로, 이 전부를 비전공 연구사 한 명과 AI가 만들었습니다.">
+        <div class="label-bar"><span class="glyph"></span> Why different · 작동으로 증명</div>
+        <div class="plate peri chamfer" style="flex:1; padding:30px; display:flex; flex-direction:column; gap:20px;">
+          <h2 class="slide-h" style="color:#fff; -webkit-text-stroke:1px var(--carbon);">설명이 아니라, <em style="color:var(--amber)">작동하는 결과물</em>로 증명한다</h2>
+          <div class="grid" style="grid-template-columns:repeat(2,1fr); flex:1;">
+            <div class="info-card"><span class="tab">증거물</span><h3>이 덱이 곧 증거</h3><p>발표 자료 자체가 AI로 만든 단일 HTML. 외부 CDN·웹폰트·서버 호출 <b>0건</b> — 검증 가능한 결과물.</p></div>
+            <div class="info-card"><span class="tab">환경 적합</span><h3>망분리·오프라인 대응</h3><p>인터넷 없는 업무 PC에서 <b>더블클릭만으로</b> 작동. 설치·계정·서버 불필요 → 정부 환경에 그대로.</p></div>
+            <div class="info-card"><span class="tab">투명성</span><h3>시행착오가 PR로 남는다</h3><p>#245(46분 통합) · #271(공식 REVERT) · #280(규칙 4단계 진화). 빠르게 시도하고 <b>빠르게 폐기</b>한 흔적.</p></div>
+            <div class="info-card"><span class="tab">재현성</span><h3>비전공자 1명 + AI</h3><p>규칙(CLAUDE.md)과 AI만으로 <b>355 PR</b>. 누구나 자기 업무를 도구로 만들 수 있다는 증명.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9. 마무리 -->
+      <section class="slide" data-sec="close" data-note="정리하겠습니다. AI와 규칙 파일 CLAUDE.md만 있으면, 비전공 현장 연구사도 자기 업무를 직접 도구로 만들 수 있습니다. 거창한 설명 대신, 지금 이 자리에서 도구를 띄워 보여드리겠습니다. (현장 실행 버튼) 만드니까, 되는데요. 감사합니다.">
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:30px; text-align:center;">
+          <span class="kicker-chip">결론</span>
+          <div class="boxart h-big" style="font-size:96px;">만드니까 되는데요</div>
+          <p class="lead" style="font-size:26px; max-width:1150px;">
+            AI와 규칙(<b>CLAUDE.md</b>)만 있으면, 현장 연구사도 자기 업무를 <b>작동하는 도구</b>로 만든다.
+          </p>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
+            <button class="btn btn-run" onclick="runTool('rice_breeding_v5_0.html')">▶ 육종 시뮬레이터</button>
+            <button class="btn btn-run" onclick="runTool('createphenotypingform.html')">▶ 농업 조사 통합</button>
+            <button class="btn btn-run" onclick="runTool('background_selection_v3.HTML')">▶ 배경 선발</button>
+            <button class="btn btn-dark" onclick="runTool('kasp.html')">▶ KASP</button>
+            <button class="btn btn-dark" onclick="runTool('label_printer.html')">▶ 표찰 인쇄</button>
+          </div>
+          <div class="self-badge"><span class="led"></span> 이 슬라이드도 같은 방식으로 만든 단일 HTML — 감사합니다</div>
+        </div>
+      </section>
+
+    </div><!-- /slides -->
+
+    <!-- 푸터 -->
+    <div class="footer">
+      <span class="esrb">Offline-Ready · Single-File</span>
+      <span>외부 호출 0건 · 시스템 폰트 · file:// 더블클릭 실행</span>
+      <span class="grow">© 2026 국립식량과학원 경지이용작물과 · AI 아이디어톤</span>
+    </div>
+
+  </div><!-- /deck -->
+</div><!-- /stage -->
+
+<!-- 발표자 노트 -->
+<div id="notes">
+  <div class="nhead" onclick="toggleNotesCollapse()">
+    <span>🎤 발표자 노트</span>
+    <span class="grow"></span>
+    <span id="noteHint">[N] 토글 · 클릭하면 접기</span>
+  </div>
+  <div class="nbody" id="noteBody">노트 로딩…</div>
+</div>
+
+<!-- 컨트롤 -->
+<div id="controls">
+  <button class="arrow" onclick="go(-1)" title="이전 (←/PageUp)">◀</button>
+  <span class="counter"><span id="cur">1</span> / <span id="total">9</span></span>
+  <button class="arrow" onclick="go(1)" title="다음 (→/Space/PageDown)">▶</button>
+  <button class="wide" onclick="toggleNotes()" title="노트 (N)">노트</button>
+  <button class="wide" onclick="toggleFS()" title="전체화면 (F)">전체화면</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   상태
+   ============================================================ */
+var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+var idx = 0;
+var TOTAL = slides.length;
+document.getElementById('total').textContent = TOTAL;
+
+/* ===== scale-to-fit (1920x1080 고정 좌표계) ===== */
+function scaleDeck(){
+  var s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+  var deck = document.getElementById('deck');
+  deck.style.transform = 'scale(' + s + ')';
+}
+window.addEventListener('resize', scaleDeck);
+document.addEventListener('fullscreenchange', onFsChange);
+document.addEventListener('webkitfullscreenchange', onFsChange);
+
+/* ===== 슬라이드 전환 ===== */
+function render(){
+  slides.forEach(function(sl, i){
+    sl.classList.remove('active','prev');
+    if(i === idx) sl.classList.add('active');
+    else if(i < idx) sl.classList.add('prev');
+  });
+  document.getElementById('cur').textContent = (idx+1);
+  // 상단 nav 단어 하이라이트
+  var sec = slides[idx].getAttribute('data-sec');
+  Array.prototype.forEach.call(document.querySelectorAll('#navWords span'), function(sp){
+    sp.classList.toggle('on', sp.getAttribute('data-sec') === sec);
+  });
+  // 발표자 노트 갱신
+  document.getElementById('noteBody').textContent =
+    slides[idx].getAttribute('data-note') || '(노트 없음)';
+}
+function go(d){
+  idx = Math.max(0, Math.min(TOTAL-1, idx + d));
+  render();
+}
+function goTo(n){ idx = Math.max(0, Math.min(TOTAL-1, n)); render(); }
+
+/* ===== 키보드 (클리커 대응) ===== */
+window.addEventListener('keydown', function(e){
+  switch(e.key){
+    case 'ArrowRight': case ' ': case 'PageDown': case 'Spacebar':
+      e.preventDefault(); go(1); break;
+    case 'ArrowLeft': case 'PageUp':
+      e.preventDefault(); go(-1); break;
+    case 'Home': e.preventDefault(); goTo(0); break;
+    case 'End': e.preventDefault(); goTo(TOTAL-1); break;
+    case 'f': case 'F': toggleFS(); break;
+    case 'n': case 'N': toggleNotes(); break;
+  }
+});
+
+/* ===== 전체화면 ===== */
+function toggleFS(){
+  if(!document.fullscreenElement){
+    (document.documentElement.requestFullscreen ||
+     document.documentElement.webkitRequestFullscreen).call(document.documentElement);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+}
+function onFsChange(){
+  var fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  document.body.classList.toggle('fs', fs);   // 발표 모드 = 노트 자동 숨김
+  scaleDeck();
+}
+
+/* ===== 발표자 노트 토글 ===== */
+function toggleNotes(){ document.getElementById('notes').classList.toggle('hidden'); }
+function toggleNotesCollapse(){ document.getElementById('notes').classList.toggle('collapsed'); }
+
+/* ===== 현장 실행 (같은 폴더의 실제 툴 파일을 새 탭에서) ===== */
+function runTool(file){
+  try{
+    var w = window.open('./' + file, '_blank');
+    if(!w || w.closed){
+      toast('현장 시연용 — 발표 PC에서 같은 폴더의 「' + file + '」을 직접 여세요.');
+    }
+  }catch(err){
+    toast('현장 시연용 — 같은 폴더에 「' + file + '」이 필요합니다.');
+  }
+}
+
+/* ===== 토스트 ===== */
+var toastTimer;
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+/* ===== 초기화 ===== */
+scaleDeck();
+render();
+</script>
+</body>
+</html>
