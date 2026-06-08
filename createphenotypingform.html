@@ -4399,21 +4399,80 @@ return module.exports;})();
         }
 
         function calculateAllStats() {
-            document.querySelector('.nav-tab:nth-child(3)').click();
+            // 조사표/입력값 확인
+            if (!surveyItems || surveyItems.length === 0 || !tableData || tableData.length === 0) {
+                alert('먼저 조사표를 생성하고 값을 입력해주세요.');
+                return;
+            }
+            const varietyList = window.surveyVarietyList || [];
+            console.log('통계 계산 진입:', JSON.stringify({
+                varieties: varietyList.length,
+                items: surveyItems.length,
+                conversion: conversionSettings
+            }, null, 2));
+
+            // 1) 양식 입력값(tableData)을 분석용 surveyData로 변환 — 배수 환산 적용
+            //    (Excel 업로드 경로와 동일하게 surveyData[품종][형질] = [환산값...] 구조 사용)
+            surveyData = {};
+            let conversionApplied = false;
+            const conversionInfo = [];
+            surveyItems.forEach((trait, iIdx) => {
+                const conv = conversionSettings[iIdx];
+                if (conv && conv.enabled) {
+                    conversionApplied = true;
+                    const symbol = conv.operation === 'divide' ? '÷' : '×';
+                    conversionInfo.push(`${trait}: 입력값 ${symbol} ${conv.multiplier}`);
+                }
+            });
+
+            varietyList.forEach((variety, vIdx) => {
+                if (!surveyData[variety]) surveyData[variety] = {};
+                surveyItems.forEach((trait, iIdx) => {
+                    if (!surveyData[variety][trait]) surveyData[variety][trait] = [];
+                    const repeats = (tableData[vIdx] && tableData[vIdx][iIdx]) || [];
+                    repeats.forEach(raw => {
+                        if (raw === null || raw === undefined || isNaN(raw)) return;
+                        let value = raw;
+                        const conv = conversionSettings[iIdx];
+                        if (conv && conv.enabled) {
+                            // 환산: 입력값 ÷/× 배수 (양식의 환산 열과 동일한 계산)
+                            value = conv.operation === 'divide' ? value / conv.multiplier : value * conv.multiplier;
+                        }
+                        surveyData[variety][trait].push(value);
+                    });
+                });
+            });
+            console.log('surveyData 생성 완료:', JSON.stringify({
+                품종: Object.keys(surveyData),
+                환산적용: conversionApplied,
+                환산내역: conversionInfo
+            }, null, 2));
+
+            // 2) 분석 항목 select 갱신 — 값은 형질명(Excel 경로와 동일), 환산 적용 표시
             const select = document.getElementById('analysisItem');
             select.innerHTML = '<option value="">항목을 선택하세요</option>';
-            if (surveyItems && surveyItems.length > 0) {
-                surveyItems.forEach((item, idx) => {
-                    const option = document.createElement('option');
-                    option.value = idx;
-                    option.textContent = item;
-                    select.appendChild(option);
-                });
-                if (surveyItems.length > 0) {
-                    select.value = 0;
+            surveyItems.forEach((trait, iIdx) => {
+                const option = document.createElement('option');
+                option.value = trait;
+                const conv = conversionSettings[iIdx];
+                if (conv && conv.enabled) {
+                    const symbol = conv.operation === 'divide' ? '÷' : '×';
+                    option.textContent = `${trait} (${symbol}${conv.multiplier} 적용됨)`;
+                } else {
+                    option.textContent = trait;
                 }
+                select.appendChild(option);
+            });
+
+            // 3) 데이터 분석 탭으로 이동 → 환산 정보 표시 → 첫 항목 자동 분석
+            document.querySelector('.nav-tab:nth-child(3)').click();
+            updateConversionInfoDisplay(conversionApplied, conversionInfo);
+            select.value = surveyItems[0];
+            updateAnalysis();
+
+            if (conversionApplied) {
+                alert('통계 계산을 시작합니다.\n\n🔄 배수 변환 적용됨:\n' + conversionInfo.join('\n'));
             }
-            alert('데이터 분석 탭에서 통계 분석을 실행할 수 있습니다.');
         }
 
         function saveSurveyData() {
