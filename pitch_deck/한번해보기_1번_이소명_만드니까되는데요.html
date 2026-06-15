@@ -216,6 +216,17 @@ ul.points li::before{content:""; position:absolute; left:0; top:.52em; width:13p
   letter-spacing:-0.3px; padding:9px 18px; border-radius:9999px; }
 .bgm-btn:active{ transform:scale(0.96); }
 
+/* 현장 실행 오버레이 (전체화면 유지) */
+.tool-overlay{ position:fixed; inset:0; z-index:200; background:#000; flex-direction:column; }
+.tool-overlay .tov-bar{ flex:0 0 auto; height:56px; background:var(--ink); color:#fff;
+  display:flex; align-items:center; gap:16px; padding:0 22px; }
+.tool-overlay .tov-title{ font-size:22px; font-weight:600; letter-spacing:-0.4px; }
+.tool-overlay .tov-hint{ font-size:16px; color:#9a9aa0; }
+.tool-overlay .tov-close{ margin-left:auto; cursor:pointer; border:none; background:var(--blue);
+  color:#fff; font-family:var(--f); font-size:18px; font-weight:600; padding:10px 20px; border-radius:9999px; }
+.tool-overlay .tov-close:active{ transform:scale(0.96); }
+.tool-overlay .tov-frame{ flex:1 1 auto; width:100%; border:none; background:#fff; }
+
 .muted{color:var(--ink-48);} .s-dark .muted{color:#8a8a8e;}
 .small{font-size:24px; letter-spacing:-0.3px;}
 .grow{flex:1 1 auto;}
@@ -489,6 +500,16 @@ body.fs #notes{display:none;}
 </div>
 <div id="toast"></div>
 
+<!-- 현장 실행/개발 과정: 전체화면 유지한 채 덱 위에 띄우는 오버레이 -->
+<div id="toolOverlay" class="tool-overlay" style="display:none;">
+  <div class="tov-bar">
+    <span class="tov-title" id="tovTitle">현장 시연</span>
+    <span class="tov-hint">현장 시연용 · Esc 또는 닫기로 슬라이드로 복귀</span>
+    <button class="tov-close" onclick="closeOverlay()">✕ 닫기</button>
+  </div>
+  <iframe id="tovFrame" class="tov-frame" src="about:blank" title="현장 시연"></iframe>
+</div>
+
 <!-- 스타워즈 메인 BGM (인라인 WebAudio · 외부 호출 0) — 마무리 크롤에서만 재생 -->
 <script src="assets/bgm.js"></script>
 <script>
@@ -530,6 +551,12 @@ function goTo(n){ idx = Math.max(0, Math.min(TOTAL-1, n)); render(); }
 window.addEventListener('keydown', function(e){
   // 영상에 포커스가 있으면 키를 영상 컨트롤(재생/정지/탐색)에 양보
   if(e.target && e.target.tagName === 'VIDEO') return;
+  // 도구 오버레이가 열려 있으면 Esc로 닫기, 슬라이드 이동키는 무시
+  var ov = document.getElementById('toolOverlay');
+  if(ov && ov.style.display !== 'none'){
+    if(e.key === 'Escape'){ closeOverlay(); }
+    return;
+  }
   switch(e.key){
     case 'ArrowRight': case ' ': case 'PageDown': case 'Spacebar': e.preventDefault(); go(1); break;
     case 'ArrowLeft': case 'PageUp': e.preventDefault(); go(-1); break;
@@ -567,10 +594,25 @@ window.addEventListener('message', function(e){
 });
 function openPresenter(){
   if(presWin && !presWin.closed){ presWin.focus(); postPresenter(); return; }
-  presWin = window.open('', 'rda_presenter', 'width=960,height=680');
-  if(!presWin){ toast('팝업이 차단됐습니다. 팝업 허용 후 [P]를 다시 누르세요.'); return; }
-  presWin.document.open(); presWin.document.write(PRES_HTML); presWin.document.close();
-  setTimeout(postPresenter, 350);
+  // 슬라이드 화면은 전체화면으로 (발표 화면)
+  try{ if(!document.fullscreenElement){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement); } }catch(e){}
+  // 멀티스크린 API 지원 시: 발표자 창을 '다른 화면'에 자동 배치 (Chrome/https, 권한 필요)
+  var feat = 'width=1000,height=700';
+  function spawn(){
+    presWin = window.open('', 'rda_presenter', feat);
+    if(!presWin){ toast('팝업이 차단됐습니다. 팝업 허용 후 [P]를 다시 누르세요.'); return; }
+    presWin.document.open(); presWin.document.write(PRES_HTML); presWin.document.close();
+    setTimeout(postPresenter, 350);
+    toast('발표자 창을 ‘내 화면(노트북)’으로, 슬라이드는 프로젝터에서 전체화면(F)으로 두세요.');
+  }
+  if(window.getScreenDetails){
+    window.getScreenDetails().then(function(sd){
+      var others = sd.screens.filter(function(s){ return s !== sd.currentScreen; });
+      var o = others[0];
+      if(o){ feat = 'left='+o.availLeft+',top='+o.availTop+',width='+Math.min(o.availWidth,1400)+',height='+Math.min(o.availHeight,900); }
+      spawn();
+    }).catch(function(){ spawn(); });
+  } else { spawn(); }
 }
 var PRES_HTML =
 '<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>발표자 보기 — RDA</title><style>'
@@ -622,22 +664,34 @@ function runTool(file){
   // 후보 경로: 같은 폴더(오프라인 발표 PC) → 상위 폴더(GitHub Pages는 툴이 레포 루트에 있음)
   var candidates = ['./' + file, '../' + file];
   console.log('현장 실행 요청:', file, '후보:', JSON.stringify(candidates), 'protocol:', location.protocol);
-  // 온라인(http/https): 실제로 존재하는 경로를 탐지해서 연다
+  // 온라인(http/https): 실제로 존재하는 경로를 탐지해서 '오버레이'로 연다(전체화면 유지)
   if(location.protocol === 'http:' || location.protocol === 'https:'){
     (function probe(i){
       if(i >= candidates.length){ toast('현장 시연용 — 「' + file + '」을 찾을 수 없습니다. 같은 폴더(또는 상위 폴더)에 두세요.'); return; }
       fetch(candidates[i], {method:'HEAD'}).then(function(res){
-        if(res.ok){ console.log('열기:', candidates[i]); window.open(candidates[i], '_blank'); }
+        if(res.ok){ console.log('열기:', candidates[i]); openOverlay(candidates[i], file); }
         else { probe(i+1); }
       }).catch(function(){ probe(i+1); });
     })(0);
     return;
   }
-  // 오프라인(file://): fetch 탐지가 막히므로 같은 폴더('./') 기준으로 연다
-  try{
-    var w = window.open(candidates[0], '_blank');
-    if(!w || w.closed){ toast('현장 시연용 — 같은 폴더에 「' + file + '」을 두고 다시 누르세요.'); }
-  }catch(err){ toast('현장 시연용 — 같은 폴더에 「' + file + '」이 필요합니다.'); }
+  // 오프라인(file://): 탐지가 막히므로 같은 폴더('./') 기준으로 오버레이로 연다
+  openOverlay(candidates[0], file);
+}
+/* 도구·리플레이를 새 탭이 아니라 덱 위 전체화면 오버레이(iframe)로 띄움 → 전체화면이 풀리지 않음 */
+function openOverlay(path, title){
+  var ov = document.getElementById('toolOverlay');
+  document.getElementById('tovTitle').textContent = (title || '현장 시연');
+  var f = document.getElementById('tovFrame');
+  f.src = path;
+  ov.style.display = 'flex';
+}
+function closeOverlay(){
+  var ov = document.getElementById('toolOverlay');
+  if(!ov || ov.style.display === 'none') return false;
+  ov.style.display = 'none';
+  document.getElementById('tovFrame').src = 'about:blank';
+  return true;
 }
 var toastTimer;
 function toast(msg){
