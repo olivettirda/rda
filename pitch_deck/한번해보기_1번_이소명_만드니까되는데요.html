@@ -292,7 +292,7 @@ body.fs #notes{display:none;}
         <div style="display:flex; gap:40px; margin-top:30px; flex:1; min-height:0;">
           <div style="flex:1.25; display:flex; flex-direction:column; gap:18px; min-height:0;">
             <div class="clip">
-              <video muted loop playsinline autoplay onerror="this.style.display='none'"><source src="assets/demo-breeding.mp4" type="video/mp4"></video>
+              <video controls muted loop playsinline autoplay preload="metadata" onerror="this.style.display='none'"><source src="assets/demo-breeding.mp4" type="video/mp4"></video>
               <img src="assets/demo-breeding.gif" onerror="this.style.display='none'">
               <div class="ph"><div class="play">▶</div><div class="t">여기에 디지털육종 시뮬레이터 데모 클립</div><div class="s">assets/demo-breeding.mp4</div></div>
             </div>
@@ -317,7 +317,7 @@ body.fs #notes{display:none;}
         <div style="display:flex; gap:40px; margin-top:30px; flex:1; min-height:0;">
           <div style="flex:1.25; display:flex; flex-direction:column; gap:18px; min-height:0;">
             <div class="clip">
-              <video muted loop playsinline autoplay onerror="this.style.display='none'"><source src="assets/demo-survey.mp4" type="video/mp4"></video>
+              <video controls muted loop playsinline autoplay preload="metadata" onerror="this.style.display='none'"><source src="assets/demo-survey.mp4" type="video/mp4"></video>
               <img src="assets/demo-survey.gif" onerror="this.style.display='none'">
               <div class="ph"><div class="play">▶</div><div class="t">여기에 농업 조사 통합 도구 데모 클립</div><div class="s">assets/demo-survey.mp4</div></div>
             </div>
@@ -341,7 +341,7 @@ body.fs #notes{display:none;}
         <div style="display:flex; gap:40px; margin-top:30px; flex:1; min-height:0;">
           <div style="flex:1.25; display:flex; flex-direction:column; gap:18px; min-height:0;">
             <div class="clip">
-              <video muted loop playsinline autoplay onerror="this.style.display='none'"><source src="assets/demo-bgselection.mp4" type="video/mp4"></video>
+              <video controls muted loop playsinline autoplay preload="metadata" onerror="this.style.display='none'"><source src="assets/demo-bgselection.mp4" type="video/mp4"></video>
               <img src="assets/demo-bgselection.gif" onerror="this.style.display='none'">
               <div class="ph"><div class="play">▶</div><div class="t">여기에 배경 선발 분석기 데모 클립</div><div class="s">assets/demo-bgselection.mp4</div></div>
             </div>
@@ -458,6 +458,8 @@ function go(d){ idx = Math.max(0, Math.min(TOTAL-1, idx + d)); render(); }
 function goTo(n){ idx = Math.max(0, Math.min(TOTAL-1, n)); render(); }
 
 window.addEventListener('keydown', function(e){
+  // 영상에 포커스가 있으면 키를 영상 컨트롤(재생/정지/탐색)에 양보
+  if(e.target && e.target.tagName === 'VIDEO') return;
   switch(e.key){
     case 'ArrowRight': case ' ': case 'PageDown': case 'Spacebar': e.preventDefault(); go(1); break;
     case 'ArrowLeft': case 'PageUp': e.preventDefault(); go(-1); break;
@@ -479,9 +481,24 @@ function toggleNotes(){ document.getElementById('notes').classList.toggle('hidde
 function toggleNotesCollapse(){ document.getElementById('notes').classList.toggle('collapsed'); }
 
 function runTool(file){
+  // 후보 경로: 같은 폴더(오프라인 발표 PC) → 상위 폴더(GitHub Pages는 툴이 레포 루트에 있음)
+  var candidates = ['./' + file, '../' + file];
+  console.log('현장 실행 요청:', file, '후보:', JSON.stringify(candidates), 'protocol:', location.protocol);
+  // 온라인(http/https): 실제로 존재하는 경로를 탐지해서 연다
+  if(location.protocol === 'http:' || location.protocol === 'https:'){
+    (function probe(i){
+      if(i >= candidates.length){ toast('현장 시연용 — 「' + file + '」을 찾을 수 없습니다. 같은 폴더(또는 상위 폴더)에 두세요.'); return; }
+      fetch(candidates[i], {method:'HEAD'}).then(function(res){
+        if(res.ok){ console.log('열기:', candidates[i]); window.open(candidates[i], '_blank'); }
+        else { probe(i+1); }
+      }).catch(function(){ probe(i+1); });
+    })(0);
+    return;
+  }
+  // 오프라인(file://): fetch 탐지가 막히므로 같은 폴더('./') 기준으로 연다
   try{
-    var w = window.open('./' + file, '_blank');
-    if(!w || w.closed){ toast('현장 시연용 — 발표 PC에서 같은 폴더의 「' + file + '」을 직접 여세요.'); }
+    var w = window.open(candidates[0], '_blank');
+    if(!w || w.closed){ toast('현장 시연용 — 같은 폴더에 「' + file + '」을 두고 다시 누르세요.'); }
   }catch(err){ toast('현장 시연용 — 같은 폴더에 「' + file + '」이 필요합니다.'); }
 }
 var toastTimer;
