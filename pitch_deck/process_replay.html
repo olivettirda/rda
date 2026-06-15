@@ -74,6 +74,19 @@ body{
 .bubble.trouble{border-color:#f1b4b6; background:#fdeced;}
 .cursor::after{content:"▋"; color:var(--blue); animation:blink .8s steps(2,end) infinite;}
 
+/* 재생 오버레이 (시작 전) */
+.playov{
+  position:absolute; inset:0; z-index:5; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  background:rgba(245,245,247,.72); backdrop-filter:saturate(180%) blur(3px);
+}
+.playov .pbtn{
+  width:108px; height:108px; border-radius:50%; background:var(--blue); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:46px; padding-left:8px;
+}
+.playov .ptext{font-size:28px; font-weight:600; color:var(--ink); letter-spacing:-0.4px;}
+.playov .phint{font-size:19px; color:var(--ink-48); letter-spacing:-0.3px;}
+
 /* Claude 액션 카드 */
 .card{
   background:var(--parch); border-radius:14px;
@@ -132,7 +145,14 @@ body{
       <div class="rec"><span class="led"></span> REC · 화면 녹화용</div>
     </div>
     <div class="progress"><i id="bar"></i></div>
-    <div class="chat"><div class="chat-scroll" id="scroll"></div></div>
+    <div class="chat">
+      <div class="chat-scroll" id="scroll"></div>
+      <div class="playov" id="playov" onclick="player.play()">
+        <div class="pbtn">▶</div>
+        <div class="ptext">재생</div>
+        <div class="phint">눌러서 대화 재생 시작</div>
+      </div>
+    </div>
     <div class="footbar">
       <span class="step" id="stepTxt">단계 0 / 0</span>
       <span class="grow"></span>
@@ -204,99 +224,64 @@ var player = (function(){
   }
   function autoscroll(){ var c=scroll.parentElement; c.scrollTop=c.scrollHeight; }
 
-  // 타이핑 효과 (HTML 안전: 태그는 즉시, 텍스트만 한 글자씩). skip이면 즉시 완성.
-  async function typeHTML(el, html, cancelled){
-    el.classList.add('cursor');
-    var n=0, out='', tag=false;
-    for(var k=0;k<html.length;k++){
-      if(cancelled()){ break; }
-      if(skip){ break; }
-      var ch=html[k];
-      if(ch==='<') tag=true;
-      out+=ch;
-      if(ch==='>') tag=false;
-      el.innerHTML=out;
-      autoscroll();
-      if(!tag){ n++; if(n%2===0) await sleep(11); }
-    }
-    el.innerHTML=html;            // 항상 완성본으로 마감
-    el.classList.remove('cursor');
-    autoscroll();
-  }
+  function showOverlay(on){ var o=document.getElementById('playov'); if(o) o.style.display = on ? 'flex' : 'none'; }
 
-  async function renderStep(idx, cancelled){
+  // 한 단계(메시지) 전체를 한 번에 렌더 — 타이핑 없음, 부드러운 페이드만
+  function renderStep(idx){
     var s = STEPS[idx];
     if(s.role==='end'){
-      var e=document.createElement('div'); e.className='msg show'; e.style.alignSelf='center';
-      e.innerHTML='<div class="endcard"><div class="big"></div><div class="sub"></div></div>';
-      scroll.appendChild(e); autoscroll();
-      await typeHTML(e.querySelector('.big'), s.big, cancelled);
-      e.querySelector('.sub').textContent = s.sub;
-      autoscroll(); return;
+      var e=document.createElement('div'); e.className='msg'; e.style.alignSelf='center';
+      e.innerHTML='<div class="endcard"><div class="big">'+s.big+'</div><div class="sub">'+s.sub+'</div></div>';
+      scroll.appendChild(e); requestAnimationFrame(function(){ e.classList.add('show'); }); autoscroll(); return;
     }
-    var m=document.createElement('div'); m.className='msg '+s.role;
-    m.innerHTML='<div class="av">'+AV[s.role]+'</div><div class="bubble'+(s.trouble?' trouble':'')+'">'
-      +'<div class="who">'+WHO[s.role]+'</div><span class="body"></span></div>';
+    var html='<div class="av">'+AV[s.role]+'</div><div class="bubble'+(s.trouble?' trouble':'')+'">'
+      +'<div class="who">'+WHO[s.role]+'</div><span class="body">'+s.text+'</span>';
+    if(s.code){ html+='<div class="code">'+s.code+'</div>'; }
+    if(s.cards){ s.cards.forEach(function(cd){
+      html+='<div class="card '+(cd.cls||'')+'"><span class="ic">'+cd.ic+'</span><span>'+cd.html+'</span>'
+        +(cd.tag?'<span class="tag">'+cd.tag+'</span>':'')+'</div>';
+    }); }
+    html+='</div>';
+    var m=document.createElement('div'); m.className='msg '+s.role; m.innerHTML=html;
     scroll.appendChild(m);
     requestAnimationFrame(function(){ m.classList.add('show'); });
     autoscroll();
-    await typeHTML(m.querySelector('.body'), s.text, cancelled);
-
-    if(s.code){
-      var pre=document.createElement('div'); pre.className='code'; pre.innerHTML=s.code;
-      m.querySelector('.bubble').appendChild(pre); autoscroll();
-      if(!cancelled()) await sleep(450);
-    }
-    if(s.cards){
-      for(var c=0;c<s.cards.length;c++){
-        if(cancelled()) break;
-        var cd=s.cards[c];
-        var div=document.createElement('div'); div.className='card '+(cd.cls||'');
-        div.innerHTML='<span class="ic">'+cd.ic+'</span><span>'+cd.html+'</span>'+(cd.tag?'<span class="tag">'+cd.tag+'</span>':'');
-        m.querySelector('.bubble').appendChild(div); autoscroll();
-        await sleep(380);
-      }
-    }
   }
 
   function updateMeta(){
     bar.style.width = (i/(STEPS.length))*100 + '%';
     stepTxt.textContent = '단계 '+Math.min(i,STEPS.length)+' / '+STEPS.length;
   }
-  function setAutoUI(on){ playBtn.textContent = on?'⏸ 자동재생':'▶ 자동재생'; }
+  function setAutoUI(on){ playBtn.textContent = on ? '⏸ 일시정지' : '▶ 재생'; }
 
-  // 다음 단계 1개를 끝까지 렌더 (동시 실행 방지)
+  // 다음 단계 1개 렌더 (동시 실행 방지)
   async function advance(){
     if(busy || i>=STEPS.length) return;
     busy=true; skip=false;
     var myGen=gen;
-    await renderStep(i, function(){ return gen!==myGen; });
+    renderStep(i);
     if(gen!==myGen){ busy=false; return; }   // 도중 리셋됨
     i++; updateMeta(); busy=false;
     if(i>=STEPS.length){ auto=false; setAutoUI(false); return; }
     if(auto){ await sleep(STEPS[i-1].trouble?1100:850); if(auto && gen===myGen) advance(); }
   }
 
-  // 0..target-1 을 즉시(스킵) 다시 그림
-  async function redrawTo(target){
+  // 0..target-1 을 즉시 다시 그림
+  function redrawTo(target){
     gen++; var myGen=gen;
-    scroll.innerHTML=''; i=0; busy=true; auto=false; setAutoUI(false);
-    skip=true; updateMeta();
-    for(var k=0;k<target;k++){
-      if(gen!==myGen){ busy=false; return; }
-      await renderStep(k, function(){ return gen!==myGen; });
-      i=k+1; updateMeta();
-    }
-    skip=false; busy=false;
+    scroll.innerHTML=''; i=0; busy=false; auto=false; setAutoUI(false); updateMeta();
+    for(var k=0;k<target;k++){ if(gen!==myGen) return; renderStep(k); i=k+1; updateMeta(); }
   }
 
   return {
-    start:function(){ updateMeta(); advance(); },
-    // 수동 다음: 진행 중이면 현재 단계 빨리감기, 아니면 다음 단계
-    next:function(){ auto=false; setAutoUI(false); if(busy){ skip=true; } else { advance(); } },
-    prev:function(){ var target=Math.max(0, i-1); redrawTo(target); },
-    restart:function(){ gen++; scroll.innerHTML=''; i=0; busy=false; skip=false; auto=true; setAutoUI(true); updateMeta(); advance(); },
-    toggleAuto:function(){ auto=!auto; setAutoUI(auto); if(auto && !busy) advance(); }
+    // 시작 시 자동재생하지 않고, 재생 오버레이만 표시 (사용자가 ▶ 눌러야 시작)
+    start:function(){ updateMeta(); setAutoUI(false); showOverlay(true); },
+    play:function(){ showOverlay(false); auto=true; setAutoUI(true); if(!busy) advance(); },
+    // 수동 다음: 자동재생 중이면 대기시간만 건너뛰고, 아니면 다음 단계
+    next:function(){ showOverlay(false); auto=false; setAutoUI(false); if(busy){ skip=true; } else { advance(); } },
+    prev:function(){ showOverlay(false); redrawTo(Math.max(0, i-1)); },
+    restart:function(){ gen++; scroll.innerHTML=''; i=0; busy=false; skip=false; auto=true; setAutoUI(true); showOverlay(false); updateMeta(); advance(); },
+    toggleAuto:function(){ showOverlay(false); auto=!auto; setAutoUI(auto); if(auto && !busy) advance(); }
   };
 })();
 
