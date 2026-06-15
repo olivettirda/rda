@@ -424,6 +424,7 @@ body.fs #notes{display:none;}
   <span class="counter"><span id="cur">1</span> / <span id="total">9</span></span>
   <button onclick="go(1)" title="다음 (→/Space/PageDown)">▶</button>
   <button class="wide" onclick="toggleNotes()" title="노트 (N)">노트</button>
+  <button class="wide" onclick="openPresenter()" title="발표자 보기 (P) · 화면 분할용">발표자 보기</button>
   <button class="wide" onclick="toggleFS()" title="전체화면 (F)">전체화면</button>
 </div>
 <div id="toast"></div>
@@ -453,6 +454,7 @@ function render(){
     sp.classList.toggle('on', sp.getAttribute('data-sec') === sec);
   });
   document.getElementById('noteBody').textContent = slides[idx].getAttribute('data-note') || '(노트 없음)';
+  postPresenter();
 }
 function go(d){ idx = Math.max(0, Math.min(TOTAL-1, idx + d)); render(); }
 function goTo(n){ idx = Math.max(0, Math.min(TOTAL-1, n)); render(); }
@@ -467,8 +469,76 @@ window.addEventListener('keydown', function(e){
     case 'End': e.preventDefault(); goTo(TOTAL-1); break;
     case 'f': case 'F': toggleFS(); break;
     case 'n': case 'N': toggleNotes(); break;
+    case 'p': case 'P': openPresenter(); break;
   }
 });
+
+/* ===== 발표자 보기(presenter view) — 화면 분할용 별도 창 =====
+   프로젝터엔 이 덱을 전체화면, 내 화면엔 발표자 창(노트+타이머+다음 슬라이드).
+   두 창은 postMessage로 동기화(file://·http 모두 동작). */
+var presWin = null;
+function slideTitle(i){
+  var s = slides[i]; var el = s.querySelector('.hero, .h');
+  var t = el ? el.textContent.replace(/\s+/g,' ').trim() : '';
+  return t || ('슬라이드 ' + (i+1));
+}
+function slideNote(i){ return slides[i].getAttribute('data-note') || '(노트 없음)'; }
+function postPresenter(){
+  if(!presWin || presWin.closed) return;
+  presWin.postMessage({
+    type:'state', idx:idx, total:TOTAL,
+    cur:{ t:slideTitle(idx), n:slideNote(idx) },
+    next: (idx+1 < TOTAL) ? { t:slideTitle(idx+1), n:slideNote(idx+1) } : null
+  }, '*');
+}
+window.addEventListener('message', function(e){
+  var d = e.data; if(!d) return;
+  if(d.type === 'nav') go(d.dir);
+  else if(d.type === 'goto') goTo(d.n);
+  else if(d.type === 'ready') postPresenter();
+});
+function openPresenter(){
+  if(presWin && !presWin.closed){ presWin.focus(); postPresenter(); return; }
+  presWin = window.open('', 'rda_presenter', 'width=960,height=680');
+  if(!presWin){ toast('팝업이 차단됐습니다. 팝업 허용 후 [P]를 다시 누르세요.'); return; }
+  presWin.document.open(); presWin.document.write(PRES_HTML); presWin.document.close();
+  setTimeout(postPresenter, 350);
+}
+var PRES_HTML =
+'<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>발표자 보기 — RDA</title><style>'
++'*{box-sizing:border-box;margin:0;padding:0;}'
++'body{background:#1d1d1f;color:#fff;font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;height:100vh;display:flex;flex-direction:column;letter-spacing:-0.3px;-webkit-font-smoothing:antialiased;}'
++'.top{display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid #3a3a3d;}'
++'.top .t{font-size:21px;font-weight:600;color:#2997ff;}'
++'.top .cnt{font-size:21px;color:#cccccc;}'
++'.top .timer{margin-left:auto;font-size:38px;font-weight:600;font-variant-numeric:tabular-nums;}'
++'.bd{flex:1;display:flex;flex-direction:column;padding:24px 30px;overflow:auto;gap:12px;}'
++'.label{font-size:15px;color:#8a8a8e;letter-spacing:1px;text-transform:uppercase;}'
++'.ct{font-size:32px;font-weight:600;line-height:1.15;}'
++'.note{font-size:29px;line-height:1.5;}'
++'.next{margin-top:auto;background:#272729;border-radius:14px;padding:16px 20px;}'
++'.next .nt{font-size:21px;font-weight:600;color:#2997ff;margin-bottom:6px;}'
++'.next .nn{font-size:19px;color:#cccccc;line-height:1.45;max-height:150px;overflow:auto;}'
++'.ctl{display:flex;gap:12px;padding:16px 26px;border-top:1px solid #3a3a3d;}'
++'.ctl button{flex:1;cursor:pointer;border:none;background:#0066cc;color:#fff;font-size:21px;font-weight:600;padding:15px;border-radius:9999px;font-family:inherit;}'
++'.ctl button.sec{background:#3a3a3d;}'
++'</style></head><body>'
++'<div class="top"><span class="t">🎤 발표자 보기</span><span class="cnt" id="cnt">– / –</span><span class="timer" id="timer">00:00</span></div>'
++'<div class="bd"><div class="label">현재 슬라이드</div><div class="ct" id="ct">—</div>'
++'<div class="label">발표자 노트</div><div class="note" id="note">—</div>'
++'<div class="next"><div class="nt" id="nt">다음 —</div><div class="nn" id="nn"></div></div></div>'
++'<div class="ctl"><button class="sec" onclick="nav(-1)">◀ 이전</button><button onclick="nav(1)">다음 ▶</button></div>'
++'<scr'+'ipt>'
++'var start=Date.now();function tick(){var s=Math.floor((Date.now()-start)/1000);var m=String(Math.floor(s/60)).padStart(2,"0");var ss=String(s%60).padStart(2,"0");document.getElementById("timer").textContent=m+":"+ss;}setInterval(tick,1000);tick();'
++'function nav(d){if(window.opener&&!window.opener.closed)window.opener.postMessage({type:"nav",dir:d},"*");}'
++'window.addEventListener("keydown",function(e){if(e.key==="ArrowRight"||e.key===" "){e.preventDefault();nav(1);}else if(e.key==="ArrowLeft"){e.preventDefault();nav(-1);}});'
++'window.addEventListener("message",function(e){var d=e.data;if(!d||d.type!=="state")return;'
++'document.getElementById("cnt").textContent=(d.idx+1)+" / "+d.total;'
++'document.getElementById("ct").textContent=d.cur.t;document.getElementById("note").textContent=d.cur.n;'
++'if(d.next){document.getElementById("nt").textContent="다음 — "+d.next.t;document.getElementById("nn").textContent=d.next.n;}'
++'else{document.getElementById("nt").textContent="✓ 마지막 슬라이드";document.getElementById("nn").textContent="";}});'
++'if(window.opener&&!window.opener.closed)window.opener.postMessage({type:"ready"},"*");'
++'<\/scr'+'ipt></body></html>';
 function toggleFS(){
   if(!document.fullscreenElement){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement); }
   else{ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
