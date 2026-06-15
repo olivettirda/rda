@@ -147,10 +147,10 @@ body{
     <div class="progress"><i id="bar"></i></div>
     <div class="chat">
       <div class="chat-scroll" id="scroll"></div>
-      <div class="playov" id="playov" onclick="player.play()">
+      <div class="playov" id="playov" onclick="player.begin()">
         <div class="pbtn">▶</div>
-        <div class="ptext">재생</div>
-        <div class="phint">눌러서 대화 재생 시작</div>
+        <div class="ptext">시작</div>
+        <div class="phint">눌러서 시작 · 이후 <b>→ (또는 ‘다음 ▶’)</b>로 직접 넘기기</div>
       </div>
     </div>
     <div class="footbar">
@@ -169,28 +169,31 @@ body{
 <script>
 /* ===== 시나리오 (레포 실제 흔적 기반: PR #244→#245, CLAUDE.md) ===== */
 var STEPS = [
-  {role:'user', text:'현장 조사 양식을 매번 엑셀로 새로 만들어요. 이걸 웹앱으로 만들어줘. 우리 PC는 망분리라 설치 없이 <b>HTML 파일 더블클릭</b>만으로 열려야 해요.'},
-  {role:'claude', text:'네. 프레임워크 없이 순수 HTML·CSS·JS로 만들고, 라이브러리는 파일 안에 <b>인라인</b>할게요.',
+  {role:'user', text:'현장 업무를 매번 손으로 해요. <b>망분리 PC에서 더블클릭만으로</b> 도는 육종 웹툴로 만들어줘요.'},
+  {role:'claude', text:'네. 프레임워크 없이 순수 HTML 한 파일로 만들겠습니다 — 설치도, 인터넷도 필요 없게요.',
    cards:[
-     {ic:'📄', cls:'', html:'<b>createphenotypingform.html</b> 생성 — 조사 양식 생성 · 라벨 인쇄 · DMRT 통계', tag:'+7,400줄'},
-     {ic:'✅', cls:'ok', html:'더블클릭 → 브라우저에서 바로 실행. 서버·설치 불필요'}
+     {ic:'📄', cls:'', html:'<b>육종 예측 웹툴</b> 생성 — 단일 HTML, 외부 호출 0'},
+     {ic:'✅', cls:'ok', html:'더블클릭 → 브라우저에서 바로 실행'}
    ]},
 
-  // 용어 뜻 질문 → 쉬운 설명
-  {role:'user', text:'잠깐요, <b>‘인라인’</b>이 무슨 뜻이에요?'},
-  {role:'claude', text:'코드와 라이브러리를 <b>외부 파일로 따로 두지 않고 HTML 한 장 안에 직접 넣는 것</b>을 인라인이라고 해요. 그래서 인터넷이나 다른 파일 없이 <b>그 파일 하나만으로</b> 열립니다 — 망분리 PC에 딱 맞죠.'},
-
-  // 비전공자의 일반적 제안 → "그걸 구현하려면 ○○ 툴을 씁니다, 그렇게 할까요?"
-  {role:'user', text:'아 그렇군요. 그렇다면 결과를 <b>숫자 표로만 보는 것보다</b>, 그래프로 한눈에 보이게 하는 게 더 낫지 않을까요?'},
-  {role:'claude', text:'좋은 방향이에요. 그걸 구현하려면 <b>차트 라이브러리(Chart.js)</b>를 파일에 인라인해서 품종별 형질을 막대그래프로 그립니다. <b>그렇게 진행할까요?</b>'},
-  {role:'user', text:'네, 그렇게 해주세요.'},
-  {role:'claude', text:'적용했습니다. 표는 그대로 두고 그래프를 함께 띄웠어요.',
+  // 후대 형질 예측 기능 요청
+  {role:'user', text:'여기에 <b>후대 계통의 형질(수량·내병성)을 예측</b>하는 기능도 넣어줘요.'},
+  // Claude가 모델을 고르라고 물어봄
+  {role:'claude', text:'예측 모델은 어떤 걸 쓸까요? <b>Random Forest · XGBoost · Gradient Boosting</b> 중에서 고르실 수 있어요.'},
+  // 사용자: 내가 고르지 말고 자동으로 고르게 할 수 있나?
+  {role:'user', text:'제가 매번 고르긴 어려워요. <b>적절한 모델을 알아서(자동으로) 고르게</b> 할 수는 없나요?'},
+  // Claude: 가능합니다 + 과정
+  {role:'claude', text:'가능합니다. 세 모델을 <b>같은 데이터로 교차검증</b>해서 점수를 매기고, <b>가장 정확한 모델을 자동으로 선택</b>하게 만들면 됩니다.'},
+  // 사용자: 그게 무슨 의미? 코드 모르는 사람도 알아듣게
+  {role:'user', text:'그게 무슨 의미예요? <b>코드 모르는 사람도 알아듣게</b> 설명해줘요.'},
+  // Claude: 쉬운 비유 설명 + 적용
+  {role:'claude', text:'데이터를 여러 조각으로 나눠, 모델마다 <b>“모의고사”</b>를 보게 합니다. 한 조각은 가려두고 나머지로 공부시킨 뒤 가린 조각을 맞히게 해서, <b>평균 점수가 가장 높은 모델</b>을 자동으로 뽑는 거예요. 사람이 고를 필요 없이 <b>데이터에 가장 잘 맞는 모델</b>이 선택됩니다.',
    cards:[
-     {ic:'📊', cls:'', html:'<b>Chart.js 인라인</b> — 품종별 형질 막대그래프 추가 (외부 호출 없이)'},
-     {ic:'✅', cls:'ok', html:'숫자 표 + 그래프를 한 화면에서 동시에 확인'}
+     {ic:'🤖', cls:'', html:'RF · XGBoost · GradientBoosting <b>교차검증 자동 선택</b>'},
+     {ic:'✅', cls:'ok', html:'사람 개입 없이 최적 모델 채택 — <b>표현형 예측 정확도 87.2%</b>'}
    ]},
 
-  {role:'user', text:'이번엔 육종 시뮬레이터 통계 코드가 너무 복잡해요. <b>부품(모듈)로 깔끔하게 쪼개줄래요?</b>'},
+  {role:'user', text:'좋아요. 그런데 시뮬레이터 계산 코드가 점점 복잡해져요. <b>부품(모듈)로 깔끔하게 쪼개줄래요?</b>'},
   {role:'claude', text:'좋습니다. 계산 엔진을 역할별 모듈로 분리하겠습니다.',
    cards:[
      {ic:'📦', cls:'', html:'<b>bdss_core/</b> 모듈 9개로 분리 — BLUP · WAASB · MTSI · NSGA-II 최적화', tag:'#244 · +4,783줄'},
@@ -289,13 +292,17 @@ var player = (function(){
   }
 
   return {
-    // 시작 시 자동재생하지 않고, 재생 오버레이만 표시 (사용자가 ▶ 눌러야 시작)
+    // 시작 시 아무것도 자동 진행하지 않고 ▶ 오버레이만 표시
     start:function(){ updateMeta(); setAutoUI(false); showOverlay(true); },
+    // 오버레이 ▶ : 첫 메시지만 띄우고 멈춤 — 이후 사용자가 직접 넘김(수동이 기본)
+    begin:function(){ showOverlay(false); auto=false; setAutoUI(false); if(i===0 && !busy) advance(); },
+    // 선택적 자동재생 (하단 버튼)
     play:function(){ showOverlay(false); auto=true; setAutoUI(true); if(!busy) advance(); },
-    // 수동 다음: 자동재생 중이면 대기시간만 건너뛰고, 아니면 다음 단계
+    // 다음: 자동재생 중이면 대기시간만 건너뛰고, 아니면 다음 한 단계
     next:function(){ showOverlay(false); auto=false; setAutoUI(false); if(busy){ skip=true; } else { advance(); } },
     prev:function(){ showOverlay(false); redrawTo(Math.max(0, i-1)); },
-    restart:function(){ gen++; scroll.innerHTML=''; i=0; busy=false; skip=false; auto=true; setAutoUI(true); showOverlay(false); updateMeta(); advance(); },
+    // 다시: 처음으로 되돌리고 수동 모드로 첫 메시지만 표시
+    restart:function(){ gen++; scroll.innerHTML=''; i=0; busy=false; skip=false; auto=false; setAutoUI(false); showOverlay(false); updateMeta(); advance(); },
     toggleAuto:function(){ showOverlay(false); auto=!auto; setAutoUI(auto); if(auto && !busy) advance(); }
   };
 })();

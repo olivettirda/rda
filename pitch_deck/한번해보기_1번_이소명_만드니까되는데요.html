@@ -211,6 +211,10 @@ ul.points li::before{content:""; position:absolute; left:0; top:.52em; width:13p
 .crawl-pipe .node{ background:rgba(255,255,255,.07); border:1px solid #3a3a3d; border-radius:9999px; padding:9px 20px; }
 .crawl-pipe .ar{ color:var(--blue-dark); animation:flow 1.6s ease-in-out infinite; }
 @keyframes flow{ 0%,100%{opacity:.25; transform:translateX(0);} 50%{opacity:1; transform:translateX(5px);} }
+.bgm-btn{ position:absolute; top:44px; right:48px; z-index:5; cursor:pointer; border:1px solid #3a3a3d;
+  background:rgba(255,255,255,.08); color:#fff; font-family:var(--f); font-size:21px; font-weight:600;
+  letter-spacing:-0.3px; padding:9px 18px; border-radius:9999px; }
+.bgm-btn:active{ transform:scale(0.96); }
 
 .muted{color:var(--ink-48);} .s-dark .muted{color:#8a8a8e;}
 .small{font-size:24px; letter-spacing:-0.3px;}
@@ -437,6 +441,7 @@ body.fs #notes{display:none;}
       <!-- 9. 마무리 — 스타워즈식 크롤(이 세션의 실제 대화) -->
       <section class="slide s-dark crawl-slide" data-sec="close" data-note="마지막입니다. 이 발표 자료 자체도 — 지금 흐르는 글처럼 — Claude Code와 나눈 이번 세션의 대화로 만들어졌습니다. 망분리용 단일 HTML 덱을 만들고, 데모를 넣고, 디자인을 애플로 바꾸고, 버그를 고치고, 발표자 보기를 달고, 이 마무리 화면까지 전부 대화로. 만드니까, 되는데요. 감사합니다.">
         <div class="stars"></div>
+        <button class="bgm-btn" onclick="if(window.SWBGM)SWBGM.toggle(this)">🔊 음악 켜짐</button>
         <div class="crawl-head">이 발표 자료도 <b>Claude Code와의 대화</b>로 만들었습니다</div>
         <div class="crawl-stage">
           <div class="crawl-content">
@@ -484,6 +489,8 @@ body.fs #notes{display:none;}
 </div>
 <div id="toast"></div>
 
+<!-- 스타워즈 메인 BGM (인라인 WebAudio · 외부 호출 0) — 마무리 크롤에서만 재생 -->
+<script src="assets/bgm.js"></script>
 <script>
 var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
 var idx = 0, TOTAL = slides.length;
@@ -509,9 +516,12 @@ function render(){
     sp.classList.toggle('on', sp.getAttribute('data-sec') === sec);
   });
   document.getElementById('noteBody').textContent = slides[idx].getAttribute('data-note') || '(노트 없음)';
-  // 마무리 크롤은 슬라이드에 들어올 때마다 처음(아래)부터 다시 흐르게 재시작
+  // 마무리 크롤: 들어올 때마다 처음(아래)부터 다시 흐르고 BGM 재생, 나가면 정지
   var cc = slides[idx].querySelector('.crawl-content');
-  if(cc){ cc.style.animation = 'none'; void cc.offsetWidth; cc.style.animation = ''; }
+  if(cc){
+    cc.style.animation = 'none'; void cc.offsetWidth; cc.style.animation = '';
+    if(window.SWBGM) try{ SWBGM.start(); }catch(e){}
+  } else if(window.SWBGM){ try{ SWBGM.stop(); }catch(e){} }
   postPresenter();
 }
 function go(d){ idx = Math.max(0, Math.min(TOTAL-1, idx + d)); render(); }
