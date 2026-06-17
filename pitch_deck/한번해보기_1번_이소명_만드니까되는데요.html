@@ -174,23 +174,31 @@ ul.points li::before{content:""; position:absolute; left:0; top:.52em; width:13p
 .crawl-slide .crawl-head{
   position:absolute; top:44px; left:0; right:0; z-index:4; text-align:center;
   color:var(--blue-dark); font-size:34px; font-weight:600; letter-spacing:-0.5px; padding:0 60px;
+  animation:leaveUp 3s ease-in forwards; animation-delay:20s;
 }
 .crawl-slide .crawl-head b{ color:#fff; }
 .crawl-stage{ position:absolute; inset:0; overflow:hidden; perspective:430px; display:flex; justify-content:center; }
-.crawl-stage::before{ content:""; position:absolute; top:0; left:0; right:0; height:48%; z-index:3; pointer-events:none;
-  background:linear-gradient(#000 6%, rgba(0,0,0,0) 100%); }
+.crawl-stage::before{ content:""; position:absolute; top:0; left:0; right:0; height:64%; z-index:3; pointer-events:none;
+  background:linear-gradient(#000 36%, rgba(0,0,0,0) 100%); }
 .crawl-content{
   position:absolute; top:100%; width:1180px; color:#feda4a; text-align:center;
-  transform-origin:50% 100%; animation:crawl 56s linear infinite; will-change:top, transform;
+  transform-origin:50% 100%; animation:crawl 30s linear forwards; will-change:top, transform;
 }
 @keyframes crawl{
-  0%{ top:100%; transform:rotateX(24deg) translateZ(0); }
-  100%{ top:-168%; transform:rotateX(24deg) translateZ(-1500px); }
+  0%{ top:100%; transform:rotateX(20deg) translateZ(0); }
+  100%{ top:-320%; transform:rotateX(20deg) translateZ(-1100px); }
 }
 .crawl-content .ct{ font-size:30px; font-weight:600; color:var(--blue-dark); letter-spacing:3px; margin-bottom:10px; }
 .crawl-content .cbig{ font-size:62px; font-weight:600; color:#feda4a; letter-spacing:-1px; line-height:1.06; margin-bottom:44px; }
 .crawl-content p{ font-size:34px; font-weight:600; line-height:1.5; letter-spacing:-0.3px; margin-bottom:30px; }
-.crawl-content .cfin{ font-size:72px; color:#fff; letter-spacing:-2px; margin-top:24px; }
+/* 크롤 글은 계속 위로 올라가 화면 밖으로 빠져나가고, '만드니까 되는데요'는 올라오다 중앙에서 멈춰 그대로 남는다 */
+.crawl-slide .crawl-final{ position:absolute; inset:0; z-index:6; display:flex; align-items:center; justify-content:center;
+  text-align:center; padding:0 60px; pointer-events:none;
+  transform:translateY(1240px); animation:riseStop 12s cubic-bezier(.16,.7,.2,1) forwards; animation-delay:18s; }
+.crawl-slide .crawl-final .t{ font-family:var(--f); font-weight:600; font-size:128px; color:#fff; letter-spacing:-4px; line-height:1.02; }
+@keyframes riseStop{ from{ transform:translateY(1240px); } to{ transform:translateY(0); } }   /* 아래에서 올라와 중앙에서 정지 */
+@keyframes leaveUp{ to{ transform:translateY(-240px); } }   /* 헤더: 위로 빠져나감 */
+@keyframes leaveDown{ to{ transform:translateY(260px); } }  /* 파이프라인: 아래로 빠져나감 */
 /* 별 배경 */
 .crawl-slide .stars{ position:absolute; inset:0; z-index:0; opacity:.7; animation:twinkle 4s ease-in-out infinite alternate;
   background:
@@ -207,7 +215,8 @@ ul.points li::before{content:""; position:absolute; left:0; top:.52em; width:13p
 @keyframes twinkle{ from{opacity:.4;} to{opacity:.85;} }
 /* 과정 파이프라인 */
 .crawl-pipe{ position:absolute; bottom:34px; left:0; right:0; z-index:4; display:flex; gap:14px;
-  align-items:center; justify-content:center; color:#ccc; font-size:24px; font-weight:600; letter-spacing:-0.3px; }
+  align-items:center; justify-content:center; color:#ccc; font-size:24px; font-weight:600; letter-spacing:-0.3px;
+  animation:leaveDown 3s ease-in forwards; animation-delay:20s; }
 .crawl-pipe .node{ background:rgba(255,255,255,.07); border:1px solid #3a3a3d; border-radius:9999px; padding:9px 20px; }
 .crawl-pipe .ar{ color:var(--blue-dark); animation:flow 1.6s ease-in-out infinite; }
 @keyframes flow{ 0%,100%{opacity:.25; transform:translateX(0);} 50%{opacity:1; transform:translateX(5px);} }
@@ -215,6 +224,7 @@ ul.points li::before{content:""; position:absolute; left:0; top:.52em; width:13p
   background:rgba(255,255,255,.08); color:#fff; font-family:var(--f); font-size:21px; font-weight:600;
   letter-spacing:-0.3px; padding:9px 18px; border-radius:9999px; }
 .bgm-btn:active{ transform:scale(0.96); }
+.bgm-btn.bgm-btn2{ right:auto; left:48px; }
 
 /* 슬라이드 8: 대화 기반 개발 이모지 흐름 */
 .emoji-flow{ display:flex; align-items:center; justify-content:center; gap:18px; flex-wrap:wrap; margin-top:18px; }
@@ -469,6 +479,7 @@ body.fs #notes{display:none;}
       <section class="slide s-dark crawl-slide" data-sec="close" data-note="이 발표 자료도 Claude와의 대화를 통해 만들었습니다. 마지막으로 저의 감상 및 주제를 한마디로 말씀드리겠습니다. 만드니까, 되는데요?">
         <div class="stars"></div>
         <button class="bgm-btn" onclick="if(window.SWBGM)SWBGM.toggle(this)">🔊 음악 켜짐</button>
+        <button class="bgm-btn bgm-btn2" onclick="openMidi()" title="에셋의 .mid를 시스템 기본 플레이어(Windows Media Player)로 엽니다">🎵 원음(시스템)</button>
         <div class="crawl-head">이 발표 자료도 <b>Claude Code와의 대화</b>로 만들었습니다</div>
         <div class="crawl-stage">
           <div class="crawl-content">
@@ -482,9 +493,9 @@ body.fs #notes{display:none;}
             <p>현장 실행 버튼이 404를 내자 스스로 경로를 찾게 했고, 데모 영상엔 재생·정지·구간 탐색을 달았다.</p>
             <p>발표자 노트는 화면을 나눠 발표자 화면에만 띄웠다.</p>
             <p>그리고 지금, 이 마무리 화면마저 — 너와 나의 대화로 만들어졌다.</p>
-            <div class="cfin">만드니까, 되는데요?</div>
           </div>
         </div>
+        <div class="crawl-final"><div class="t">만드니까 되는데요</div></div>
         <div class="crawl-pipe">
           <span class="node">💬 프롬프트</span><span class="ar">▸</span>
           <span class="node">🤖 Claude Code</span><span class="ar">▸</span>
@@ -553,10 +564,10 @@ function render(){
     sp.classList.toggle('on', sp.getAttribute('data-sec') === sec);
   });
   document.getElementById('noteBody').textContent = slides[idx].getAttribute('data-note') || '(노트 없음)';
-  // 마무리 크롤: 들어올 때마다 처음(아래)부터 다시 흐르고 BGM 재생, 나가면 정지
-  var cc = slides[idx].querySelector('.crawl-content');
-  if(cc){
-    cc.style.animation = 'none'; void cc.offsetWidth; cc.style.animation = '';
+  // 마무리 크롤: 들어올 때마다 크롤/헤더/파이프라인/최종문구 애니메이션을 처음부터 재시작, BGM 재생, 나가면 정지
+  var crawlEls = slides[idx].querySelectorAll('.crawl-content, .crawl-head, .crawl-pipe, .crawl-final');
+  if(crawlEls.length){
+    crawlEls.forEach(function(el){ el.style.animation='none'; void el.offsetWidth; el.style.animation=''; });
     if(window.SWBGM) try{ SWBGM.start(); }catch(e){}
   } else if(window.SWBGM){ try{ SWBGM.stop(); }catch(e){} }
   postPresenter();
@@ -708,6 +719,15 @@ function closeOverlay(){
   ov.style.display = 'none';
   document.getElementById('tovFrame').src = 'about:blank';
   return true;
+}
+/* 메들리 .mid를 시스템 기본 플레이어(Windows Media Player 등)로 — 인페이지 신디는 별도로 자동재생됨 */
+function openMidi(){
+  var p = 'assets/Star_Wars_Medley.mid';
+  try{
+    var w = window.open(p, '_blank');
+    if(!w || w.closed){ toast('브라우저가 막았어요 — 폴더의 assets/Star_Wars_Medley.mid 를 더블클릭해 재생하세요.'); }
+    else { toast('시스템 플레이어로 메들리를 엽니다. (열리지 않으면 다운로드된 .mid 더블클릭)'); }
+  }catch(e){ toast('assets/Star_Wars_Medley.mid 를 더블클릭해 Windows Media Player로 재생하세요.'); }
 }
 var toastTimer;
 function toast(msg){
