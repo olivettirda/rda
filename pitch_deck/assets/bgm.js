@@ -125,8 +125,10 @@ window.SW_MIDI_B64="TVRoZAAAAAYAAQAOAHhNVHJrAAAB+wD/WAQEAhgIAP9ZAgAAAP9RAwjjfI4I
       if(ctx){ master.gain.setTargetAtTime(0, ctx.currentTime, 0.25); setTimeout(function(){ if(!playing&&ctx) ctx.suspend(); }, 600); }
     },
     toggle:function(btn){
+      // 아직 재생 전이거나 자동재생이 막혔던 경우 → 버튼 클릭(사용자 제스처)으로 확실히 시작
+      if(!playing){ muted=false; this.start(); if(btn) btn.textContent='🔊 음악 켜짐'; return false; }
       muted=!muted;
-      if(ctx) master.gain.setTargetAtTime(muted?0:LEVEL, ctx.currentTime, 0.2);
+      if(ctx){ if(ctx.state==='suspended') ctx.resume(); master.gain.setTargetAtTime(muted?0:LEVEL, ctx.currentTime, 0.2); }
       if(btn) btn.textContent = muted ? '🔇 음악 꺼짐' : '🔊 음악 켜짐';
       return muted;
     }
