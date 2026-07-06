@@ -281,6 +281,87 @@
         .drop-overlay .drop-text { font-size: 1.8rem; font-weight: 600; margin-bottom: 0.5rem; }
         .drop-overlay .drop-subtext { font-size: 1rem; opacity: 0.8; }
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-15px); } }
+
+        /* ============================================================
+           모던 리스타일 레이어 (Slice 1) — 부록 A 토큰·컴포넌트
+           기존 --dmrt-* 규칙을 삭제하지 않고, 같은 특이성의 후행 규칙으로
+           표면/여백/깊이/라운딩/모션만 애플·에어비앤비 감성으로 톤업한다.
+           주의:
+           - 부록 A 원본의 `input{width:100%}` 는 인라인 컨트롤 레이아웃을
+             깨므로 의도적으로 제외했다(.input 클래스에만 width:100% 적용).
+           - 부록 A 원본의 전역 `h1{gradient text-clip}` 은 어두운 헤더 위
+             흰 제목을 투명하게 만들어 사라지게 하므로 전역 적용에서 제외했다.
+           ============================================================ */
+        :root {
+            /* 브랜드 팔레트 (dmrt-style.md, 값 변경 금지) */
+            --accent-1:#cce3dd; --accent-2:#b2d9d8; --accent-3:#8dccd3;
+            --accent-4:#54b7c6; --accent-5:#00a1b8; --accent-6:#017f97; --accent-7:#0c3026;
+            --error:#dc3545; --success:#28a745; --warning:#ffc107;
+            --text-primary:#1a1a1a; --text-secondary:#5a6a62; --border-color:#d0d8d4;
+            /* 모던 리스타일 토큰 (신규) */
+            --surface:#ffffff; --surface-2:#f7f9f8; --surface-sunken:#eef2f1;
+            --primary:var(--accent-6); --primary-strong:var(--accent-7);
+            --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-pill:999px;
+            --shadow-sm:0 1px 2px rgba(12,48,38,.06);
+            --shadow-card:0 1px 2px rgba(12,48,38,.06), 0 8px 24px rgba(12,48,38,.08);
+            --shadow-lg:0 8px 32px rgba(12,48,38,.12), 0 2px 8px rgba(12,48,38,.06);
+            --focus-ring:0 0 0 3px rgba(1,127,151,.30);
+            --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+            --space-5:20px; --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
+            --ease:cubic-bezier(.2,.7,.2,1); --dur:200ms;
+        }
+
+        /* --- 전역 표면/타이포 톤업 (흰 컨테이너가 살짝 뜨도록 배경만 뉴트럴) --- */
+        body { background: var(--surface-2); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+        .container { border: none; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+
+        /* --- 탭 내비 톤업 (기존 .tabs/.tab 마크업·이벤트 그대로) --- */
+        .tabs { gap: var(--space-1); padding: var(--space-2) var(--space-3); background: var(--surface); border-bottom: 1px solid var(--border-color); }
+        .tab { border-radius: var(--radius-pill); transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+        .tab:hover { background: var(--surface-2); }
+        .tab.active { background: var(--accent-1); color: var(--accent-7); border-bottom: none; }
+        .tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+        /* --- 버튼 톤업 (색/그라데이션은 유지, 깊이·모션·포커스만) --- */
+        .btn { min-height: 44px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+            transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background var(--dur) var(--ease); }
+        .btn:hover:not(:disabled) { box-shadow: var(--shadow-card); }
+        .btn:active:not(:disabled) { transform: scale(.98); }
+        .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+        .btn-sm { min-height: 36px; }
+        /* 회색 secondary → 대비·톤 개선(surface-2 + inset 보더) */
+        .btn-secondary { background: var(--surface-2); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-color); }
+        .btn-secondary:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--primary); }
+
+        /* --- 카드/결과 표면: 하드 1px 보더 → 소프트 섀도우 + 넉넉한 여백 --- */
+        .result-card, .viz-section { border: none; box-shadow: var(--shadow-card); border-radius: var(--radius-lg); padding: var(--space-6); }
+        .stat-box { border: none; box-shadow: var(--shadow-card); border-radius: var(--radius-md);
+            transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+        .stat-box:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .info-box { border-radius: var(--radius-md); }
+
+        /* --- 입력 톤업 (width는 미변경 — 인라인 컨트롤 레이아웃 보존) --- */
+        input[type="number"], input[type="text"], input[type="search"], select, textarea {
+            min-height: 44px; border-radius: var(--radius-md); border-color: var(--border-color);
+            transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+        input[type="number"]:focus, input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:focus {
+            border-color: var(--primary); box-shadow: var(--focus-ring); }
+        .input { width: 100%; }
+
+        /* --- 부록 A 재사용 유틸리티 (신규 코드용, 순수 추가) --- */
+        .card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: var(--space-8);
+            transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+        .card--interactive:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .btn-ghost { background: transparent; color: var(--primary); box-shadow: none; }
+        .badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: var(--radius-pill); font-size: .8125rem; font-weight: 600; }
+        .badge-success { background: #e6f4ea; color: #1e7e34; }
+        .badge-warning { background: #fff4d6; color: #8a6d00; }
+        .badge-error { background: #fdecee; color: var(--error); }
+
+        /* --- 모션 최소화 대응 (접근성) --- */
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+        }
     </style>
 </head>
 <body>
