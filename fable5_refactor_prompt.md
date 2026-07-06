@@ -70,6 +70,13 @@
   옅은 그리드라인, 폰트/색을 앱 팔레트와 통일. `paper_bgcolor`/`plot_bgcolor` 투명 권장.
 - 반응형: Mobile First 유지. 좁은 화면에서 탭 네비 가로 스크롤/축약 처리.
 
+토큰 사용(중요):
+- 아래 "부록 A: 재사용 CSS 토큰·컴포넌트"의 블록을 `<style>`에 넣고, 그 토큰/
+  클래스(`--radius-*`, `--shadow-*`, `--ease`, `.btn`/`.btn-primary`, `.card`,
+  `.tab-btn`, `.input`, `.badge` 등)만 사용하라. 반경·섀도우·색을 인라인으로
+  임의 하드코딩하지 마라. 토큰이 부족하면 같은 네이밍 규칙으로 토큰을 추가하고 이유를 밝혀라.
+- 차트는 부록 A의 `PLOT_LAYOUT`을 병합해 Plotly 테마를 통일하라.
+
 제약:
 - "라벨 출력" 기능은 변경 절대 금지(CLAUDE.md). 컬러칩 외 손대지 마라.
 - 스타일만 바꾸고 기능·마크업 구조·DOM id·이벤트 바인딩은 보존하라.
@@ -126,3 +133,123 @@
 | "어디를 건드릴지 먼저 말하라"(1~2단계) | 무계획 대규모 편집 방지 |
 | 도메인 근거(IRGSP-1.0/RAP-DB/SNP 코딩) 명시 | 과학적 허위 데이터 생성 차단 |
 | 라이브러리 버전 동결 | CDN 스택 깨짐 방지 |
+| 리스타일 = 스타일만, DOM/기능 보존 | 시각 개편이 회귀로 번지는 것 차단 |
+
+---
+
+## 부록 A: 재사용 CSS 토큰·컴포넌트 (그대로 `<style>`에 삽입)
+
+> Fable에게: 리스타일·신규 UI는 아래 토큰/클래스만 사용한다.
+> 반경·섀도우·색을 인라인 하드코딩하지 말 것. 팔레트 값(`--accent-*`)은 변경 금지.
+
+```css
+:root{
+  /* --- 기존 브랜드 팔레트 (dmrt-style.md, 값 변경 금지) --- */
+  --accent-1:#cce3dd; --accent-2:#b2d9d8; --accent-3:#8dccd3;
+  --accent-4:#54b7c6; --accent-5:#00a1b8; --accent-6:#017f97; --accent-7:#0c3026;
+  --error:#dc3545; --success:#28a745; --warning:#ffc107;
+  --text-primary:#1a1a1a; --text-secondary:#5a6a62; --border-color:#d0d8d4;
+
+  /* --- 모던 리스타일 토큰 (신규) --- */
+  --surface:#ffffff; --surface-2:#f7f9f8; --surface-sunken:#eef2f1;
+  --primary:var(--accent-6); --primary-strong:var(--accent-7);
+
+  /* 라운딩 */
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-pill:999px;
+
+  /* 섀도우 (소프트, 층 표현) */
+  --shadow-sm:0 1px 2px rgba(12,48,38,.06);
+  --shadow-card:0 1px 2px rgba(12,48,38,.06), 0 8px 24px rgba(12,48,38,.08);
+  --shadow-lg:0 8px 32px rgba(12,48,38,.12), 0 2px 8px rgba(12,48,38,.06);
+  --focus-ring:0 0 0 3px rgba(1,127,151,.30);
+
+  /* 간격 (8px 기반, 기존 유지) */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-5:20px; --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
+
+  /* 모션 */
+  --ease:cubic-bezier(.2,.7,.2,1); --dur:200ms;
+}
+
+*{ box-sizing:border-box; }
+body{ color:var(--text-primary); background:var(--surface);
+  font-family:'Noto Sans KR', sans-serif; -webkit-font-smoothing:antialiased;
+  line-height:1.6; }
+
+/* 타이포 */
+h1,h2,h3{ letter-spacing:-.01em; font-weight:600; }
+h1{ font-size:1.875rem; line-height:1.2;
+  background:linear-gradient(135deg,var(--accent-5),var(--accent-7));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+/* 카드 */
+.card{ background:var(--surface); border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-card); padding:var(--space-8);
+  transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.card--interactive:hover{ transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+
+/* 버튼 */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:44px; padding:0 20px; border:none; border-radius:var(--radius-md);
+  font:inherit; font-weight:600; line-height:1; cursor:pointer;
+  transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+             background var(--dur) var(--ease); }
+.btn:active{ transform:scale(.98); }
+.btn:focus-visible{ outline:none; box-shadow:var(--focus-ring); }
+.btn-primary{ background:linear-gradient(135deg,var(--accent-5),var(--accent-7));
+  color:#fff; box-shadow:var(--shadow-sm); }
+.btn-primary:hover{ box-shadow:var(--shadow-card); }
+.btn-secondary{ background:var(--surface-2); color:var(--text-primary);
+  box-shadow:inset 0 0 0 1px var(--border-color); }
+.btn-ghost{ background:transparent; color:var(--primary); }
+
+/* 입력 */
+.input, input[type=text], input[type=number], input[type=search],
+select, textarea{
+  width:100%; min-height:44px; padding:10px 14px; background:var(--surface);
+  color:var(--text-primary); border:1px solid var(--border-color);
+  border-radius:var(--radius-md); font:inherit;
+  transition:border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.input:focus, input:focus, select:focus, textarea:focus{
+  outline:none; border-color:var(--primary); box-shadow:var(--focus-ring); }
+
+/* 탭 네비 (활성 pill 인디케이터, 좁은 화면 가로 스크롤) */
+.tab-nav{ display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; }
+.tab-nav::-webkit-scrollbar{ display:none; }
+.tab-btn{ flex:0 0 auto; min-height:44px; padding:0 16px; border:none;
+  background:transparent; color:var(--text-secondary); border-radius:var(--radius-pill);
+  font-weight:600; cursor:pointer;
+  transition:background var(--dur) var(--ease), color var(--dur) var(--ease); }
+.tab-btn:hover{ background:var(--surface-2); color:var(--text-primary); }
+.tab-btn.active{ background:var(--accent-1); color:var(--accent-7); }
+
+/* 배지/상태 */
+.badge{ display:inline-flex; align-items:center; padding:4px 10px;
+  border-radius:var(--radius-pill); font-size:.8125rem; font-weight:600; }
+.badge-success{ background:#e6f4ea; color:#1e7e34; }
+.badge-warning{ background:#fff4d6; color:#8a6d00; }
+.badge-error{ background:#fdecee; color:var(--error); }
+
+/* 모션 최소화 대응 (필수) */
+@media (prefers-reduced-motion: reduce){
+  *{ transition:none !important; animation:none !important; scroll-behavior:auto !important; }
+}
+```
+
+Plotly 차트 테마 (JS — 차트 생성 시 병합):
+
+```js
+const PLOT_LAYOUT = {
+  font:{ family:'Noto Sans KR, sans-serif', color:'#1a1a1a', size:13 },
+  paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+  colorway:['#017f97','#54b7c6','#00a1b8','#8dccd3','#0c3026','#b2d9d8'],
+  margin:{ t:40, r:20, b:48, l:56 },
+  xaxis:{ gridcolor:'#eef2f1', zeroline:false },
+  yaxis:{ gridcolor:'#eef2f1', zeroline:false },
+};
+// 사용: Plotly.newPlot(el, data, {...PLOT_LAYOUT, ...overrides},
+//                       { displayModeBar:false, responsive:true });
+```
+
+주의: 위 토큰명이 기존 코드의 변수명과 충돌하면(예: 이미 `--space-4` 존재)
+기존 정의를 존중하고 새 토큰만 추가하라. 덮어써서 다른 탭 스타일을 깨지 마라.
