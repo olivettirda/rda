@@ -1295,6 +1295,58 @@
     </div>
 </div>
 <script>
+// ==================== Plotly 테마 통일 (리스타일 Slice 2) ====================
+// 부록 A-2 PLOT_LAYOUT을 모든 차트에 "밑에 깔아" 통일한다.
+// Plotly.newPlot/react를 1회 래핑: 테마는 기본값이고 호출자 layout이 항상 우선.
+// (히트맵 colorscale·축 타이틀·개별 margin 등 기존 차트 설정은 그대로 보존됨)
+const PLOT_LAYOUT = {
+    font: { family: 'Noto Sans KR, sans-serif', color: '#1a1a1a', size: 13 },
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    colorway: ['#017f97', '#54b7c6', '#00a1b8', '#8dccd3', '#0c3026', '#b2d9d8'],
+    margin: { t: 40, r: 20, b: 48, l: 56 },
+    xaxis: { gridcolor: '#eef2f1', zeroline: false },
+    yaxis: { gridcolor: '#eef2f1', zeroline: false },
+};
+window.PLOT_LAYOUT = PLOT_LAYOUT;
+(function themePlotly() {
+    console.log('[PlotlyTheme] 초기화 시도');
+    // 테마를 기본값으로 깔고 호출자 layout을 위에 병합(호출자 우선). 중첩 키는 얕은 병합.
+    function applyTheme(layout) {
+        layout = layout || {};
+        const merged = Object.assign({}, PLOT_LAYOUT, layout);
+        ['font', 'xaxis', 'yaxis', 'margin'].forEach(function (k) {
+            if (PLOT_LAYOUT[k] || layout[k]) {
+                merged[k] = Object.assign({}, PLOT_LAYOUT[k], layout[k]);
+            }
+        });
+        return merged;
+    }
+    function patch() {
+        if (typeof Plotly === 'undefined') return false;
+        if (Plotly.__themed) return true;
+        ['newPlot', 'react'].forEach(function (fn) {
+            const orig = Plotly[fn];
+            if (typeof orig !== 'function') return;
+            Plotly[fn] = function (el, data, layout, config) {
+                const themedLayout = applyTheme(layout);
+                const themedConfig = Object.assign({ displayModeBar: false, responsive: true }, config || {});
+                console.log('[PlotlyTheme] ' + fn + ' 테마 적용:', (el && el.id) ? el.id : el);
+                return orig.call(this, el, data, themedLayout, themedConfig);
+            };
+        });
+        Plotly.__themed = true;
+        console.log('[PlotlyTheme] Plotly.newPlot/react 래핑 완료');
+        return true;
+    }
+    // 동기 CDN 로드면 즉시 성공. 지연/재시도 로드 대비 폴백 폴링(최대 ~10초).
+    if (!patch()) {
+        let tries = 0;
+        const iv = setInterval(function () {
+            if (patch() || ++tries > 100) clearInterval(iv);
+        }, 100);
+    }
+})();
+
 // ==================== 전역 변수 ====================
 let dataLoaded = false;
 let genotypeData = null, phenotypeData = null, varietyInfoData = null, linkageData = null;
