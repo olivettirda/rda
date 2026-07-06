@@ -358,6 +358,19 @@
         .badge-warning { background: #fff4d6; color: #8a6d00; }
         .badge-error { background: #fdecee; color: var(--error); }
 
+        /* --- 공통 컴포넌트 (Slice 3): 토스트 success 변형 + 글로벌 로딩 오버레이 --- */
+        /* 기존 .error-toast* CSS(고아)를 showToast()로 살리며, success 변형만 신규 추가 */
+        .error-toast-success .error-toast-content { background: linear-gradient(135deg, var(--accent-6), var(--accent-5)); color: #fff; }
+        #toastStack { position: fixed; bottom: var(--space-5); right: var(--space-5); z-index: 10000;
+            display: flex; flex-direction: column-reverse; gap: var(--space-3); max-width: 400px; }
+        #toastStack .error-toast { position: relative; bottom: auto; right: auto; max-width: none; }
+        .global-loading-overlay { position: fixed; inset: 0; z-index: 10001; display: none;
+            align-items: center; justify-content: center; background: rgba(12, 48, 38, .32); backdrop-filter: blur(2px); }
+        .global-loading-overlay.active { display: flex; }
+        .global-loading-box { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+            padding: var(--space-8) var(--space-10); text-align: center; }
+        .global-loading-box .global-loading-msg { margin-top: var(--space-4); color: var(--text-secondary); font-weight: 600; }
+
         /* --- 모션 최소화 대응 (접근성) --- */
         @media (prefers-reduced-motion: reduce) {
             * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
@@ -12463,6 +12476,68 @@ window.onload = function() {
     updateDataClearButtons(); // 삭제 버튼 상태 업데이트
     log('🌾 벼 디지털육종 v4.16 + BDSS 로드 완료', 'success');
 };
+
+// ==================== 공통 컴포넌트 (리스타일 Slice 3) ====================
+// 전 탭 공통 토스트/로딩 오버레이. 기존 alert/confirm/탭별 로딩 div는 그대로 두고
+// "추가"만 한다(신규 코드·향후 통일의 기반). 고아 상태였던 .error-toast CSS를 살린다.
+function showToast(message, type, duration) {
+    console.log('[showToast] 진입:', { type: type, message: message });
+    type = type || 'info';
+    duration = (duration === undefined) ? 3500 : duration;
+    let stack = document.getElementById('toastStack');
+    if (!stack) {
+        console.log('[showToast] 분기: 토스트 스택 생성');
+        stack = document.createElement('div');
+        stack.id = 'toastStack';
+        document.body.appendChild(stack);
+    }
+    const known = ['error', 'warning', 'info', 'success'];
+    const cls = (known.indexOf(type) !== -1) ? type : 'info';
+    const icons = { error: '⛔', warning: '⚠️', info: 'ℹ️', success: '✅' };
+    const toast = document.createElement('div');
+    toast.className = 'error-toast error-toast-' + cls;
+    toast.setAttribute('role', 'status');
+    toast.innerHTML =
+        '<div class="error-toast-content">' +
+            '<span class="error-toast-icon">' + icons[cls] + '</span>' +
+            '<span class="error-toast-message"></span>' +
+            '<button class="error-toast-close" aria-label="닫기">×</button>' +
+        '</div>';
+    // textContent로 넣어 XSS 방지
+    toast.querySelector('.error-toast-message').textContent = message;
+    const remove = function () {
+        toast.classList.add('error-toast-fade');
+        setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+    };
+    toast.querySelector('.error-toast-close').onclick = remove;
+    stack.appendChild(toast);
+    if (duration > 0) setTimeout(remove, duration);
+    return toast;
+}
+window.showToast = showToast;
+
+// 전 탭 공통 로딩 오버레이 (탭별 개별 로딩 div와 별개로 추가 제공)
+function showGlobalLoading(message) {
+    console.log('[showGlobalLoading] 진입:', message);
+    let ov = document.getElementById('globalLoadingOverlay');
+    if (!ov) {
+        console.log('[showGlobalLoading] 분기: 오버레이 생성');
+        ov = document.createElement('div');
+        ov.id = 'globalLoadingOverlay';
+        ov.className = 'global-loading-overlay';
+        ov.innerHTML = '<div class="global-loading-box"><div class="spinner"></div><p class="global-loading-msg"></p></div>';
+        document.body.appendChild(ov);
+    }
+    ov.querySelector('.global-loading-msg').textContent = message || '처리 중...';
+    ov.classList.add('active');
+}
+function hideGlobalLoading() {
+    console.log('[hideGlobalLoading] 진입');
+    const ov = document.getElementById('globalLoadingOverlay');
+    if (ov) ov.classList.remove('active');
+}
+window.showGlobalLoading = showGlobalLoading;
+window.hideGlobalLoading = hideGlobalLoading;
 </script>
 
 <!-- Floating Log Panel -->
