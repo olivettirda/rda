@@ -1,0 +1,3320 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="KASP / AS-PCR 프라이머 설계 도구 (오프라인 단일 HTML)">
+<title>KASP 디자이너</title>
+<link rel="icon" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<script>try{var t=localStorage.getItem('kasp-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<style>
+/* ===== 디자인 토큰 (docs/DESIGN_GUIDE.md §2) — 흑백 기본 + teal 포인트 하나 ===== */
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #fbfbfd;
+  --text: #1d1d1f;
+  --text-2: #6e6e73;
+  --line: #d2d2d7;
+  --line-soft: rgba(0, 0, 0, 0.06);
+  --accent: #017f97;
+  --accent-soft: rgba(1, 127, 151, 0.12);
+  --accent-dk: #0c3026;
+  --ok: #34c759;
+  --warn: #ff9f0a;
+  --err: #dc3545;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .04);
+  --font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --mono: "SF Mono", "JetBrains Mono", "D2Coding", Consolas, ui-monospace, monospace;
+  --topbar-h: 52px;
+  --sidebar-w: 260px;
+  --card-border: transparent;
+  --mask-bg: rgba(0, 0, 0, 0.07);
+  --tail-color: #8e8e93;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000; --surface: #1c1c1e; --surface-2: #2c2c2e; --text: #f5f5f7; --text-2: #98989d; --line: #3a3a3c;
+    --line-soft: rgba(255, 255, 255, 0.08); --accent: #54b7c6; --accent-soft: rgba(84, 183, 198, 0.18); --accent-dk: #8dccd3;
+    --card-border: var(--line); --mask-bg: rgba(255, 255, 255, 0.1); --tail-color: #8e8e93; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000; --surface: #1c1c1e; --surface-2: #2c2c2e; --text: #f5f5f7; --text-2: #98989d; --line: #3a3a3c;
+  --line-soft: rgba(255, 255, 255, 0.08); --accent: #54b7c6; --accent-soft: rgba(84, 183, 198, 0.18); --accent-dk: #8dccd3;
+  --card-border: var(--line); --mask-bg: rgba(255, 255, 255, 0.1); --tail-color: #8e8e93; color-scheme: dark;
+}
+
+/* ===== 기본 ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font); font-size: 15px; line-height: 1.5; word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+code, .mono, .seq, textarea { font-family: var(--mono); letter-spacing: 0.02em; }
+code { font-size: 13px; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 5px; padding: 0 5px; }
+a { color: var(--accent); text-decoration: none; }
+[hidden] { display: none !important; }
+.icon { vertical-align: -0.2em; }
+:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); border-radius: var(--radius-sm); }
+
+/* ===== 상단바 ===== */
+.topbar {
+  position: fixed; inset: 0 0 auto 0; height: var(--topbar-h); z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+.brand-logo { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid transparent; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text-2);
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+
+/* ===== 레이아웃 ===== */
+.shell { display: flex; min-height: 100vh; padding-top: var(--topbar-h); }
+.sidebar {
+  position: fixed; top: var(--topbar-h); bottom: 0; left: 0; width: var(--sidebar-w);
+  padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
+  border-right: 0.5px solid var(--line); background: var(--bg);
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text); text-align: left; font-size: 15px;
+  transition: background 160ms ease-out;
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item.on { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.nav-item.on .nav-icon { color: var(--accent); }
+.nav-icon { display: inline-flex; width: 20px; height: 20px; color: var(--text-2); }
+.nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.sidebar-foot { margin-top: auto; padding: 8px 12px; color: var(--text-2); font-size: 12px; }
+
+.content { flex: 1; min-width: 0; margin-left: var(--sidebar-w); padding: 32px 32px 120px; }
+.pane { display: none; max-width: 980px; margin: 0 auto; min-width: 0; }
+.pane.on { display: block; animation: fade 160ms ease-out; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.page-title { font-size: 28px; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.01em; }
+
+/* ===== 카드 ===== */
+.card {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px;
+  margin-bottom: 32px; border: 1px solid var(--card-border); min-width: 0;
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.card-head h2 { font-size: 17px; font-weight: 600; }
+.card-actions { display: flex; align-items: center; gap: 16px; }
+.disclosure { padding: 0; }
+.disclosure > summary {
+  list-style: none; cursor: pointer; padding: 18px 24px; display: flex; align-items: center; gap: 12px; font-size: 17px; font-weight: 600;
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::after { content: ""; width: 8px; height: 8px; border-right: 1.5px solid var(--text-2); border-bottom: 1.5px solid var(--text-2); transform: rotate(-45deg); margin-left: auto; transition: transform 160ms ease-out; }
+.disclosure[open] > summary::after { transform: rotate(45deg); }
+.disclosure > summary .sub { font-size: 13px; font-weight: 400; color: var(--text-2); }
+.disclosure-body { padding: 0 24px 24px; border-top: 0.5px solid var(--line); padding-top: 20px; }
+
+/* ===== 폼 ===== */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-2); }
+.field > span { font-weight: 500; }
+.field input[type="text"], .field input[type="number"], .field select, .tail-rows input {
+  height: 40px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); padding: 0 12px; font-size: 15px; color: var(--text); width: 100%;
+}
+.field input:focus, .tail-rows input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+.field-btn { justify-content: flex-end; }
+.num-row { display: grid; grid-template-columns: 1fr 96px; gap: 12px; align-items: center; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: var(--line); outline: none; margin: 0; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 0.5px solid var(--line); box-shadow: 0 1px 4px rgba(0, 0, 0, .18); cursor: pointer; }
+input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 0.5px solid var(--line); box-shadow: 0 1px 4px rgba(0, 0, 0, .18); cursor: pointer; }
+input[type="range"]:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft); }
+.hint { font-size: 13px; color: var(--text-2); margin-top: 14px; line-height: 1.6; }
+.hint b { color: var(--text); font-weight: 600; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: #0c3026; vertical-align: middle; margin: 0 2px; }
+.link-btn { border: 0; background: transparent; color: var(--accent); padding: 0; font-size: 14px; font-weight: 500; }
+.link-btn:hover { text-decoration: underline; }
+.btn {
+  height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface);
+  display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; transition: background 160ms ease-out;
+}
+.btn:hover { background: var(--surface-2); }
+.btn.small { height: 32px; padding: 0 12px; font-size: 13px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn-primary {
+  height: 44px; padding: 0 22px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+  transition: filter 160ms ease-out, opacity 160ms ease-out;
+}
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+/* 세그먼트 컨트롤 */
+.segment { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--line-soft); gap: 2px; }
+.segment > button {
+  height: 30px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 500;
+  transition: background 160ms ease-out, color 160ms ease-out;
+}
+.segment > button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); font-weight: 600; }
+.segment-wide { display: flex; width: 100%; }
+.segment-wide > button { flex: 1; height: 34px; padding: 0 8px; white-space: nowrap; }
+
+/* 토글 스위치 */
+.switch-list { display: flex; flex-direction: column; margin-top: 16px; }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 0.5px solid var(--line-soft); font-size: 14px; cursor: pointer; }
+.switch-row:first-child { border-top: 0; }
+.switch { position: relative; width: 52px; height: 32px; flex: none; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch i { position: absolute; inset: 0; border-radius: 16px; background: var(--line); transition: background 160ms ease-out; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .2); transition: transform 160ms ease-out; }
+.switch input:checked + i { background: var(--accent); }
+.switch input:checked + i::after { transform: translateX(20px); }
+.switch input:focus-visible + i { box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+
+/* 메뉴 */
+.menu { position: relative; }
+.menu-list { position: absolute; right: 0; top: 28px; min-width: 260px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, .12); padding: 6px; z-index: 10; }
+.menu-list button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 7px; font-size: 14px; }
+.menu-list button:hover { background: var(--surface-2); }
+.menu-list button small { display: block; color: var(--text-2); font-size: 12px; }
+
+/* ===== 서열 편집기 ===== */
+.seq-editor { position: relative; }
+.seq-editor textarea, .seq-backdrop {
+  width: 100%; min-height: 260px; padding: 14px 16px; margin: 0; font-size: 14px; line-height: 1.6; letter-spacing: 0.02em;
+  white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; tab-size: 4; border-radius: var(--radius-sm); border: 1px solid var(--line);
+}
+.seq-editor textarea { position: relative; display: block; background: transparent; color: transparent; caret-color: var(--text); resize: vertical; z-index: 1; }
+.seq-editor textarea::placeholder { color: var(--text-2); opacity: 0.7; }
+.seq-editor textarea::selection { background: var(--accent-soft); }
+.seq-backdrop { position: absolute; inset: 0; color: var(--text); background: var(--surface); overflow: hidden; pointer-events: none; z-index: 0; border-color: transparent; }
+.seq-backdrop .hl-var { color: var(--accent); font-weight: 700; }
+.seq-backdrop .hl-head { color: var(--text-2); }
+.seq-backdrop .hl-excl { text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 3px; }
+.seq-backdrop .hl-iupac { color: var(--accent); }
+.seq-summary { margin-top: 10px; font-size: 13px; color: var(--text-2); }
+.error-list { margin: 8px 0 0; padding-left: 18px; color: var(--err); font-size: 13px; }
+
+/* ===== Tail 행 ===== */
+.tail-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.tail-row { display: grid; grid-template-columns: 90px 1fr 64px; gap: 12px; align-items: center; }
+.tail-row .mono { font-size: 14px; }
+.tail-row .len { font-size: 13px; color: var(--text-2); text-align: right; }
+
+/* ===== 결과 ===== */
+.empty { text-align: center; padding: 72px 24px; color: var(--text-2); }
+.empty-icon { display: inline-flex; color: var(--text-2); margin-bottom: 12px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 500; color: var(--text-2); }
+.pill.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pill.err { border-color: var(--err); color: var(--err); }
+.warn-card { padding: 16px 20px; }
+.warn-card ul { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.warn-card li { display: flex; gap: 8px; align-items: flex-start; }
+.warn-card li .icon { color: var(--warn); flex: none; margin-top: 2px; }
+.warn-card li.err .icon { color: var(--err); }
+.set-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.set-title .sub { font-size: 13px; color: var(--text-2); font-weight: 400; }
+
+table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.grid th { text-align: left; font-weight: 500; color: var(--text-2); padding: 0 10px 8px; border-bottom: 0.5px solid var(--line); white-space: nowrap; }
+table.grid td { padding: 0 10px; height: 44px; border-bottom: 0.5px solid var(--line-soft); vertical-align: middle; }
+table.grid tr:last-child td { border-bottom: 0; }
+table.grid tbody tr:hover td { background: var(--surface-2); }
+table.grid .num, table.grid th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.grid td.num { font-family: var(--mono); }
+table.grid .seq { font-size: 13px; white-space: nowrap; }
+table.grid .id { font-family: var(--mono); font-size: 12px; color: var(--text-2); white-space: nowrap; }
+table.grid td.note { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.grid tr.pick td { background: var(--accent-soft); }
+table.grid tr.clickable { cursor: pointer; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.seq .tail { color: var(--tail-color); }
+.seq .var { color: var(--accent); font-weight: 700; }
+.seq .mm { text-decoration: underline; text-decoration-style: dotted; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.badge.warn::before { background: var(--warn); }
+.badge.err::before { background: var(--err); }
+.badge.none::before { display: none; }
+.muted { color: var(--text-2); }
+.small { font-size: 12px; }
+.set-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; font-size: 13px; color: var(--text-2); }
+.warn-inline { color: var(--warn); }
+.err-inline { color: var(--err); }
+
+/* 서열 뷰어 */
+.viewer { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.02em; line-height: 1.5; overflow-x: auto; }
+.vrow { position: relative; display: grid; grid-template-columns: 64px 1fr; gap: 0 12px; padding: 14px 0 4px; }
+.vrow .pos { color: var(--text-2); text-align: right; font-size: 11px; padding-top: 12px; }
+.vrow .track { position: relative; height: 20px; }
+.vrow .bar { position: absolute; top: 0; height: 6px; border-radius: 3px; }
+.vrow .bar.asp0 { background: var(--accent); }
+.vrow .bar.asp1 { background: var(--accent); opacity: 0.5; top: 7px; }
+.vrow .bar.asp2 { background: var(--accent); opacity: 0.3; top: 14px; height: 4px; }
+.vrow .bar.common { background: var(--text); }
+.vrow .bar.alt { top: 14px; height: 4px; opacity: 0.35; }
+.vrow .bases { white-space: pre; }
+.vrow .bases .b { display: inline-block; width: 1ch; }
+.vrow .bases .b.mask { background: var(--mask-bg); }
+.vrow .bases .b.snp { color: var(--accent); font-weight: 700; box-shadow: inset 0 -2px 0 var(--accent); }
+.vrow .bases .b.excl { text-decoration: underline; text-decoration-style: dotted; }
+.vlegend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-2); margin-bottom: 8px; font-family: var(--font); }
+.vlegend i { display: inline-block; width: 14px; height: 6px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+.vlegend i.asp0 { background: var(--accent); }
+.vlegend i.asp1 { background: var(--accent); opacity: 0.5; }
+.vlegend i.common { background: var(--text); }
+.vlegend i.mask { background: var(--mask-bg); height: 12px; width: 12px; }
+
+/* ===== 액션바 / 토스트 / 진행바 ===== */
+.actionbar {
+  position: fixed; left: var(--sidebar-w); right: 0; bottom: 0; z-index: 15;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 32px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border-top: 0.5px solid var(--line);
+}
+.actionbar > * { max-width: 980px; }
+.action-summary { font-size: 13px; color: var(--text-2); flex: 1; min-width: 0; }
+.btn-primary { white-space: nowrap; flex: none; }
+.toast {
+  position: fixed; left: 50%; bottom: 92px; transform: translate(-50%, 8px); opacity: 0; pointer-events: none; z-index: 30;
+  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.progress { position: fixed; top: 0; left: 0; height: 2px; width: 0; background: var(--accent); z-index: 40; opacity: 0; transition: width 300ms ease-out, opacity 160ms ease-out; }
+.progress.on { opacity: 1; width: 70%; }
+.progress.done { width: 100%; opacity: 0; }
+
+/* ===== 반응형 (모바일: 사이드바 → 하단 탭바) ===== */
+@media (max-width: 767px) {
+  .content { margin-left: 0; padding: 20px 16px 150px; }
+  .sidebar {
+    top: auto; bottom: 0; width: 100%; height: 60px; flex-direction: row; padding: 6px 8px 8px; gap: 0; border-right: 0; border-top: 0.5px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 85%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); z-index: 16;
+  }
+  .nav-item { flex: 1; flex-direction: column; gap: 2px; height: auto; padding: 4px 0; font-size: 10px; align-items: center; justify-content: center; }
+  .nav-item.on { background: transparent; box-shadow: none; color: var(--accent); }
+  .nav-badge { position: absolute; margin: 0; top: 2px; right: 10%; min-width: 16px; height: 16px; font-size: 10px; }
+  .nav-item { position: relative; }
+  .sidebar-foot { display: none; }
+  .actionbar { left: 0; bottom: 60px; padding: 10px 16px; }
+  .toast { bottom: 150px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .page-title { font-size: 24px; }
+  .card { padding: 18px; margin-bottom: 24px; }
+  .topbar { padding: 0 14px; }
+  .segment > button { padding: 0 10px; }
+  .brand-title { font-size: 14px; }
+  .tail-row { grid-template-columns: 70px 1fr 48px; gap: 8px; }
+  .card-head h2 { font-size: 16px; }
+  .disclosure > summary { font-size: 16px; padding: 16px 18px; }
+  .disclosure-body { padding: 16px 18px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+@media print {
+  .topbar, .sidebar, .actionbar, .toast { display: none !important; }
+  .content { margin: 0; padding: 0; }
+  .card { box-shadow: none; border: 1px solid #ccc; }
+}
+
+</style>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-logo" src="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png" alt="" onerror="this.style.display='none'">
+    <span class="brand-title">KASP 디자이너</span>
+  </div>
+  <div class="topbar-right">
+    <div class="segment" id="presetSeg" role="group" aria-label="Tm 계산 조건">
+      <button type="button" data-value="bioneer" class="on">바이오니어</button>
+      <button type="button" data-value="primerdigital">primerdigital</button>
+    </div>
+    <button type="button" class="icon-btn" id="themeBtn" aria-label="테마 전환" title="테마 전환"></button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar" aria-label="주 메뉴">
+    <button type="button" class="nav-item on" data-pane="input"><span class="nav-icon" data-icon="dna"></span><span>서열 입력</span></button>
+    <button type="button" class="nav-item" data-pane="params"><span class="nav-icon" data-icon="sliders"></span><span>설계 조건</span></button>
+    <button type="button" class="nav-item" data-pane="tails"><span class="nav-icon" data-icon="tag"></span><span>Tail</span></button>
+    <button type="button" class="nav-item" data-pane="results"><span class="nav-icon" data-icon="table"></span><span>결과</span><span class="nav-badge" id="navResultBadge" hidden></span></button>
+    <button type="button" class="nav-item" data-pane="export"><span class="nav-icon" data-icon="download"></span><span>내보내기</span></button>
+    <div class="sidebar-foot" id="sidebarFoot"></div>
+  </nav>
+
+  <main class="content">
+    <!-- 1. 서열 입력 -->
+    <section class="pane on" data-pane="input">
+      <h1 class="page-title">서열 입력</h1>
+      <div class="card">
+        <div class="card-head">
+          <h2>FASTA + 괄호 변이 표기</h2>
+          <div class="card-actions">
+            <div class="menu" id="exampleMenu">
+              <button type="button" class="link-btn" id="exampleBtn">예제 불러오기</button>
+              <div class="menu-list" id="exampleList" hidden></div>
+            </div>
+            <button type="button" class="link-btn" id="clearBtn">지우기</button>
+          </div>
+        </div>
+        <div class="seq-editor">
+          <pre class="seq-backdrop" id="seqBackdrop" aria-hidden="true"></pre>
+          <textarea id="seqInput" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="&gt;마커명 Chr01:12345678
+acgt...flank...[A/G]...flank...acgt"></textarea>
+        </div>
+        <div class="seq-summary" id="seqSummary">서열을 붙여넣으면 시작됩니다</div>
+        <ul class="error-list" id="seqErrors" hidden></ul>
+        <p class="hint">
+          <code>[A/G]</code> SNP · <code>[A/C/G/T]</code> 다중대립 · <code>[R]</code> IUPAC · <code>[AG/]</code> InDel · <code>[GATATAC/CAGTCC]</code> MNV ·
+          괄호 밖 <code>r</code>, <code>y</code> 등은 주변 SNP(프라이머 회피) · <code>/…/</code> 프라이머 배치 금지 구역 ·
+          헤더에 <code>Chr01:1234567</code> 을 쓰면 유전체 좌표(IRGSP-1.0)로 변환됩니다.
+        </p>
+      </div>
+
+      <details class="card disclosure" id="rsidCard">
+        <summary><span>rsID / 변이 ID 로 서열 가져오기</span><span class="sub">Ensembl Plants · 온라인 필요</span></summary>
+        <div class="disclosure-body">
+          <div class="form-grid">
+            <label class="field"><span>변이 ID</span><input type="text" id="rsidInput" placeholder="예: OsSNP_… 또는 rs…"></label>
+            <label class="field"><span>종 (Ensembl species)</span><input type="text" id="rsidSpecies" value="oryza_sativa"></label>
+            <label class="field"><span>양쪽 flank 길이 (nt)</span><input type="number" id="rsidFlank" value="200" min="50" max="1000" step="10"></label>
+            <div class="field field-btn"><button type="button" class="btn" id="rsidBtn">조회해서 추가</button></div>
+          </div>
+          <p class="hint" id="rsidStatus">벼는 <code>oryza_sativa</code>. 외부 서버에 접속할 수 없으면 조용히 안내만 합니다.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- 2. 설계 조건 -->
+    <section class="pane" data-pane="params">
+      <h1 class="page-title">설계 조건</h1>
+      <div class="card">
+        <div class="card-head"><h2>기본 조건</h2><button type="button" class="link-btn" id="resetParamsBtn">기본값 복원</button></div>
+        <div class="form-grid">
+          <div class="field num" data-param="tmMin"><span>Tm 하한 (°C, tail 제외)</span><div class="num-row"><input type="range" min="37" max="80" step="0.5"><input type="number" min="37" max="80" step="0.5"></div></div>
+          <div class="field num" data-param="tmMax"><span>Tm 상한 (°C)</span><div class="num-row"><input type="range" min="37" max="80" step="0.5"><input type="number" min="37" max="80" step="0.5"></div></div>
+          <div class="field num" data-param="aspMinLen"><span>ASP 최소 길이 (nt, tail 제외)</span><div class="num-row"><input type="range" min="12" max="60" step="1"><input type="number" min="12" max="60" step="1"></div></div>
+          <div class="field num" data-param="aspMaxLen"><span>ASP 최대 길이 (nt)</span><div class="num-row"><input type="range" min="12" max="60" step="1"><input type="number" min="12" max="60" step="1"></div></div>
+          <div class="field num" data-param="commonMinLen"><span>Common 최소 길이 (nt)</span><div class="num-row"><input type="range" min="12" max="100" step="1"><input type="number" min="12" max="100" step="1"></div></div>
+          <div class="field num" data-param="commonMaxLen"><span>Common 최대 길이 (nt)</span><div class="num-row"><input type="range" min="12" max="100" step="1"><input type="number" min="12" max="100" step="1"></div></div>
+          <div class="field num" data-param="ampliconMin"><span>Amplicon 권장 최소 (bp)</span><div class="num-row"><input type="range" min="30" max="500" step="5"><input type="number" min="30" max="500" step="5"></div></div>
+          <div class="field num" data-param="ampliconMax"><span>Amplicon 권장 최대 (bp)</span><div class="num-row"><input type="range" min="30" max="500" step="5"><input type="number" min="30" max="500" step="5"></div></div>
+          <div class="field num" data-param="gcMin"><span>GC 하한 (%)</span><div class="num-row"><input type="range" min="0" max="100" step="1"><input type="number" min="0" max="100" step="1"></div></div>
+          <div class="field num" data-param="gcMax"><span>GC 상한 (%)</span><div class="num-row"><input type="range" min="0" max="100" step="1"><input type="number" min="0" max="100" step="1"></div></div>
+          <div class="field num" data-param="tmDiffMax"><span>ASP–Common Tm 차 허용 (°C)</span><div class="num-row"><input type="range" min="0" max="10" step="0.5"><input type="number" min="0" max="10" step="0.5"></div></div>
+          <div class="field num" data-param="maxCommon"><span>표시할 Common 후보 수</span><div class="num-row"><input type="range" min="1" max="50" step="1"><input type="number" min="1" max="50" step="1"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Tm 계산 조건</h2></div>
+        <div class="segment segment-wide" id="presetSeg2" role="group" aria-label="프리셋">
+          <button type="button" data-value="bioneer" class="on">바이오니어</button>
+          <button type="button" data-value="primerdigital">primerdigital</button>
+          <button type="button" data-value="custom">사용자 정의</button>
+        </div>
+        <p class="hint" id="presetDesc"></p>
+        <div class="form-grid" id="customCond" hidden>
+          <label class="field"><span>Na⁺ (mM)</span><input type="number" data-custom="na_mM" min="1" max="1000" step="1"></label>
+          <label class="field"><span>Mg²⁺ (mM)</span><input type="number" data-custom="mg_mM" min="0" max="50" step="0.1"></label>
+          <label class="field"><span>올리고 농도 (nM)</span><input type="number" data-custom="oligo_nM" min="1" max="5000" step="1"></label>
+          <label class="field"><span>Wallace rule 적용 길이 미만 (nt, 0 = 사용 안 함)</span><input type="number" data-custom="wallaceBelow" min="0" max="30" step="1"></label>
+        </div>
+      </div>
+
+      <details class="card disclosure" id="advancedCard">
+        <summary><span>고급 설정</span><span class="sub">3′ 패턴, LC, 다이머, 마스킹, bisulfite</span></summary>
+        <div class="disclosure-body">
+          <div class="form-grid">
+            <div class="field num" data-param="snpOffset"><span>SNP offset (3′ 말단에서 달라야 하는 염기 수)</span><div class="num-row"><input type="range" min="1" max="5" step="1"><input type="number" min="1" max="5" step="1"></div></div>
+            <label class="field"><span>Common 3′-end 패턴 (IUPAC, 공백으로 여러 개; n = 제약 없음)</span><input type="text" class="mono" data-param-text="endPattern" placeholder="n  또는  sws ssw sww"></label>
+            <div class="field num" data-param="minLC"><span>LC 하한 (%)</span><div class="num-row"><input type="range" min="10" max="90" step="1"><input type="number" min="10" max="90" step="1"></div></div>
+            <div class="field num" data-param="dimerThreshold"><span>다이머 임계 (상보 염기쌍 수)</span><div class="num-row"><input type="range" min="6" max="8" step="1"><input type="number" min="6" max="8" step="1"></div></div>
+            <div class="field num" data-param="ampliconHardMax"><span>Amplicon 최대 허용 (bp)</span><div class="num-row"><input type="range" min="100" max="1000" step="10"><input type="number" min="100" max="1000" step="10"></div></div>
+            <div class="field num" data-param="overlapTol"><span>Common 겹침 간격 (nt, 이 미만이면 LC 높은 쪽만)</span><div class="num-row"><input type="range" min="1" max="30" step="1"><input type="number" min="1" max="30" step="1"></div></div>
+          </div>
+          <div class="switch-list">
+            <label class="switch-row"><span>다이머 검사에 tail 포함 (합성되는 전체 올리고 기준)</span><span class="switch"><input type="checkbox" data-param-bool="dimerIncludeTail"><i></i></span></label>
+            <label class="switch-row"><span>분산 반복서열 마스킹 (15-mer, 2회 이상)</span><span class="switch"><input type="checkbox" data-param-bool="maskRepeats"><i></i></span></label>
+            <label class="switch-row"><span>저복잡도 구간 마스킹 (17 nt 창)</span><span class="switch"><input type="checkbox" data-param-bool="maskLowComplexity"><i></i></span></label>
+            <label class="switch-row"><span>겹치는 Common 후보 모두 유지</span><span class="switch"><input type="checkbox" data-param-bool="allowOverlap"><i></i></span></label>
+            <label class="switch-row"><span>Bisulfite 변환 (CpG 가 아닌 C → T)</span><span class="switch"><input type="checkbox" data-param-bool="bisulfite"><i></i></span></label>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- 3. Tail -->
+    <section class="pane" data-pane="tails">
+      <h1 class="page-title">Tail</h1>
+      <div class="card">
+        <div class="card-head"><h2>판독 방식</h2></div>
+        <div class="segment segment-wide" id="modeSeg" role="group" aria-label="판독 방식">
+          <button type="button" data-value="kasp" class="on">형광 (KASP, FAM/HEX tail)</button>
+          <button type="button" data-value="sizing">겔 (Allele sizing, filler)</button>
+        </div>
+        <p class="hint" id="modeDesc"></p>
+      </div>
+
+      <div class="card" id="tailCard">
+        <div class="card-head"><h2>Tail 서열 (5′ 부착)</h2><button type="button" class="link-btn" id="tailDefaultBtn">LGC 기본값</button></div>
+        <label class="switch-row"><span>ASP 5′ 에 tail 부착</span><span class="switch"><input type="checkbox" data-param-bool="useTails"><i></i></span></label>
+        <div class="tail-rows" id="tailRows"></div>
+        <p class="hint">Tm 은 항상 tail 을 제외한 본체 서열로 계산되며, 결과 표에는 tail 포함 전체 서열과 tail 제외 Tm 을 함께 표시합니다. 대립유전자가 tail 수보다 많으면 tail 없이 설계하고 경고합니다.</p>
+      </div>
+
+      <div class="card" id="sizingCard" hidden>
+        <div class="card-head"><h2>Allele sizing 조건</h2></div>
+        <div class="form-grid">
+          <label class="field"><span>밴드 간격 (bp)</span>
+            <select id="bandStep">
+              <option value="20">아가로스 — 20 bp</option>
+              <option value="5">PAGE — 5 bp</option>
+              <option value="2">모세관 전기영동 — 2 bp</option>
+            </select>
+          </label>
+          <label class="field"><span>프라이머 최대 길이 (nt)</span><input type="number" id="sizingMaxLen" value="45" min="20" max="80" step="1"></label>
+        </div>
+        <label class="switch-row"><span>3′ 2번째 염기에 의도적 미스매치 추가 (second deliberate mismatch)</span><span class="switch"><input type="checkbox" id="secondMismatch"><i></i></span></label>
+        <p class="hint">가장 짧은 산물을 기준으로 밴드 간격만큼 길어지도록 5′ 에 filler 를 붙입니다. filler 는 6개 후보 중 모든 프라이머와 다이머가 가장 적은 것을 고릅니다.</p>
+      </div>
+    </section>
+
+    <!-- 4. 결과 -->
+    <section class="pane" data-pane="results">
+      <h1 class="page-title">결과</h1>
+      <div class="empty" id="resultsEmpty">
+        <span class="empty-icon" data-icon="empty"></span>
+        <p>서열을 붙여넣고 <b>프라이머 설계</b>를 누르면 결과가 여기에 표시됩니다.</p>
+      </div>
+      <div id="results" hidden>
+        <div class="row-between">
+          <div class="pills" id="markerTabs"></div>
+          <div class="segment" id="dirSeg" role="group" aria-label="세트 방향">
+            <button type="button" data-value="forward" class="on">Forward</button>
+            <button type="button" data-value="reverse">Reverse</button>
+          </div>
+        </div>
+        <div class="card warn-card" id="warnBox" hidden></div>
+        <div class="card" id="setCard"></div>
+        <div class="card" id="commonCard"></div>
+        <details class="card disclosure" id="viewerCard">
+          <summary><span>서열 뷰어</span><span class="sub">프라이머 위치 · SNP · 마스킹</span></summary>
+          <div class="disclosure-body" id="viewer"></div>
+        </details>
+        <details class="card disclosure" id="reportCard">
+          <summary><span>전체 후보 (Report)</span><span class="sub">ID · Sequence · Length · Tm · GC · LC</span></summary>
+          <div class="disclosure-body" id="report"></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 5. 내보내기 -->
+    <section class="pane" data-pane="export">
+      <h1 class="page-title">내보내기</h1>
+      <div class="card">
+        <div class="card-head"><h2>범위</h2></div>
+        <div class="form-grid">
+          <div class="field"><span>마커</span>
+            <div class="segment segment-wide" id="exportScopeSeg"><button type="button" data-value="current" class="on">현재 마커</button><button type="button" data-value="all">전체 마커</button></div>
+          </div>
+          <div class="field"><span>세트 방향</span>
+            <div class="segment segment-wide" id="exportDirSeg"><button type="button" data-value="selected" class="on">현재 선택</button><button type="button" data-value="forward">Forward</button><button type="button" data-value="reverse">Reverse</button><button type="button" data-value="both">둘 다</button></div>
+          </div>
+          <label class="field"><span>합성 규모 (Scale)</span><input type="text" id="exportScale" value="25 nmol"></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>형식</h2></div>
+        <div class="btn-row">
+          <button type="button" class="btn" id="copySetBtn"><span data-icon="copy"></span>세트 TSV 복사</button>
+          <button type="button" class="btn" id="copySetsTextBtn"><span data-icon="copy"></span>KASP Assay Sets 텍스트 복사</button>
+          <button type="button" class="btn" id="copyReportBtn"><span data-icon="copy"></span>전체 후보(Report) TSV 복사</button>
+          <button type="button" class="btn" id="xlsxBtn"><span data-icon="excel"></span>엑셀(.xlsx) 다운로드</button>
+        </div>
+        <p class="hint">엑셀 파일은 <b>주문용</b>(Primer Name, Sequence 5′→3′, Direction, Length, Purpose, Scale)과 <b>설계근거</b>(위치 Chr:bp, Tm 조건, 변환 전략, 비고) 두 시트로 저장됩니다. 헤더 <span class="swatch"></span> #0c3026, KoPub Dotum, 틀 고정 A2, 자동 필터.</p>
+      </div>
+    </section>
+
+    <div class="actionbar">
+      <span class="action-summary" id="actionSummary">서열을 붙여넣으면 시작됩니다</span>
+      <button type="button" class="btn-primary" id="designBtn">프라이머 설계</button>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+window.KASP_EXAMPLES = {"snp_simple":{"desc":"단순 SNP, 양쪽 flank 200 nt","fasta":">Marker_SNP1\nagccgaactcctggctttgaatgtctgtttcactcggaacataactatggtcgtcgctcgtctgacggcgtagcggtcgcatggtgtaaatatactatggtctagtgcgtacagaggagtagtgagtaagccgataagacgcgctagaccttaattgctacgcctgtagttgaatgggtaagccggcatggctgacattg[A/G]caagtcctgtgcggtaccgcgtcaatgccggccatgtagtggctgcgttcacacgagacgcactgagaaactatattggccaattggcttgaaccaaggtaatagcggtcgcaactacagagtgatccaggtgctctgtaaatatgtcaaactgcagcttgcgccaccttgcccgtaaatccttagcctagggctaggac"},"snp_iupac":{"desc":"IUPAC 1문자 변이 + 주변 SNP(r) 포함","fasta":">Marker_IUPAC\nttccatttacgtgccttggttcgaggcaaccggtagctaaggttctccgtggagctgcttcgtggtctggccaattggccaattggagattaggctggctgttgaatggttgcctacacartcaatgaagttcgcgcctggttgcggactcacaatcatcaatgttgcggggggacagcccctatcatcctacctcgtga[S]gcgtcctttctggccaagatccataggtaggcgcgtcttattagaaatgcatgctggatttatggcagtcaacttaatagcggtcgaaatcgccacagcagctacctcgtacctggggcttcgctcctgttagccgaaattcggaaccattatgagcttgcccctgttgggccgaccgtcatgggggctaagctacaccc"},"indel":{"desc":"2 bp 결실","fasta":">Marker_InDel\ntatgctaaccgcagcagagtgatccagcttagtagtcctcagaacgtatgggtcgactcgggctgatgatcgttctgccagtacagcctgaccgcctgtagtacatttaaagaaaacagttgtcagtcaactggtctagtgatttgcgatgggctgaacgcgactttgaaagcatagcggtcgaagcctgagtaaatcgc[AG/]acataatcgagggcgaagcgcaccccctgaccacaattggagcggtcaccgcaggaaagacaactaagtccgcaggtccggcccatgtgaactactatctccatagcgggcggtccgcgcagctaccgtctggtagcttctgacggactacgtaatttacccatgtggcggaaacctagacaagcgccacagagtcgatt"},"mnv_multi":{"desc":"MNV + 3대립","fasta":">Marker_MNV\ncttaacatatgatcaaacgacgtacgttgtagacagacggattttgccgacgcattttcttaacaatttatctcacaacatctcggccaagatccagctgggtgccaggggtgaccacaattgccctcagccttcatgttgctagcgtttgtgtacagttgtcaggacaagtacagaggcttaattaggttcgagaccgg[GATATAC/CAGTCC]ttgatttggtagtgggccgaccatggtttcattgcttcggctgctgtaattcggctgttagtggggtgtctacgcgcttatgcgccatgcgataccctgctgtcttcgaaatcgagaccgggacacacctttactgccttcgagaaggagaagaggtgccccggcccatctgagggcaaaccagaaaatgttccgacggt\n\n>Marker_Tri\ntatcgcctacgctctggtggaccctggggggaaacaatcatcggaagcaaagtctattccgacgctgaatgtggcgtcatggctgtagtctatctacctgggttatgagcgggcctatcattctcgtgtttcgaaccggcttgaacaggatgccagcagactatctccaggtgctctgttgctcttggtttgaaacgaag[A/C/G]cacgccacgattcgaggaatcaaattaatgcgaggaagttccggagaagtacgtacgttggctacgcggtgcaaacgtatgaatttgcacggagaccaaagcaattgcgtaccgcttcgatcccgtcagttaaagtgatccagttcagtcgcaactaatcccgtccttcgtagctacacctggcaaagatcaaaattgcg"},"excluded_region":{"desc":"/.../ 제외구역 포함","fasta":">Marker_Excl\nggggttagctacgcctatgcccaatgttgccagaccttaatggggtttccggtgctgaatttgcatagactggggggttactcaatgccgggaacctcttacctcgtacgtgccttttttggttatgacggtcgcatttatggcagtcac/taacccagggttatccagttgtggccaatt/aggcaggacagcgttaactt[C/T]ggttagctacgcactcaggtgttggtggcgatcccttctccctaaatcactgtttgtcactcagagagagagagagaggtagacctgtcaccgtcagataaatttacggctctgaatagatagcggtaccctccagaccgcgggcggaatggcaaagggggcatcccactgactgttatgcccggaccggaaacgctctt"}};
+window.KASP_BUILD = {"version":"1.0.0","date":"2026-10-21"};
+</script>
+<script>
+(function () {
+'use strict';
+/* ===== src/core/seq.js ===== */
+/**
+ * seq.js — 서열 정제, 상보/역상보, IUPAC 전개, GC% 계산
+ *
+ * 참고 문헌: IUPAC 핵산 코드 (Cornish-Bowden A. 1985, Nucleic Acids Res 13:3021)
+ * 외부 코드와 무관한 클린룸 구현.
+ */
+
+/** IUPAC 1문자 → 가능한 염기 집합 */
+const IUPAC_SETS = Object.freeze({
+  A: 'A', C: 'C', G: 'G', T: 'T',
+  R: 'AG', Y: 'CT', S: 'CG', W: 'AT', K: 'GT', M: 'AC',
+  B: 'CGT', D: 'AGT', H: 'ACT', V: 'ACG', N: 'ACGT',
+});
+
+const COMPLEMENT = Object.freeze({
+  A: 'T', C: 'G', G: 'C', T: 'A',
+  R: 'Y', Y: 'R', S: 'S', W: 'W', K: 'M', M: 'K',
+  B: 'V', V: 'B', D: 'H', H: 'D', N: 'N',
+});
+
+/** GC 가중치 (사양 §4.2): S/G/C=1, R/Y/K/M/N=0.5, B/V=2/3, D/H=1/3, A/T/W=0 */
+const GC_WEIGHT = Object.freeze({
+  G: 1, C: 1, S: 1,
+  R: 0.5, Y: 0.5, K: 0.5, M: 0.5, N: 0.5,
+  B: 2 / 3, V: 2 / 3, D: 1 / 3, H: 1 / 3,
+  A: 0, T: 0, W: 0,
+});
+
+/** 한 글자를 정규화: 대문자화, U→T, 허용되지 않는 문자는 '' */
+function normalizeBase(ch) {
+  let b = String(ch).toUpperCase();
+  if (b === 'U') b = 'T';
+  return Object.prototype.hasOwnProperty.call(IUPAC_SETS, b) ? b : '';
+}
+
+/** 텍스트에서 허용 염기(ACGTU + IUPAC)만 남긴 대문자 서열 */
+function cleanSeq(text) {
+  let out = '';
+  for (const raw of String(text ?? '')) {
+    const b = normalizeBase(raw);
+    if (b) out += b;
+  }
+  return out;
+}
+
+function isAcgt(ch) {
+  const b = String(ch).toUpperCase();
+  return b === 'A' || b === 'C' || b === 'G' || b === 'T';
+}
+
+/** 모호 염기(IUPAC, ACGT 이외)가 하나라도 있으면 true */
+function hasAmbiguity(seq) {
+  for (const ch of String(seq)) if (!isAcgt(ch)) return true;
+  return false;
+}
+
+/** 모호 염기 위치 목록 (0-based) */
+function ambiguityPositions(seq) {
+  const out = [];
+  const s = String(seq);
+  for (let i = 0; i < s.length; i++) if (!isAcgt(s[i])) out.push(i);
+  return out;
+}
+
+/** 상보 서열 (대소문자 보존, 미지 문자는 그대로) */
+function complementSeq(seq) {
+  let out = '';
+  for (const ch of String(seq)) {
+    const up = ch.toUpperCase();
+    const c = COMPLEMENT[up];
+    if (!c) { out += ch; continue; }
+    out += ch === up ? c : c.toLowerCase();
+  }
+  return out;
+}
+
+/** 역상보 서열 */
+function revcomp(seq) {
+  return complementSeq(Array.from(String(seq)).reverse().join(''));
+}
+
+/**
+ * IUPAC 전개: 'AR' → ['AA','AG'] 처럼 가능한 모든 조합(곱집합).
+ * 빈 문자열은 [''] 로 전개된다(InDel의 결실 쪽).
+ * limit 초과 시 앞에서부터 limit 개만 반환.
+ */
+function expandIupac(seq, limit = 1024) {
+  let combos = [''];
+  for (const raw of String(seq)) {
+    const b = normalizeBase(raw);
+    if (!b) continue;
+    const choices = IUPAC_SETS[b];
+    const next = [];
+    for (const prefix of combos) {
+      for (const c of choices) {
+        next.push(prefix + c);
+        if (next.length >= limit) break;
+      }
+      if (next.length >= limit) break;
+    }
+    combos = next;
+  }
+  return combos;
+}
+
+/** GC 가중 비율 (0~1). 빈 서열이면 0 */
+function gcFraction(seq) {
+  const s = String(seq);
+  if (!s.length) return 0;
+  let w = 0, n = 0;
+  for (const ch of s) {
+    const b = normalizeBase(ch);
+    if (!b) continue;
+    w += GC_WEIGHT[b];
+    n++;
+  }
+  return n ? w / n : 0;
+}
+
+function gcPercent(seq) {
+  return gcFraction(seq) * 100;
+}
+
+function baseCounts(seq) {
+  const counts = { A: 0, C: 0, G: 0, T: 0, other: 0 };
+  for (const ch of String(seq)) {
+    const b = normalizeBase(ch);
+    if (b === 'A' || b === 'C' || b === 'G' || b === 'T') counts[b]++;
+    else counts.other++;
+  }
+  return counts;
+}
+
+/**
+ * [upperStart, upperEnd) 구간만 대문자, 나머지는 소문자로 표기.
+ * 사양 §5-3: 변이 구간 대문자, flank 소문자.
+ */
+function applyCase(seq, upperStart, upperEnd) {
+  const s = String(seq);
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    out += (i >= upperStart && i < upperEnd) ? s[i].toUpperCase() : s[i].toLowerCase();
+  }
+  return out;
+}
+
+/**
+ * Bisulfite 변환 (사양 §2.4): CpG 가 아닌 C → T.
+ * nextChar 는 서열 끝 다음에 오는 염기(경계 판정용, 없으면 '').
+ */
+function bisulfiteConvert(seq, nextChar = '') {
+  const s = String(seq ?? '');
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const up = ch.toUpperCase();
+    if (up === 'C') {
+      const next = (i + 1 < s.length ? s[i + 1] : nextChar).toUpperCase();
+      if (next !== 'G') { out += ch === up ? 'T' : 't'; continue; }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/** 패턴 문자(IUPAC)가 염기를 포함하는지 ('N' 은 모두 허용) */
+function baseMatchesIupac(base, patternChar) {
+  const b = normalizeBase(base);
+  const p = normalizeBase(patternChar);
+  if (!b || !p) return false;
+  return IUPAC_SETS[p].includes(b);
+}
+
+
+/* ===== src/core/parse.js ===== */
+/**
+ * parse.js — FASTA / 대괄호 변이 마크업 파서 (사양 §1)
+ *
+ *  >이름
+ *  acgt...[A/G]...acgt         이중대립
+ *  [A/C/G/T] 다중대립, [R] IUPAC 1문자, [AG/] 또는 [AG/-] InDel, [GATATAC/CAGTCC] MNV
+ *  괄호 밖 IUPAC(r, y ...) = 주변 SNP → 마스킹 위치로 기록
+ *  /.../ = 프라이머 배치 금지 구역
+ *  헤더 없는 서열은 Seq1, Seq2 … ; "이름<공백>서열" 한 줄 형식도 허용
+ */
+
+
+/** 서열/마크업으로만 이루어진 토큰인지 (이름 토큰과 구분) */
+const SEQ_LIKE_TOKEN = /^[acgturyswkmbdhvn\[\]\/\-\.]+$/i;
+const CHR_POS_RE = /\b(chr\w*?)\s*[:：]\s*(\d[\d,]*)/i;
+
+/** 염기 집합 → IUPAC 1문자 (예: {A,G} → R) */
+function basesToIupac(bases) {
+  const key = Array.from(new Set(bases.map((b) => normalizeBase(b)).filter(Boolean))).sort().join('');
+  for (const [code, set] of Object.entries(IUPAC_SETS)) {
+    if (Array.from(set).sort().join('') === key) return code;
+  }
+  return 'N';
+}
+
+/** 괄호 안 내용 → 대립유전자 목록 */
+function parseAlleles(content) {
+  const raw = String(content ?? '');
+  const parts = raw.includes('/') ? raw.split('/') : [raw];
+  const cleanPart = (p) => {
+    let out = '';
+    for (const ch of p) {
+      const b = normalizeBase(ch);
+      if (b) out += b;
+    }
+    return out; // '-' 나 공백은 제거 → 결실은 ''
+  };
+  let alleles = [];
+  if (parts.length === 1) {
+    const p = cleanPart(parts[0]);
+    if (!p.length) return { error: '괄호 안에 대립유전자가 없습니다.' };
+    alleles = expandIupac(p);
+  } else {
+    for (const part of parts) alleles.push(...expandIupac(cleanPart(part)));
+  }
+  const seen = new Set();
+  alleles = alleles.filter((a) => (seen.has(a) ? false : (seen.add(a), true)));
+  if (alleles.length < 2) return { error: `대립유전자가 2개 이상이어야 합니다: [${raw}]` };
+  if (alleles.length > 64) return { error: `대립유전자 조합이 너무 많습니다(${alleles.length}개): [${raw}]` };
+  return { alleles: alleles.map((seq) => ({ seq, label: seq === '' ? 'del' : seq })) };
+}
+
+/**
+ * 한 레코드의 서열 본문을 파싱해 s1 / alleles / s3 와 마스킹 정보를 만든다.
+ */
+function parseMarkup(seqText) {
+  const text = String(seqText ?? '');
+  const flanks = ['', ''];           // [s1, s3]
+  const iupac = [[], []];
+  const excluded = [[], []];
+  const variants = [[], []];
+  const warnings = [];
+  let side = 0;                      // 0 = s1, 1 = s3
+  let alleles = null;
+  let inExcluded = false;
+  let exclStart = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '[') {
+      const close = text.indexOf(']', i + 1);
+      if (close < 0) return { error: '닫히지 않은 대괄호 [ 가 있습니다.' };
+      const content = text.slice(i + 1, close);
+      i = close;
+      const parsed = parseAlleles(content);
+      if (parsed.error) return { error: parsed.error };
+      if (!alleles) {
+        alleles = parsed.alleles;
+        if (inExcluded) {            // 제외구역이 변이를 가로지르면 s1 쪽을 닫고 s3 에서 다시 연다
+          excluded[0].push([exclStart, flanks[0].length]);
+          exclStart = 0;
+        }
+        side = 1;
+      } else {
+        const seqs = parsed.alleles.map((a) => a.seq);
+        const allSingle = seqs.every((s) => s.length === 1);
+        const at = flanks[side].length;
+        if (allSingle) {
+          flanks[side] += basesToIupac(seqs);
+          iupac[side].push(at);
+        } else {
+          const longest = seqs.reduce((a, b) => (b.length > a.length ? b : a), seqs[0]);
+          flanks[side] += longest;
+          variants[side].push([at, at + longest.length]);
+        }
+        warnings.push(`두 번째 이후 괄호 [${content}] 는 주변 변이로 취급해 프라이머가 덮지 않도록 마스킹했습니다.`);
+      }
+      continue;
+    }
+    if (ch === ']') continue;
+    if (ch === '/') {
+      if (!inExcluded) { inExcluded = true; exclStart = flanks[side].length; }
+      else { inExcluded = false; excluded[side].push([exclStart, flanks[side].length]); }
+      continue;
+    }
+    const b = normalizeBase(ch);
+    if (!b) continue;
+    if (!isAcgt(b)) iupac[side].push(flanks[side].length);
+    flanks[side] += b;
+  }
+  if (inExcluded) warnings.push('짝이 맞지 않는 / 가 있어 마지막 제외구역은 무시했습니다.');
+  if (!alleles) return { error: '대괄호 [ ] 로 표시한 변이가 없습니다. 예: acgt[A/G]acgt' };
+  return {
+    s1: flanks[0], s3: flanks[1], alleles,
+    iupacS1: iupac[0], iupacS3: iupac[1],
+    excludedS1: excluded[0], excludedS3: excluded[1],
+    variantS1: variants[0], variantS3: variants[1],
+    warnings,
+  };
+}
+
+/** 헤더 문자열에서 Chr:bp 좌표 추출 */
+function parseChrPos(header) {
+  const m = CHR_POS_RE.exec(String(header ?? ''));
+  if (!m) return null;
+  return { chr: m[1], pos: Number(m[2].replace(/,/g, '')) };
+}
+
+/**
+ * 전체 입력 텍스트 → 레코드 목록
+ * @returns {{ records: object[], errors: string[] }}
+ */
+function parseInput(text) {
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const raws = [];
+  let current = null;
+  let autoCount = 0;
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith('>')) {
+      current = { header: t.slice(1).trim(), lines: [], auto: false };
+      raws.push(current);
+      continue;
+    }
+    if (t === '') {
+      if (current && current.auto) current = null; // 빈 줄은 무명 레코드를 끝낸다
+      continue;
+    }
+    if (t.startsWith('#') || t.startsWith(';')) continue;
+    const tokens = t.split(/\s+/);
+    if (tokens.length >= 2 && !SEQ_LIKE_TOKEN.test(tokens[0])) {
+      current = { header: tokens[0], lines: [tokens.slice(1).join('')], auto: true };
+      raws.push(current);
+      continue;
+    }
+    if (!current) {
+      autoCount++;
+      current = { header: null, lines: [], auto: true, autoName: `Seq${autoCount}` };
+      raws.push(current);
+    }
+    current.lines.push(t);
+  }
+
+  const records = [];
+  const errors = [];
+  for (const raw of raws) {
+    const header = raw.header ?? '';
+    const name = raw.header ? header.split(/\s+/)[0] : raw.autoName ?? `Seq${++autoCount}`;
+    const body = raw.lines.join('');
+    const parsed = parseMarkup(body);
+    const rec = { name, header, chrPos: parseChrPos(header), raw: body };
+    if (parsed.error) {
+      rec.error = parsed.error;
+      errors.push(`${name}: ${parsed.error}`);
+    } else {
+      Object.assign(rec, parsed);
+      rec.length = rec.s1.length + rec.alleles[0].seq.length + rec.s3.length;
+    }
+    records.push(rec);
+  }
+  if (!records.length) errors.push('서열이 없습니다.');
+  return { records, errors };
+}
+
+/** 레코드 요약 (UI 표시용) */
+function summarizeRecords(records) {
+  const ok = records.filter((r) => !r.error);
+  const nt = ok.reduce((a, r) => a + r.length, 0);
+  return { count: records.length, ok: ok.length, nt };
+}
+
+
+/* ===== src/core/tm.js ===== */
+/**
+ * tm.js — 올리고 Tm 계산 (클린룸 구현)
+ *
+ * 문헌
+ *  - SantaLucia J. (1998) PNAS 95:1460–1465 : 통합 최근접이웃(NN) ΔH/ΔS, 개시 항, 자기상보 보정
+ *  - Owczarzy R. et al. (2004) Biochemistry 43:3537–3554 : 1가 양이온(Na+) 보정
+ *  - Owczarzy R. et al. (2008) Biochemistry 47:5336–5353 : Mg2+ 보정, R = sqrt[Mg]/[Na] 분기
+ *  - Wallace rule (Wallace et al. 1979 NAR 6:3543) : 짧은 올리고 Tm = 2(A+T) + 4(G+C)
+ *
+ * 절대 규칙(사양 §3.4): Tm 은 tail 을 제거한 본체 서열로만 계산한다.
+ * 이 모듈은 받은 서열을 그대로 계산할 뿐이므로, 호출 측(design.js)이 tail 을 떼고 넘긴다.
+ */
+
+
+const GAS_CONSTANT = 1.9872; // cal/(mol·K)
+
+/** SantaLucia 1998 통합 NN 파라미터: 5'→3' 이량체 → [ΔH kcal/mol, ΔS cal/(mol·K)] */
+const NN_SANTALUCIA_1998 = Object.freeze({
+  AA: [-7.9, -22.2], TT: [-7.9, -22.2],
+  AT: [-7.2, -20.4],
+  TA: [-7.2, -21.3],
+  CA: [-8.5, -22.7], TG: [-8.5, -22.7],
+  GT: [-8.4, -22.4], AC: [-8.4, -22.4],
+  CT: [-7.8, -21.0], AG: [-7.8, -21.0],
+  GA: [-8.2, -22.2], TC: [-8.2, -22.2],
+  CG: [-10.6, -27.2],
+  GC: [-9.8, -24.4],
+  GG: [-8.0, -19.9], CC: [-8.0, -19.9],
+});
+/** 개시 항: 말단 염기쌍이 G·C / A·T 일 때 (각 말단에 한 번씩) */
+const INIT_TERMINAL_GC = Object.freeze([0.1, -2.8]);
+const INIT_TERMINAL_AT = Object.freeze([2.3, 4.1]);
+/** 자기상보(palindrome) 서열의 엔트로피 보정 */
+const SYMMETRY_DS = -1.4;
+
+/** 조건 프리셋 (UI 표시용 단위: mM, nM) — 사양 §3.3 */
+const TM_PRESETS = Object.freeze({
+  bioneer: Object.freeze({
+    key: 'bioneer', label: '바이오니어',
+    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15,
+  }),
+  primerdigital: Object.freeze({
+    key: 'primerdigital', label: 'primerdigital',
+    na_mM: 55, mg_mM: 1, oligo_nM: 200, wallaceBelow: 0,
+  }),
+});
+
+/**
+ * 프리셋/사용자 입력(mM, nM)을 계산용 조건(M)으로 변환.
+ * @returns {{na:number, mg:number, ct:number, wallaceBelow:number}}
+ */
+function makeConditions(input = TM_PRESETS.bioneer) {
+  const na_mM = Number(input.na_mM ?? 50);
+  const mg_mM = Number(input.mg_mM ?? 0);
+  const oligo_nM = Number(input.oligo_nM ?? 250);
+  const wallaceBelow = Number(input.wallaceBelow ?? 0);
+  return {
+    na: Math.max(0, na_mM) / 1000,
+    mg: Math.max(0, mg_mM) / 1000,
+    ct: Math.max(1e-12, oligo_nM) * 1e-9,
+    wallaceBelow: Number.isFinite(wallaceBelow) ? wallaceBelow : 0,
+  };
+}
+
+const DEFAULT_CONDITIONS = Object.freeze(makeConditions(TM_PRESETS.bioneer));
+
+/** 계산용: 대문자 ACGT 만 남김 (U→T, 모호 염기 제거) */
+function strictBases(seq) {
+  let out = '';
+  for (const raw of String(seq ?? '')) {
+    let b = raw.toUpperCase();
+    if (b === 'U') b = 'T';
+    if (b === 'A' || b === 'C' || b === 'G' || b === 'T') out += b;
+  }
+  return out;
+}
+
+/** Wallace rule: 2(A+T) + 4(G+C) */
+function wallaceTm(seq) {
+  const s = strictBases(seq);
+  let weak = 0, strong = 0;
+  for (const b of s) {
+    if (b === 'A' || b === 'T') weak++;
+    else strong++;
+  }
+  return 2 * weak + 4 * strong;
+}
+
+function isPalindromic(s) {
+  const n = s.length;
+  const comp = { A: 'T', T: 'A', C: 'G', G: 'C' };
+  for (let i = 0; i < n; i++) {
+    if (comp[s[i]] !== s[n - 1 - i]) return false;
+  }
+  return true;
+}
+
+/**
+ * 1 M Na+ 기준 ΔH(kcal/mol), ΔS(cal/mol·K) 합계.
+ * 개시 항은 양 말단 각각, 자기상보면 ΔS 에 SYMMETRY_DS 추가.
+ */
+function nearestNeighborSums(seq) {
+  const s = strictBases(seq);
+  let dH = 0, dS = 0;
+  if (s.length < 2) return { dH: NaN, dS: NaN };
+  for (const terminal of [s[0], s[s.length - 1]]) {
+    const [h, e] = (terminal === 'G' || terminal === 'C') ? INIT_TERMINAL_GC : INIT_TERMINAL_AT;
+    dH += h;
+    dS += e;
+  }
+  if (isPalindromic(s)) dS += SYMMETRY_DS;
+  for (let i = 0; i + 1 < s.length; i++) {
+    const [h, e] = NN_SANTALUCIA_1998[s[i] + s[i + 1]];
+    dH += h;
+    dS += e;
+  }
+  return { dH, dS };
+}
+
+/**
+ * 염 보정: 1/Tm(1 M Na+) 에 더할 항을 반환 (단위 1/K).
+ * - Mg 없음 또는 sqrt[Mg]/[Na] < 0.22 → Owczarzy 2004 (1가 양이온)
+ * - 그 외 → Owczarzy 2008 (Mg2+), ratio < 6 이면 a, d, g 에 Na 경쟁 보정
+ */
+function saltCorrectionTerm({ fGC, length, na, mg }) {
+  const n = length;
+  const useMonovalent = mg <= 0 || (na > 0 && Math.sqrt(mg) / na < 0.22);
+  if (useMonovalent) {
+    if (na <= 0) return 0; // 양이온이 전혀 없으면 보정 불가 → 1 M 기준값 유지
+    const lnNa = Math.log(na);
+    return (4.29 * fGC - 3.95) * 1e-5 * lnNa + 9.40e-6 * lnNa * lnNa;
+  }
+  let a = 3.92e-5, b = -9.11e-6, c = 6.26e-5, d = 1.42e-5;
+  let e = -4.82e-4, f = 5.25e-4, g = 8.31e-5;
+  if (na > 0) {
+    const ratio = Math.sqrt(mg) / na;
+    if (ratio < 6) {
+      const lnNa = Math.log(na);
+      a *= 0.843 - 0.352 * Math.sqrt(na) * lnNa;
+      d *= 1.279 - 4.03e-3 * lnNa - 8.03e-3 * lnNa * lnNa;
+      g *= 0.486 - 0.258 * lnNa + 5.25e-3 * lnNa * lnNa * lnNa;
+    }
+  }
+  const lnMg = Math.log(mg);
+  return a + b * lnMg + fGC * (c + d * lnMg)
+    + (1 / (2 * (n - 1))) * (e + f * lnMg + g * lnMg * lnMg);
+}
+
+/**
+ * 올리고 Tm (°C). 비자기상보 이중가닥 가정(Ct/4).
+ * 길이 < wallaceBelow 이면 Wallace rule. 길이 < 2 이면 NaN.
+ */
+function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
+  const s = strictBases(seq);
+  const n = s.length;
+  if (n < 2) return NaN;
+  if (n < (cond.wallaceBelow || 0)) return wallaceTm(s);
+
+  const { dH, dS } = nearestNeighborSums(s);
+  const ctQuarter = cond.ct / 4;
+  let invTm = (dS + GAS_CONSTANT * Math.log(ctQuarter)) / (dH * 1000);
+  invTm += saltCorrectionTerm({ fGC: gcFraction(s), length: n, na: cond.na, mg: cond.mg });
+  return 1 / invTm - 273.15;
+}
+
+/**
+ * Amplicon(긴 이중가닥) Tm — 정보용 (사양 §3.5)
+ * Tm = 77.1 + 11.7·log10(Na') + 41·(G+C)/N − 528/N,  Na' = [Na] + 3.795·sqrt[Mg] (M)
+ */
+function ampliconTm(seq, cond = DEFAULT_CONDITIONS) {
+  const s = strictBases(seq);
+  const n = s.length;
+  if (n < 1) return NaN;
+  let gc = 0;
+  for (const b of s) if (b === 'G' || b === 'C') gc++;
+  const naEff = cond.na + 3.795 * Math.sqrt(cond.mg || 0);
+  if (naEff <= 0) return NaN;
+  return 77.1 + 11.7 * Math.log10(naEff) + 41 * (gc / n) - 528 / n;
+}
+
+/** 소수 1자리 문자열 */
+function formatTm(x) {
+  return Number.isFinite(x) ? x.toFixed(1) : '–';
+}
+
+
+/* ===== src/core/complexity.js ===== */
+/**
+ * complexity.js — Linguistic Complexity(LC%)와 단순반복 검사
+ *
+ * 문헌: Kalendar R. et al. (2017) Genomics 109:312–319 (FastPCR, LC 지표의 개념)
+ * 사양 §4.1: 관찰 어휘 = 서로 다른 1-mer + 2-mer + 3-mer 수,
+ *            이론 최대 = 4 + min(N−1, 16) + min(N−2, 64), LC% = floor(100·관찰/최대), N<6 → 100
+ */
+
+/** 서열의 LC% (정수) */
+function linguisticComplexity(seq) {
+  const s = String(seq ?? '').toUpperCase();
+  const n = s.length;
+  if (n < 6) return 100;
+  const mono = new Set(), di = new Set(), tri = new Set();
+  for (let i = 0; i < n; i++) {
+    mono.add(s[i]);
+    if (i + 2 <= n) di.add(s.slice(i, i + 2));
+    if (i + 3 <= n) tri.add(s.slice(i, i + 3));
+  }
+  const observed = mono.size + di.size + tri.size;
+  const maximum = 4 + Math.min(n - 1, 16) + Math.min(n - 2, 64);
+  return Math.floor((100 * observed) / maximum);
+}
+
+/** 즉시 거부 대상 단순반복 모티프 (사양 §2.3) */
+const SIMPLE_REPEAT_MOTIFS = Object.freeze([
+  'GGGG', 'CCCCC', 'AAAAA', 'TTTTT',
+  'GCGCGC', 'CGCGCG', 'ATATAT', 'TATATA',
+]);
+
+/** 서열에 포함된 첫 단순반복 모티프를 반환, 없으면 null */
+function findSimpleRepeat(seq, motifs = SIMPLE_REPEAT_MOTIFS) {
+  const s = String(seq ?? '').toUpperCase();
+  for (const m of motifs) if (s.includes(m)) return m;
+  return null;
+}
+
+function hasSimpleRepeat(seq, motifs = SIMPLE_REPEAT_MOTIFS) {
+  return findSimpleRepeat(seq, motifs) !== null;
+}
+
+/**
+ * 창 안의 서로 다른 2-mer + 3-mer 수 (저복잡도 마스킹용, 사양 §2.2)
+ */
+function windowVocabulary(seq) {
+  const s = String(seq ?? '').toUpperCase();
+  const di = new Set(), tri = new Set();
+  for (let i = 0; i + 2 <= s.length; i++) {
+    di.add(s.slice(i, i + 2));
+    if (i + 3 <= s.length) tri.add(s.slice(i, i + 3));
+  }
+  return di.size + tri.size;
+}
+
+
+/* ===== src/core/dimer.js ===== */
+/**
+ * dimer.js — 5-mer 시드 기반 역평행 다이머(self/cross) 검사
+ *
+ * 사양 §4.3
+ *  - 짧은 쪽 서열의 모든 5-mer 를 색인 → 긴 쪽의 역상보 가닥을 스캔해 시드 일치 탐색
+ *  - 시드에서 양방향 확장, 미스매치 1개까지 허용, 상보 염기쌍 수를 센다
+ *  - 상보쌍 수 ≥ threshold(기본 6) → 다이머 판정. 3′ 말단 관여 또는 ≥ 8 이면 가중치(정보용)
+ */
+
+
+function onlyAcgtUpper(seq) {
+  // 모호 염기는 '?' 로 바꿔 절대 일치하지 않게 한다 (길이는 보존)
+  let out = '';
+  for (const raw of String(seq ?? '')) {
+    let b = raw.toUpperCase();
+    if (b === 'U') b = 'T';
+    out += (b === 'A' || b === 'C' || b === 'G' || b === 'T') ? b : '?';
+  }
+  return out;
+}
+
+/**
+ * 한 대각선(offset) 위에서 ≤1 미스매치를 허용하는 최대 상보쌍 구간을 찾는다.
+ * match[k] = true 이면 k번째 쌍이 상보.
+ * 반환: { matches, start, end } (end 는 exclusive), 시드 길이 이상의 연속 일치가 없으면 null
+ */
+function bestSegmentOnDiagonal(match, seedLen) {
+  const n = match.length;
+  let best = null;
+  let left = 0, mismatches = 0;
+  for (let right = 0; right < n; right++) {
+    if (!match[right]) mismatches++;
+    while (mismatches > 1) {
+      if (!match[left]) mismatches--;
+      left++;
+    }
+    let run = 0, maxRun = 0, matches = 0;
+    for (let k = left; k <= right; k++) {
+      if (match[k]) { run++; matches++; if (run > maxRun) maxRun = run; }
+      else run = 0;
+    }
+    if (maxRun < seedLen) continue;
+    if (!best || matches > best.matches) best = { matches, start: left, end: right + 1 };
+  }
+  if (best) {
+    while (best.start < best.end && !match[best.start]) best.start++;
+    while (best.end > best.start && !match[best.end - 1]) best.end--;
+  }
+  return best;
+}
+
+/**
+ * 두 프라이머(5'→3')의 가장 강한 역평행 상보 정렬을 찾는다.
+ * @returns {{ isDimer:boolean, matches:number, span:number, score:number,
+ *             threePrimeA:boolean, threePrimeB:boolean,
+ *             aStart:number, aEnd:number, bStart:number, bEnd:number } | null}
+ */
+function findDimer(seqA, seqB, options = {}) {
+  const threshold = options.threshold ?? 6;
+  const seedLen = options.seed ?? 5;
+  const a = onlyAcgtUpper(seqA);
+  const b = onlyAcgtUpper(seqB);
+  if (a.length < seedLen || b.length < seedLen) return null;
+
+  // 짧은 쪽을 색인, 긴 쪽의 역상보를 스캔
+  const swapped = a.length > b.length;
+  const short = swapped ? b : a;
+  const long = swapped ? a : b;
+  const longRc = revcomp(long).replace(/[^ACGT]/g, '?');
+
+  const index = new Map();
+  for (let i = 0; i + seedLen <= short.length; i++) {
+    const kmer = short.slice(i, i + seedLen);
+    if (kmer.includes('?')) continue;
+    if (!index.has(kmer)) index.set(kmer, []);
+    index.get(kmer).push(i);
+  }
+
+  const seenDiagonals = new Set();
+  let best = null;
+  for (let j = 0; j + seedLen <= longRc.length; j++) {
+    const kmer = longRc.slice(j, j + seedLen);
+    const hits = index.get(kmer);
+    if (!hits) continue;
+    for (const i of hits) {
+      const diag = j - i; // longRc 위치 = short 위치 + diag
+      if (seenDiagonals.has(diag)) continue;
+      seenDiagonals.add(diag);
+      const iStart = Math.max(0, -diag);
+      const iEnd = Math.min(short.length, longRc.length - diag);
+      const match = [];
+      for (let k = iStart; k < iEnd; k++) match.push(short[k] !== '?' && short[k] === longRc[k + diag]);
+      const seg = bestSegmentOnDiagonal(match, seedLen);
+      if (!seg) continue;
+      const sStart = iStart + seg.start, sEnd = iStart + seg.end;      // short 좌표
+      const rStart = sStart + diag, rEnd = sEnd + diag;                 // longRc 좌표
+      const lStart = long.length - rEnd, lEnd = long.length - rStart;    // long 좌표
+      const threePrimeShort = sEnd === short.length;
+      const threePrimeLong = lEnd === long.length;
+      const cand = {
+        matches: seg.matches,
+        span: seg.end - seg.start,
+        aStart: swapped ? lStart : sStart, aEnd: swapped ? lEnd : sEnd,
+        bStart: swapped ? sStart : lStart, bEnd: swapped ? sEnd : lEnd,
+        threePrimeA: swapped ? threePrimeLong : threePrimeShort,
+        threePrimeB: swapped ? threePrimeShort : threePrimeLong,
+      };
+      cand.score = cand.matches + (cand.threePrimeA || cand.threePrimeB ? 2 : 0) + (cand.matches >= 8 ? 1 : 0);
+      cand.isDimer = cand.matches >= threshold;
+      if (!best || cand.score > best.score || (cand.score === best.score && cand.matches > best.matches)) best = cand;
+    }
+  }
+  return best;
+}
+
+/** 자기 다이머 */
+function findSelfDimer(seq, options = {}) {
+  return findDimer(seq, seq, options);
+}
+
+function isDimer(seqA, seqB, options = {}) {
+  const r = findDimer(seqA, seqB, options);
+  return !!(r && r.isDimer);
+}
+
+/**
+ * 정렬 결과를 사람이 읽을 수 있는 3줄 텍스트로 (UI 툴팁용)
+ */
+function formatDimer(seqA, seqB, result) {
+  if (!result) return '';
+  const a = String(seqA).toUpperCase();
+  const b = String(seqB).toUpperCase();
+  const bRev = Array.from(b).reverse().join('');
+  // a 의 aStart 가 bRev 의 (b.length - bEnd) 와 정렬됨
+  const offsetA = result.aStart;
+  const offsetB = b.length - result.bEnd;
+  const pad = Math.max(offsetA, offsetB);
+  const lineA = ' '.repeat(pad - offsetA) + "5'-" + a + "-3'";
+  const lineB = ' '.repeat(pad - offsetB) + "3'-" + bRev + "-5'";
+  let bars = ' '.repeat(pad + 3);
+  const comp = { A: 'T', T: 'A', C: 'G', G: 'C' };
+  const width = Math.max(a.length + (pad - offsetA), bRev.length + (pad - offsetB));
+  for (let x = 0; x < width; x++) {
+    const ia = x - (pad - offsetA);
+    const ib = x - (pad - offsetB);
+    const ca = a[ia], cb = bRev[ib];
+    bars += (ca && cb && comp[ca] === cb) ? '|' : ' ';
+  }
+  return [lineA, bars, lineB].join('\n');
+}
+
+
+/* ===== src/core/mask.js ===== */
+/**
+ * mask.js — 서열 전처리 마스킹 (사양 §2)
+ *  - 분산 반복(15-mer, 양 가닥 포함 2회 이상) 마스킹
+ *  - 저복잡도(17 nt 창, 2-mer+3-mer 어휘 < 14, 연속 ≥ 21 nt) 마스킹
+ *  - 주변 변이(IUPAC) 위치, 제외구역(/.../), 추가 괄호 변이 구간
+ *
+ * mask[i] 는 비트 플래그. 0 = 사용 가능.
+ */
+
+
+
+const MASK = Object.freeze({
+  REPEAT: 1,       // 분산 반복 (soft: ASP 는 경고, Common 은 탈락)
+  LOW_COMPLEX: 2,  // 저복잡도 (soft)
+  IUPAC: 4,        // 주변 SNP (hard)
+  EXCLUDED: 8,     // 사용자 제외구역 (hard)
+  VARIANT: 16,     // 추가 괄호 변이 (hard)
+});
+const HARD_MASK = MASK.IUPAC | MASK.EXCLUDED | MASK.VARIANT;
+const SOFT_MASK = MASK.REPEAT | MASK.LOW_COMPLEX;
+
+/**
+ * 15-mer 분산 반복 마스크. 서열과 역상보 가닥의 모든 k-mer 를 합산해
+ * 2회 이상 등장하는 k-mer 가 덮는 위치를 1 로 표시.
+ */
+function repeatMask(seq, k = 15) {
+  const s = String(seq ?? '').toUpperCase();
+  const n = s.length;
+  const out = new Uint8Array(n);
+  if (n < k) return out;
+  const counts = new Map();
+  const bump = (str) => {
+    for (let i = 0; i + k <= str.length; i++) {
+      const kmer = str.slice(i, i + k);
+      if (/[^ACGT]/.test(kmer)) continue;
+      counts.set(kmer, (counts.get(kmer) || 0) + 1);
+    }
+  };
+  bump(s);
+  bump(revcomp(s));
+  for (let i = 0; i + k <= n; i++) {
+    const kmer = s.slice(i, i + k);
+    if ((counts.get(kmer) || 0) >= 2) out.fill(1, i, i + k);
+  }
+  return out;
+}
+
+/**
+ * 저복잡도 마스크. window 길이 창에서 2-mer+3-mer 어휘가 minVocab 미만이면 저복잡도 창,
+ * 연속 저복잡도 창이 덮는 구간이 minBlock nt 이상이면 마스킹.
+ */
+function lowComplexityMask(seq, { window = 17, minVocab = 14, minBlock = 21 } = {}) {
+  const s = String(seq ?? '').toUpperCase();
+  const n = s.length;
+  const out = new Uint8Array(n);
+  if (n < window) return out;
+  const low = new Uint8Array(n - window + 1);
+  for (let i = 0; i + window <= n; i++) {
+    low[i] = windowVocabulary(s.slice(i, i + window)) < minVocab ? 1 : 0;
+  }
+  let i = 0;
+  while (i < low.length) {
+    if (!low[i]) { i++; continue; }
+    let j = i;
+    while (j < low.length && low[j]) j++;
+    const spanEnd = j - 1 + window; // 마지막 저복잡도 창의 끝(exclusive)
+    if (spanEnd - i >= minBlock) out.fill(1, i, spanEnd);
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * 전체 마스크 구성.
+ * @param {string} seq 대상 서열
+ * @param {object} o
+ *   repeat, lowComplexity: boolean(기본 true)
+ *   iupacPositions: number[]  (0-based)
+ *   excludedRanges: [start,end)[]
+ *   variantRanges:  [start,end)[]
+ */
+function buildMask(seq, o = {}) {
+  const s = String(seq ?? '');
+  const n = s.length;
+  const mask = new Uint8Array(n);
+  if (o.repeat !== false) {
+    const r = repeatMask(s, o.repeatK ?? 15);
+    for (let i = 0; i < n; i++) if (r[i]) mask[i] |= MASK.REPEAT;
+  }
+  if (o.lowComplexity !== false) {
+    const l = lowComplexityMask(s, o.lowComplexityOptions);
+    for (let i = 0; i < n; i++) if (l[i]) mask[i] |= MASK.LOW_COMPLEX;
+  }
+  for (const p of o.iupacPositions ?? []) if (p >= 0 && p < n) mask[p] |= MASK.IUPAC;
+  for (const [a, b] of o.excludedRanges ?? []) for (let i = Math.max(0, a); i < Math.min(n, b); i++) mask[i] |= MASK.EXCLUDED;
+  for (const [a, b] of o.variantRanges ?? []) for (let i = Math.max(0, a); i < Math.min(n, b); i++) mask[i] |= MASK.VARIANT;
+  return mask;
+}
+
+/** [start,end) 구간에 flags 중 하나라도 켜진 위치가 있으면 그 플래그 합, 없으면 0 */
+function maskFlagsIn(mask, start, end, flags = 0xff) {
+  let acc = 0;
+  const a = Math.max(0, start), b = Math.min(mask.length, end);
+  for (let i = a; i < b; i++) acc |= (mask[i] & flags);
+  return acc;
+}
+
+function maskOverlaps(mask, start, end, flags = 0xff) {
+  return maskFlagsIn(mask, start, end, flags) !== 0;
+}
+
+/** 마스크 플래그를 한국어 라벨 목록으로 */
+function describeMask(flags) {
+  const out = [];
+  if (flags & MASK.REPEAT) out.push('반복서열');
+  if (flags & MASK.LOW_COMPLEX) out.push('저복잡도');
+  if (flags & MASK.IUPAC) out.push('주변 변이');
+  if (flags & MASK.EXCLUDED) out.push('제외구역');
+  if (flags & MASK.VARIANT) out.push('추가 변이');
+  return out;
+}
+
+
+/* ===== src/core/design.js ===== */
+/**
+ * design.js — ASP + Common 프라이머 설계 파이프라인 (사양 §5, §6)
+ *
+ * 흐름
+ *  1. 레코드를 Forward/Reverse 두 방향으로 정렬(orient)
+ *  2. 각 방향에서: ASP 3′ 말단 열 결정 → 대립유전자별 ASP(Tm 으로 길이 결정) → tail 부착
+ *  3. 반대 가닥(s3 역상보)에서 Common 후보 열거 → 마스크·3′패턴·Tm·반복·LC·다이머·겹침 필터
+ *  4. amplicon 크기/Tm, ASP–Common Tm 차, 점수화 후 정렬
+ *
+ * Tm 은 항상 tail 을 뗀 본체로 계산한다(사양 §3.4).
+ */
+
+
+
+
+
+
+const DEFAULT_TAILS = Object.freeze([
+  Object.freeze({ name: 'FAM', seq: 'GAAGGTGACCAAGTTCATGCT' }),
+  Object.freeze({ name: 'HEX', seq: 'GAAGGTCGGAGTCAACGGATT' }),
+]);
+
+/** 기본 파라미터 (사양 §9 + 사용자 표준) */
+const DEFAULT_PARAMS = Object.freeze({
+  preset: 'bioneer',                       // 'bioneer' | 'primerdigital' | 'custom'
+  custom: Object.freeze({ na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15 }),
+  aspMinLen: 18, aspMaxLen: 25,
+  commonMinLen: 18, commonMaxLen: 25,
+  tmMin: 57, tmMax: 62,
+  tmDiffMax: 3,
+  gcMin: 40, gcMax: 60,
+  ampliconMin: 50, ampliconMax: 150, ampliconHardMax: 300,
+  snpOffset: 1,
+  endPattern: 'n',
+  minLC: 70,
+  dimerThreshold: 6,
+  dimerIncludeTail: true,
+  maskRepeats: true,
+  maskLowComplexity: true,
+  allowOverlap: false,
+  overlapTol: 10,
+  useTails: true,
+  tails: DEFAULT_TAILS,
+  bisulfite: false,
+  maxCommon: 12,
+  maxReport: 60,
+});
+
+function mergeParams(params = {}) {
+  const p = { ...DEFAULT_PARAMS, ...params };
+  p.custom = { ...DEFAULT_PARAMS.custom, ...(params.custom || {}) };
+  p.tails = (params.tails || DEFAULT_TAILS).map((t) => ({ name: t.name, seq: String(t.seq || '').toUpperCase().replace(/[^ACGT]/g, '') }));
+  return p;
+}
+
+/** 프리셋 → Tm 계산 조건 */
+function resolveConditions(p) {
+  if (p.preset === 'custom') return makeConditions(p.custom);
+  return makeConditions(TM_PRESETS[p.preset] || TM_PRESETS.bioneer);
+}
+
+/** 3′-end 패턴 문자열 → 패턴 배열 ('n' 또는 빈 값이면 제약 없음) */
+function parseEndPatterns(text) {
+  return String(text ?? '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => s && !/^N+$/.test(s));
+}
+
+/**
+ * 레코드를 설계 방향에 맞게 정렬한다. 'R' 이면 전체를 역상보해 s1↔s3 를 바꾼다.
+ */
+function orientRecord(rec, dir, bisulfite = false) {
+  const n1 = rec.s1.length, n3 = rec.s3.length;
+  const flipPos = (list, n) => list.map((p) => n - 1 - p);
+  const flipRange = (list, n) => list.map(([a, b]) => [n - b, n - a]);
+  let o;
+  if (dir === 'F') {
+    o = {
+      dir, s1: rec.s1, s3: rec.s3,
+      alleles: rec.alleles.map((a) => ({ seq: a.seq, label: a.label })),
+      iupacS1: [...rec.iupacS1], iupacS3: [...rec.iupacS3],
+      excludedS1: rec.excludedS1.map((r) => [...r]), excludedS3: rec.excludedS3.map((r) => [...r]),
+      variantS1: rec.variantS1.map((r) => [...r]), variantS3: rec.variantS3.map((r) => [...r]),
+    };
+  } else {
+    o = {
+      dir, s1: revcomp(rec.s3), s3: revcomp(rec.s1),
+      alleles: rec.alleles.map((a) => ({ seq: revcomp(a.seq), label: a.label })),
+      iupacS1: flipPos(rec.iupacS3, n3), iupacS3: flipPos(rec.iupacS1, n1),
+      excludedS1: flipRange(rec.excludedS3, n3), excludedS3: flipRange(rec.excludedS1, n1),
+      variantS1: flipRange(rec.variantS3, n3), variantS3: flipRange(rec.variantS1, n1),
+    };
+  }
+  if (bisulfite) {
+    const firstAfterS1 = o.alleles[0].seq[0] || o.s3[0] || '';
+    o.s1 = bisulfiteConvert(o.s1, firstAfterS1);
+    o.alleles = o.alleles.map((a) => ({ seq: bisulfiteConvert(a.seq, o.s3[0] || ''), label: a.label }));
+    o.s3 = bisulfiteConvert(o.s3, '');
+  }
+  return o;
+}
+
+/**
+ * ASP 3′ 말단 열 찾기 (사양 §5-1).
+ * allele_i + s3 를 나란히 놓고 길이 snpOffset 창을 밀며 대립유전자 간 서로 다른 열 수가 최대인 첫 창을 고른다.
+ * @returns {{ endCol:number, diffCount:number }} endCol = 창의 마지막 열 (allele+s3 좌표, 0-based)
+ */
+function findAspEndColumn(alleleSeqs, s3, snpOffset = 1) {
+  const offset = Math.max(1, Math.floor(snpOffset));
+  const strs = alleleSeqs.map((a) => a + s3);
+  const minLen = Math.min(...strs.map((s) => s.length));
+  let bestStart = 0, bestScore = -1;
+  for (let start = 0; start + offset <= minLen; start++) {
+    let score = 0;
+    for (let c = start; c < start + offset; c++) {
+      const first = strs[0][c];
+      if (strs.some((s) => s[c] !== first)) score++;
+    }
+    if (score > bestScore) { bestScore = score; bestStart = start; }
+    if (bestScore === offset) break;
+  }
+  return { endCol: bestStart + offset - 1, diffCount: Math.max(0, bestScore) };
+}
+
+function fmtRange(lo, hi, unit = '') {
+  return `${lo}–${hi}${unit}`;
+}
+
+/** 한 방향(F 또는 R)의 설계 */
+function designStrand(oriented, p, cond) {
+  const { dir, s1, s3, alleles } = oriented;
+  const n1 = s1.length;
+  const warnings = [];
+  const otherDir = dir === 'F' ? 'R' : 'F';
+
+  // 좌표 변환: 이 방향의 allele-i 템플릿 0-based → 정방향(원본) 1-based
+  const totalLen = (i) => n1 + alleles[i].seq.length + s3.length;
+  const toForward = (i, start0, end0) => {
+    const L = totalLen(i);
+    return dir === 'F' ? { start: start0 + 1, end: end0 } : { start: L - end0 + 1, end: L - start0 };
+  };
+
+  const { endCol, diffCount } = findAspEndColumn(alleles.map((a) => a.seq), s3, p.snpOffset);
+  if (diffCount === 0) {
+    return { dir, asps: [], commons: [], warnings: ['대립유전자 간 차이가 없어 ASP 를 설계할 수 없습니다.'], template: null };
+  }
+
+  // 대립유전자별 템플릿과 마스크
+  const templates = alleles.map((al) => {
+    const T = s1 + al.seq + s3;
+    const off = n1 + al.seq.length;
+    const mask = buildMask(T, {
+      repeat: p.maskRepeats, lowComplexity: p.maskLowComplexity,
+      iupacPositions: [...oriented.iupacS1, ...oriented.iupacS3.map((x) => off + x)],
+      excludedRanges: [...oriented.excludedS1, ...oriented.excludedS3.map(([a, b]) => [off + a, off + b])],
+      variantRanges: [...oriented.variantS1, ...oriented.variantS3.map(([a, b]) => [off + a, off + b])],
+    });
+    return { T, mask, off };
+  });
+
+  // tail 배정 (사양 §5-4): 대립유전자 수가 tail 수를 넘으면 tail 없이 + 경고
+  let tailsFor = alleles.map((_, i) => (p.useTails ? p.tails[i] || null : null));
+  if (p.useTails && alleles.length > p.tails.length) {
+    tailsFor = alleles.map(() => null);
+    warnings.push(`대립유전자가 ${alleles.length}개라 tail(${p.tails.length}개)을 붙이지 않았습니다.`);
+  }
+
+  // ---- ASP ----
+  const asps = alleles.map((al, i) => {
+    const { T, mask } = templates[i];
+    const e = n1 + endCol + 1; // exclusive
+    const aspWarnings = [];
+    const cands = [];
+    for (let L = p.aspMinLen; L <= p.aspMaxLen; L++) {
+      const a = e - L;
+      if (a < 0) break;
+      const body = T.slice(a, e);
+      cands.push({ L, a, body, tm: meltingTemp(body, cond), hard: maskFlagsIn(mask, a, e, HARD_MASK) });
+    }
+    if (!cands.length) {
+      warnings.push(`${al.label}: 5′ flank 가 짧아 ASP(최소 ${p.aspMinLen} nt)를 만들 수 없습니다.`);
+      return null;
+    }
+    let pool = cands.filter((c) => !c.hard);
+    let avoided = pool.length !== cands.length && pool.length > 0;
+    if (!pool.length) {
+      pool = cands;
+      avoided = false;
+      aspWarnings.push('제외구역/주변 변이를 피할 수 없어 겹친 채 설계했습니다.');
+    }
+    let pick = pool.find((c) => c.tm >= p.tmMin);
+    if (!pick) {
+      pick = pool[pool.length - 1];
+      const why = avoided ? `제외구역/주변 변이를 피한 최대 길이 ${pick.L} nt` : `최대 길이 ${pick.L} nt`;
+      aspWarnings.push(`${why} 에서도 Tm ${pick.tm.toFixed(1)} °C 로 하한(${p.tmMin} °C) 미달입니다.`);
+    } else if (pick.tm > p.tmMax) {
+      aspWarnings.push(`최소 길이에서도 Tm ${pick.tm.toFixed(1)} °C 로 상한(${p.tmMax} °C)을 넘습니다.`);
+    }
+    const { a, L, body, tm } = pick;
+    const soft = maskFlagsIn(mask, a, e, SOFT_MASK);
+    if (soft) aspWarnings.push(`${describeMask(soft).join('/')} 구간과 겹칩니다.`);
+    const hardNow = maskFlagsIn(mask, a, e, HARD_MASK);
+    if (hardNow && !aspWarnings.some((w) => w.startsWith('제외구역'))) aspWarnings.push(`${describeMask(hardNow).join('/')} 구간과 겹칩니다.`);
+    const motif = findSimpleRepeat(body);
+    if (motif) aspWarnings.push(`단순반복 ${motif} 포함`);
+    const lc = linguisticComplexity(body);
+    if (lc < p.minLC) aspWarnings.push(`LC ${lc}% < ${p.minLC}%`);
+    const gc = gcPercent(body);
+    if (gc < p.gcMin || gc > p.gcMax) aspWarnings.push(`GC ${gc.toFixed(1)}% 가 ${fmtRange(p.gcMin, p.gcMax, '%')} 범위 밖`);
+
+    const upperStart = Math.max(0, n1 - a);
+    const upperEnd = Math.min(L, n1 - a + al.seq.length);
+    const bodyDisplay = applyCase(body, upperStart, upperEnd);
+    const tail = tailsFor[i];
+    const full = (tail ? tail.seq : '') + bodyDisplay;
+    const oligoForDimer = p.dimerIncludeTail ? full : body;
+    const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold });
+    if (self && self.isDimer) aspWarnings.push(`자기 다이머 (${self.matches} bp 상보${self.threePrimeA || self.threePrimeB ? ', 3′ 말단 관여' : ''})`);
+
+    const fwd = toForward(i, a, e);
+    return {
+      kind: 'ASP', dir,
+      id: `${dir}_${fwd.start}-${fwd.end}_ASP_${al.label}`,
+      alleleIndex: i, allele: al.seq, alleleLabel: al.label,
+      tail: tail ? { ...tail } : null,
+      body, bodyDisplay, full, fullUpper: full.toUpperCase(),
+      length: L, fullLength: full.length,
+      tm, gc, lc,
+      start0: a, end0: e,               // 이 방향 allele-i 템플릿 0-based [start0, end0)
+      start: fwd.start, end: fwd.end,   // 정방향 1-based inclusive
+      oligoForDimer,
+      selfDimer: self && self.isDimer ? self : null,
+      crossDimer: [],
+      warnings: aspWarnings,
+    };
+  });
+
+  // ASP 간 cross-dimer (사양 §5-5: 경고 표시, 탈락 아님)
+  const live = asps.filter(Boolean);
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const r = findDimer(live[i].oligoForDimer, live[j].oligoForDimer, { threshold: p.dimerThreshold });
+      if (r && r.isDimer) {
+        live[i].crossDimer.push({ with: live[j].id, matches: r.matches });
+        live[j].crossDimer.push({ with: live[i].id, matches: r.matches });
+        live[i].warnings.push(`ASP 간 다이머 (${live[j].alleleLabel}, ${r.matches} bp)`);
+        live[j].warnings.push(`ASP 간 다이머 (${live[i].alleleLabel}, ${r.matches} bp)`);
+      }
+    }
+  }
+
+  // ---- Common ----
+  const T0 = templates[0].T, mask0 = templates[0].mask, S0 = templates[0].off;
+  const patterns = parseEndPatterns(p.endPattern);
+  const accepted = [];
+  const stats = { scanned: 0, rejected: { pattern: 0, mask: 0, tm: 0, repeat: 0, lc: 0, selfDimer: 0, crossDimer: 0, overlap: 0 } };
+
+  for (let pos = s3.length - p.commonMinLen; pos >= 0; pos--) {
+    stats.scanned++;
+    if (patterns.length) {
+      const ok = patterns.some((pat) => {
+        if (pos + pat.length > s3.length) return false;
+        const end3 = revcomp(s3.slice(pos, pos + pat.length)); // 프라이머의 마지막 pat.length 염기 (5'→3')
+        for (let k = 0; k < pat.length; k++) if (!baseMatchesIupac(end3[k], pat[k])) return false;
+        return true;
+      });
+      if (!ok) { stats.rejected.pattern++; continue; }
+    }
+    let chosen = null;
+    let masked = false, tmHigh = false;
+    for (let L = p.commonMinLen; L <= p.commonMaxLen; L++) {
+      if (pos + L > s3.length) break;
+      if (maskFlagsIn(mask0, S0 + pos, S0 + pos + L)) { masked = true; break; }
+      const primer = revcomp(s3.slice(pos, pos + L));
+      const tm = meltingTemp(primer, cond);
+      if (tm < p.tmMin) continue;
+      if (tm > p.tmMax) { tmHigh = true; break; }
+      chosen = { L, primer, tm };
+      break;
+    }
+    if (!chosen) {
+      if (masked) stats.rejected.mask++; else stats.rejected.tm++;
+      continue;
+    }
+    const { L, primer, tm } = chosen;
+    if (findSimpleRepeat(primer)) { stats.rejected.repeat++; continue; }
+    const lc = linguisticComplexity(primer);
+    if (lc < p.minLC) { stats.rejected.lc++; continue; }
+    const self = findSelfDimer(primer, { threshold: p.dimerThreshold });
+    if (self && self.isDimer) { stats.rejected.selfDimer++; continue; }
+    let cross = false;
+    for (const asp of live) {
+      const r = findDimer(primer, asp.oligoForDimer, { threshold: p.dimerThreshold });
+      if (r && r.isDimer) { cross = true; break; }
+    }
+    if (cross) { stats.rejected.crossDimer++; continue; }
+
+    const gc = gcPercent(primer);
+    const cWarnings = [];
+    if (gc < p.gcMin || gc > p.gcMax) cWarnings.push(`GC ${gc.toFixed(1)}% 가 ${fmtRange(p.gcMin, p.gcMax, '%')} 범위 밖`);
+
+    // amplicon (대립유전자별)
+    const amplicons = alleles.map((al, i) => {
+      const asp = asps[i];
+      if (!asp) return null;
+      const Si = templates[i].off;
+      const right = Si + pos + L;                 // 템플릿상 amplicon 끝(exclusive)
+      const tailLen = asp.tail ? asp.tail.seq.length : 0;
+      const size = right - asp.start0 + tailLen;
+      const seq = (asp.tail ? asp.tail.seq : '') + templates[i].T.slice(asp.start0, right);
+      return { label: al.label, size, tm: ampliconTm(seq, cond) };
+    }).filter(Boolean);
+    const sizes = amplicons.map((a) => a.size);
+    const minSize = Math.min(...sizes), maxSize = Math.max(...sizes);
+    let ampState = 'ok';
+    if (maxSize > p.ampliconHardMax) { ampState = 'err'; cWarnings.push(`amplicon ${maxSize} bp 가 최대 ${p.ampliconHardMax} bp 초과`); }
+    else if (minSize < p.ampliconMin || maxSize > p.ampliconMax) { ampState = 'warn'; cWarnings.push(`amplicon ${sizes.join('/')} bp 가 권장 ${fmtRange(p.ampliconMin, p.ampliconMax, ' bp')} 밖`); }
+
+    const tmDiff = live.length ? Math.max(...live.map((a) => Math.abs(a.tm - tm))) : 0;
+    if (tmDiff > p.tmDiffMax) cWarnings.push(`ASP 와 Tm 차 ${tmDiff.toFixed(1)} °C > ${p.tmDiffMax} °C`);
+
+    let score = 0;
+    if (ampState === 'err') score += 100;
+    else if (ampState === 'warn') score += 10;
+    if (tmDiff > p.tmDiffMax) score += 20;
+    if (gc < p.gcMin || gc > p.gcMax) score += 5;
+    score -= lc / 100;
+    score += maxSize / 10000;
+
+    const fwd = toForward(0, S0 + pos, S0 + pos + L);
+    const cand = {
+      kind: 'Common', dir: otherDir,
+      id: `${otherDir}_${fwd.start}-${fwd.end}`,
+      seq: primer.toLowerCase(), seqUpper: primer, length: L,
+      tm, gc, lc, pos,
+      start0: S0 + pos, end0: S0 + pos + L,
+      start: fwd.start, end: fwd.end,
+      amplicons, ampliconLabel: amplicons.map((a) => `${a.label}:${a.size}`).join(' '),
+      ampliconTm: amplicons.length ? amplicons[0].tm : NaN,
+      ampState, tmDiff, score, warnings: cWarnings,
+    };
+
+    if (!p.allowOverlap && accepted.length) {
+      const last = accepted[accepted.length - 1];
+      if (last.pos - pos < p.overlapTol) {
+        if (cand.lc > last.lc) accepted[accepted.length - 1] = cand;
+        stats.rejected.overlap++;
+        continue;
+      }
+    }
+    accepted.push(cand);
+  }
+
+  const commons = accepted.slice().sort((a, b) => a.score - b.score || a.pos - b.pos);
+  commons.forEach((c, i) => { c.rank = i + 1; });
+  if (!commons.length) {
+    warnings.push(`조건을 만족하는 Common 프라이머가 없습니다 (스캔 ${stats.scanned}, Tm 탈락 ${stats.rejected.tm}, 마스크 ${stats.rejected.mask}, LC ${stats.rejected.lc}, 다이머 ${stats.rejected.selfDimer + stats.rejected.crossDimer}). Tm 범위나 LC·다이머 조건을 완화해 보세요.`);
+  }
+  if (live.length && commons.length && commons[0].tmDiff > p.tmDiffMax) {
+    warnings.push(`최상위 Common 과 ASP 의 Tm 차가 ${commons[0].tmDiff.toFixed(1)} °C 입니다.`);
+  }
+
+  return {
+    dir, otherDir,
+    template: { s1, s3, alleles: alleles.map((a) => ({ ...a })), T0, length0: T0.length, s3Offset: S0 },
+    endCol, asps, commons, stats, warnings,
+    mask: Array.from(mask0),
+  };
+}
+
+/**
+ * 마커 하나 설계: Forward/Reverse 두 세트
+ */
+function designMarker(record, params = {}) {
+  const p = mergeParams(params);
+  const cond = resolveConditions(p);
+  if (record.error) return { name: record.name, error: record.error, params: p };
+  const forward = designStrand(orientRecord(record, 'F', p.bisulfite), p, cond);
+  const reverse = designStrand(orientRecord(record, 'R', p.bisulfite), p, cond);
+  const warnings = [...(record.warnings || [])];
+  return { name: record.name, header: record.header, chrPos: record.chrPos || null, record, params: p, conditions: cond, forward, reverse, warnings };
+}
+
+/** 여러 레코드 일괄 설계 */
+function designAll(records, params = {}) {
+  return records.map((r) => designMarker(r, params));
+}
+
+/** 템플릿 1-based 좌표 → 유전체 좌표 문자열 (SNP 첫 염기 = chrPos.pos) */
+function genomicCoord(result, start, end) {
+  if (!result || !result.chrPos || !result.record) return '';
+  const n1 = result.record.s1.length;
+  const base = result.chrPos.pos - (n1 + 1);
+  return `${result.chrPos.chr}:${base + start}-${base + end}`;
+}
+
+/** 간단 자기검사용: 염기 문자열 유효성 */
+function isValidTailSeq(seq) {
+  const s = String(seq ?? '');
+  return s.length === 0 || Array.from(s).every((ch) => ['A', 'C', 'G', 'T'].includes(normalizeBase(ch)));
+}
+
+
+/* ===== src/core/export.js ===== */
+/**
+ * export.js — 결과 표(TSV), KASP 세트 텍스트, 엑셀 시트 데이터 (사양 §8)
+ *
+ * 엑셀 파일 자체는 xlsx.js 의 자체 작성기(의존성 없음)로 만든다.
+ */
+
+
+
+const f1 = (x) => (Number.isFinite(x) ? x.toFixed(1) : '');
+const f0 = (x) => (Number.isFinite(x) ? String(Math.round(x)) : '');
+
+function pickSet(result, which) {
+  return which === 'reverse' ? result.reverse : result.forward;
+}
+
+/** Report 탭: 모든 후보 (ID, Sequence, Length, Tm, GC, LC) */
+function reportRows(results, which = 'forward', maxCommon = Infinity) {
+  const rows = [];
+  for (const res of results) {
+    if (res.error) continue;
+    const set = pickSet(res, which);
+    if (!set) continue;
+    for (const asp of set.asps) {
+      if (!asp) continue;
+      rows.push({ marker: res.name, id: asp.id, seq: asp.full, length: asp.fullLength, tm: asp.tm, gc: asp.gc, lc: asp.lc, note: asp.warnings.join('; ') });
+    }
+    set.commons.slice(0, maxCommon).forEach((c) => {
+      rows.push({ marker: res.name, id: c.id, seq: c.seq, length: c.length, tm: c.tm, gc: c.gc, lc: c.lc, note: `${c.ampliconLabel} / ${f1(c.ampliconTm)}${c.warnings.length ? ' ; ' + c.warnings.join('; ') : ''}` });
+    });
+  }
+  return rows;
+}
+
+function toReportTsv(results, which = 'forward', maxCommon = Infinity) {
+  const head = ['Marker', 'ID', 'Sequence(5′→3′)', 'Length', 'Tm(°C)', 'GC(%)', 'LC(%)', 'Note'];
+  const lines = [head.join('\t')];
+  for (const r of reportRows(results, which, maxCommon)) {
+    lines.push([r.marker, r.id, r.seq, r.length, f1(r.tm), f1(r.gc), r.lc, r.note].join('\t'));
+  }
+  return lines.join('\n');
+}
+
+/** KASP Assay Sets 탭 텍스트 (사양 §8.2 형식) */
+function toSetsText(result, which = 'forward', commonCount = 3) {
+  const set = pickSet(result, which);
+  const title = which === 'reverse' ? 'KASP Reverse sets' : 'KASP Forward sets';
+  const lines = [`[${title}] ${result.name}:`];
+  if (!set) return lines.join('\n');
+  for (const asp of set.asps) {
+    if (!asp) continue;
+    lines.push([asp.id, asp.full, asp.fullLength, f1(asp.tm), f1(asp.gc), asp.lc].join('\t'));
+  }
+  lines.push('');
+  for (const c of set.commons.slice(0, commonCount)) {
+    lines.push([c.id, c.seq, c.length, f1(c.tm), f1(c.gc), c.lc, `${c.amplicons.map((a) => a.size).join('/')}/${f1(c.ampliconTm)}`].join('\t'));
+  }
+  if (set.warnings.length) {
+    lines.push('');
+    for (const w of set.warnings) lines.push(`# ${w}`);
+  }
+  return lines.join('\n');
+}
+
+/** 선택한 세트(ASP 전부 + Common 1개)의 TSV (복사용) */
+function toSetTsv(result, which = 'forward', commonIndex = 0) {
+  const set = pickSet(result, which);
+  const head = ['ID', 'Sequence(5′→3′)', 'Length', 'Tm(°C)', 'GC(%)', 'LC(%)', 'Fragment_Size(bp)/Amplicon_Tm'];
+  const lines = [head.join('\t')];
+  if (!set) return lines.join('\n');
+  for (const asp of set.asps) if (asp) lines.push([asp.id, asp.full, asp.fullLength, f1(asp.tm), f1(asp.gc), asp.lc, ''].join('\t'));
+  const c = set.commons[commonIndex];
+  if (c) lines.push([c.id, c.seq, c.length, f1(c.tm), f1(c.gc), c.lc, `${c.amplicons.map((a) => a.size).join('/')}/${f1(c.ampliconTm)}`].join('\t'));
+  return lines.join('\n');
+}
+
+function conditionLabel(p) {
+  if (p.preset === 'custom') return `사용자 정의 (Na⁺ ${p.custom.na_mM} mM, Mg²⁺ ${p.custom.mg_mM} mM, 올리고 ${p.custom.oligo_nM} nM)`;
+  const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
+  return `${t.label} (Na⁺ ${t.na_mM} mM, Mg²⁺ ${t.mg_mM} mM, 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? `, <${t.wallaceBelow} nt Wallace` : ''})`;
+}
+
+/**
+ * 엑셀 2시트 데이터 (AOA: 배열의 배열)
+ *  - 주문용: Primer Name, Sequence 5'→3', Direction, Length, Purpose, Scale
+ *  - 설계근거: 마커, ID, 위치 Chr:bp, Tm 조건, Tm, GC, LC, amplicon, 변환 전략, 비고
+ * @param {object[]} results designAll 결과
+ * @param {object} o { which:'forward'|'reverse'|'both', commonIndex, scale, selections: {name: {which, commonIndex}} }
+ */
+function buildWorkbookData(results, o = {}) {
+  const scale = o.scale || '25 nmol';
+  const order = [['Primer Name', 'Sequence 5′→3′', 'Direction', 'Length', 'Purpose', 'Scale']];
+  const basis = [['Marker', 'Primer ID', '위치 (Chr:bp)', '템플릿 위치', 'Tm 조건', 'Tm (°C, tail 제외)', 'GC (%)', 'LC (%)', 'Fragment (bp)', 'Amplicon Tm', '변환 전략', '비고']];
+  for (const res of results) {
+    if (res.error) continue;
+    const sel = (o.selections && o.selections[res.name]) || {};
+    const which = sel.which || o.which || 'forward';
+    const whichList = which === 'both' ? ['forward', 'reverse'] : [which];
+    for (const w of whichList) {
+      const set = pickSet(res, w);
+      if (!set) continue;
+      const ciRaw = sel.commonIndex ?? o.commonIndex ?? 0;
+      const ci = (ciRaw && typeof ciRaw === 'object') ? (ciRaw[w] ?? 0) : ciRaw;
+      const common = set.commons[ci];
+      const cond = conditionLabel(res.params);
+      const strategy = (res.params.useTails ? 'KASP (FAM/HEX tail)' : 'Allele sizing (tail 없음)') + (res.params.bisulfite ? ', bisulfite C→T' : '');
+      for (const asp of set.asps) {
+        if (!asp) continue;
+        const name = `${res.name}_${asp.id}`;
+        order.push([name, asp.fullUpper, asp.dir === 'F' ? 'Forward' : 'Reverse', asp.fullLength, `ASP (${asp.alleleLabel}${asp.tail ? ', ' + asp.tail.name : ''})`, scale]);
+        basis.push([res.name, asp.id, genomicCoord(res, asp.start, asp.end), `${asp.start}-${asp.end}`, cond, f1(asp.tm), f1(asp.gc), asp.lc, '', '', strategy, asp.warnings.join('; ')]);
+      }
+      if (common) {
+        const name = `${res.name}_${common.id}`;
+        order.push([name, common.seqUpper, common.dir === 'F' ? 'Forward' : 'Reverse', common.length, 'Common', scale]);
+        basis.push([res.name, common.id, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), strategy, common.warnings.join('; ')]);
+      }
+    }
+  }
+  return { order, basis };
+}
+
+const EXCEL_STYLE = Object.freeze({
+  headerFill: '0C3026',
+  headerFont: 'FFFFFF',
+  fontName: 'KoPub Dotum',
+  freeze: 'A2',
+});
+
+function fmt1(x) { return f1(x); }
+function fmt0(x) { return f0(x); }
+
+
+/* ===== src/core/xlsx.js ===== */
+/**
+ * xlsx.js — 의존성 없는 최소 .xlsx 작성기
+ *
+ * .xlsx = OOXML XML 파일들을 담은 ZIP. 여기서는 압축 없이(store) 담아 CRC-32 만 계산한다.
+ * 지원: 여러 시트, 인라인 문자열/숫자, 헤더 스타일(배경·흰 글씨·굵게), 폰트 이름,
+ *       열 너비, 틀 고정(A2), 자동 필터. 오프라인·단일 HTML 에서 동작시키기 위해 직접 구현.
+ */
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function utf8(str) {
+  return new TextEncoder().encode(str);
+}
+
+function u16(v) { return [v & 0xff, (v >>> 8) & 0xff]; }
+function u32(v) { return [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff]; }
+
+/** DOS 날짜/시간 (ZIP 헤더용) */
+function dosDateTime(d = new Date()) {
+  const time = ((d.getHours() & 0x1f) << 11) | ((d.getMinutes() & 0x3f) << 5) | ((d.getSeconds() >> 1) & 0x1f);
+  const date = (((d.getFullYear() - 1980) & 0x7f) << 9) | (((d.getMonth() + 1) & 0xf) << 5) | (d.getDate() & 0x1f);
+  return { time, date };
+}
+
+/**
+ * 파일 목록 → ZIP(store) 바이트
+ * @param {{name:string, data:Uint8Array}[]} files
+ */
+function buildZip(files, date = new Date()) {
+  const { time, date: dd } = dosDateTime(date);
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = utf8(f.name);
+    const data = f.data;
+    const crc = crc32(data);
+    const local = new Uint8Array([
+      ...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(time), ...u16(dd),
+      ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0),
+      ...name,
+    ]);
+    locals.push(local, data);
+    const central = new Uint8Array([
+      ...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(time), ...u16(dd),
+      ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0), ...u16(0),
+      ...u16(0), ...u16(0), ...u32(0), ...u32(offset),
+      ...name,
+    ]);
+    centrals.push(central);
+    offset += local.length + data.length;
+  }
+  const centralSize = centrals.reduce((a, c) => a + c.length, 0);
+  const eocd = new Uint8Array([
+    ...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length),
+    ...u32(centralSize), ...u32(offset), ...u16(0),
+  ]);
+  const total = offset + centralSize + eocd.length;
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const part of [...locals, ...centrals, eocd]) { out.set(part, p); p += part.length; }
+  return out;
+}
+
+function xmlEscape(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function colLetter(n) { // 0-based → A, B, ..., Z, AA
+  let s = '';
+  n = n + 1;
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+function sheetXml(rows, opts) {
+  const ncols = Math.max(1, ...rows.map((r) => r.length));
+  const nrows = Math.max(1, rows.length);
+  const widths = opts.colWidths || [];
+  let cols = '<cols>';
+  for (let c = 0; c < ncols; c++) {
+    const w = widths[c] || Math.min(60, Math.max(10, ...rows.map((r) => String(r[c] ?? '').length * 1.1 + 2)));
+    cols += `<col min="${c + 1}" max="${c + 1}" width="${w.toFixed(1)}" customWidth="1"/>`;
+  }
+  cols += '</cols>';
+  let data = '<sheetData>';
+  rows.forEach((row, r) => {
+    data += `<row r="${r + 1}">`;
+    row.forEach((v, c) => {
+      const ref = `${colLetter(c)}${r + 1}`;
+      const style = r === 0 ? ' s="1"' : (opts.monoCols && opts.monoCols.includes(c) ? ' s="2"' : ' s="3"');
+      if (v === null || v === undefined || v === '') return;
+      if (typeof v === 'number' && Number.isFinite(v)) data += `<c r="${ref}"${style}><v>${v}</v></c>`;
+      else data += `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(v)}</t></is></c>`;
+    });
+    data += '</row>';
+  });
+  data += '</sheetData>';
+  const ref = `A1:${colLetter(ncols - 1)}${nrows}`;
+  const views = '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<dimension ref="${ref}"/>${views}<sheetFormatPr defaultRowHeight="16"/>${cols}${data}<autoFilter ref="${ref}"/><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
+}
+
+function stylesXml(style) {
+  const font = xmlEscape(style.fontName || 'KoPub Dotum');
+  const fill = (style.headerFill || '0C3026').replace('#', '').toUpperCase();
+  const hfont = (style.headerFont || 'FFFFFF').replace('#', '').toUpperCase();
+  const mono = xmlEscape(style.monoFont || 'Consolas');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="3">
+<font><sz val="11"/><name val="${font}"/></font>
+<font><b/><sz val="11"/><color rgb="FF${hfont}"/><name val="${font}"/></font>
+<font><sz val="11"/><name val="${mono}"/></font>
+</fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF${fill}"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="4">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+}
+
+/**
+ * 워크북 생성
+ * @param {{name:string, rows:any[][], colWidths?:number[], monoCols?:number[]}[]} sheets
+ * @param {{fontName?:string, headerFill?:string, headerFont?:string, monoFont?:string}} style
+ * @returns {Uint8Array} .xlsx 바이트
+ */
+function buildXlsx(sheets, style = {}, date = new Date()) {
+  const files = [];
+  const sheetNames = sheets.map((s, i) => xmlEscape((s.name || `Sheet${i + 1}`).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31)));
+  files.push({
+    name: '[Content_Types].xml',
+    data: utf8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n')}
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`),
+  });
+  files.push({
+    name: '_rels/.rels',
+    data: utf8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`),
+  });
+  const iso = date.toISOString().replace(/\.\d+Z$/, 'Z');
+  files.push({
+    name: 'docProps/core.xml',
+    data: utf8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<dc:creator>KASP Designer</dc:creator><cp:lastModifiedBy>KASP Designer</cp:lastModifiedBy>
+<dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${iso}</dcterms:modified>
+</cp:coreProperties>`),
+  });
+  files.push({
+    name: 'docProps/app.xml',
+    data: utf8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>KASP Designer</Application></Properties>`),
+  });
+  const definedNames = sheets.map((s, i) => {
+    const ncols = Math.max(1, ...s.rows.map((r) => r.length));
+    const nrows = Math.max(1, s.rows.length);
+    return `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${sheetNames[i]}'!$A$1:$${colLetter(ncols - 1)}$${nrows}</definedName>`;
+  }).join('');
+  files.push({
+    name: 'xl/workbook.xml',
+    data: utf8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<workbookPr/><bookViews><workbookView xWindow="0" yWindow="0" windowWidth="20000" windowHeight="12000"/></bookViews>
+<sheets>${sheets.map((_, i) => `<sheet name="${sheetNames[i]}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>
+<definedNames>${definedNames}</definedNames>
+</workbook>`),
+  });
+  files.push({
+    name: 'xl/_rels/workbook.xml.rels',
+    data: utf8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('\n')}
+<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`),
+  });
+  files.push({ name: 'xl/styles.xml', data: utf8(stylesXml(style)) });
+  sheets.forEach((s, i) => files.push({ name: `xl/worksheets/sheet${i + 1}.xml`, data: utf8(sheetXml(s.rows, s)) }));
+  return buildZip(files, date);
+}
+
+/**
+ * (검증용) ZIP 중앙 디렉터리 파싱 → 항목 이름/CRC 목록
+ */
+function listZipEntries(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const n = bytes.length;
+  let eocd = -1;
+  for (let i = n - 22; i >= 0; i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('EOCD not found');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const entries = [];
+  for (let k = 0; k < count; k++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('bad central header');
+    const crc = dv.getUint32(p + 16, true);
+    const size = dv.getUint32(p + 24, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const localOff = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    const lnameLen = dv.getUint16(localOff + 26, true);
+    const lextraLen = dv.getUint16(localOff + 28, true);
+    const dataStart = localOff + 30 + lnameLen + lextraLen;
+    const data = bytes.subarray(dataStart, dataStart + size);
+    entries.push({ name, crc, size, data, crcOk: crc32(data) === crc });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+
+/* ===== src/core/sizing.js ===== */
+/**
+ * sizing.js — Allele sizing 모드 (겔 판독, 사양 §7)
+ *
+ *  - tail 대신 5′ filler 를 붙여 대립유전자별 산물 길이를 bandStep 간격 사다리로 만든다
+ *  - filler 는 6개 후보(결정론적 생성) 중 모든 프라이머와 다이머가 가장 적은 것을 고른다
+ *  - 옵션 "second deliberate mismatch": 3′ 에서 2번째 염기(모든 ASP 가 같을 때만)를 상보 염기로 치환
+ *  - 최장 프라이머가 maxLen(기본 45) 초과 시 경고
+ */
+
+
+
+
+
+const BAND_STEPS = Object.freeze({
+  agarose: Object.freeze({ key: 'agarose', label: '아가로스', step: 20 }),
+  page: Object.freeze({ key: 'page', label: 'PAGE', step: 5 }),
+  ce: Object.freeze({ key: 'ce', label: '모세관 전기영동 (CE)', step: 2 }),
+});
+
+/** 결정론적 의사난수 (LCG) — 매번 같은 filler 후보를 만든다 */
+function lcg(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function hasRun(seq, n = 4) {
+  return new RegExp(`(A{${n}}|C{${n}}|G{${n}}|T{${n}})`).test(seq);
+}
+
+/** 길이 len 의 filler 후보 count 개 생성 (GC 45–55 %, 4연속 염기·단순반복·자기 다이머 없음) */
+function generateFillers(count = 6, len = 60, seed = 20251021) {
+  const rnd = lcg(seed);
+  const out = [];
+  let guard = 0;
+  while (out.length < count && guard++ < 20000) {
+    let s = '';
+    for (let i = 0; i < len; i++) s += 'ACGT'[Math.floor(rnd() * 4)];
+    const gc = Array.from(s).filter((b) => b === 'G' || b === 'C').length / len;
+    if (gc < 0.45 || gc > 0.55) continue;
+    if (hasRun(s, 4) || findSimpleRepeat(s)) continue;
+    const self = findSelfDimer(s, { threshold: 6 });
+    if (self && self.isDimer) continue;
+    if (out.some((o) => { const r = findDimer(o, s, { threshold: 6 }); return r && r.isDimer; })) continue;
+    out.push(s);
+  }
+  return out;
+}
+
+const FILLERS = Object.freeze(generateFillers(6, 60));
+
+function dimerScore(oligo, others, threshold) {
+  let score = 0;
+  const self = findSelfDimer(oligo, { threshold });
+  if (self) score += self.matches;
+  for (const o of others) {
+    const r = findDimer(oligo, o, { threshold });
+    if (r) score += r.matches;
+  }
+  return score;
+}
+
+/**
+ * 한 세트(ASP 들 + 선택한 Common)에 filler 를 붙여 사다리 산물을 만든다.
+ * ASP 는 design.js 의 ASP 객체(tail 없음)여야 한다. 원본은 변경하지 않고 새 ASP 배열을 돌려준다.
+ *
+ * @param {object} set designStrand 결과
+ * @param {object} common 선택한 Common 후보
+ * @param {object} o { bandStep:number, secondMismatch:boolean, maxLen:number, dimerThreshold:number, cond }
+ * @returns {{ asps:object[], products:object[], filler:string|null, warnings:string[] }}
+ */
+function applyAlleleSizing(set, common, o = {}) {
+  const bandStep = o.bandStep ?? 20;
+  const maxLen = o.maxLen ?? 45;
+  const threshold = o.dimerThreshold ?? 6;
+  const warnings = [];
+  const base = (set.asps || []).filter(Boolean).map((a) => ({ ...a, warnings: [...a.warnings] }));
+  if (!base.length) return { asps: [], products: [], filler: null, warnings: ['ASP 가 없습니다.'] };
+
+  // 1. deliberate mismatch (3′ 에서 2번째)
+  if (o.secondMismatch) {
+    const idx = base.map((a) => a.body.length - 2);
+    const bases = base.map((a, i) => a.body[idx[i]]);
+    if (bases.every((b) => b === bases[0])) {
+      for (let i = 0; i < base.length; i++) {
+        const a = base[i];
+        const k = idx[i];
+        const nb = complementSeq(a.body[k]);
+        const body = a.body.slice(0, k) + nb + a.body.slice(k + 1);
+        const upperStart = Math.max(0, set.template.s1.length - a.start0);
+        const upperEnd = Math.min(a.length, upperStart + a.allele.length);
+        a.body = body;
+        a.bodyDisplay = applyCase(body, upperStart, upperEnd);
+        a.mismatchPos = k;
+        a.tm = meltingTemp(body, o.cond);
+        a.warnings.push(`3′ 2번째 염기 ${a.body[k] === nb ? bases[i] + '→' + nb : ''} 의도적 미스매치 적용 (Tm 은 완전 일치 가정값)`);
+      }
+    } else {
+      warnings.push('ASP 들의 3′ 2번째 염기가 서로 달라 의도적 미스매치를 적용하지 않았습니다.');
+    }
+  }
+
+  // 2. 산물 길이 (filler 없이)
+  const S = set.template.s3Offset; // allele-0 기준 s3 시작
+  const alleleLens = set.template.alleles.map((a) => a.seq.length);
+  const products = base.map((a) => {
+    const Si = set.template.s1.length + alleleLens[a.alleleIndex];
+    const right = common ? Si + common.pos + common.length : Si;
+    return { id: a.id, label: a.alleleLabel, bare: right - a.start0, alleleIndex: a.alleleIndex };
+  });
+  void S;
+
+  // 3. 사다리 목표: 가장 짧은 산물부터 bandStep 간격
+  const order = products.map((p, i) => i).sort((x, y) => products[x].bare - products[y].bare);
+  const shortest = products[order[0]].bare;
+  const need = new Array(base.length).fill(0);
+  order.forEach((idx, rank) => {
+    const target = shortest + rank * bandStep;
+    need[idx] = Math.max(0, target - products[idx].bare);
+  });
+
+  // 4. filler 후보 선택
+  const others = [...(common ? [common.seqUpper] : [])];
+  let bestFiller = null, bestScore = Infinity;
+  for (const cand of FILLERS) {
+    const oligos = base.map((a, i) => cand.slice(cand.length - need[i]) + a.body.toUpperCase());
+    let score = 0;
+    for (let i = 0; i < oligos.length; i++) {
+      score += dimerScore(oligos[i], [...others, ...oligos.filter((_, j) => j !== i)], threshold);
+    }
+    if (score < bestScore) { bestScore = score; bestFiller = cand; }
+    if (score === 0) break;
+  }
+
+  // 5. 적용
+  const asps = base.map((a, i) => {
+    const filler = bestFiller ? bestFiller.slice(bestFiller.length - need[i]) : '';
+    const tail = filler.length ? { name: 'Filler', seq: filler } : null;
+    const full = filler + a.bodyDisplay;
+    const out = {
+      ...a,
+      tail, full, fullUpper: full.toUpperCase(), fullLength: full.length,
+      oligoForDimer: full,
+      product: products[i].bare + filler.length,
+    };
+    if (full.length > maxLen) out.warnings.push(`프라이머 길이 ${full.length} nt 가 최대 ${maxLen} nt 초과`);
+    return out;
+  });
+  if (asps.some((a) => a.fullLength > maxLen)) warnings.push(`filler 를 붙인 ASP 가 ${maxLen} nt 를 넘습니다. 간격(bandStep)을 줄이거나 다른 Common 을 선택하세요.`);
+  if (!common) warnings.push('Common 프라이머가 없어 산물 길이를 계산할 수 없습니다.');
+
+  return {
+    asps,
+    products: asps.map((a) => ({ id: a.id, label: a.alleleLabel, size: a.product })),
+    filler: bestFiller,
+    fillerScore: bestScore,
+    warnings,
+  };
+}
+
+
+/* ===== src/ui/icons.js ===== */
+/**
+ * icons.js — 선형 아이콘 (24×24, stroke 1.5, 직접 그린 단순 경로)
+ */
+function svgIcon(paths, size = 20) {
+  return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+
+const ICONS = Object.freeze({
+  dna: svgIcon('<path d="M6 3c0 6 12 6 12 12M18 3c0 6-12 6-12 12M6 21c0-6 12-6 12-12M18 21c0-6-12-6-12-12"/><path d="M8 7h8M8 17h8"/>'),
+  sliders: svgIcon('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
+  tag: svgIcon('<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9z"/><circle cx="8" cy="8" r="1.2"/>'),
+  table: svgIcon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'),
+  download: svgIcon('<path d="M12 4v11M7 10l5 5 5-5M4 19h16"/>'),
+  moon: svgIcon('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
+  sun: svgIcon('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  copy: svgIcon('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>', 18),
+  excel: svgIcon('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 12l6 6M15 12l-6 6"/>', 18),
+  alert: svgIcon('<path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.5v.5"/>', 18),
+  check: svgIcon('<path d="M5 12l5 5L19 7"/>', 18),
+  chevron: svgIcon('<path d="M6 9l6 6 6-6"/>', 18),
+  info: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/>', 18),
+  search: svgIcon('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>', 18),
+  empty: svgIcon('<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10h8M8 14h5"/>', 40),
+  trash: svgIcon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', 18),
+  play: svgIcon('<path d="M7 5v14l11-7z"/>', 18),
+});
+
+function icon(name) {
+  return ICONS[name] || '';
+}
+
+
+/* ===== src/ui/viewer.js ===== */
+/**
+ * viewer.js — 서열 뷰어: 정방향 템플릿 위에 프라이머 위치 막대, SNP, 마스킹 표시
+ */
+
+
+
+function vEsc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} result designMarker 결과
+ * @param {object} view { asps, common, commons }  (app.js 의 viewOfSet)
+ * @param {object} opts { rowWidth, altCount }
+ */
+function renderViewer(container, result, view, opts = {}) {
+  const width = opts.rowWidth || 60;
+  const altCount = opts.altCount ?? 4;
+  const fwd = result.forward;
+  if (!fwd || !fwd.template) { container.innerHTML = '<p class="muted small">표시할 템플릿이 없습니다.</p>'; return; }
+  const T = fwd.template.T0;
+  const mask = fwd.mask || [];
+  const n1 = result.record.s1.length;
+  const snpLen = Math.max(1, result.record.alleles[0].seq.length);
+
+  const items = [];
+  view.asps.forEach((a, i) => items.push({ cls: `asp${Math.min(i, 2)}`, start: a.start, end: a.end, label: `${a.id} (${a.dir === 'F' ? '→' : '←'})` }));
+  if (view.common) items.push({ cls: 'common', start: view.common.start, end: view.common.end, label: `${view.common.id} (${view.common.dir === 'F' ? '→' : '←'})` });
+  let alt = 0;
+  for (const c of view.commons) {
+    if (c === view.common) continue;
+    if (alt++ >= altCount) break;
+    items.push({ cls: 'common alt', start: c.start, end: c.end, label: `${c.id} (후보 ${c.rank})` });
+  }
+
+  const legend = `<div class="vlegend">
+    <span><i class="asp0"></i>ASP 1${view.asps[0] && view.asps[0].tail ? ' (' + vEsc(view.asps[0].tail.name) + ')' : ''}</span>
+    <span><i class="asp1"></i>ASP 2${view.asps[1] && view.asps[1].tail ? ' (' + vEsc(view.asps[1].tail.name) + ')' : ''}</span>
+    <span><i class="common"></i>Common (선택)</span>
+    <span><i class="common" style="opacity:.35"></i>다른 Common 후보</span>
+    <span><i class="mask"></i>마스킹(반복·저복잡도·주변 변이)</span>
+    <span>밑줄 = 제외구역 · 강조 = 변이 위치 · 좌표는 정방향 1-based${result.chrPos ? ' (유전체 bp)' : ''}</span>
+  </div>`;
+
+  let rows = '';
+  for (let r0 = 0; r0 < T.length; r0 += width) {
+    const r1 = Math.min(T.length, r0 + width);
+    let bars = '';
+    for (const it of items) {
+      const s = Math.max(it.start, r0 + 1);
+      const e = Math.min(it.end, r1);
+      if (s > e) continue;
+      bars += `<div class="bar ${it.cls}" style="left:${s - (r0 + 1)}ch;width:${e - s + 1}ch" title="${vEsc(it.label)}"></div>`;
+    }
+    let bases = '';
+    for (let i = r0; i < r1; i++) {
+      const m = mask[i] || 0;
+      const cls = [];
+      if (m & (MASK.REPEAT | MASK.LOW_COMPLEX | MASK.IUPAC | MASK.VARIANT)) cls.push('mask');
+      if (m & MASK.EXCLUDED) cls.push('excl');
+      if (i >= n1 && i < n1 + snpLen) cls.push('snp');
+      bases += `<span class="b${cls.length ? ' ' + cls.join(' ') : ''}">${T[i]}</span>`;
+    }
+    let pos = String(r0 + 1);
+    if (result.chrPos) {
+      const g = genomicCoord(result, r0 + 1, r0 + 1);
+      pos = g.split(':')[1].split('-')[0];
+    }
+    rows += `<div class="vrow"><div class="pos">${pos}</div><div><div class="track">${bars}</div><div class="bases">${bases}</div></div></div>`;
+  }
+  container.innerHTML = `<div class="viewer">${legend}${rows}</div>`;
+}
+
+
+/* ===== src/ui/rsid.js ===== */
+/**
+ * rsid.js — Ensembl REST 로 변이 ID → flank 포함 FASTA 생성 (온라인 옵션)
+ *  - 변이: GET https://rest.ensembl.org/variation/{species}/{id}
+ *  - 서열: GET https://rest.ensembl.org/sequence/region/{species}/{chr}:{s}..{e}:1
+ *  벼(oryza_sativa)는 Ensembl Plants 데이터가 같은 REST 서버로 제공된다.
+ */
+
+
+const REST = 'https://rest.ensembl.org';
+
+async function getJson(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getText(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { headers: { Accept: 'text/plain' }, signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * @returns {Promise<{fasta:string, note:string}>}
+ */
+async function fetchVariantFasta(id, species = 'oryza_sativa', flank = 200, { timeoutMs = 12000 } = {}) {
+  const vid = String(id || '').trim();
+  if (!vid) throw new Error('ID 가 비어 있습니다');
+  const sp = String(species || 'oryza_sativa').trim();
+  const fl = Math.max(30, Math.min(2000, Number(flank) || 200));
+
+  const v = await getJson(`${REST}/variation/${encodeURIComponent(sp)}/${encodeURIComponent(vid)}?content-type=application/json`, timeoutMs);
+  const mappings = Array.isArray(v.mappings) ? v.mappings : [];
+  if (!mappings.length) throw new Error('유전체 위치(mapping)가 없습니다');
+  const m = mappings.find((x) => Number(x.strand) === 1) || mappings[0];
+  const chr = m.seq_region_name;
+  const start = Number(m.start), end = Number(m.end);
+  if (!chr || !Number.isFinite(start) || !Number.isFinite(end)) throw new Error('좌표를 해석할 수 없습니다');
+  let alleles = String(m.allele_string || v.allele_string || '').split('/').map((a) => a.trim()).filter((a) => a.length);
+  if (alleles.length < 2) throw new Error('대립유전자 정보가 없습니다');
+  if (Number(m.strand) === -1) alleles = alleles.map((a) => (a === '-' ? a : revcomp(a)));
+
+  const isInsertion = end < start; // Ensembl: 삽입은 end = start − 1
+  const refLen = isInsertion ? 0 : end - start + 1;
+  const regStart = Math.max(1, (isInsertion ? end : start) - fl);
+  const regEnd = (isInsertion ? start - 1 : end) + fl;
+  const seq = (await getText(`${REST}/sequence/region/${encodeURIComponent(sp)}/${chr}:${regStart}..${regEnd}:1?content-type=text/plain`, timeoutMs)).replace(/\s+/g, '');
+  const leftLen = (isInsertion ? end : start) - regStart;
+  const left = seq.slice(0, leftLen);
+  const refObserved = seq.slice(leftLen, leftLen + refLen);
+  const right = seq.slice(leftLen + refLen);
+
+  let note = `${vid} (${chr}:${start}, ${alleles.join('/')}) 서열을 추가했습니다.`;
+  if (refLen && refObserved.toUpperCase() !== alleles[0].toUpperCase()) {
+    note += ` 참고: 기준 서열 ${refObserved.toUpperCase()} 와 첫 대립유전자 ${alleles[0]} 가 다릅니다. 가닥·좌표를 확인하세요.`;
+  }
+  const fasta = `>${vid} ${chr}:${start} ${alleles.join('/')}\n${left.toLowerCase()}[${alleles.join('/')}]${right.toLowerCase()}`;
+  return { fasta, note };
+}
+
+
+/* ===== src/ui/app.js ===== */
+/**
+ * app.js — KASP 디자이너 UI (단일 HTML 번들의 진입점)
+ */
+
+
+
+
+
+
+
+
+
+
+
+const EXAMPLES = (typeof window !== 'undefined' && window.KASP_EXAMPLES) || {};
+const BUILD = (typeof window !== 'undefined' && window.KASP_BUILD) || { version: 'dev', date: '' };
+const STORE_INPUT = 'kasp-input';
+const STORE_SETTINGS = 'kasp-settings';
+
+const ui = {
+  params: mergeParams({}),
+  mode: 'kasp',
+  sizing: { bandStep: 20, secondMismatch: false, maxLen: 45 },
+  records: [], parseErrors: [], results: [],
+  marker: 0, dir: 'forward', commonPick: {},
+  exportScope: 'current', exportDir: 'selected',
+  stale: false,
+};
+
+/* ---------- 작은 도우미 ---------- */
+function qs(sel, root = document) { return root.querySelector(sel); }
+function qsa(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function clampNum(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+function presetLabel() { return ui.params.preset === 'custom' ? '사용자 정의' : (TM_PRESETS[ui.params.preset] || TM_PRESETS.bioneer).label; }
+
+let toastTimer = null;
+function toast(msg) {
+  const el = qs('#toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 2500);
+}
+function progress(on) {
+  const el = qs('#progress');
+  if (on) { el.classList.remove('done'); el.classList.add('on'); }
+  else { el.classList.add('done'); setTimeout(() => el.classList.remove('on', 'done'), 400); }
+}
+async function copyText(text, msg = '복사했습니다') {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = false; }
+  if (!ok) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    ta.remove();
+  }
+  toast(ok ? msg : '복사하지 못했습니다. 표를 드래그해 복사하세요.');
+}
+function downloadBytes(bytes, filename, type) {
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+function saveSettings() {
+  try {
+    localStorage.setItem(STORE_SETTINGS, JSON.stringify({ params: ui.params, mode: ui.mode, sizing: ui.sizing, exportScope: ui.exportScope, exportDir: ui.exportDir }));
+  } catch { /* 저장 불가 환경 */ }
+}
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORE_SETTINGS);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.params) ui.params = mergeParams(s.params);
+    if (s.mode === 'kasp' || s.mode === 'sizing') ui.mode = s.mode;
+    if (s.sizing) ui.sizing = { ...ui.sizing, ...s.sizing };
+    if (s.exportScope) ui.exportScope = s.exportScope;
+    if (s.exportDir) ui.exportDir = s.exportDir;
+  } catch { /* 무시 */ }
+}
+
+/* ---------- 테마 ---------- */
+function effectiveTheme() {
+  const t = document.documentElement.getAttribute('data-theme');
+  if (t === 'light' || t === 'dark') return t;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyThemeIcon() { qs('#themeBtn').innerHTML = effectiveTheme() === 'dark' ? ICONS.sun : ICONS.moon; }
+function toggleTheme() {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('kasp-theme', next); } catch { /* 무시 */ }
+  applyThemeIcon();
+}
+
+/* ---------- 세그먼트 ---------- */
+function setSegment(el, value) {
+  qsa('button', el).forEach((b) => b.classList.toggle('on', b.dataset.value === String(value)));
+}
+function bindSegment(el, onChange) {
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-value]');
+    if (!b || !el.contains(b)) return;
+    setSegment(el, b.dataset.value);
+    onChange(b.dataset.value);
+  });
+}
+
+/* ---------- 화면 전환 ---------- */
+function showPane(name) {
+  qsa('.pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === name));
+  qsa('.nav-item').forEach((b) => b.classList.toggle('on', b.dataset.pane === name));
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- 파라미터 폼 ---------- */
+function onParamsChanged() {
+  if (ui.results.length) ui.stale = true;
+  renderActionSummary();
+  saveSettings();
+}
+function bindParamInputs() {
+  qsa('.num[data-param]').forEach((wrap) => {
+    const key = wrap.dataset.param;
+    const [range, num] = qsa('input', wrap);
+    const commit = (raw) => {
+      let v = Number(raw);
+      if (!Number.isFinite(v)) return;
+      v = clampNum(v, Number(num.min), Number(num.max));
+      ui.params[key] = v; range.value = v; num.value = v;
+      onParamsChanged();
+    };
+    range.addEventListener('input', () => commit(range.value));
+    num.addEventListener('change', () => commit(num.value));
+  });
+  qsa('[data-param-text]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramText] = inp.value.trim() || 'n'; inp.value = ui.params[inp.dataset.paramText]; onParamsChanged(); }));
+  qsa('[data-param-bool]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramBool] = inp.checked; onParamsChanged(); }));
+  qsa('[data-custom]').forEach((inp) => inp.addEventListener('change', () => { ui.params.custom[inp.dataset.custom] = Number(inp.value) || 0; onParamsChanged(); renderPresetDesc(); }));
+  qs('#resetParamsBtn').addEventListener('click', () => {
+    const keepTails = ui.params.tails;
+    ui.params = mergeParams({ tails: keepTails });
+    syncParamsForm();
+    onParamsChanged();
+    toast('기본값으로 되돌렸습니다');
+  });
+}
+function renderPresetDesc() {
+  const p = ui.params;
+  const el = qs('#presetDesc');
+  if (p.preset === 'custom') {
+    el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''}`;
+  } else {
+    const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
+    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''} — SantaLucia 1998 + Owczarzy 염 보정`;
+  }
+  qs('#customCond').hidden = p.preset !== 'custom';
+}
+function setPreset(value) {
+  ui.params.preset = value;
+  setSegment(qs('#presetSeg'), value === 'custom' ? '' : value);
+  setSegment(qs('#presetSeg2'), value);
+  renderPresetDesc();
+  onParamsChanged();
+}
+function syncParamsForm() {
+  const p = ui.params;
+  qsa('.num[data-param]').forEach((wrap) => {
+    const v = p[wrap.dataset.param];
+    qsa('input', wrap).forEach((i) => { i.value = v; });
+  });
+  qsa('[data-param-text]').forEach((inp) => { inp.value = p[inp.dataset.paramText] ?? ''; });
+  qsa('[data-param-bool]').forEach((inp) => { inp.checked = !!p[inp.dataset.paramBool]; });
+  qsa('[data-custom]').forEach((inp) => { inp.value = p.custom[inp.dataset.custom]; });
+  setSegment(qs('#presetSeg'), p.preset === 'custom' ? '' : p.preset);
+  setSegment(qs('#presetSeg2'), p.preset);
+  renderPresetDesc();
+  renderTailRows();
+  setSegment(qs('#modeSeg'), ui.mode);
+  renderModeCards();
+  qs('#bandStep').value = String(ui.sizing.bandStep);
+  qs('#sizingMaxLen').value = ui.sizing.maxLen;
+  qs('#secondMismatch').checked = ui.sizing.secondMismatch;
+  setSegment(qs('#exportScopeSeg'), ui.exportScope);
+  setSegment(qs('#exportDirSeg'), ui.exportDir);
+}
+
+/* ---------- Tail / 모드 ---------- */
+function renderTailRows() {
+  const box = qs('#tailRows');
+  box.innerHTML = ui.params.tails.map((t, i) => `
+    <div class="tail-row">
+      <input type="text" value="${escapeHtml(t.name)}" aria-label="tail 이름" data-tail-name="${i}">
+      <input type="text" class="mono" value="${escapeHtml(t.seq)}" aria-label="tail 서열" data-tail-seq="${i}" spellcheck="false" autocapitalize="off">
+      <span class="len">${t.seq.length} nt</span>
+    </div>`).join('');
+}
+function bindTails() {
+  qs('#tailRows').addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.tailName !== undefined) {
+      ui.params.tails[Number(t.dataset.tailName)].name = t.value.trim() || `Tail${Number(t.dataset.tailName) + 1}`;
+      t.value = ui.params.tails[Number(t.dataset.tailName)].name;
+    } else if (t.dataset.tailSeq !== undefined) {
+      const i = Number(t.dataset.tailSeq);
+      const clean = t.value.toUpperCase().replace(/U/g, 'T').replace(/[^ACGT]/g, '');
+      ui.params.tails[i].seq = clean;
+      t.value = clean;
+      t.closest('.tail-row').querySelector('.len').textContent = `${clean.length} nt`;
+    }
+    onParamsChanged();
+  });
+  qs('#tailDefaultBtn').addEventListener('click', () => {
+    ui.params.tails = DEFAULT_TAILS.map((t) => ({ ...t }));
+    renderTailRows();
+    onParamsChanged();
+    toast('LGC 기본 tail 로 되돌렸습니다');
+  });
+  bindSegment(qs('#modeSeg'), (v) => { ui.mode = v; renderModeCards(); onParamsChanged(); });
+  qs('#bandStep').addEventListener('change', (e) => { ui.sizing.bandStep = Number(e.target.value) || 20; onSizingChanged(); });
+  qs('#sizingMaxLen').addEventListener('change', (e) => { ui.sizing.maxLen = clampNum(Number(e.target.value) || 45, 20, 80); e.target.value = ui.sizing.maxLen; onSizingChanged(); });
+  qs('#secondMismatch').addEventListener('change', (e) => { ui.sizing.secondMismatch = e.target.checked; onSizingChanged(); });
+}
+function onSizingChanged() {
+  saveSettings();
+  if (ui.results.length && ui.mode === 'sizing') renderResults();
+}
+function renderModeCards() {
+  const sizing = ui.mode === 'sizing';
+  qs('#tailCard').hidden = sizing;
+  qs('#sizingCard').hidden = !sizing;
+  qs('#modeDesc').textContent = sizing
+    ? '겔 판독: tail 대신 5′ filler 로 대립유전자별 산물 길이를 사다리로 만듭니다. Tm 은 filler 를 제외한 본체로 계산합니다.'
+    : '형광 판독: ASP 5′ 에 FAM/HEX 보편 tail 을 붙입니다 (LGC KASP 표준). Tm 은 tail 을 제외한 본체로 계산합니다.';
+}
+
+/* ---------- 서열 입력 ---------- */
+function highlightHtml(text) {
+  const lines = text.split('\n');
+  const out = [];
+  const IUPAC_EXTRA = /[RYSWKMBDHVN]/i;
+  for (const line of lines) {
+    if (line.startsWith('>')) { out.push(`<span class="hl-head">${escapeHtml(line)}</span>`); continue; }
+    let html = '';
+    let i = 0;
+    let excl = false;
+    while (i < line.length) {
+      const ch = line[i];
+      if (ch === '[') {
+        const close = line.indexOf(']', i + 1);
+        const end = close < 0 ? line.length : close + 1;
+        html += `<span class="hl-var">${escapeHtml(line.slice(i, end))}</span>`;
+        i = end;
+        continue;
+      }
+      if (ch === '/') {
+        excl = !excl;
+        html += `<span class="hl-excl">/</span>`;
+        i++;
+        continue;
+      }
+      const cls = [];
+      if (excl) cls.push('hl-excl');
+      if (IUPAC_EXTRA.test(ch)) cls.push('hl-iupac');
+      html += cls.length ? `<span class="${cls.join(' ')}">${escapeHtml(ch)}</span>` : escapeHtml(ch);
+      i++;
+    }
+    out.push(html);
+  }
+  return out.join('\n') + (text.endsWith('\n') ? ' ' : '');
+}
+function renderBackdrop() {
+  const ta = qs('#seqInput');
+  const bd = qs('#seqBackdrop');
+  bd.innerHTML = highlightHtml(ta.value);
+  bd.scrollTop = ta.scrollTop;
+}
+function parseNow() {
+  const text = qs('#seqInput').value;
+  if (!text.trim()) { ui.records = []; ui.parseErrors = []; return; }
+  const { records, errors } = parseInput(text);
+  ui.records = records;
+  ui.parseErrors = errors;
+}
+function renderInputSummary() {
+  const el = qs('#seqSummary');
+  const errBox = qs('#seqErrors');
+  const text = qs('#seqInput').value;
+  if (!text.trim()) {
+    el.textContent = '서열을 붙여넣으면 시작됩니다';
+    errBox.hidden = true;
+    return;
+  }
+  const s = summarizeRecords(ui.records);
+  const ok = ui.records.filter((r) => !r.error);
+  let gcTxt = '';
+  if (ok.length) {
+    const all = ok.map((r) => r.s1 + r.alleles[0].seq + r.s3).join('');
+    gcTxt = ` · GC ${gcPercent(all).toFixed(1)}%`;
+  }
+  const alleleTxt = ok.map((r) => `${r.name} [${r.alleles.map((a) => a.label).join('/')}]`).join(', ');
+  el.textContent = `${s.ok}개 서열 · ${s.nt.toLocaleString()} nt${gcTxt}${alleleTxt ? ' · ' + alleleTxt : ''}`;
+  const warnings = ok.flatMap((r) => (r.warnings || []).map((w) => `${r.name}: ${w}`));
+  const items = [...ui.parseErrors, ...warnings];
+  errBox.hidden = !items.length;
+  errBox.innerHTML = items.map((e) => `<li>${escapeHtml(e)}</li>`).join('');
+}
+function renderActionSummary() {
+  const el = qs('#actionSummary');
+  const ok = ui.records.filter((r) => !r.error).length;
+  if (!qs('#seqInput').value.trim()) { el.textContent = '서열을 붙여넣으면 시작됩니다'; return; }
+  const mode = ui.mode === 'sizing' ? 'Allele sizing' : 'KASP';
+  el.textContent = `${ok}개 서열 준비됨 · ${presetLabel()} · ${mode}${ui.stale ? ' · 조건이 바뀌었습니다, 다시 설계하세요' : ''}`;
+}
+const onInputChanged = debounce(() => {
+  parseNow();
+  renderInputSummary();
+  renderActionSummary();
+  try { localStorage.setItem(STORE_INPUT, qs('#seqInput').value); } catch { /* 무시 */ }
+}, 150);
+function setInputText(text) {
+  const ta = qs('#seqInput');
+  ta.value = text;
+  renderBackdrop();
+  parseNow();
+  renderInputSummary();
+  renderActionSummary();
+  try { localStorage.setItem(STORE_INPUT, text); } catch { /* 무시 */ }
+}
+function bindInput() {
+  const ta = qs('#seqInput');
+  ta.addEventListener('input', () => { renderBackdrop(); onInputChanged(); });
+  ta.addEventListener('scroll', () => { qs('#seqBackdrop').scrollTop = ta.scrollTop; });
+  ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runDesign(); } });
+  qs('#clearBtn').addEventListener('click', () => { setInputText(''); ta.focus(); });
+
+  const menu = qs('#exampleList');
+  const keys = Object.keys(EXAMPLES);
+  menu.innerHTML = keys.map((k) => `<button type="button" data-example="${escapeHtml(k)}">${escapeHtml(k)}<small>${escapeHtml(EXAMPLES[k].desc || '')}</small></button>`).join('')
+    + (keys.length > 1 ? `<button type="button" data-example="*">모든 예제 (일괄 설계)<small>${keys.length}개 레코드</small></button>` : '');
+  qs('#exampleBtn').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+  menu.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-example]');
+    if (!b) return;
+    const k = b.dataset.example;
+    const fasta = k === '*' ? keys.map((x) => EXAMPLES[x].fasta).join('\n\n') : EXAMPLES[k].fasta;
+    const cur = ta.value.trim();
+    setInputText(cur ? `${cur}\n\n${fasta}` : fasta);
+    menu.hidden = true;
+    toast('예제를 불러왔습니다');
+  });
+  document.addEventListener('click', () => { menu.hidden = true; });
+
+  qs('#rsidBtn').addEventListener('click', lookupRsid);
+  qs('#rsidInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupRsid(); } });
+}
+async function lookupRsid() {
+  const id = qs('#rsidInput').value.trim();
+  const status = qs('#rsidStatus');
+  if (!id) { status.textContent = '변이 ID 를 입력하세요.'; return; }
+  const btn = qs('#rsidBtn');
+  btn.disabled = true;
+  status.textContent = `${id} 조회 중…`;
+  try {
+    const { fasta, note } = await fetchVariantFasta(id, qs('#rsidSpecies').value, Number(qs('#rsidFlank').value));
+    const cur = qs('#seqInput').value.trim();
+    setInputText(cur ? `${cur}\n\n${fasta}` : fasta);
+    status.textContent = note;
+    toast('서열을 추가했습니다');
+  } catch (e) {
+    status.textContent = `조회하지 못했습니다 (${e && e.name === 'AbortError' ? '시간 초과' : (e && e.message) || '오류'}). 오프라인이거나 ID·종 이름이 맞지 않을 수 있습니다.`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---------- 설계 ---------- */
+function effectiveParams() {
+  const p = mergeParams(ui.params);
+  const swap = (a, b) => { if (p[a] > p[b]) { const t = p[a]; p[a] = p[b]; p[b] = t; } };
+  swap('tmMin', 'tmMax'); swap('aspMinLen', 'aspMaxLen'); swap('commonMinLen', 'commonMaxLen'); swap('gcMin', 'gcMax'); swap('ampliconMin', 'ampliconMax');
+  if (p.ampliconHardMax < p.ampliconMax) p.ampliconHardMax = p.ampliconMax;
+  p.tails = p.tails.filter((t) => t.seq.length);
+  if (ui.mode === 'sizing') { p.useTails = false; if (ui.sizing.secondMismatch) p.snpOffset = 1; }
+  return p;
+}
+function runDesign() {
+  parseNow();
+  renderInputSummary();
+  const valid = ui.records.filter((r) => !r.error);
+  if (!valid.length) {
+    toast(ui.parseErrors[0] || '설계할 서열이 없습니다');
+    showPane('input');
+    qs('#seqInput').focus();
+    return;
+  }
+  const btn = qs('#designBtn');
+  btn.disabled = true;
+  progress(true);
+  setTimeout(() => {
+    try {
+      ui.results = designAll(ui.records, effectiveParams());
+      ui.marker = Math.max(0, ui.results.findIndex((r) => !r.error));
+      ui.dir = 'forward';
+      ui.commonPick = {};
+      ui.stale = false;
+      renderResults();
+      showPane('results');
+      const badge = qs('#navResultBadge');
+      badge.textContent = String(valid.length);
+      badge.hidden = false;
+      toast(`${valid.length}개 마커 설계 완료`);
+    } catch (e) {
+      console.error(e);
+      toast(`설계 중 오류: ${e.message}`);
+    } finally {
+      progress(false);
+      btn.disabled = false;
+      renderActionSummary();
+    }
+  }, 30);
+}
+
+/* ---------- 결과 ---------- */
+function currentResult() { return ui.results[ui.marker] || null; }
+function pickIndex(mi, dir) { return ui.commonPick[`${mi}|${dir}`] ?? 0; }
+function viewOfSet(res, set, mi, dir) {
+  const ci = pickIndex(mi, dir);
+  const common = set.commons[ci] || null;
+  const base = set.asps.filter(Boolean);
+  if (ui.mode === 'sizing') {
+    const s = applyAlleleSizing(set, common, { bandStep: ui.sizing.bandStep, secondMismatch: ui.sizing.secondMismatch, maxLen: ui.sizing.maxLen, dimerThreshold: res.params.dimerThreshold, cond: res.conditions });
+    return { asps: s.asps, common, commons: set.commons, sizing: s, commonIndex: ci };
+  }
+  return { asps: base, common, commons: set.commons, sizing: null, commonIndex: ci };
+}
+function tmClass(tm, p) {
+  if (!Number.isFinite(tm)) return 'none';
+  if (tm >= p.tmMin && tm <= p.tmMax) return '';
+  if (tm >= p.tmMin - 1 && tm <= p.tmMax + 1) return 'warn';
+  return 'err';
+}
+function seqHtml(primer) {
+  if (primer.kind === 'Common') return `<span class="seq">${escapeHtml(primer.seq)}</span>`;
+  const tail = primer.tail ? `<span class="tail" title="${escapeHtml(primer.tail.name)}">${escapeHtml(primer.tail.seq)}</span>` : '';
+  let body = '';
+  const disp = primer.bodyDisplay;
+  for (let i = 0; i < disp.length; i++) {
+    const ch = disp[i];
+    const isVar = ch === ch.toUpperCase() && /[A-Z]/.test(ch);
+    const isMm = primer.mismatchPos === i;
+    if (isVar) body += `<span class="var">${ch}</span>`;
+    else if (isMm) body += `<span class="mm" title="의도적 미스매치">${ch}</span>`;
+    else body += ch;
+  }
+  return `<span class="seq">${tail}${body}</span>`;
+}
+function ampliconHtml(c, view) {
+  if (ui.mode === 'sizing' && view.sizing) {
+    return view.sizing.products.map((p) => `${escapeHtml(p.label)}:${p.size}`).join(' ');
+  }
+  return escapeHtml(c.ampliconLabel);
+}
+function renderMarkerTabs() {
+  const box = qs('#markerTabs');
+  box.innerHTML = ui.results.map((r, i) => `<button type="button" class="pill${i === ui.marker ? ' on' : ''}${r.error ? ' err' : ''}" data-marker="${i}" title="${escapeHtml(r.error || r.header || r.name)}">${escapeHtml(r.name)}</button>`).join('');
+}
+function renderWarnBox(res, set, view) {
+  const items = [];
+  if (res.error) items.push({ cls: 'err', text: res.error });
+  for (const w of res.warnings || []) items.push({ cls: '', text: w });
+  if (set) {
+    for (const w of set.warnings) items.push({ cls: w.includes('없습니다') ? 'err' : '', text: w });
+    for (const a of view.asps) for (const w of a.warnings) items.push({ cls: '', text: `ASP ${a.alleleLabel}: ${w}` });
+    if (view.common) for (const w of view.common.warnings) items.push({ cls: view.common.ampState === 'err' ? 'err' : '', text: `Common ${view.common.id}: ${w}` });
+    if (view.sizing) for (const w of view.sizing.warnings) items.push({ cls: '', text: `Allele sizing: ${w}` });
+  }
+  const box = qs('#warnBox');
+  box.hidden = !items.length;
+  box.innerHTML = `<ul>${items.map((it) => `<li class="${it.cls}">${ICONS.alert}<span>${escapeHtml(it.text)}</span></li>`).join('')}</ul>`;
+}
+function renderSetCard(res, set, view) {
+  const card = qs('#setCard');
+  const p = res.params;
+  const dirLabel = ui.dir === 'forward' ? 'Forward' : 'Reverse';
+  if (!set) { card.innerHTML = `<div class="card-head"><h2>${escapeHtml(res.name)}</h2></div><p class="muted">${escapeHtml(res.error || '결과 없음')}</p>`; return; }
+  const condTxt = `${presetLabelFor(p)} · Tm ${p.tmMin}–${p.tmMax} °C`;
+  const rows = [];
+  for (const a of view.asps) {
+    rows.push(`<tr>
+      <td class="id">${escapeHtml(a.id)}</td>
+      <td>${seqHtml(a)}</td>
+      <td class="num">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
+      <td class="num"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
+      <td class="num">${fmt1(a.gc)}</td>
+      <td class="num">${a.lc}</td>
+      <td class="num muted">${a.tail ? escapeHtml(a.tail.name) : '—'}</td>
+    </tr>`);
+  }
+  const c = view.common;
+  if (c) {
+    rows.push(`<tr>
+      <td class="id">${escapeHtml(c.id)}</td>
+      <td>${seqHtml(c)}</td>
+      <td class="num">${c.length}</td>
+      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num">${fmt1(c.gc)}</td>
+      <td class="num">${c.lc}</td>
+      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${ampliconHtml(c, view)}</span></td>
+    </tr>`);
+  } else {
+    rows.push(`<tr><td colspan="7" class="muted">조건을 만족하는 Common 프라이머가 없습니다.</td></tr>`);
+  }
+  const tmDiffTxt = c ? `ASP–Common Tm 차 ${fmt1(c.tmDiff)} °C` : '';
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="set-title"><h2>${escapeHtml(res.name)} · ${dirLabel} 세트</h2><span class="sub">${escapeHtml(condTxt)}</span></div>
+      <div class="card-actions">
+        <button type="button" class="btn small" id="setCopyBtn">${ICONS.copy}복사</button>
+        <button type="button" class="btn small" id="setXlsxBtn">${ICONS.excel}엑셀</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C, tail 제외)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">${ui.mode === 'sizing' ? 'Filler / 산물 (bp)' : 'Tail / Amplicon (bp)'}</th></tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table></div>
+    <div class="set-foot">
+      <span><span class="seq"><span class="tail">tail</span>·본체·<span class="var">변이</span></span> · ${c ? `Amplicon Tm ${fmt1(c.ampliconTm)} °C · ` : ''}${tmDiffTxt}</span>
+      <span>${res.chrPos ? escapeHtml(`${res.chrPos.chr}:${res.chrPos.pos.toLocaleString()}`) + ' · ' : ''}${c ? escapeHtml(`Common ${genomicCoord(res, c.start, c.end) || `${c.start}-${c.end}`}`) : ''}</span>
+    </div>`;
+  qs('#setCopyBtn').addEventListener('click', () => copyText(toSetTsv(exportViewOf(res, ui.marker), ui.dir, view.commonIndex)));
+  qs('#setXlsxBtn').addEventListener('click', () => downloadXlsx('current', ui.dir));
+}
+function presetLabelFor(p) {
+  return p.preset === 'custom' ? '사용자 정의' : (TM_PRESETS[p.preset] || TM_PRESETS.bioneer).label;
+}
+function renderCommonCard(res, set, view) {
+  const card = qs('#commonCard');
+  if (!set) { card.innerHTML = ''; return; }
+  const p = res.params;
+  const list = set.commons.slice(0, p.maxCommon);
+  const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
+      <td class="num muted">${c.rank}</td>
+      <td class="id">${escapeHtml(c.id)}</td>
+      <td>${seqHtml(c)}</td>
+      <td class="num">${c.length}</td>
+      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num">${fmt1(c.gc)}</td>
+      <td class="num">${c.lc}</td>
+      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
+      <td class="num"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
+      <td class="muted small note" title="${escapeHtml(c.warnings.join('; '))}">${escapeHtml(c.warnings.join('; '))}</td>
+    </tr>`).join('');
+  card.innerHTML = `
+    <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2></div>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th class="num">#</th><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">Amplicon (bp)</th><th class="num">ΔTm</th><th>비고</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="10" class="muted">후보 없음</td></tr>'}</tbody>
+    </table></div>`;
+  card.addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-common]');
+    if (!tr) return;
+    ui.commonPick[`${ui.marker}|${ui.dir}`] = Number(tr.dataset.common);
+    renderResults(false);
+  });
+}
+function renderReport(res, set) {
+  const box = qs('#report');
+  if (!set) { box.innerHTML = ''; return; }
+  const p = res.params;
+  const rows = [];
+  for (const a of set.asps) if (a) rows.push([a.id, seqHtml(a), a.fullLength, fmt1(a.tm), fmt1(a.gc), a.lc, a.warnings.join('; ')]);
+  for (const c of set.commons.slice(0, p.maxReport)) rows.push([c.id, seqHtml(c), c.length, fmt1(c.tm), fmt1(c.gc), c.lc, `${c.ampliconLabel} / ${fmt1(c.ampliconTm)}${c.warnings.length ? ' ; ' + c.warnings.join('; ') : ''}`]);
+  box.innerHTML = `<div class="table-wrap"><table class="grid">
+    <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th>비고</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr><td class="id">${escapeHtml(r[0])}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="num">${r[5]}</td><td class="muted small note" title="${escapeHtml(r[6])}">${escapeHtml(r[6])}</td></tr>`).join('')}</tbody>
+  </table></div>
+  <p class="hint">스캔 ${set.stats.scanned} 위치 · 탈락: Tm ${set.stats.rejected.tm}, 마스크 ${set.stats.rejected.mask}, 3′ 패턴 ${set.stats.rejected.pattern}, 반복 ${set.stats.rejected.repeat}, LC ${set.stats.rejected.lc}, 자기다이머 ${set.stats.rejected.selfDimer}, ASP 다이머 ${set.stats.rejected.crossDimer}, 겹침 ${set.stats.rejected.overlap}</p>`;
+}
+function renderResults(resetScroll = true) {
+  const has = ui.results.length > 0;
+  qs('#resultsEmpty').hidden = has;
+  qs('#results').hidden = !has;
+  if (!has) return;
+  const res = currentResult();
+  const set = res && !res.error ? res[ui.dir] : null;
+  const view = set ? viewOfSet(res, set, ui.marker, ui.dir) : null;
+  renderMarkerTabs();
+  setSegment(qs('#dirSeg'), ui.dir);
+  renderWarnBox(res, set, view);
+  renderSetCard(res, set, view);
+  renderCommonCard(res, set, view);
+  if (set) renderViewer(qs('#viewer'), res, view, {}); else qs('#viewer').innerHTML = '';
+  renderReport(res, set);
+  if (resetScroll) window.scrollTo({ top: 0 });
+}
+function bindResults() {
+  qs('#markerTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-marker]');
+    if (!b) return;
+    ui.marker = Number(b.dataset.marker);
+    renderResults();
+  });
+  bindSegment(qs('#dirSeg'), (v) => { ui.dir = v; renderResults(); });
+}
+
+/* ---------- 내보내기 ---------- */
+/** 결과를 내보내기용으로 변환: 선택한 Common, sizing filler 반영 */
+function exportViewOf(res, mi) {
+  if (res.error) return res;
+  const out = { ...res };
+  for (const dir of ['forward', 'reverse']) {
+    const set = res[dir];
+    if (!set) continue;
+    const view = viewOfSet(res, set, mi, dir);
+    out[dir] = { ...set, asps: view.asps };
+  }
+  return out;
+}
+function exportTargets(scopeOverride, dirOverride) {
+  const scope = scopeOverride || ui.exportScope;
+  const dirSel = dirOverride || ui.exportDir;
+  const indices = scope === 'current' ? [ui.marker] : ui.results.map((_, i) => i);
+  const results = [];
+  const selections = {};
+  for (const i of indices) {
+    const r = ui.results[i];
+    if (!r || r.error) continue;
+    results.push(exportViewOf(r, i));
+    selections[r.name] = { which: dirSel === 'selected' ? ui.dir : dirSel, commonIndex: { forward: pickIndex(i, 'forward'), reverse: pickIndex(i, 'reverse') } };
+  }
+  return { results, selections, which: dirSel === 'selected' ? ui.dir : dirSel, scope };
+}
+function stamp() { return new Date().toISOString().slice(0, 10).replace(/-/g, ''); }
+function safeName(s) { return String(s).replace(/[^\w가-힣.-]+/g, '_').slice(0, 40); }
+function downloadXlsx(scopeOverride, dirOverride) {
+  const { results, selections, scope } = exportTargets(scopeOverride, dirOverride);
+  if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+  const scale = qs('#exportScale').value.trim() || '25 nmol';
+  const { order, basis } = buildWorkbookData(results, { selections, scale });
+  const bytes = buildXlsx([
+    { name: '주문용', rows: order, monoCols: [1], colWidths: [34, 56, 11, 9, 20, 10] },
+    { name: '설계근거', rows: basis, colWidths: [18, 26, 24, 14, 44, 16, 9, 9, 22, 12, 24, 60] },
+  ], { fontName: EXCEL_STYLE.fontName, headerFill: EXCEL_STYLE.headerFill, headerFont: EXCEL_STYLE.headerFont });
+  const name = scope === 'current' ? safeName(results[0].name) : 'all';
+  downloadBytes(bytes, `KASP_${name}_${stamp()}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  toast('엑셀 파일을 저장했습니다');
+}
+function bindExport() {
+  bindSegment(qs('#exportScopeSeg'), (v) => { ui.exportScope = v; saveSettings(); });
+  bindSegment(qs('#exportDirSeg'), (v) => { ui.exportDir = v; saveSettings(); });
+  qs('#copySetBtn').addEventListener('click', () => {
+    const { results, which, selections } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    const dirs = which === 'both' ? ['forward', 'reverse'] : [which];
+    const chunks = [];
+    for (const r of results) for (const d of dirs) chunks.push(toSetTsv(r, d, selections[r.name].commonIndex[d]));
+    copyText(chunks.join('\n\n'));
+  });
+  qs('#copySetsTextBtn').addEventListener('click', () => {
+    const { results, which } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    const dirs = which === 'both' ? ['forward', 'reverse'] : [which];
+    const chunks = [];
+    for (const r of results) for (const d of dirs) chunks.push(toSetsText(r, d, 3));
+    copyText(chunks.join('\n\n'));
+  });
+  qs('#copyReportBtn').addEventListener('click', () => {
+    const { results, which } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    const dirs = which === 'both' ? ['forward', 'reverse'] : [which];
+    copyText(dirs.map((d) => toReportTsv(results, d)).join('\n\n'));
+  });
+  qs('#xlsxBtn').addEventListener('click', () => downloadXlsx());
+}
+
+/* ---------- 시작 ---------- */
+function injectIcons() {
+  qsa('[data-icon]').forEach((el) => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+}
+function init() {
+  injectIcons();
+  applyThemeIcon();
+  qs('#themeBtn').addEventListener('click', toggleTheme);
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyThemeIcon);
+  qsa('.nav-item').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.pane)));
+  qs('#sidebarFoot').textContent = `v${BUILD.version}${BUILD.date ? ' · ' + BUILD.date : ''} · 오프라인 동작`;
+
+  loadSettings();
+  bindParamInputs();
+  bindSegment(qs('#presetSeg'), setPreset);
+  bindSegment(qs('#presetSeg2'), setPreset);
+  bindTails();
+  bindInput();
+  bindResults();
+  bindExport();
+  qs('#designBtn').addEventListener('click', runDesign);
+  syncParamsForm();
+
+  let saved = '';
+  try { saved = localStorage.getItem(STORE_INPUT) || ''; } catch { saved = ''; }
+  setInputText(saved);
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+}
+
+})();
+
+</script>
+</body>
+</html>
