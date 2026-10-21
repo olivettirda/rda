@@ -7,10 +7,13 @@ import { TM_PRESETS } from '../core/tm.js';
 import { toReportTsv, toSetsText, toSetTsv, buildWorkbookData, EXCEL_STYLE, fmt1 } from '../core/export.js';
 import { buildXlsx } from '../core/xlsx.js';
 import { applyAlleleSizing } from '../core/sizing.js';
+import { parsePrimerList, analyzePrimers, analysisToTsv } from '../core/analyze.js';
 import { gcPercent } from '../core/seq.js';
 import { ICONS } from './icons.js';
 import { renderViewer } from './viewer.js';
 import { fetchVariantFasta } from './rsid.js';
+import { createTour, renderManualHtml } from './tour.js';
+import { buildTourSteps } from './tourSteps.js';
 
 const EXAMPLES = (typeof window !== 'undefined' && window.KASP_EXAMPLES) || {};
 const BUILD = (typeof window !== 'undefined' && window.KASP_BUILD) || { version: 'dev', date: '' };
@@ -25,6 +28,24 @@ const ui = {
   marker: 0, dir: 'forward', commonPick: {},
   exportScope: 'current', exportDir: 'selected',
   stale: false,
+  analysis: null,
+  tour: null,
+};
+const STORE_WELCOME = 'kasp-welcome-seen';
+
+const EXAMPLE_PRIMERS = [
+  'Marker_SNP1_ASP_A\tGAAGGTGACCAAGTTCATGCTccggcatggctgacattgA',
+  'Marker_SNP1_ASP_G\tGAAGGTCGGAGTCAACGGATTccggcatggctgacattgG',
+  'Marker_SNP1_Common\ttctcgtgtgaacgcagcc',
+].join('\n');
+
+const PARAM_LABELS = {
+  preset: 'Tm 프리셋', tmMin: 'Tm 하한 (°C)', tmMax: 'Tm 상한 (°C)',
+  aspMinLen: 'ASP 최소 길이 (nt)', aspMaxLen: 'ASP 최대 길이 (nt)',
+  commonMinLen: 'Common 최소 길이 (nt)', commonMaxLen: 'Common 최대 길이 (nt)',
+  gcMin: 'GC 하한 (%)', gcMax: 'GC 상한 (%)',
+  ampliconMin: 'Amplicon 권장 최소 (bp)', ampliconMax: 'Amplicon 권장 최대 (bp)',
+  useTails: 'tail 부착', tails: 'Tail 서열', tmDiffMax: 'ASP–Common Tm 차 허용 (°C)', minLC: 'LC 하한 (%)',
 };
 
 /* ---------- 작은 도우미 ---------- */
@@ -312,6 +333,16 @@ function renderInputSummary() {
   const items = [...ui.parseErrors, ...warnings];
   errBox.hidden = !items.length;
   errBox.innerHTML = items.map((e) => `<li>${escapeHtml(e)}</li>`).join('');
+  refreshAnalyzeRecordOptions();
+}
+function refreshAnalyzeRecordOptions() {
+  const sel = qs('#analyzeRecord');
+  if (!sel) return;
+  const prev = sel.value;
+  const ok = ui.records.filter((r) => !r.error);
+  sel.innerHTML = '<option value="">템플릿 없이 분석</option>' + ok.map((r) => `<option value="${escapeHtml(r.name)}">${escapeHtml(r.name)} [${escapeHtml(r.alleles.map((a) => a.label).join('/'))}]</option>`).join('');
+  if (ok.some((r) => r.name === prev)) sel.value = prev;
+  else if (ok.length) sel.value = ok[0].name;
 }
 function renderActionSummary() {
   const el = qs('#actionSummary');
@@ -346,7 +377,7 @@ function bindInput() {
   const keys = Object.keys(EXAMPLES);
   menu.innerHTML = keys.map((k) => `<button type="button" data-example="${escapeHtml(k)}">${escapeHtml(k)}<small>${escapeHtml(EXAMPLES[k].desc || '')}</small></button>`).join('')
     + (keys.length > 1 ? `<button type="button" data-example="*">모든 예제 (일괄 설계)<small>${keys.length}개 레코드</small></button>` : '');
-  qs('#exampleBtn').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+  qs('#exampleBtn').addEventListener('click', (e) => { e.stopPropagation(); const wasHidden = menu.hidden; closeMenus(); menu.hidden = !wasHidden; });
   menu.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-example]');
     if (!b) return;
@@ -357,8 +388,6 @@ function bindInput() {
     menu.hidden = true;
     toast('예제를 불러왔습니다');
   });
-  document.addEventListener('click', () => { menu.hidden = true; });
-
   qs('#rsidBtn').addEventListener('click', lookupRsid);
   qs('#rsidInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupRsid(); } });
 }
@@ -382,6 +411,125 @@ async function lookupRsid() {
   }
 }
 
+/* ---------- 기존 프라이머 분석 ---------- */
+function bindAnalyze() {
+  qs('#analyzeBtn').addEventListener('click', runAnalyze);
+  qs('#primerInput').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runAnalyze(); } });
+  qs('#analyzeClearBtn').addEventListener('click', () => { qs('#primerInput').value = ''; ui.analysis = null; qs('#analyzeOut').hidden = true; });
+  qs('#analyzeExampleBtn').addEventListener('click', () => {
+    qs('#primerInput').value = EXAMPLE_PRIMERS;
+    if (!qs('#seqInput').value.trim() && EXAMPLES.snp_simple) setInputText(EXAMPLES.snp_simple.fasta);
+    refreshAnalyzeRecordOptions();
+    const sel = qs('#analyzeRecord');
+    if (Array.from(sel.options).some((o) => o.value === 'Marker_SNP1')) sel.value = 'Marker_SNP1';
+    runAnalyze();
+  });
+}
+function runAnalyze() {
+  const primers = parsePrimerList(qs('#primerInput').value);
+  if (!primers.length) { toast('분석할 프라이머 서열이 없습니다'); return; }
+  parseNow();
+  const name = qs('#analyzeRecord').value;
+  const record = ui.records.find((r) => r.name === name && !r.error) || null;
+  try {
+    ui.analysis = analyzePrimers(primers, { record, params: ui.params });
+    ui.analysis.recordName = record ? record.name : '';
+    renderAnalysis();
+    toast(`${primers.length}개 프라이머를 분석했습니다`);
+  } catch (e) {
+    console.error(e);
+    toast(`분석 중 오류: ${e.message}`);
+  }
+}
+function analysisSeqHtml(it) {
+  const tail = it.tail ? `<span class="tail" title="${escapeHtml(it.tail.name)}">${escapeHtml(it.tail.seq.toLowerCase())}</span>` : '';
+  const mm = new Set(it.loc ? it.loc.mismatchPositions : []);
+  let body = '';
+  for (let i = 0; i < it.body.length; i++) {
+    const ch = it.body[i].toLowerCase();
+    const last = i === it.body.length - 1 && it.loc && it.loc.threeEndAtVariant;
+    if (mm.has(i)) body += `<span class="mm" title="템플릿과 불일치">${ch}</span>`;
+    else if (last) body += `<span class="var">${ch.toUpperCase()}</span>`;
+    else body += ch;
+  }
+  return `<span class="seq">${tail}${body}</span>`;
+}
+function formatParamValue(key, v) {
+  if (key === 'preset') return v === 'custom' ? '사용자 정의' : (TM_PRESETS[v] || TM_PRESETS.bioneer).label;
+  if (key === 'useTails') return v ? '켬' : '끔';
+  if (key === 'tails') return (v || []).map((t) => `${t.name} ${t.seq.length} nt`).join(', ');
+  return String(v);
+}
+function renderAnalysis() {
+  const a = ui.analysis;
+  const out = qs('#analyzeOut');
+  if (!a) { out.hidden = true; return; }
+  out.hidden = false;
+  const p = ui.params;
+  const rows = a.items.map((it) => {
+    const pos = it.loc ? `${it.loc.strand === '+' ? '+' : '−'} ${it.loc.start}–${it.loc.end}${it.loc.alleleLabel && it.role === 'ASP' ? ` (${escapeHtml(it.loc.alleleLabel)})` : ''}${it.loc.mismatches ? ` · 불일치 ${it.loc.mismatches}` : ''}` : '—';
+    const amp = (it.amplicons || []).map((m) => `${m.size}`).join(' / ') || (it.role === 'Common' ? '' : '—');
+    return `<tr>
+      <td class="id">${escapeHtml(it.name)}</td>
+      <td data-label="역할">${escapeHtml(it.role)}</td>
+      <td class="muted" data-label="Tail">${it.tail ? escapeHtml(it.tail.name) : '—'}</td>
+      <td class="seq-cell">${analysisSeqHtml(it)}</td>
+      <td class="num" data-label="길이">${it.length}${it.tail ? ` <span class="muted small">(+${it.tail.seq.length})</span>` : ''}</td>
+      <td class="num" data-label="Tm ${escapeHtml(a.mainLabel)}"><span class="badge ${tmClass(it.tm, p)}">${fmt1(it.tm)}</span></td>
+      <td class="num muted" data-label="Tm ${escapeHtml(a.altLabel)}">${fmt1(it.tmAlt)}</td>
+      <td class="num" data-label="GC%">${fmt1(it.gc)}</td>
+      <td class="num" data-label="LC%">${it.lc}</td>
+      <td class="muted small" data-label="위치">${pos}</td>
+      <td class="num" data-label="Amplicon">${amp}</td>
+    </tr>`;
+  }).join('');
+  qs('#analyzeTable').innerHTML = `
+    <div class="card-head">
+      <div class="set-title"><h2>분석 결과</h2><span class="sub">${a.recordName ? `템플릿 ${escapeHtml(a.recordName)} · ` : '템플릿 없음 · '}ASP ${a.summary.counts.asp} · Common ${a.summary.counts.common}${a.summary.counts.unknown ? ` · 미확인 ${a.summary.counts.unknown}` : ''}</span></div>
+      <div class="card-actions"><button type="button" class="btn small" id="analyzeCopyBtn">${ICONS.copy}복사</button></div>
+    </div>
+    <div class="table-wrap"><table class="grid stackable">
+      <thead><tr><th>이름</th><th>역할</th><th>Tail</th><th>본체 (5′→3′)</th><th class="num">길이</th><th class="num">Tm ${escapeHtml(a.mainLabel)}</th><th class="num">Tm ${escapeHtml(a.altLabel)}</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th>위치</th><th class="num">Amplicon (bp)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="hint">Tm 은 tail 을 뗀 본체 기준. 위치는 정방향 1-based, + 는 정방향 가닥, − 는 역상보 가닥. <span class="seq"><span class="var">A</span></span> = 3′ 말단이 변이 위치, <span class="seq"><span class="mm">a</span></span> = 템플릿과 불일치.</p>`;
+  qs('#analyzeCopyBtn').addEventListener('click', () => copyText(analysisToTsv(a)));
+
+  const sug = a.summary.suggested;
+  const keys = Object.keys(sug);
+  const cmpRows = keys.map((k) => {
+    const cur = k === 'tails' ? p.tails : p[k];
+    const same = k === 'tails' ? formatParamValue(k, cur) === formatParamValue(k, sug[k]) : cur === sug[k];
+    return `<tr><td>${escapeHtml(PARAM_LABELS[k] || k)}</td><td class="num ${same ? 'same' : ''}">${escapeHtml(formatParamValue(k, cur))}</td><td class="num ${same ? 'same' : 'new'}">${escapeHtml(formatParamValue(k, sug[k]))}</td></tr>`;
+  }).join('');
+  const iconFor = (kind) => (kind === 'ok' ? ICONS.check : kind === 'warn' ? ICONS.alert : kind === 'info' ? ICONS.info : ICONS.sliders);
+  const canRun = !!a.recordName;
+  qs('#analyzeSummary').innerHTML = `
+    <div class="card-head"><h2>추정 설계 조건과 안내</h2></div>
+    <ul class="note-list">${a.summary.notes.map((n) => `<li class="${escapeHtml(n.kind)}">${iconFor(n.kind)}<span>${escapeHtml(n.text)}</span></li>`).join('')}</ul>
+    ${keys.length ? `<div class="table-wrap" style="margin-top:18px"><table class="grid cmp stackable"><thead><tr><th>항목</th><th class="num">현재 조건</th><th class="num">비슷하게 설계하려면</th></tr></thead><tbody>${cmpRows}</tbody></table></div>` : '<p class="hint">바꿀 조건이 없습니다. 현재 조건이 기존 프라이머와 잘 맞습니다.</p>'}
+    <div class="analyze-actions">
+      <button type="button" class="btn" id="applySugBtn" ${keys.length ? '' : 'disabled'}>${ICONS.check}이 조건을 설계 조건에 적용</button>
+      <button type="button" class="btn" id="applyRunBtn" ${canRun ? '' : 'disabled'} title="${canRun ? '' : '서열 입력 탭에 템플릿이 있어야 합니다'}">${ICONS.play}적용하고 바로 설계</button>
+    </div>
+    <p class="hint">적용하면 설계 조건·Tail 탭 값이 바뀝니다. 되돌리려면 설계 조건 탭의 "기본값 복원"을 누르세요.</p>`;
+  qs('#applySugBtn').addEventListener('click', () => applySuggested(sug, false));
+  qs('#applyRunBtn').addEventListener('click', () => applySuggested(sug, true));
+}
+function applySuggested(sug, runAfter) {
+  for (const [k, v] of Object.entries(sug)) {
+    if (k === 'preset') continue;
+    if (k === 'tails') { ui.params.tails = v.map((t) => ({ name: t.name, seq: t.seq })); continue; }
+    ui.params[k] = v;
+  }
+  if (sug.preset) setPreset(sug.preset);
+  if (sug.useTails && ui.mode === 'sizing') { ui.mode = 'kasp'; setSegment(qs('#modeSeg'), 'kasp'); renderModeCards(); }
+  syncParamsForm();
+  onParamsChanged();
+  if (runAfter) { toast('조건을 적용하고 설계합니다'); runDesign(); }
+  else { toast('설계 조건을 적용했습니다'); showPane('params'); }
+}
+
 /* ---------- 설계 ---------- */
 function effectiveParams() {
   const p = mergeParams(ui.params);
@@ -393,40 +541,133 @@ function effectiveParams() {
   return p;
 }
 function runDesign() {
-  parseNow();
-  renderInputSummary();
-  const valid = ui.records.filter((r) => !r.error);
-  if (!valid.length) {
-    toast(ui.parseErrors[0] || '설계할 서열이 없습니다');
-    showPane('input');
-    qs('#seqInput').focus();
-    return;
-  }
-  const btn = qs('#designBtn');
-  btn.disabled = true;
-  progress(true);
-  setTimeout(() => {
-    try {
-      ui.results = designAll(ui.records, effectiveParams());
-      ui.marker = Math.max(0, ui.results.findIndex((r) => !r.error));
-      ui.dir = 'forward';
-      ui.commonPick = {};
-      ui.stale = false;
-      renderResults();
-      showPane('results');
-      const badge = qs('#navResultBadge');
-      badge.textContent = String(valid.length);
-      badge.hidden = false;
-      toast(`${valid.length}개 마커 설계 완료`);
-    } catch (e) {
-      console.error(e);
-      toast(`설계 중 오류: ${e.message}`);
-    } finally {
-      progress(false);
-      btn.disabled = false;
-      renderActionSummary();
+  return new Promise((resolve) => {
+    parseNow();
+    renderInputSummary();
+    const valid = ui.records.filter((r) => !r.error);
+    if (!valid.length) {
+      toast(ui.parseErrors[0] || '설계할 서열이 없습니다');
+      showPane('input');
+      qs('#seqInput').focus();
+      resolve(false);
+      return;
     }
-  }, 30);
+    const btn = qs('#designBtn');
+    btn.disabled = true;
+    progress(true);
+    setTimeout(() => {
+      try {
+        ui.results = designAll(ui.records, effectiveParams());
+        ui.marker = Math.max(0, ui.results.findIndex((r) => !r.error));
+        ui.dir = 'forward';
+        ui.commonPick = {};
+        ui.stale = false;
+        renderResults();
+        showPane('results');
+        const badge = qs('#navResultBadge');
+        badge.textContent = String(valid.length);
+        badge.hidden = false;
+        toast(`${valid.length}개 마커 설계 완료`);
+      } catch (e) {
+        console.error(e);
+        toast(`설계 중 오류: ${e.message}`);
+      } finally {
+        progress(false);
+        btn.disabled = false;
+        renderActionSummary();
+        resolve(true);
+      }
+    }, 30);
+  });
+}
+
+/* ---------- 튜토리얼 · 서면 매뉴얼 · 환영 ---------- */
+function closeMenus() {
+  qsa('.menu-list').forEach((m) => { m.hidden = true; });
+}
+function openModal(id) { qs(id).classList.add('on'); }
+function closeModal(id) { qs(id).classList.remove('on'); }
+function markWelcomeSeen() {
+  try { localStorage.setItem(STORE_WELCOME, '1'); } catch { /* 무시 */ }
+}
+function startTour(at = 0) {
+  closeMenus();
+  closeModal('#manualModal');
+  markWelcomeSeen();
+  ui.tour.start(at);
+}
+function openManual() {
+  closeMenus();
+  markWelcomeSeen();
+  qs('#manualBody').innerHTML = renderManualHtml(ui.tour.steps);
+  openModal('#manualModal');
+}
+function buildTour() {
+  const ctx = {
+    ensureExample: () => {
+      if (!qs('#seqInput').value.trim() && EXAMPLES.snp_simple) setInputText(EXAMPLES.snp_simple.fasta);
+    },
+    ensureAnalysis: () => {
+      ctx.ensureExample();
+      if (ui.analysis) return;
+      if (!qs('#primerInput').value.trim()) qs('#primerInput').value = EXAMPLE_PRIMERS;
+      refreshAnalyzeRecordOptions();
+      const sel = qs('#analyzeRecord');
+      if (Array.from(sel.options).some((o) => o.value === 'Marker_SNP1')) sel.value = 'Marker_SNP1';
+      runAnalyze();
+    },
+    ensureDesigned: async () => {
+      ctx.ensureExample();
+      if (!ui.results.length) await runDesign();
+    },
+    openDetails: (sel) => { const d = qs(sel); if (d && 'open' in d) d.open = true; },
+  };
+  ui.tour = createTour({
+    steps: buildTourSteps(ctx),
+    onPane: showPane,
+    onDone: ({ skipped }) => { if (!skipped) toast('튜토리얼을 마쳤습니다'); },
+  });
+}
+function bindHelp() {
+  buildTour();
+  qs('#helpBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const list = qs('#helpList');
+    const wasHidden = list.hidden;
+    closeMenus();
+    list.hidden = !wasHidden;
+  });
+  qs('#helpList').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-help]');
+    if (!b) return;
+    if (b.dataset.help === 'tour') startTour(0);
+    else if (b.dataset.help === 'manual') openManual();
+  });
+  document.addEventListener('click', closeMenus);
+  qs('#guideTourBtn').addEventListener('click', () => startTour(0));
+  qs('#manualCloseBtn').addEventListener('click', () => closeModal('#manualModal'));
+  qs('#manualPlayBtn').addEventListener('click', () => startTour(0));
+  qs('#manualBody').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-play]');
+    if (!b) return;
+    startTour(Number(b.dataset.play));
+  });
+  qs('#manualModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal('#manualModal'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || (ui.tour && ui.tour.isActive())) return;
+    if (qs('#manualModal').classList.contains('on')) closeModal('#manualModal');
+  });
+}
+/**
+ * 첫 실행 때 한 번만 튜토리얼을 자동 재생한다. 시작과 동시에 "본 것"으로 기록하므로
+ * 건너뛰든 끝까지 보든 다시는 자동으로 뜨지 않는다 (저장소를 쓸 수 없는 환경에서는 자동 재생 안 함).
+ */
+function maybeAutoTour() {
+  let seen = '1';
+  try { seen = localStorage.getItem(STORE_WELCOME) || ''; } catch { seen = '1'; }
+  if (seen) return;
+  markWelcomeSeen();
+  setTimeout(() => { if (!ui.tour.isActive()) startTour(0); }, 600);
 }
 
 /* ---------- 결과 ---------- */
@@ -497,24 +738,24 @@ function renderSetCard(res, set, view) {
   for (const a of view.asps) {
     rows.push(`<tr>
       <td class="id">${escapeHtml(a.id)}</td>
-      <td>${seqHtml(a)}</td>
-      <td class="num">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
-      <td class="num"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
-      <td class="num">${fmt1(a.gc)}</td>
-      <td class="num">${a.lc}</td>
-      <td class="num muted">${a.tail ? escapeHtml(a.tail.name) : '—'}</td>
+      <td class="seq-cell">${seqHtml(a)}</td>
+      <td class="num" data-label="길이">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
+      <td class="num" data-label="Tm"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
+      <td class="num" data-label="GC%">${fmt1(a.gc)}</td>
+      <td class="num" data-label="LC%">${a.lc}</td>
+      <td class="num muted" data-label="Tail">${a.tail ? escapeHtml(a.tail.name) : '—'}</td>
     </tr>`);
   }
   const c = view.common;
   if (c) {
     rows.push(`<tr>
       <td class="id">${escapeHtml(c.id)}</td>
-      <td>${seqHtml(c)}</td>
-      <td class="num">${c.length}</td>
-      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
-      <td class="num">${fmt1(c.gc)}</td>
-      <td class="num">${c.lc}</td>
-      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${ampliconHtml(c, view)}</span></td>
+      <td class="seq-cell">${seqHtml(c)}</td>
+      <td class="num" data-label="길이">${c.length}</td>
+      <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num" data-label="GC%">${fmt1(c.gc)}</td>
+      <td class="num" data-label="LC%">${c.lc}</td>
+      <td class="num" data-label="Amplicon"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${ampliconHtml(c, view)}</span></td>
     </tr>`);
   } else {
     rows.push(`<tr><td colspan="7" class="muted">조건을 만족하는 Common 프라이머가 없습니다.</td></tr>`);
@@ -528,7 +769,7 @@ function renderSetCard(res, set, view) {
         <button type="button" class="btn small" id="setXlsxBtn">${ICONS.excel}엑셀</button>
       </div>
     </div>
-    <div class="table-wrap"><table class="grid">
+    <div class="table-wrap"><table class="grid stackable">
       <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C, tail 제외)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">${ui.mode === 'sizing' ? 'Filler / 산물 (bp)' : 'Tail / Amplicon (bp)'}</th></tr></thead>
       <tbody>${rows.join('')}</tbody>
     </table></div>
@@ -548,20 +789,20 @@ function renderCommonCard(res, set, view) {
   const p = res.params;
   const list = set.commons.slice(0, p.maxCommon);
   const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
-      <td class="num muted">${c.rank}</td>
+      <td class="num muted rank">${c.rank}</td>
       <td class="id">${escapeHtml(c.id)}</td>
-      <td>${seqHtml(c)}</td>
-      <td class="num">${c.length}</td>
-      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
-      <td class="num">${fmt1(c.gc)}</td>
-      <td class="num">${c.lc}</td>
-      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
-      <td class="num"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
+      <td class="seq-cell">${seqHtml(c)}</td>
+      <td class="num" data-label="길이">${c.length}</td>
+      <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num" data-label="GC%">${fmt1(c.gc)}</td>
+      <td class="num" data-label="LC%">${c.lc}</td>
+      <td class="num" data-label="Amplicon"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
+      <td class="num" data-label="ΔTm"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
       <td class="muted small note" title="${escapeHtml(c.warnings.join('; '))}">${escapeHtml(c.warnings.join('; '))}</td>
     </tr>`).join('');
   card.innerHTML = `
     <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2></div>
-    <div class="table-wrap"><table class="grid">
+    <div class="table-wrap"><table class="grid stackable">
       <thead><tr><th class="num">#</th><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">Amplicon (bp)</th><th class="num">ΔTm</th><th>비고</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="10" class="muted">후보 없음</td></tr>'}</tbody>
     </table></div>`;
@@ -579,9 +820,9 @@ function renderReport(res, set) {
   const rows = [];
   for (const a of set.asps) if (a) rows.push([a.id, seqHtml(a), a.fullLength, fmt1(a.tm), fmt1(a.gc), a.lc, a.warnings.join('; ')]);
   for (const c of set.commons.slice(0, p.maxReport)) rows.push([c.id, seqHtml(c), c.length, fmt1(c.tm), fmt1(c.gc), c.lc, `${c.ampliconLabel} / ${fmt1(c.ampliconTm)}${c.warnings.length ? ' ; ' + c.warnings.join('; ') : ''}`]);
-  box.innerHTML = `<div class="table-wrap"><table class="grid">
+  box.innerHTML = `<div class="table-wrap"><table class="grid stackable">
     <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th>비고</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr><td class="id">${escapeHtml(r[0])}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="num">${r[5]}</td><td class="muted small note" title="${escapeHtml(r[6])}">${escapeHtml(r[6])}</td></tr>`).join('')}</tbody>
+    <tbody>${rows.map((r) => `<tr><td class="id">${escapeHtml(r[0])}</td><td class="seq-cell">${r[1]}</td><td class="num" data-label="길이">${r[2]}</td><td class="num" data-label="Tm">${r[3]}</td><td class="num" data-label="GC%">${r[4]}</td><td class="num" data-label="LC%">${r[5]}</td><td class="muted small note" title="${escapeHtml(r[6])}">${escapeHtml(r[6])}</td></tr>`).join('')}</tbody>
   </table></div>
   <p class="hint">스캔 ${set.stats.scanned} 위치 · 탈락: Tm ${set.stats.rejected.tm}, 마스크 ${set.stats.rejected.mask}, 3′ 패턴 ${set.stats.rejected.pattern}, 반복 ${set.stats.rejected.repeat}, LC ${set.stats.rejected.lc}, 자기다이머 ${set.stats.rejected.selfDimer}, ASP 다이머 ${set.stats.rejected.crossDimer}, 겹침 ${set.stats.rejected.overlap}</p>`;
 }
@@ -598,11 +839,20 @@ function renderResults(resetScroll = true) {
   renderWarnBox(res, set, view);
   renderSetCard(res, set, view);
   renderCommonCard(res, set, view);
-  if (set) renderViewer(qs('#viewer'), res, view, {}); else qs('#viewer').innerHTML = '';
+  if (set) { renderViewer(qs('#viewer'), res, view, {}); lastViewerWidth = qs('#viewer').clientWidth; } else qs('#viewer').innerHTML = '';
   renderReport(res, set);
   if (resetScroll) window.scrollTo({ top: 0 });
 }
+function rerenderViewer() {
+  const viewer = qs('#viewer');
+  const res = currentResult();
+  const set = res && !res.error ? res[ui.dir] : null;
+  if (!set || !viewer) return;
+  renderViewer(viewer, res, viewOfSet(res, set, ui.marker, ui.dir), {});
+  lastViewerWidth = viewer.clientWidth;
+}
 function bindResults() {
+  qs('#viewerCard').addEventListener('toggle', () => { if (qs('#viewerCard').open && ui.results.length) rerenderViewer(); });
   qs('#markerTabs').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-marker]');
     if (!b) return;
@@ -682,9 +932,30 @@ function bindExport() {
   qs('#xlsxBtn').addEventListener('click', () => downloadXlsx());
 }
 
+/* ---------- 반응형 레이아웃 ---------- */
+let lastStack = null;
+let lastViewerWidth = 0;
+function updateLayoutMode() {
+  const content = qs('.content');
+  const width = content ? content.clientWidth : window.innerWidth;
+  const stack = width < 820;
+  if (stack !== lastStack) {
+    document.documentElement.classList.toggle('stack', stack);
+    lastStack = stack;
+  }
+  // 서열 뷰어는 폭에 맞춰 줄 길이를 다시 계산
+  const viewer = qs('#viewer');
+  if (ui.results.length && viewer && viewer.firstChild && !qs('#results').hidden && qs('#viewerCard').open) {
+    const w = viewer.clientWidth;
+    if (Math.abs(w - lastViewerWidth) > 24) rerenderViewer();
+  }
+}
+const onResize = debounce(updateLayoutMode, 120);
+
 /* ---------- 시작 ---------- */
 function injectIcons() {
   qsa('[data-icon]').forEach((el) => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+  qs('#helpBtn').innerHTML = ICONS.help;
 }
 function init() {
   injectIcons();
@@ -700,14 +971,20 @@ function init() {
   bindSegment(qs('#presetSeg2'), setPreset);
   bindTails();
   bindInput();
+  bindAnalyze();
   bindResults();
   bindExport();
-  qs('#designBtn').addEventListener('click', runDesign);
+  bindHelp();
+  qs('#designBtn').addEventListener('click', () => { runDesign(); });
   syncParamsForm();
 
   let saved = '';
   try { saved = localStorage.getItem(STORE_INPUT) || ''; } catch { saved = ''; }
   setInputText(saved);
+  updateLayoutMode();
+  window.addEventListener('resize', onResize);
+  if (window.matchMedia) window.matchMedia('(orientation: portrait)').addEventListener('change', onResize);
+  maybeAutoTour();
 }
 
 if (typeof document !== 'undefined') {

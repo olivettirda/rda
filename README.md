@@ -25,6 +25,31 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 
 헤더가 없으면 `Seq1`, `Seq2` …, `이름<공백>서열` 한 줄 형식도 됩니다. 여러 레코드를 한 번에 넣으면 일괄 설계되고 엑셀에도 함께 저장됩니다.
 
+### 반응형 레이아웃
+
+- **≥ 1100px**: 왼쪽 사이드바(260px) + 표 형태의 결과.
+- **768–1099px**(태블릿·좁은 창): 사이드바가 아이콘 레일(76px)로 접히고, 콘텐츠 폭이 좁으면 표가 카드형 목록으로 바뀝니다.
+- **< 768px**(모바일): 사이드바가 하단 탭바로, 상단바는 로고·프리셋·테마·도움말만, 표는 카드형 목록(ID · 줄바꿈되는 서열 · 길이/Tm/GC/LC 칩), 서열 뷰어는 화면 폭에 맞춰 한 줄 염기 수를 자동 조정합니다. iPhone 하단 안전영역(safe-area)도 반영합니다.
+
+### 튜토리얼과 서면 매뉴얼
+
+- **처음 실행 때 한 번만** 튜토리얼이 자동으로 시작됩니다. 화면이 어두워지면서 해당 칸만 밝게 비추고 설명 카드가 따라갑니다(26단계, 약 2분). "건너뛰기"·Esc·× 로 언제든 중단할 수 있고, 한 번 뜬 뒤에는 다시 자동으로 나오지 않습니다(브라우저 저장소에 기록). "다음"/→ 키로 넘기고 ← 로 돌아갑니다. 예제 서열 입력·분석·설계는 튜토리얼이 알아서 실행해 보여 줍니다.
+- 상단의 **?** 버튼에서 언제든 다시 재생하거나 **서면 매뉴얼**(같은 내용을 글로, 항목마다 "이 단계 재생" 링크)을 볼 수 있습니다.
+
+### 처음 사용 3단계 (앱의 **프라이머 분석** 탭 상단에도 있음)
+
+1. **서열 입력** 탭에 마커 서열을 붙여넣습니다. 변이는 `[A/G]`, 양쪽 flank 100–200 nt.
+2. **설계 조건**은 기본값으로 시작합니다. 이미 쓰던 프라이머가 있으면 **프라이머 분석** 탭에 붙여넣고 "분석" → "이 조건 적용".
+3. **프라이머 설계** → **결과** 탭에서 경고가 적은 세트(Forward / Reverse) 선택 → **내보내기** 탭에서 주문용 엑셀.
+
+### 기존 프라이머 분석 (역설계 가이드)
+
+**프라이머 분석** 탭에 가지고 있던 프라이머를 `이름<탭>서열` 형식(FASTA, 공백 구분, 숫자 열 포함 표도 가능)으로 붙여넣으면:
+
+- tail(FAM/HEX 또는 Tail 탭의 서열)을 자동으로 떼어 **본체 Tm 을 두 프리셋(바이오니어 / primerdigital)으로** 계산하고 GC, LC, 단순반복, 자기·교차 다이머를 표시합니다.
+- 서열 입력 탭의 템플릿을 고르면 양 가닥에서 위치(불일치 2개까지)를 찾아 **ASP / Common 역할**, 3′ 말단이 변이에 있는지, 3′ 2번째 의도적 미스매치, **amplicon 크기**를 판정합니다.
+- 관찰값으로부터 "비슷하게 설계하려면" 쓸 조건(프리셋, Tm 범위, 길이, GC, amplicon, tail, Tm 차, LC)을 추정해 현재 조건과 나란히 보여 주고, **이 조건을 설계 조건에 적용** 또는 **적용하고 바로 설계** 버튼으로 반영합니다.
+
 ## 2. 설계 조건 (기본값 = 벼 분자육종 표준)
 
 | 항목 | 기본 | 비고 |
@@ -51,15 +76,15 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 ## 4. 개발
 
 ```
-npm test        # node --test tests/*.test.js  (브라우저 없이 코어 검증, 54 tests)
+npm test        # node --test tests/*.test.js  (브라우저 없이 코어 검증, 61 tests)
 npm run build   # scripts/build.js → dist/kasp-designer.html (의존성 없음)
 npm run demo    # scripts/demo.js  → 예제 설계 결과를 콘솔 TSV 로
 node scripts/serve.js   # 개발용 정적 서버 http://localhost:4173
 ```
 
 ```
-src/core/   seq · tm · complexity · dimer · mask · parse · design · sizing · export · xlsx
-src/ui/     app.html · style.css · app.js · viewer.js · rsid.js · icons.js
+src/core/   seq · tm · complexity · dimer · mask · parse · design · sizing · analyze · export · xlsx
+src/ui/     app.html · style.css · app.js · viewer.js · rsid.js · icons.js · tour.js(스포트라이트 엔진) · tourSteps.js(단계 내용)
 scripts/    build.js (ESM → 단일 클래식 스크립트 번들) · demo.js · serve.js
 tests/      node:test 단위·통합 테스트
 reference/  tm.js (Tm 기준 구현) · test_cases.json (예제 5종, 기준값)

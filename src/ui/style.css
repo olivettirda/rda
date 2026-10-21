@@ -79,7 +79,9 @@ a { color: var(--accent); text-decoration: none; }
   position: fixed; top: var(--topbar-h); bottom: 0; left: 0; width: var(--sidebar-w);
   padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
   border-right: 0.5px solid var(--line); background: var(--bg);
+  transition: width 160ms ease-out;
 }
+.nav-label { white-space: nowrap; }
 .nav-item {
   display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px;
   border: 0; border-radius: 10px; background: transparent; color: var(--text); text-align: left; font-size: 15px;
@@ -92,7 +94,7 @@ a { color: var(--accent); text-decoration: none; }
 .nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 .sidebar-foot { margin-top: auto; padding: 8px 12px; color: var(--text-2); font-size: 12px; }
 
-.content { flex: 1; min-width: 0; margin-left: var(--sidebar-w); padding: 32px 32px 120px; }
+.content { flex: 1; min-width: 0; margin-left: var(--sidebar-w); padding: 32px 32px 120px; transition: margin-left 160ms ease-out; }
 .pane { display: none; max-width: 980px; margin: 0 auto; min-width: 0; }
 .pane.on { display: block; animation: fade 160ms ease-out; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -195,6 +197,26 @@ input[type="range"]:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft); }
 .seq-summary { margin-top: 10px; font-size: 13px; color: var(--text-2); }
 .error-list { margin: 8px 0 0; padding-left: 18px; color: var(--err); font-size: 13px; }
 
+/* ===== 기존 프라이머 분석 / 가이드 ===== */
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.6; }
+.steps li::marker { color: var(--accent); font-weight: 700; }
+.steps b { font-weight: 600; }
+.primer-input {
+  width: 100%; min-height: 150px; padding: 12px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0.02em;
+  border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); resize: vertical; white-space: pre; overflow-x: auto;
+}
+.primer-input::placeholder { color: var(--text-2); opacity: 0.7; }
+.analyze-opts { margin-top: 12px; align-items: end; }
+.note-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.note-list li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.5; }
+.note-list li .icon { flex: none; margin-top: 3px; color: var(--accent); }
+.note-list li.ok .icon { color: var(--ok); }
+.note-list li.warn .icon { color: var(--warn); }
+.note-list li.info .icon { color: var(--text-2); }
+.cmp td.new { font-weight: 600; }
+.cmp td.same { color: var(--text-2); }
+.analyze-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+
 /* ===== Tail 행 ===== */
 .tail-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .tail-row { display: grid; grid-template-columns: 90px 1fr 64px; gap: 12px; align-items: center; }
@@ -287,30 +309,143 @@ table.grid tr.clickable { cursor: pointer; }
 .progress.on { opacity: 1; width: 70%; }
 .progress.done { width: 100%; opacity: 0; }
 
-/* ===== 반응형 (모바일: 사이드바 → 하단 탭바) ===== */
+/* ===== 튜토리얼(스포트라이트) ===== */
+.tour-root { position: fixed; inset: 0; z-index: 100; display: none; }
+.tour-root.on { display: block; }
+.tour-backdrop { position: absolute; inset: 0; background: transparent; }
+.tour-root.tour-center .tour-backdrop { background: rgba(0, 0, 0, 0.55); }
+.tour-spot {
+  position: fixed; border-radius: 10px; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 0 2px var(--accent);
+  transition: left 240ms ease-out, top 240ms ease-out, width 240ms ease-out, height 240ms ease-out, opacity 160ms ease-out;
+}
+.tour-card {
+  position: fixed; width: min(380px, calc(100vw - 24px)); padding: 16px 18px 14px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--card-border); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); transition: left 240ms ease-out, top 240ms ease-out;
+}
+.tour-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.tour-count { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tour-x { border: 0; background: transparent; color: var(--text-2); font-size: 20px; line-height: 1; width: 28px; height: 28px; border-radius: 8px; }
+.tour-x:hover { background: var(--surface-2); color: var(--text); }
+.tour-card h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+.tour-card p { font-size: 14px; line-height: 1.55; margin: 0; word-break: keep-all; }
+.tour-progress { height: 3px; border-radius: 2px; background: var(--line-soft); margin: 12px 0; overflow: hidden; }
+.tour-progress i { display: block; height: 100%; background: var(--accent); transition: width 240ms ease-out; }
+.tour-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tour-nav { display: flex; gap: 8px; }
+.btn-primary.small { height: 32px; padding: 0 14px; font-size: 13px; }
+
+/* ===== 모달 (서면 매뉴얼, 환영) ===== */
+.modal { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center; padding: 16px; }
+.modal.on { display: flex; animation: fade 160ms ease-out; }
+.modal-card {
+  width: min(760px, 100%); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border-radius: 14px; border: 1px solid var(--card-border); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+}
+.modal-small { width: min(520px, 100%); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 22px; border-bottom: 0.5px solid var(--line); flex-wrap: wrap; }
+.modal-head h2 { font-size: 17px; font-weight: 600; }
+.modal-body { overflow: auto; padding: 8px 22px 22px; }
+.manual h3 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 22px 0 6px; letter-spacing: 0.02em; }
+.manual-step { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 12px 0; border-top: 0.5px solid var(--line-soft); align-items: start; }
+.manual-step .n { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.manual-step h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+.manual-step p { margin: 0; font-size: 13px; color: var(--text-2); line-height: 1.55; word-break: keep-all; }
+.manual-step .link-btn { font-size: 13px; white-space: nowrap; padding-top: 2px; }
 @media (max-width: 767px) {
-  .content { margin-left: 0; padding: 20px 16px 150px; }
-  .sidebar {
-    top: auto; bottom: 0; width: 100%; height: 60px; flex-direction: row; padding: 6px 8px 8px; gap: 0; border-right: 0; border-top: 0.5px solid var(--line);
-    background: color-mix(in srgb, var(--surface) 85%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); z-index: 16;
-  }
-  .nav-item { flex: 1; flex-direction: column; gap: 2px; height: auto; padding: 4px 0; font-size: 10px; align-items: center; justify-content: center; }
-  .nav-item.on { background: transparent; box-shadow: none; color: var(--accent); }
-  .nav-badge { position: absolute; margin: 0; top: 2px; right: 10%; min-width: 16px; height: 16px; font-size: 10px; }
+  .manual-step { grid-template-columns: 24px 1fr; }
+  .manual-step .link-btn { grid-column: 2; justify-self: start; }
+}
+
+/* ===== 카드형 표 (콘텐츠 폭이 좁을 때 JS 가 html.stack 을 켠다) ===== */
+html.stack table.grid.stackable thead { display: none; }
+html.stack table.grid.stackable, html.stack table.grid.stackable tbody, html.stack table.grid.stackable tr { display: block; width: 100%; }
+html.stack table.grid.stackable tr { padding: 12px 10px; border-bottom: 0.5px solid var(--line); border-radius: 0; }
+html.stack table.grid.stackable tr:last-child { border-bottom: 0; }
+html.stack table.grid.stackable tbody tr:hover td { background: transparent; }
+html.stack table.grid.stackable tr.pick { background: var(--accent-soft); border-radius: var(--radius-sm); }
+html.stack table.grid.stackable td { display: inline-block; height: auto; padding: 2px 12px 2px 0; border: 0; vertical-align: baseline; font-family: var(--font); }
+html.stack table.grid.stackable td.id { display: block; padding: 0 0 4px; font-size: 13px; color: var(--text); font-weight: 600; font-family: var(--mono); }
+html.stack table.grid.stackable td.seq-cell { display: block; padding: 2px 0 6px; }
+html.stack table.grid.stackable td.seq-cell .seq { white-space: normal; word-break: break-all; }
+html.stack table.grid.stackable td.note { display: block; max-width: none; white-space: normal; padding: 4px 0 0; }
+html.stack table.grid.stackable td[data-label]::before { content: attr(data-label) " "; color: var(--text-2); font-size: 12px; }
+html.stack table.grid.stackable td.num { text-align: left; font-family: var(--font); font-variant-numeric: tabular-nums; }
+html.stack table.grid.stackable td.rank { display: inline-block; padding-right: 6px; color: var(--text-2); }
+html.stack table.grid.stackable td.rank + td.id { display: inline-block; width: calc(100% - 40px); }
+html.stack .table-wrap { overflow: visible; }
+html.stack .cmp tr { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; padding: 8px 0; }
+html.stack .cmp td { padding: 0; }
+html.stack .cmp td[data-label]::before { content: none; }
+
+/* ===== 반응형: 태블릿/좁은 데스크톱 (768–1099px) — 사이드바를 아이콘 레일로 ===== */
+@media (min-width: 768px) and (max-width: 1099px) {
+  :root { --sidebar-w: 76px; }
+  .sidebar { padding: 16px 10px; align-items: stretch; }
+  .nav-item { justify-content: center; padding: 0; gap: 0; }
+  .nav-label { display: none; }
+  .nav-badge { position: absolute; top: 4px; right: 6px; margin: 0; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
   .nav-item { position: relative; }
   .sidebar-foot { display: none; }
-  .actionbar { left: 0; bottom: 60px; padding: 10px 16px; }
-  .toast { bottom: 150px; }
+  .content { padding: 28px 24px 110px; }
+  .actionbar { padding: 12px 24px; }
+}
+
+/* ===== 반응형: 모바일 (<768px) — 사이드바 → 하단 탭바 ===== */
+@media (max-width: 767px) {
+  .content { margin-left: 0; padding: 18px 16px 150px; }
+  .sidebar {
+    top: auto; bottom: 0; width: 100%; height: calc(58px + env(safe-area-inset-bottom)); flex-direction: row; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); gap: 0; border-right: 0; border-top: 0.5px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 85%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); z-index: 16;
+  }
+  .nav-item { flex: 1; flex-direction: column; gap: 3px; height: auto; padding: 4px 0; align-items: center; justify-content: center; position: relative; min-width: 0; }
+  .nav-item.on { background: transparent; box-shadow: none; color: var(--accent); }
+  .nav-label { font-size: 0; line-height: 1; }
+  .nav-label::after { content: attr(data-short); font-size: 10.5px; line-height: 1.2; white-space: nowrap; }
+  .nav-badge { position: absolute; margin: 0; top: 0; right: 14%; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
+  .sidebar-foot { display: none; }
+  .actionbar { left: 0; bottom: calc(58px + env(safe-area-inset-bottom)); padding: 10px 16px; gap: 10px; }
+  .action-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btn-primary { height: 40px; padding: 0 16px; font-size: 14px; }
+  .toast { bottom: 150px; max-width: calc(100vw - 32px); }
   .form-grid { grid-template-columns: 1fr; }
-  .page-title { font-size: 24px; }
-  .card { padding: 18px; margin-bottom: 24px; }
-  .topbar { padding: 0 14px; }
-  .segment > button { padding: 0 10px; }
+  .page-title { font-size: 24px; margin-bottom: 14px; }
+  .card { padding: 16px; margin-bottom: 20px; }
+  .card-head { margin-bottom: 12px; }
+  .topbar { padding: 0 12px; }
+  .topbar-right { gap: 4px; }
+  .segment > button { padding: 0 9px; font-size: 12px; }
   .brand-title { font-size: 14px; }
-  .tail-row { grid-template-columns: 70px 1fr 48px; gap: 8px; }
+  .tail-row { grid-template-columns: 64px 1fr 44px; gap: 8px; }
   .card-head h2 { font-size: 16px; }
-  .disclosure > summary { font-size: 16px; padding: 16px 18px; }
-  .disclosure-body { padding: 16px 18px 18px; }
+  .disclosure > summary { font-size: 16px; padding: 14px 16px; }
+  .disclosure > summary .sub { display: none; }
+  .disclosure-body { padding: 14px 16px 16px; }
+  .segment-wide { flex-wrap: wrap; }
+  .segment-wide > button { flex: 1 1 calc(50% - 2px); }
+  .row-between { margin-bottom: 14px; }
+  .set-foot { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .steps { padding-left: 18px; }
+  .num-row { grid-template-columns: 1fr 84px; }
+  .btn-row .btn { flex: 1 1 auto; justify-content: center; }
+  .seq-editor textarea, .seq-backdrop { min-height: 200px; font-size: 13px; }
+  .modal { padding: 10px; align-items: flex-end; }
+  .modal-card { max-height: 92vh; border-radius: 14px 14px 10px 10px; }
+  .tour-card { padding: 14px 14px 12px; }
+  .vlegend { gap: 8px 12px; }
+}
+@media (max-width: 479px) {
+  .brand-title { display: none; }
+  .segment > button { padding: 0 8px; }
+  .icon-btn { width: 32px; height: 32px; }
+}
+@media (min-width: 1100px) {
+  .content { padding: 36px 40px 120px; }
+}
+@media (min-width: 1500px) {
+  .pane { max-width: 1120px; }
+  .actionbar > * { max-width: 1120px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

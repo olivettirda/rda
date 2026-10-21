@@ -27,16 +27,24 @@
       <button type="button" data-value="primerdigital">primerdigital</button>
     </div>
     <button type="button" class="icon-btn" id="themeBtn" aria-label="테마 전환" title="테마 전환"></button>
+    <div class="menu" id="helpMenu">
+      <button type="button" class="icon-btn" id="helpBtn" aria-label="도움말" title="도움말"></button>
+      <div class="menu-list" id="helpList" hidden>
+        <button type="button" data-help="tour">튜토리얼 재생<small>화면을 따라가며 단계별 안내</small></button>
+        <button type="button" data-help="manual">서면 매뉴얼<small>같은 내용을 글로 읽기</small></button>
+      </div>
+    </div>
   </div>
 </header>
 
 <div class="shell">
   <nav class="sidebar" id="sidebar" aria-label="주 메뉴">
-    <button type="button" class="nav-item on" data-pane="input"><span class="nav-icon" data-icon="dna"></span><span>서열 입력</span></button>
-    <button type="button" class="nav-item" data-pane="params"><span class="nav-icon" data-icon="sliders"></span><span>설계 조건</span></button>
-    <button type="button" class="nav-item" data-pane="tails"><span class="nav-icon" data-icon="tag"></span><span>Tail</span></button>
-    <button type="button" class="nav-item" data-pane="results"><span class="nav-icon" data-icon="table"></span><span>결과</span><span class="nav-badge" id="navResultBadge" hidden></span></button>
-    <button type="button" class="nav-item" data-pane="export"><span class="nav-icon" data-icon="download"></span><span>내보내기</span></button>
+    <button type="button" class="nav-item on" data-pane="input" title="서열 입력"><span class="nav-icon" data-icon="dna"></span><span class="nav-label" data-short="서열">서열 입력</span></button>
+    <button type="button" class="nav-item" data-pane="analyze" title="프라이머 분석"><span class="nav-icon" data-icon="search"></span><span class="nav-label" data-short="분석">프라이머 분석</span></button>
+    <button type="button" class="nav-item" data-pane="params" title="설계 조건"><span class="nav-icon" data-icon="sliders"></span><span class="nav-label" data-short="조건">설계 조건</span></button>
+    <button type="button" class="nav-item" data-pane="tails" title="Tail"><span class="nav-icon" data-icon="tag"></span><span class="nav-label" data-short="Tail">Tail</span></button>
+    <button type="button" class="nav-item" data-pane="results" title="결과"><span class="nav-icon" data-icon="table"></span><span class="nav-label" data-short="결과">결과</span><span class="nav-badge" id="navResultBadge" hidden></span></button>
+    <button type="button" class="nav-item" data-pane="export" title="내보내기"><span class="nav-icon" data-icon="download"></span><span class="nav-label" data-short="내보내기">내보내기</span></button>
     <div class="sidebar-foot" id="sidebarFoot"></div>
   </nav>
 
@@ -83,10 +91,47 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
       </details>
     </section>
 
+    <!-- 1b. 기존 프라이머 분석 + 초보자 가이드 -->
+    <section class="pane" data-pane="analyze">
+      <h1 class="page-title">기존 프라이머 분석</h1>
+      <div class="card" id="guideCard">
+        <div class="card-head"><h2>처음이신가요? 3단계</h2><button type="button" class="link-btn" id="guideTourBtn">튜토리얼 재생</button></div>
+        <ol class="steps">
+          <li><b>서열 입력</b> 탭에 마커 서열을 붙여넣습니다. 변이는 <code>[A/G]</code> 처럼 대괄호로 쓰고, 양쪽에 flank 를 100–200 nt 둡니다. 헤더에 <code>Chr01:1234567</code> 을 적으면 좌표가 유전체 bp 로 변환됩니다.</li>
+          <li><b>설계 조건</b>은 기본값(바이오니어 · Tm 57–62 °C · 18–25 nt · amplicon 50–150 bp)으로 시작하면 됩니다. 이미 쓰던 프라이머가 있다면 아래에 붙여넣고 <b>분석</b> → <b>이 조건 적용</b> 으로 같은 스타일의 조건을 만듭니다.</li>
+          <li><b>프라이머 설계</b>를 누르고 <b>결과</b> 탭에서 경고가 적은 세트(Forward / Reverse)를 고른 뒤, <b>내보내기</b> 탭에서 주문용 엑셀을 받습니다.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>기존 프라이머 붙여넣기</h2>
+          <div class="card-actions">
+            <button type="button" class="link-btn" id="analyzeExampleBtn">예제 프라이머</button>
+            <button type="button" class="link-btn" id="analyzeClearBtn">지우기</button>
+          </div>
+        </div>
+        <textarea id="primerInput" class="primer-input" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="이름  서열   (한 줄에 하나, tail 포함 그대로 · 탭/공백/쉼표 구분 · 숫자 열은 무시)
+ASP_A	GAAGGTGACCAAGTTCATGCTccggcatggctgacattgA
+ASP_G	GAAGGTCGGAGTCAACGGATTccggcatggctgacattgG
+Common	tctcgtgtgaacgcagcc"></textarea>
+        <div class="form-grid analyze-opts">
+          <label class="field"><span>템플릿 (서열 입력 탭의 마커 · 위치와 amplicon 계산용)</span><select id="analyzeRecord"><option value="">템플릿 없이 분석</option></select></label>
+          <div class="field field-btn"><button type="button" class="btn" id="analyzeBtn"><span data-icon="search"></span>분석</button></div>
+        </div>
+        <p class="hint">tail(FAM/HEX 또는 Tail 탭의 서열)을 자동으로 떼어 본체 Tm 을 두 프리셋으로 계산하고, 템플릿이 있으면 양 가닥에서 위치(불일치 2개까지)를 찾아 ASP/Common 역할, 3′ 말단이 변이에 있는지, 의도적 미스매치, amplicon 크기를 판정합니다.</p>
+      </div>
+
+      <div id="analyzeOut" hidden>
+        <div class="card" id="analyzeTable"></div>
+        <div class="card" id="analyzeSummary"></div>
+      </div>
+    </section>
+
     <!-- 2. 설계 조건 -->
     <section class="pane" data-pane="params">
       <h1 class="page-title">설계 조건</h1>
-      <div class="card">
+      <div class="card" id="basicParamsCard">
         <div class="card-head"><h2>기본 조건</h2><button type="button" class="link-btn" id="resetParamsBtn">기본값 복원</button></div>
         <div class="form-grid">
           <div class="field num" data-param="tmMin"><span>Tm 하한 (°C, tail 제외)</span><div class="num-row"><input type="range" min="37" max="80" step="0.5"><input type="number" min="37" max="80" step="0.5"></div></div>
@@ -104,7 +149,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="presetCard">
         <div class="card-head"><h2>Tm 계산 조건</h2></div>
         <div class="segment segment-wide" id="presetSeg2" role="group" aria-label="프리셋">
           <button type="button" data-value="bioneer" class="on">바이오니어</button>
@@ -210,7 +255,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
     <!-- 5. 내보내기 -->
     <section class="pane" data-pane="export">
       <h1 class="page-title">내보내기</h1>
-      <div class="card">
+      <div class="card" id="exportRangeCard">
         <div class="card-head"><h2>범위</h2></div>
         <div class="form-grid">
           <div class="field"><span>마커</span>
@@ -242,6 +287,19 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal" id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="manualTitle">서면 매뉴얼</h2>
+      <div class="card-actions">
+        <button type="button" class="btn small" id="manualPlayBtn">처음부터 재생</button>
+        <button type="button" class="icon-btn" id="manualCloseBtn" aria-label="닫기">×</button>
+      </div>
+    </div>
+    <div class="modal-body manual" id="manualBody"></div>
+  </div>
+</div>
 
 <script>
 /* @EXAMPLES */

@@ -91,7 +91,9 @@ a { color: var(--accent); text-decoration: none; }
   position: fixed; top: var(--topbar-h); bottom: 0; left: 0; width: var(--sidebar-w);
   padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
   border-right: 0.5px solid var(--line); background: var(--bg);
+  transition: width 160ms ease-out;
 }
+.nav-label { white-space: nowrap; }
 .nav-item {
   display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px;
   border: 0; border-radius: 10px; background: transparent; color: var(--text); text-align: left; font-size: 15px;
@@ -104,7 +106,7 @@ a { color: var(--accent); text-decoration: none; }
 .nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 .sidebar-foot { margin-top: auto; padding: 8px 12px; color: var(--text-2); font-size: 12px; }
 
-.content { flex: 1; min-width: 0; margin-left: var(--sidebar-w); padding: 32px 32px 120px; }
+.content { flex: 1; min-width: 0; margin-left: var(--sidebar-w); padding: 32px 32px 120px; transition: margin-left 160ms ease-out; }
 .pane { display: none; max-width: 980px; margin: 0 auto; min-width: 0; }
 .pane.on { display: block; animation: fade 160ms ease-out; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -207,6 +209,26 @@ input[type="range"]:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft); }
 .seq-summary { margin-top: 10px; font-size: 13px; color: var(--text-2); }
 .error-list { margin: 8px 0 0; padding-left: 18px; color: var(--err); font-size: 13px; }
 
+/* ===== 기존 프라이머 분석 / 가이드 ===== */
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.6; }
+.steps li::marker { color: var(--accent); font-weight: 700; }
+.steps b { font-weight: 600; }
+.primer-input {
+  width: 100%; min-height: 150px; padding: 12px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0.02em;
+  border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); resize: vertical; white-space: pre; overflow-x: auto;
+}
+.primer-input::placeholder { color: var(--text-2); opacity: 0.7; }
+.analyze-opts { margin-top: 12px; align-items: end; }
+.note-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.note-list li { display: flex; gap: 10px; align-items: flex-start; line-height: 1.5; }
+.note-list li .icon { flex: none; margin-top: 3px; color: var(--accent); }
+.note-list li.ok .icon { color: var(--ok); }
+.note-list li.warn .icon { color: var(--warn); }
+.note-list li.info .icon { color: var(--text-2); }
+.cmp td.new { font-weight: 600; }
+.cmp td.same { color: var(--text-2); }
+.analyze-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+
 /* ===== Tail 행 ===== */
 .tail-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .tail-row { display: grid; grid-template-columns: 90px 1fr 64px; gap: 12px; align-items: center; }
@@ -299,30 +321,143 @@ table.grid tr.clickable { cursor: pointer; }
 .progress.on { opacity: 1; width: 70%; }
 .progress.done { width: 100%; opacity: 0; }
 
-/* ===== 반응형 (모바일: 사이드바 → 하단 탭바) ===== */
+/* ===== 튜토리얼(스포트라이트) ===== */
+.tour-root { position: fixed; inset: 0; z-index: 100; display: none; }
+.tour-root.on { display: block; }
+.tour-backdrop { position: absolute; inset: 0; background: transparent; }
+.tour-root.tour-center .tour-backdrop { background: rgba(0, 0, 0, 0.55); }
+.tour-spot {
+  position: fixed; border-radius: 10px; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 0 2px var(--accent);
+  transition: left 240ms ease-out, top 240ms ease-out, width 240ms ease-out, height 240ms ease-out, opacity 160ms ease-out;
+}
+.tour-card {
+  position: fixed; width: min(380px, calc(100vw - 24px)); padding: 16px 18px 14px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--card-border); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); transition: left 240ms ease-out, top 240ms ease-out;
+}
+.tour-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.tour-count { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tour-x { border: 0; background: transparent; color: var(--text-2); font-size: 20px; line-height: 1; width: 28px; height: 28px; border-radius: 8px; }
+.tour-x:hover { background: var(--surface-2); color: var(--text); }
+.tour-card h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+.tour-card p { font-size: 14px; line-height: 1.55; margin: 0; word-break: keep-all; }
+.tour-progress { height: 3px; border-radius: 2px; background: var(--line-soft); margin: 12px 0; overflow: hidden; }
+.tour-progress i { display: block; height: 100%; background: var(--accent); transition: width 240ms ease-out; }
+.tour-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tour-nav { display: flex; gap: 8px; }
+.btn-primary.small { height: 32px; padding: 0 14px; font-size: 13px; }
+
+/* ===== 모달 (서면 매뉴얼, 환영) ===== */
+.modal { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center; padding: 16px; }
+.modal.on { display: flex; animation: fade 160ms ease-out; }
+.modal-card {
+  width: min(760px, 100%); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border-radius: 14px; border: 1px solid var(--card-border); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+}
+.modal-small { width: min(520px, 100%); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 22px; border-bottom: 0.5px solid var(--line); flex-wrap: wrap; }
+.modal-head h2 { font-size: 17px; font-weight: 600; }
+.modal-body { overflow: auto; padding: 8px 22px 22px; }
+.manual h3 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 22px 0 6px; letter-spacing: 0.02em; }
+.manual-step { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 12px 0; border-top: 0.5px solid var(--line-soft); align-items: start; }
+.manual-step .n { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.manual-step h4 { margin: 0 0 3px; font-size: 14px; font-weight: 600; }
+.manual-step p { margin: 0; font-size: 13px; color: var(--text-2); line-height: 1.55; word-break: keep-all; }
+.manual-step .link-btn { font-size: 13px; white-space: nowrap; padding-top: 2px; }
 @media (max-width: 767px) {
-  .content { margin-left: 0; padding: 20px 16px 150px; }
-  .sidebar {
-    top: auto; bottom: 0; width: 100%; height: 60px; flex-direction: row; padding: 6px 8px 8px; gap: 0; border-right: 0; border-top: 0.5px solid var(--line);
-    background: color-mix(in srgb, var(--surface) 85%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); z-index: 16;
-  }
-  .nav-item { flex: 1; flex-direction: column; gap: 2px; height: auto; padding: 4px 0; font-size: 10px; align-items: center; justify-content: center; }
-  .nav-item.on { background: transparent; box-shadow: none; color: var(--accent); }
-  .nav-badge { position: absolute; margin: 0; top: 2px; right: 10%; min-width: 16px; height: 16px; font-size: 10px; }
+  .manual-step { grid-template-columns: 24px 1fr; }
+  .manual-step .link-btn { grid-column: 2; justify-self: start; }
+}
+
+/* ===== 카드형 표 (콘텐츠 폭이 좁을 때 JS 가 html.stack 을 켠다) ===== */
+html.stack table.grid.stackable thead { display: none; }
+html.stack table.grid.stackable, html.stack table.grid.stackable tbody, html.stack table.grid.stackable tr { display: block; width: 100%; }
+html.stack table.grid.stackable tr { padding: 12px 10px; border-bottom: 0.5px solid var(--line); border-radius: 0; }
+html.stack table.grid.stackable tr:last-child { border-bottom: 0; }
+html.stack table.grid.stackable tbody tr:hover td { background: transparent; }
+html.stack table.grid.stackable tr.pick { background: var(--accent-soft); border-radius: var(--radius-sm); }
+html.stack table.grid.stackable td { display: inline-block; height: auto; padding: 2px 12px 2px 0; border: 0; vertical-align: baseline; font-family: var(--font); }
+html.stack table.grid.stackable td.id { display: block; padding: 0 0 4px; font-size: 13px; color: var(--text); font-weight: 600; font-family: var(--mono); }
+html.stack table.grid.stackable td.seq-cell { display: block; padding: 2px 0 6px; }
+html.stack table.grid.stackable td.seq-cell .seq { white-space: normal; word-break: break-all; }
+html.stack table.grid.stackable td.note { display: block; max-width: none; white-space: normal; padding: 4px 0 0; }
+html.stack table.grid.stackable td[data-label]::before { content: attr(data-label) " "; color: var(--text-2); font-size: 12px; }
+html.stack table.grid.stackable td.num { text-align: left; font-family: var(--font); font-variant-numeric: tabular-nums; }
+html.stack table.grid.stackable td.rank { display: inline-block; padding-right: 6px; color: var(--text-2); }
+html.stack table.grid.stackable td.rank + td.id { display: inline-block; width: calc(100% - 40px); }
+html.stack .table-wrap { overflow: visible; }
+html.stack .cmp tr { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; padding: 8px 0; }
+html.stack .cmp td { padding: 0; }
+html.stack .cmp td[data-label]::before { content: none; }
+
+/* ===== 반응형: 태블릿/좁은 데스크톱 (768–1099px) — 사이드바를 아이콘 레일로 ===== */
+@media (min-width: 768px) and (max-width: 1099px) {
+  :root { --sidebar-w: 76px; }
+  .sidebar { padding: 16px 10px; align-items: stretch; }
+  .nav-item { justify-content: center; padding: 0; gap: 0; }
+  .nav-label { display: none; }
+  .nav-badge { position: absolute; top: 4px; right: 6px; margin: 0; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
   .nav-item { position: relative; }
   .sidebar-foot { display: none; }
-  .actionbar { left: 0; bottom: 60px; padding: 10px 16px; }
-  .toast { bottom: 150px; }
+  .content { padding: 28px 24px 110px; }
+  .actionbar { padding: 12px 24px; }
+}
+
+/* ===== 반응형: 모바일 (<768px) — 사이드바 → 하단 탭바 ===== */
+@media (max-width: 767px) {
+  .content { margin-left: 0; padding: 18px 16px 150px; }
+  .sidebar {
+    top: auto; bottom: 0; width: 100%; height: calc(58px + env(safe-area-inset-bottom)); flex-direction: row; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); gap: 0; border-right: 0; border-top: 0.5px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 85%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); z-index: 16;
+  }
+  .nav-item { flex: 1; flex-direction: column; gap: 3px; height: auto; padding: 4px 0; align-items: center; justify-content: center; position: relative; min-width: 0; }
+  .nav-item.on { background: transparent; box-shadow: none; color: var(--accent); }
+  .nav-label { font-size: 0; line-height: 1; }
+  .nav-label::after { content: attr(data-short); font-size: 10.5px; line-height: 1.2; white-space: nowrap; }
+  .nav-badge { position: absolute; margin: 0; top: 0; right: 14%; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
+  .sidebar-foot { display: none; }
+  .actionbar { left: 0; bottom: calc(58px + env(safe-area-inset-bottom)); padding: 10px 16px; gap: 10px; }
+  .action-summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btn-primary { height: 40px; padding: 0 16px; font-size: 14px; }
+  .toast { bottom: 150px; max-width: calc(100vw - 32px); }
   .form-grid { grid-template-columns: 1fr; }
-  .page-title { font-size: 24px; }
-  .card { padding: 18px; margin-bottom: 24px; }
-  .topbar { padding: 0 14px; }
-  .segment > button { padding: 0 10px; }
+  .page-title { font-size: 24px; margin-bottom: 14px; }
+  .card { padding: 16px; margin-bottom: 20px; }
+  .card-head { margin-bottom: 12px; }
+  .topbar { padding: 0 12px; }
+  .topbar-right { gap: 4px; }
+  .segment > button { padding: 0 9px; font-size: 12px; }
   .brand-title { font-size: 14px; }
-  .tail-row { grid-template-columns: 70px 1fr 48px; gap: 8px; }
+  .tail-row { grid-template-columns: 64px 1fr 44px; gap: 8px; }
   .card-head h2 { font-size: 16px; }
-  .disclosure > summary { font-size: 16px; padding: 16px 18px; }
-  .disclosure-body { padding: 16px 18px 18px; }
+  .disclosure > summary { font-size: 16px; padding: 14px 16px; }
+  .disclosure > summary .sub { display: none; }
+  .disclosure-body { padding: 14px 16px 16px; }
+  .segment-wide { flex-wrap: wrap; }
+  .segment-wide > button { flex: 1 1 calc(50% - 2px); }
+  .row-between { margin-bottom: 14px; }
+  .set-foot { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .steps { padding-left: 18px; }
+  .num-row { grid-template-columns: 1fr 84px; }
+  .btn-row .btn { flex: 1 1 auto; justify-content: center; }
+  .seq-editor textarea, .seq-backdrop { min-height: 200px; font-size: 13px; }
+  .modal { padding: 10px; align-items: flex-end; }
+  .modal-card { max-height: 92vh; border-radius: 14px 14px 10px 10px; }
+  .tour-card { padding: 14px 14px 12px; }
+  .vlegend { gap: 8px 12px; }
+}
+@media (max-width: 479px) {
+  .brand-title { display: none; }
+  .segment > button { padding: 0 8px; }
+  .icon-btn { width: 32px; height: 32px; }
+}
+@media (min-width: 1100px) {
+  .content { padding: 36px 40px 120px; }
+}
+@media (min-width: 1500px) {
+  .pane { max-width: 1120px; }
+  .actionbar > * { max-width: 1120px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -349,16 +484,24 @@ table.grid tr.clickable { cursor: pointer; }
       <button type="button" data-value="primerdigital">primerdigital</button>
     </div>
     <button type="button" class="icon-btn" id="themeBtn" aria-label="테마 전환" title="테마 전환"></button>
+    <div class="menu" id="helpMenu">
+      <button type="button" class="icon-btn" id="helpBtn" aria-label="도움말" title="도움말"></button>
+      <div class="menu-list" id="helpList" hidden>
+        <button type="button" data-help="tour">튜토리얼 재생<small>화면을 따라가며 단계별 안내</small></button>
+        <button type="button" data-help="manual">서면 매뉴얼<small>같은 내용을 글로 읽기</small></button>
+      </div>
+    </div>
   </div>
 </header>
 
 <div class="shell">
   <nav class="sidebar" id="sidebar" aria-label="주 메뉴">
-    <button type="button" class="nav-item on" data-pane="input"><span class="nav-icon" data-icon="dna"></span><span>서열 입력</span></button>
-    <button type="button" class="nav-item" data-pane="params"><span class="nav-icon" data-icon="sliders"></span><span>설계 조건</span></button>
-    <button type="button" class="nav-item" data-pane="tails"><span class="nav-icon" data-icon="tag"></span><span>Tail</span></button>
-    <button type="button" class="nav-item" data-pane="results"><span class="nav-icon" data-icon="table"></span><span>결과</span><span class="nav-badge" id="navResultBadge" hidden></span></button>
-    <button type="button" class="nav-item" data-pane="export"><span class="nav-icon" data-icon="download"></span><span>내보내기</span></button>
+    <button type="button" class="nav-item on" data-pane="input" title="서열 입력"><span class="nav-icon" data-icon="dna"></span><span class="nav-label" data-short="서열">서열 입력</span></button>
+    <button type="button" class="nav-item" data-pane="analyze" title="프라이머 분석"><span class="nav-icon" data-icon="search"></span><span class="nav-label" data-short="분석">프라이머 분석</span></button>
+    <button type="button" class="nav-item" data-pane="params" title="설계 조건"><span class="nav-icon" data-icon="sliders"></span><span class="nav-label" data-short="조건">설계 조건</span></button>
+    <button type="button" class="nav-item" data-pane="tails" title="Tail"><span class="nav-icon" data-icon="tag"></span><span class="nav-label" data-short="Tail">Tail</span></button>
+    <button type="button" class="nav-item" data-pane="results" title="결과"><span class="nav-icon" data-icon="table"></span><span class="nav-label" data-short="결과">결과</span><span class="nav-badge" id="navResultBadge" hidden></span></button>
+    <button type="button" class="nav-item" data-pane="export" title="내보내기"><span class="nav-icon" data-icon="download"></span><span class="nav-label" data-short="내보내기">내보내기</span></button>
     <div class="sidebar-foot" id="sidebarFoot"></div>
   </nav>
 
@@ -405,10 +548,47 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
       </details>
     </section>
 
+    <!-- 1b. 기존 프라이머 분석 + 초보자 가이드 -->
+    <section class="pane" data-pane="analyze">
+      <h1 class="page-title">기존 프라이머 분석</h1>
+      <div class="card" id="guideCard">
+        <div class="card-head"><h2>처음이신가요? 3단계</h2><button type="button" class="link-btn" id="guideTourBtn">튜토리얼 재생</button></div>
+        <ol class="steps">
+          <li><b>서열 입력</b> 탭에 마커 서열을 붙여넣습니다. 변이는 <code>[A/G]</code> 처럼 대괄호로 쓰고, 양쪽에 flank 를 100–200 nt 둡니다. 헤더에 <code>Chr01:1234567</code> 을 적으면 좌표가 유전체 bp 로 변환됩니다.</li>
+          <li><b>설계 조건</b>은 기본값(바이오니어 · Tm 57–62 °C · 18–25 nt · amplicon 50–150 bp)으로 시작하면 됩니다. 이미 쓰던 프라이머가 있다면 아래에 붙여넣고 <b>분석</b> → <b>이 조건 적용</b> 으로 같은 스타일의 조건을 만듭니다.</li>
+          <li><b>프라이머 설계</b>를 누르고 <b>결과</b> 탭에서 경고가 적은 세트(Forward / Reverse)를 고른 뒤, <b>내보내기</b> 탭에서 주문용 엑셀을 받습니다.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>기존 프라이머 붙여넣기</h2>
+          <div class="card-actions">
+            <button type="button" class="link-btn" id="analyzeExampleBtn">예제 프라이머</button>
+            <button type="button" class="link-btn" id="analyzeClearBtn">지우기</button>
+          </div>
+        </div>
+        <textarea id="primerInput" class="primer-input" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="이름  서열   (한 줄에 하나, tail 포함 그대로 · 탭/공백/쉼표 구분 · 숫자 열은 무시)
+ASP_A	GAAGGTGACCAAGTTCATGCTccggcatggctgacattgA
+ASP_G	GAAGGTCGGAGTCAACGGATTccggcatggctgacattgG
+Common	tctcgtgtgaacgcagcc"></textarea>
+        <div class="form-grid analyze-opts">
+          <label class="field"><span>템플릿 (서열 입력 탭의 마커 · 위치와 amplicon 계산용)</span><select id="analyzeRecord"><option value="">템플릿 없이 분석</option></select></label>
+          <div class="field field-btn"><button type="button" class="btn" id="analyzeBtn"><span data-icon="search"></span>분석</button></div>
+        </div>
+        <p class="hint">tail(FAM/HEX 또는 Tail 탭의 서열)을 자동으로 떼어 본체 Tm 을 두 프리셋으로 계산하고, 템플릿이 있으면 양 가닥에서 위치(불일치 2개까지)를 찾아 ASP/Common 역할, 3′ 말단이 변이에 있는지, 의도적 미스매치, amplicon 크기를 판정합니다.</p>
+      </div>
+
+      <div id="analyzeOut" hidden>
+        <div class="card" id="analyzeTable"></div>
+        <div class="card" id="analyzeSummary"></div>
+      </div>
+    </section>
+
     <!-- 2. 설계 조건 -->
     <section class="pane" data-pane="params">
       <h1 class="page-title">설계 조건</h1>
-      <div class="card">
+      <div class="card" id="basicParamsCard">
         <div class="card-head"><h2>기본 조건</h2><button type="button" class="link-btn" id="resetParamsBtn">기본값 복원</button></div>
         <div class="form-grid">
           <div class="field num" data-param="tmMin"><span>Tm 하한 (°C, tail 제외)</span><div class="num-row"><input type="range" min="37" max="80" step="0.5"><input type="number" min="37" max="80" step="0.5"></div></div>
@@ -426,7 +606,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="presetCard">
         <div class="card-head"><h2>Tm 계산 조건</h2></div>
         <div class="segment segment-wide" id="presetSeg2" role="group" aria-label="프리셋">
           <button type="button" data-value="bioneer" class="on">바이오니어</button>
@@ -532,7 +712,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
     <!-- 5. 내보내기 -->
     <section class="pane" data-pane="export">
       <h1 class="page-title">내보내기</h1>
-      <div class="card">
+      <div class="card" id="exportRangeCard">
         <div class="card-head"><h2>범위</h2></div>
         <div class="form-grid">
           <div class="field"><span>마커</span>
@@ -564,6 +744,19 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal" id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="manualTitle">서면 매뉴얼</h2>
+      <div class="card-actions">
+        <button type="button" class="btn small" id="manualPlayBtn">처음부터 재생</button>
+        <button type="button" class="icon-btn" id="manualCloseBtn" aria-label="닫기">×</button>
+      </div>
+    </div>
+    <div class="modal-body manual" id="manualBody"></div>
+  </div>
+</div>
 
 <script>
 window.KASP_EXAMPLES = {"snp_simple":{"desc":"단순 SNP, 양쪽 flank 200 nt","fasta":">Marker_SNP1\nagccgaactcctggctttgaatgtctgtttcactcggaacataactatggtcgtcgctcgtctgacggcgtagcggtcgcatggtgtaaatatactatggtctagtgcgtacagaggagtagtgagtaagccgataagacgcgctagaccttaattgctacgcctgtagttgaatgggtaagccggcatggctgacattg[A/G]caagtcctgtgcggtaccgcgtcaatgccggccatgtagtggctgcgttcacacgagacgcactgagaaactatattggccaattggcttgaaccaaggtaatagcggtcgcaactacagagtgatccaggtgctctgtaaatatgtcaaactgcagcttgcgccaccttgcccgtaaatccttagcctagggctaggac"},"snp_iupac":{"desc":"IUPAC 1문자 변이 + 주변 SNP(r) 포함","fasta":">Marker_IUPAC\nttccatttacgtgccttggttcgaggcaaccggtagctaaggttctccgtggagctgcttcgtggtctggccaattggccaattggagattaggctggctgttgaatggttgcctacacartcaatgaagttcgcgcctggttgcggactcacaatcatcaatgttgcggggggacagcccctatcatcctacctcgtga[S]gcgtcctttctggccaagatccataggtaggcgcgtcttattagaaatgcatgctggatttatggcagtcaacttaatagcggtcgaaatcgccacagcagctacctcgtacctggggcttcgctcctgttagccgaaattcggaaccattatgagcttgcccctgttgggccgaccgtcatgggggctaagctacaccc"},"indel":{"desc":"2 bp 결실","fasta":">Marker_InDel\ntatgctaaccgcagcagagtgatccagcttagtagtcctcagaacgtatgggtcgactcgggctgatgatcgttctgccagtacagcctgaccgcctgtagtacatttaaagaaaacagttgtcagtcaactggtctagtgatttgcgatgggctgaacgcgactttgaaagcatagcggtcgaagcctgagtaaatcgc[AG/]acataatcgagggcgaagcgcaccccctgaccacaattggagcggtcaccgcaggaaagacaactaagtccgcaggtccggcccatgtgaactactatctccatagcgggcggtccgcgcagctaccgtctggtagcttctgacggactacgtaatttacccatgtggcggaaacctagacaagcgccacagagtcgatt"},"mnv_multi":{"desc":"MNV + 3대립","fasta":">Marker_MNV\ncttaacatatgatcaaacgacgtacgttgtagacagacggattttgccgacgcattttcttaacaatttatctcacaacatctcggccaagatccagctgggtgccaggggtgaccacaattgccctcagccttcatgttgctagcgtttgtgtacagttgtcaggacaagtacagaggcttaattaggttcgagaccgg[GATATAC/CAGTCC]ttgatttggtagtgggccgaccatggtttcattgcttcggctgctgtaattcggctgttagtggggtgtctacgcgcttatgcgccatgcgataccctgctgtcttcgaaatcgagaccgggacacacctttactgccttcgagaaggagaagaggtgccccggcccatctgagggcaaaccagaaaatgttccgacggt\n\n>Marker_Tri\ntatcgcctacgctctggtggaccctggggggaaacaatcatcggaagcaaagtctattccgacgctgaatgtggcgtcatggctgtagtctatctacctgggttatgagcgggcctatcattctcgtgtttcgaaccggcttgaacaggatgccagcagactatctccaggtgctctgttgctcttggtttgaaacgaag[A/C/G]cacgccacgattcgaggaatcaaattaatgcgaggaagttccggagaagtacgtacgttggctacgcggtgcaaacgtatgaatttgcacggagaccaaagcaattgcgtaccgcttcgatcccgtcagttaaagtgatccagttcagtcgcaactaatcccgtccttcgtagctacacctggcaaagatcaaaattgcg"},"excluded_region":{"desc":"/.../ 제외구역 포함","fasta":">Marker_Excl\nggggttagctacgcctatgcccaatgttgccagaccttaatggggtttccggtgctgaatttgcatagactggggggttactcaatgccgggaacctcttacctcgtacgtgccttttttggttatgacggtcgcatttatggcagtcac/taacccagggttatccagttgtggccaatt/aggcaggacagcgttaactt[C/T]ggttagctacgcactcaggtgttggtggcgatcccttctccctaaatcactgtttgtcactcagagagagagagagaggtagacctgtcaccgtcagataaatttacggctctgaatagatagcggtaccctccagaccgcgggcggaatggcaaagggggcatcccactgactgttatgcccggaccggaaacgctctt"}};
@@ -2412,6 +2605,309 @@ function applyAlleleSizing(set, common, o = {}) {
 }
 
 
+/* ===== src/core/analyze.js ===== */
+/**
+ * analyze.js — 기존 프라이머 분석 → 설계 조건 추정 (역설계 가이드)
+ *
+ *  1. 프라이머 목록 파싱 (이름<TAB>서열 / 이름 서열 / FASTA / 서열만)
+ *  2. tail 감지(FAM/HEX 또는 사용자 tail) → 본체 분리
+ *  3. 본체 Tm(현재 프리셋 + 비교 프리셋), GC, LC, 단순반복, 자기/교차 다이머
+ *  4. 템플릿(서열 입력의 마커)이 있으면 양 가닥에서 위치 탐색(≤ 2 미스매치), 역할(ASP/Common) 판정,
+ *     3′ 말단이 변이 위치에 있는지, 의도적 미스매치, amplicon 크기
+ *  5. 관찰값에서 "비슷하게 설계하려면" 쓸 파라미터와 안내문을 만든다
+ */
+
+
+
+
+
+
+const SEQ_TOKEN = /^[ACGTUacgtu]{8,}$/;
+
+/** 자유 형식 텍스트 → [{name, seq}] */
+function parsePrimerList(text) {
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let pendingName = null;
+  let auto = 0;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (line.startsWith('>')) { pendingName = line.slice(1).trim().split(/\s+/)[0] || null; continue; }
+    const tokens = line.split(/[\s,;]+/).filter(Boolean);
+    const seqTokens = tokens.filter((t) => SEQ_TOKEN.test(t));
+    if (!seqTokens.length) continue; // 표 머리글 등
+    const seq = seqTokens.reduce((a, b) => (b.length > a.length ? b : a));
+    let name = pendingName || (tokens[0] !== seq && !SEQ_TOKEN.test(tokens[0]) ? tokens[0] : '');
+    pendingName = null;
+    if (!name) name = `P${++auto}`;
+    out.push({ name, seq: seq.toUpperCase().replace(/U/g, 'T'), raw: line });
+  }
+  return out;
+}
+
+/** 알려진 tail 로 시작하면 분리 (긴 tail 우선). 본체가 8 nt 미만이면 tail 로 보지 않는다 */
+function detectTail(seq, tails = []) {
+  const s = String(seq ?? '').toUpperCase();
+  const list = [...(tails || []), ...DEFAULT_TAILS]
+    .filter((t) => t && t.seq)
+    .map((t) => ({ name: t.name, seq: String(t.seq).toUpperCase() }))
+    .sort((a, b) => b.seq.length - a.seq.length);
+  for (const t of list) {
+    if (s.startsWith(t.seq) && s.length - t.seq.length >= 8) return { tail: t, body: s.slice(t.seq.length) };
+  }
+  return { tail: null, body: s };
+}
+
+/**
+ * 본체 서열을 레코드 템플릿(대립유전자별, 양 가닥)에서 찾는다. 좌표는 정방향 1-based.
+ * @returns {object|null} { strand:'+'|'-', alleleIndex, alleleLabel, start0, end0, start, end,
+ *   mismatches, mismatchPositions(본체 5′기준 0-based), coversVariant, threeEndAtVariant, distanceToVariant }
+ */
+function locateOnTemplate(body, record, maxMismatch = 2) {
+  if (!record || record.error || !body) return null;
+  const b = String(body).toUpperCase();
+  const n1 = record.s1.length;
+  let best = null;
+  record.alleles.forEach((al, ai) => {
+    const T = (record.s1 + al.seq + record.s3).toUpperCase();
+    const vStart = n1, vEnd = n1 + Math.max(1, al.seq.length);
+    for (const strand of ['+', '-']) {
+      const probe = strand === '+' ? b : revcomp(b);
+      for (let p = 0; p + probe.length <= T.length; p++) {
+        let mm = 0;
+        const pos = [];
+        for (let k = 0; k < probe.length; k++) {
+          if (T[p + k] !== probe[k]) { mm++; if (mm > maxMismatch) break; pos.push(k); }
+        }
+        if (mm > maxMismatch) continue;
+        const start0 = p, end0 = p + probe.length;
+        const three0 = strand === '+' ? end0 - 1 : start0;
+        const cand = {
+          strand, alleleIndex: ai, alleleLabel: al.label,
+          start0, end0, start: start0 + 1, end: end0,
+          mismatches: mm,
+          mismatchPositions: (strand === '+' ? pos : pos.map((k) => probe.length - 1 - k)).sort((x, y) => x - y),
+          coversVariant: start0 < vEnd && end0 > vStart,
+          threeEndAtVariant: three0 >= vStart && three0 < vEnd,
+          distanceToVariant: Math.min(Math.abs(three0 - vStart), Math.abs(three0 - (vEnd - 1))),
+        };
+        if (!best || mm < best.mismatches || (mm === best.mismatches && cand.threeEndAtVariant && !best.threeEndAtVariant)) best = cand;
+      }
+    }
+  });
+  return best;
+}
+
+function rangeOf(arr) {
+  return arr.length ? [Math.min(...arr), Math.max(...arr)] : null;
+}
+
+/** "18–25" 또는 값이 같으면 "18" */
+function spanText(lo, hi, digits = 0) {
+  const f = (v) => (digits ? v.toFixed(digits) : String(v));
+  return lo === hi ? f(lo) : `${f(lo)}–${f(hi)}`;
+}
+
+/**
+ * 관찰값 → 추정 조건 + 안내문
+ */
+function inferConditions(items, params, x = {}) {
+  const notes = [];
+  const sug = {};
+  const asps = items.filter((i) => i.role === 'ASP');
+  const commons = items.filter((i) => i.role === 'Common');
+  const unknown = items.filter((i) => i.role === '미확인');
+  const known = items.filter((i) => i.role !== '미확인');
+  const f1 = (v) => v.toFixed(1);
+
+  // Tm
+  const tms = items.map((i) => i.tm).filter(Number.isFinite);
+  const tmsAlt = items.map((i) => i.tmAlt).filter(Number.isFinite);
+  if (tms.length) {
+    const [lo, hi] = rangeOf(tms);
+    const [loA, hiA] = rangeOf(tmsAlt);
+    const mid = (params.tmMin + params.tmMax) / 2;
+    const mainFits = Math.abs((lo + hi) / 2 - mid) <= Math.abs((loA + hiA) / 2 - mid);
+    let line = `본체 Tm(tail 제외): ${x.mainLabel} ${spanText(lo, hi, 1)} °C · ${x.altLabel} ${spanText(loA, hiA, 1)} °C.`;
+    line += mainFits
+      ? ` 현재 프리셋(${x.mainLabel}) 기준 ${Math.floor(lo)}–${Math.ceil(hi)} °C 로 맞춘 설계로 보입니다.`
+      : ` ${x.altLabel} 조건에서 ${Math.floor(loA)}–${Math.ceil(hiA)} °C 로 맞춘 설계로 보입니다 → 프리셋을 ${x.altLabel} 로 바꾸길 권합니다.`;
+    notes.push({ kind: 'tm', text: line });
+    const useLo = mainFits ? lo : loA, useHi = mainFits ? hi : hiA;
+    sug.preset = mainFits ? params.preset : x.altKey;
+    sug.tmMin = Math.floor(useLo);
+    sug.tmMax = Math.ceil(useHi);
+    if (sug.tmMax - sug.tmMin < 3) {
+      sug.tmMin = Math.floor((useLo + useHi) / 2 - 1.5);
+      sug.tmMax = sug.tmMin + 3;
+    }
+    sug.tmMin = Math.max(37, sug.tmMin);
+    sug.tmMax = Math.min(80, sug.tmMax);
+  }
+
+  // 길이
+  const aspLens = asps.map((a) => a.length);
+  if (aspLens.length) {
+    const [lo, hi] = rangeOf(aspLens);
+    sug.aspMinLen = Math.max(12, lo - 1);
+    sug.aspMaxLen = Math.min(60, hi + 1);
+    notes.push({ kind: 'len', text: `ASP 본체 길이 ${spanText(lo, hi)} nt (tail 제외) → ASP 길이 ${sug.aspMinLen}–${sug.aspMaxLen} nt.` });
+  }
+  const cLens = commons.map((c) => c.length);
+  if (cLens.length) {
+    const [lo, hi] = rangeOf(cLens);
+    sug.commonMinLen = Math.max(12, lo - 1);
+    sug.commonMaxLen = Math.min(100, hi + 1);
+    notes.push({ kind: 'len', text: `Common 길이 ${spanText(lo, hi)} nt → Common 길이 ${sug.commonMinLen}–${sug.commonMaxLen} nt.` });
+  }
+
+  // GC
+  const gcs = known.map((i) => i.gc).filter(Number.isFinite);
+  if (gcs.length) {
+    const [lo, hi] = rangeOf(gcs);
+    sug.gcMin = Math.max(0, Math.floor(lo) - 5);
+    sug.gcMax = Math.min(100, Math.ceil(hi) + 5);
+    notes.push({ kind: 'gc', text: `GC ${spanText(Number(lo.toFixed(0)), Number(hi.toFixed(0)))} % → GC 범위 ${sug.gcMin}–${sug.gcMax} %.` });
+  }
+
+  // tail
+  const tailSeen = [];
+  for (const a of asps) if (a.tail && !tailSeen.some((t) => t.seq === a.tail.seq)) tailSeen.push({ name: a.tail.name, seq: a.tail.seq });
+  if (tailSeen.length) {
+    sug.useTails = true;
+    const isLgc = tailSeen.every((t) => DEFAULT_TAILS.some((d) => d.seq === t.seq));
+    notes.push({ kind: 'tail', text: `tail 감지: ${tailSeen.map((t) => t.name).join(', ')}${isLgc ? ' (LGC KASP 표준 FAM/HEX)' : ' (사용자 tail — Tail 탭에 반영됩니다)'} → 형광(KASP) 판독.` });
+    const sameAsParams = tailSeen.every((t, i) => params.tails[i] && params.tails[i].seq === t.seq);
+    if (!sameAsParams) sug.tails = tailSeen;
+  } else if (asps.length) {
+    sug.useTails = false;
+    notes.push({ kind: 'tail', text: 'ASP 에 tail 이 없습니다 → 형광 판독이 아니면 Tail 탭에서 "tail 부착"을 끄거나 겔(Allele sizing) 모드를 쓰세요.' });
+  }
+
+  // amplicon
+  const sizes = asps.flatMap((a) => (a.amplicons || []).map((m) => m.size));
+  if (sizes.length) {
+    const [lo, hi] = rangeOf(sizes);
+    sug.ampliconMin = Math.max(30, Math.floor((lo * 0.8) / 10) * 10);
+    sug.ampliconMax = Math.min(1000, Math.ceil((hi * 1.2) / 10) * 10);
+    notes.push({ kind: 'amp', text: `amplicon ${lo}${hi !== lo ? '–' + hi : ''} bp (tail 포함) → 권장 범위 ${sug.ampliconMin}–${sug.ampliconMax} bp.` });
+  }
+
+  // 3′ 말단 · 미스매치
+  for (const a of asps) {
+    if (!a.loc) continue;
+    if (a.loc.threeEndAtVariant) notes.push({ kind: 'ok', text: `${a.name}: 3′ 말단이 변이 위치(대립유전자 ${a.loc.alleleLabel})에 있습니다 → snpOffset 1.` });
+    else notes.push({ kind: 'warn', text: `${a.name}: 3′ 말단이 변이에서 ${a.loc.distanceToVariant} nt 떨어져 있습니다. 대립유전자 특이 프라이머가 맞는지 확인하세요.` });
+    if (a.loc.mismatches) {
+      const pos = a.loc.mismatchPositions;
+      const second = pos.includes(a.length - 2);
+      notes.push({ kind: second ? 'ok' : 'warn', text: `${a.name}: 템플릿과 ${a.loc.mismatches}개 불일치 (5′에서 ${pos.map((p) => p + 1).join(', ')}번째)${second ? ' → 3′ 2번째 의도적 미스매치로 보입니다. 겔 모드의 "second deliberate mismatch" 옵션에 해당합니다.' : '.'}` });
+    }
+  }
+  for (const c of commons) {
+    if (c.loc && c.loc.mismatches) notes.push({ kind: 'warn', text: `${c.name}: 템플릿과 ${c.loc.mismatches}개 불일치.` });
+  }
+
+  // Tm 차
+  if (asps.length && commons.length) {
+    let d = 0;
+    for (const a of asps) for (const c of commons) d = Math.max(d, Math.abs(a.tm - c.tm));
+    sug.tmDiffMax = Math.max(params.tmDiffMax, Math.ceil(d * 2) / 2);
+    notes.push({ kind: d > params.tmDiffMax ? 'warn' : 'ok', text: `ASP–Common Tm 차 최대 ${f1(d)} °C${d > params.tmDiffMax ? ` → 허용치를 ${sug.tmDiffMax} °C 로.` : '.'}` });
+  }
+
+  // LC
+  const lcs = known.map((i) => i.lc);
+  if (lcs.length) {
+    const lo = Math.min(...lcs);
+    if (lo < params.minLC) {
+      sug.minLC = Math.max(10, Math.floor(lo / 5) * 5);
+      notes.push({ kind: 'warn', text: `LC 최저 ${lo} % 가 현재 하한 ${params.minLC} % 보다 낮습니다 → LC 하한을 ${sug.minLC} % 로.` });
+    }
+  }
+
+  // 다이머
+  for (const i of items) if (i.selfDimer) notes.push({ kind: 'warn', text: `${i.name}: 자기 다이머 ${i.selfDimer.matches} bp${i.selfDimer.threePrimeA || i.selfDimer.threePrimeB ? ' (3′ 말단 관여)' : ''}.` });
+  for (const p of x.pairs || []) notes.push({ kind: 'warn', text: `${items[p.a].name} ↔ ${items[p.b].name}: 교차 다이머 ${p.matches} bp (임계 ${params.dimerThreshold}).` });
+  for (const i of items) if (i.repeat) notes.push({ kind: 'warn', text: `${i.name}: 단순반복 ${i.repeat} 포함 (현재 규칙으로는 Common 후보에서 탈락).` });
+
+  // 미확인
+  for (const u of unknown) notes.push({ kind: 'info', text: `${u.name}: 템플릿에서 위치를 찾지 못했습니다${x.record ? ' (2개 초과 불일치)' : ' — 서열 입력 탭에 해당 마커 템플릿을 넣으면 위치·amplicon 을 계산합니다'}.` });
+
+  return { notes, suggested: sug, counts: { asp: asps.length, common: commons.length, unknown: unknown.length } };
+}
+
+/**
+ * 프라이머 목록 분석
+ * @param {{name:string, seq:string}[]} primers
+ * @param {object} o { record, params, maxMismatch }
+ */
+function analyzePrimers(primers, o = {}) {
+  const params = mergeParams(o.params || {});
+  const condMain = resolveConditions(params);
+  const mainLabel = params.preset === 'custom' ? '사용자 정의' : (TM_PRESETS[params.preset] || TM_PRESETS.bioneer).label;
+  const altKey = params.preset === 'primerdigital' ? 'bioneer' : 'primerdigital';
+  const condAlt = makeConditions(TM_PRESETS[altKey]);
+  const altLabel = TM_PRESETS[altKey].label;
+  const record = o.record && !o.record.error ? o.record : null;
+
+  const items = primers.map((pr) => {
+    const { tail, body } = detectTail(pr.seq, params.tails);
+    const loc = record ? locateOnTemplate(body, record, o.maxMismatch ?? 2) : null;
+    const role = tail ? 'ASP' : (loc ? (loc.coversVariant ? 'ASP' : 'Common') : '미확인');
+    const self = findSelfDimer(pr.seq, { threshold: params.dimerThreshold });
+    return {
+      name: pr.name, full: pr.seq, tail, body,
+      length: body.length, fullLength: pr.seq.length,
+      tm: meltingTemp(body, condMain), tmAlt: meltingTemp(body, condAlt),
+      gc: gcPercent(body), lc: linguisticComplexity(body),
+      repeat: findSimpleRepeat(body),
+      selfDimer: self && self.isDimer ? self : null,
+      loc, role, amplicons: [],
+    };
+  });
+
+  const pairs = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const r = findDimer(items[i].full, items[j].full, { threshold: params.dimerThreshold });
+      if (r && r.isDimer) pairs.push({ a: i, b: j, matches: r.matches });
+    }
+  }
+
+  const asps = items.filter((i) => i.role === 'ASP' && i.loc);
+  const commons = items.filter((i) => i.role === 'Common' && i.loc);
+  for (const a of asps) {
+    for (const c of commons) {
+      if (a.loc.strand === c.loc.strand) continue;
+      const tailLen = a.tail ? a.tail.seq.length : 0;
+      const size = a.loc.strand === '+' ? c.loc.end0 - a.loc.start0 + tailLen : a.loc.end0 - c.loc.start0 + tailLen;
+      if (size > 0) a.amplicons.push({ common: c.name, size });
+    }
+  }
+
+  const summary = inferConditions(items, params, { altKey, altLabel, mainLabel, record, pairs });
+  return { items, pairs, summary, mainLabel, altLabel, altKey, params };
+}
+
+/** 분석 표 TSV */
+function analysisToTsv(result) {
+  const head = ['Name', 'Role', 'Tail', 'Body(5′→3′)', 'Length', `Tm_${result.mainLabel}`, `Tm_${result.altLabel}`, 'GC(%)', 'LC(%)', 'Strand', 'Position', 'Mismatch', 'Amplicon(bp)'];
+  const rows = [head.join('\t')];
+  for (const i of result.items) {
+    rows.push([
+      i.name, i.role, i.tail ? i.tail.name : '', i.body, i.length,
+      Number.isFinite(i.tm) ? i.tm.toFixed(1) : '', Number.isFinite(i.tmAlt) ? i.tmAlt.toFixed(1) : '',
+      i.gc.toFixed(1), i.lc,
+      i.loc ? i.loc.strand : '', i.loc ? `${i.loc.start}-${i.loc.end}` : '', i.loc ? i.loc.mismatches : '',
+      (i.amplicons || []).map((m) => `${m.common}:${m.size}`).join(' '),
+    ].join('\t'));
+  }
+  return rows.join('\n');
+}
+
+
 /* ===== src/ui/icons.js ===== */
 /**
  * icons.js — 선형 아이콘 (24×24, stroke 1.5, 직접 그린 단순 경로)
@@ -2438,6 +2934,8 @@ const ICONS = Object.freeze({
   empty: svgIcon('<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 10h8M8 14h5"/>', 40),
   trash: svgIcon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', 18),
   play: svgIcon('<path d="M7 5v14l11-7z"/>', 18),
+  help: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17v.5"/>'),
+  book: svgIcon('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19a2 2 0 0 1 2-2h13M8 7h7"/>', 18),
 });
 
 function icon(name) {
@@ -2462,8 +2960,26 @@ function vEsc(s) {
  * @param {object} view { asps, common, commons }  (app.js 의 viewOfSet)
  * @param {object} opts { rowWidth, altCount }
  */
+/** 컨테이너 폭에 맞는 한 줄 염기 수 (10 단위, 20~100) */
+function fitRowWidth(container) {
+  try {
+    const probe = document.createElement('span');
+    probe.className = 'viewer';
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;';
+    probe.textContent = '0'.repeat(20);
+    container.appendChild(probe);
+    const chw = probe.getBoundingClientRect().width / 20;
+    probe.remove();
+    const avail = container.clientWidth - 64 - 12 - 4; // pos 열 + 간격
+    if (!chw || avail <= 0) return 60;
+    return Math.max(20, Math.min(100, Math.floor(avail / chw / 10) * 10));
+  } catch {
+    return 60;
+  }
+}
+
 function renderViewer(container, result, view, opts = {}) {
-  const width = opts.rowWidth || 60;
+  const width = opts.rowWidth || fitRowWidth(container);
   const altCount = opts.altCount ?? 4;
   const fwd = result.forward;
   if (!fwd || !fwd.template) { container.innerHTML = '<p class="muted small">표시할 템플릿이 없습니다.</p>'; return; }
@@ -2518,6 +3034,7 @@ function renderViewer(container, result, view, opts = {}) {
     rows += `<div class="vrow"><div class="pos">${pos}</div><div><div class="track">${bars}</div><div class="bases">${bases}</div></div></div>`;
   }
   container.innerHTML = `<div class="viewer">${legend}${rows}</div>`;
+  container.dataset.rowWidth = String(width);
 }
 
 
@@ -2595,10 +3112,325 @@ async function fetchVariantFasta(id, species = 'oryza_sativa', flank = 200, { ti
 }
 
 
+/* ===== src/ui/tour.js ===== */
+/**
+ * tour.js — 스포트라이트 튜토리얼 엔진 (의존성 없음)
+ *
+ *  - 화면 전체를 어둡게 하고 대상 요소만 밝게 비춘 뒤(box-shadow 구멍), 옆에 설명 카드를 띄운다
+ *  - 다음/이전/건너뛰기 버튼, → ← Enter Esc 키, 진행 막대
+ *  - 단계: { pane, target(선택자), title, text, before(async), group }
+ *    target 이 없거나 숨겨진 단계는 자동으로 건너뛴다. target 이 없는 단계는 화면 중앙 카드.
+ */
+function tEsc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function createTour(options) {
+  const { steps, onPane, onDone, storageKey = 'kasp-tour-seen' } = options;
+  const reduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let root = null, spot = null, card = null;
+  let idx = -1, active = false, currentEl = null, raf = 0, token = 0;
+
+  function build() {
+    root = document.createElement('div');
+    root.className = 'tour-root';
+    root.innerHTML = '<div class="tour-backdrop"></div><div class="tour-spot"></div><div class="tour-card" role="dialog" aria-modal="true" aria-live="polite"></div>';
+    document.body.appendChild(root);
+    spot = root.querySelector('.tour-spot');
+    card = root.querySelector('.tour-card');
+    card.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-tour]');
+      if (!b) return;
+      const a = b.dataset.tour;
+      if (a === 'next') next();
+      else if (a === 'prev') prev();
+      else if (a === 'close') stop(true);
+    });
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule, true);
+  }
+
+  function onKey(e) {
+    if (!active) return;
+    if (e.key === 'Escape') { e.preventDefault(); stop(true); }
+    else if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  }
+
+  function schedule() {
+    if (!active) return;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(position);
+  }
+
+  function visible(el) {
+    if (!el) return false;
+    if (el.hidden || el.closest('[hidden]')) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  function targetEl(step) {
+    if (!step.target) return null;
+    const el = document.querySelector(step.target);
+    return visible(el) ? el : null;
+  }
+
+  async function show(i, dir) {
+    const my = ++token;
+    let step = null, el = null;
+    while (i >= 0 && i < steps.length) {
+      step = steps[i];
+      if (step.pane && onPane) onPane(step.pane);
+      if (step.before) {
+        try { await step.before(); } catch (e) { console.error(e); }
+        if (my !== token || !active) return;
+      }
+      await new Promise((r) => requestAnimationFrame(() => r()));
+      el = targetEl(step);
+      if (!step.target || el) break;
+      i += dir;
+    }
+    if (my !== token || !active) return;
+    if (i < 0) i = 0;
+    if (i >= steps.length) { stop(false); return; }
+    idx = i;
+    currentEl = el;
+    render(step, el);
+    if (el) el.scrollIntoView({ block: isSmall() ? 'start' : 'center', inline: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+    position();
+    setTimeout(position, reduced ? 0 : 350);
+    setTimeout(position, 700);
+  }
+
+  function render(step, el) {
+    const last = idx === steps.length - 1;
+    card.innerHTML = `
+      <div class="tour-head"><span class="tour-count">${idx + 1} / ${steps.length}${step.group ? ' · ' + tEsc(step.group) : ''}</span><button type="button" class="tour-x" data-tour="close" aria-label="닫기">×</button></div>
+      <h3>${tEsc(step.title)}</h3>
+      <p>${step.html || tEsc(step.text)}</p>
+      <div class="tour-progress"><i style="width:${(((idx + 1) / steps.length) * 100).toFixed(1)}%"></i></div>
+      <div class="tour-foot">
+        <button type="button" class="btn small" data-tour="close">건너뛰기</button>
+        <span class="tour-nav">
+          <button type="button" class="btn small" data-tour="prev" ${idx === 0 ? 'disabled' : ''}>이전</button>
+          <button type="button" class="btn-primary small" data-tour="next">${last ? '완료' : '다음'}</button>
+        </span>
+      </div>`;
+    root.classList.toggle('tour-center', !el);
+    const nextBtn = card.querySelector('[data-tour="next"]');
+    if (nextBtn) nextBtn.focus({ preventScroll: true });
+  }
+
+  function isSmall() {
+    return window.innerWidth < 640 || window.innerHeight < 520;
+  }
+
+  function position() {
+    if (!active || !card) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cw = card.offsetWidth, ch = card.offsetHeight;
+    if (!currentEl) {
+      spot.style.opacity = '0';
+      card.style.left = `${Math.max(12, (vw - cw) / 2)}px`;
+      card.style.top = `${Math.max(12, (vh - ch) / 2)}px`;
+      return;
+    }
+    const r = currentEl.getBoundingClientRect();
+    const pad = 6, gap = 14;
+    spot.style.opacity = '1';
+    spot.style.left = `${r.left - pad}px`;
+    spot.style.top = `${r.top - pad}px`;
+    spot.style.width = `${r.width + pad * 2}px`;
+    spot.style.height = `${r.height + pad * 2}px`;
+    let top, left = r.left + r.width / 2 - cw / 2;
+    if (isSmall()) {
+      // 작은 화면: 대상이 위쪽이면 카드를 아래에, 아래쪽이면 위에 고정해 겹침을 줄인다
+      const center = r.top + r.height / 2;
+      top = center < vh / 2 ? vh - ch - 12 : 12;
+      if (center < vh / 2 && r.bottom + gap + ch <= vh - 12) top = r.bottom + gap;
+      if (center >= vh / 2 && r.top - gap - ch >= 12) top = r.top - gap - ch;
+    } else if (r.bottom + gap + ch <= vh - 12) top = r.bottom + gap;
+    else if (r.top - gap - ch >= 12) top = r.top - gap - ch;
+    else {
+      top = Math.max(12, Math.min(vh - ch - 12, r.top));
+      if (r.right + gap + cw <= vw - 12) left = r.right + gap;
+      else if (r.left - gap - cw >= 12) left = r.left - gap - cw;
+    }
+    top = Math.max(12, Math.min(vh - ch - 12, top));
+    left = Math.max(12, Math.min(vw - cw - 12, left));
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+  }
+
+  function start(at = 0) {
+    if (!root) build();
+    active = true;
+    root.classList.add('on');
+    document.documentElement.classList.add('tour-active');
+    show(Math.max(0, Math.min(steps.length - 1, at)), 1);
+  }
+  function stop(skipped) {
+    if (!active) return;
+    active = false;
+    token++;
+    root.classList.remove('on', 'tour-center');
+    document.documentElement.classList.remove('tour-active');
+    try { localStorage.setItem(storageKey, '1'); } catch { /* 무시 */ }
+    if (onDone) onDone({ skipped: !!skipped, index: idx });
+  }
+  function next() { if (!active) return; if (idx >= steps.length - 1) { stop(false); return; } show(idx + 1, 1); }
+  function prev() { if (!active || idx <= 0) return; show(idx - 1, -1); }
+
+  return { start, stop, next, prev, isActive: () => active, get index() { return idx; }, steps };
+}
+
+/** 서면 매뉴얼 HTML (단계를 group 별로 묶어 번호·제목·설명·재생 링크) */
+function renderManualHtml(steps) {
+  let html = '';
+  let group = null;
+  steps.forEach((s, i) => {
+    if (s.group !== group) {
+      group = s.group;
+      html += `<h3>${tEsc(group || '')}</h3>`;
+    }
+    html += `<div class="manual-step"><span class="n">${i + 1}</span><div><h4>${tEsc(s.title)}</h4><p>${s.html || tEsc(s.text)}</p></div><button type="button" class="link-btn" data-play="${i}">▶ 이 단계 재생</button></div>`;
+  });
+  return html;
+}
+
+
+/* ===== src/ui/tourSteps.js ===== */
+/**
+ * tourSteps.js — 튜토리얼 단계 내용 (서면 매뉴얼에도 같은 내용이 쓰인다)
+ * ctx: { ensureExample, ensureAnalysis, ensureDesigned, openDetails }
+ */
+function buildTourSteps(ctx) {
+  return [
+    {
+      group: '시작', title: 'KASP 디자이너 둘러보기 (처음 한 번만 자동 재생)',
+      text: '약 2분짜리 안내입니다. 지금 바쁘시면 "건너뛰기"나 Esc 로 바로 닫아도 되고, 이 안내는 다시 자동으로 뜨지 않습니다. 왼쪽 메뉴 순서대로 서열 입력 → 설계 조건 → Tail → 결과 → 내보내기 로 진행하며, "다음" 버튼이나 → 키로 넘기고 ← 키로 돌아갑니다. 언제든 상단의 ? 버튼에서 다시 재생하거나 서면 매뉴얼로 읽을 수 있습니다.',
+    },
+    {
+      group: '서열 입력', pane: 'input', target: '#seqInput', title: '서열을 붙여넣습니다',
+      text: 'FASTA 헤더(>이름) 뒤에 서열을 넣고, 변이는 [A/G] 처럼 대괄호로 씁니다. InDel 은 [AG/], IUPAC 은 [R], 프라이머를 놓지 않을 구간은 /…/ 로 감쌉니다. 변이 양쪽에 flank 100–200 nt 가 있어야 Common 프라이머 자리를 찾을 수 있습니다. 헤더에 Chr01:1234567 을 적으면 유전체 좌표로 변환됩니다.',
+      before: () => ctx.ensureExample(),
+    },
+    {
+      group: '서열 입력', pane: 'input', target: '#seqSummary', title: '실시간 요약',
+      text: '붙여넣는 즉시 서열 수, 길이, GC%, 각 마커의 대립유전자를 보여 줍니다. 형식 오류나 주의할 점은 바로 아래에 표시됩니다.',
+    },
+    {
+      group: '서열 입력', pane: 'input', target: '#exampleMenu', title: '예제 불러오기',
+      text: 'SNP · IUPAC · InDel · MNV · 3대립 · 제외구역 예제 5종을 넣어 볼 수 있습니다. 여러 레코드를 한 번에 넣으면 일괄 설계되고 엑셀에도 함께 저장됩니다.',
+    },
+    {
+      group: '서열 입력', pane: 'input', target: '#rsidCard', title: 'rsID 로 서열 가져오기 (온라인)',
+      text: '변이 ID 를 알면 Ensembl 에서 flank 포함 서열을 받아 입력창에 추가합니다. 벼는 oryza_sativa 입니다. 오프라인이면 안내만 하고 넘어갑니다.',
+    },
+    {
+      group: '프라이머 분석', pane: 'analyze', target: '#guideCard', title: '처음 사용 3단계',
+      text: '처음이라면 이 세 단계만 기억하면 됩니다. 서열 입력 → (기존 프라이머가 있으면 분석으로 조건 추정) → 설계와 내보내기.',
+    },
+    {
+      group: '프라이머 분석', pane: 'analyze', target: '#primerInput', title: '기존 프라이머 분석',
+      text: '이미 쓰던 프라이머를 이름·서열로 붙여넣고 "분석"을 누르면 tail 을 자동으로 떼어 본체 Tm(두 프리셋)·GC·LC 를 계산하고, 템플릿이 있으면 위치·역할(ASP/Common)·3′ 말단·amplicon 까지 판정합니다.',
+      before: () => ctx.ensureAnalysis(),
+    },
+    {
+      group: '프라이머 분석', pane: 'analyze', target: '#analyzeSummary', title: '추정 조건 적용',
+      text: '분석값으로 "비슷하게 설계하려면" 쓸 조건(프리셋, Tm 범위, 길이, GC, amplicon, tail)을 추정해 현재 조건과 나란히 보여 줍니다. "이 조건을 설계 조건에 적용" 또는 "적용하고 바로 설계"를 누르세요.',
+    },
+    {
+      group: '설계 조건', pane: 'params', target: '#basicParamsCard', title: 'Tm 범위와 길이',
+      text: '기본값은 벼 분자육종 표준입니다: Tm 57–62 °C, ASP/Common 18–25 nt, GC 40–60 %, amplicon 50–150 bp. 슬라이더나 숫자로 바꾸고 "기본값 복원"으로 되돌립니다. Tm 은 항상 tail 을 뺀 본체로 계산합니다.',
+    },
+    {
+      group: '설계 조건', pane: 'params', target: '#presetCard', title: 'Tm 계산 조건(프리셋)',
+      text: '바이오니어(Na⁺ 50 mM, 올리고 250 nM, 15 nt 미만 Wallace rule)가 기본입니다. primerdigital(55 mM / Mg²⁺ 1 mM / 200 nM)은 사이트 값과 비교용으로, 같은 서열이 약 5 °C 높게 나옵니다. 사용자 정의도 됩니다.',
+    },
+    {
+      group: '설계 조건', pane: 'params', target: '#advancedCard', title: '고급 설정',
+      text: 'SNP offset, Common 3′-end 패턴, LC 하한, 다이머 임계, 다이머 검사에 tail 포함 여부, 반복·저복잡도 마스킹, bisulfite 를 조정합니다. 보통은 그대로 두어도 됩니다.',
+      before: () => ctx.openDetails('#advancedCard'),
+    },
+    {
+      group: 'Tail', pane: 'tails', target: '#modeSeg', title: '판독 방식',
+      text: '형광(KASP)은 ASP 5′ 에 FAM/HEX tail 을 붙이고, 겔(Allele sizing)은 tail 대신 filler 로 대립유전자별 산물 길이를 사다리로 만듭니다.',
+    },
+    {
+      group: 'Tail', pane: 'tails', target: '#tailRows', title: 'Tail 서열',
+      text: 'LGC 표준 FAM/HEX 가 기본이고 편집할 수 있습니다. 1번 대립유전자에 FAM, 2번에 HEX 가 붙으며, 대립유전자가 tail 수보다 많으면 tail 없이 설계하고 경고합니다.',
+    },
+    {
+      group: '설계 실행', target: '#designBtn', title: '프라이머 설계',
+      text: '조건이 준비되면 이 버튼(또는 서열 입력창에서 Ctrl+Enter)을 누릅니다. 결과는 바로 결과 탭에 나타납니다. 조건을 바꾼 뒤에는 다시 눌러 주세요.',
+      before: () => ctx.ensureDesigned(),
+    },
+    {
+      group: '결과', pane: 'results', target: '#markerTabs', title: '마커 선택',
+      text: '여러 레코드를 넣었다면 마커별로 결과를 전환합니다. 오류가 난 레코드는 빨간 테두리로 표시됩니다.',
+    },
+    {
+      group: '결과', pane: 'results', target: '#dirSeg', title: 'Forward / Reverse 세트',
+      text: '같은 변이를 양쪽 가닥에서 설계한 두 세트입니다. 경고가 적고 amplicon 이 권장 범위에 드는 쪽을 고르면 됩니다.',
+    },
+    {
+      group: '결과', pane: 'results', target: '#warnBox', title: '경고 패널',
+      text: 'GC 범위 밖, ASP–Common Tm 차 > 3 °C, 다이머, tail 부족, amplicon 범위 밖 등 확인할 점을 모아 보여 줍니다. 경고가 있어도 설계 자체는 유효합니다.',
+    },
+    {
+      group: '결과', pane: 'results', target: '#setCard', title: '세트 카드',
+      text: 'ASP 2개와 Common 1개가 한 세트입니다. 회색은 tail, 굵은 색 글자는 변이 염기이고, Tm 은 tail 을 뺀 값입니다. 점 색은 Tm 범위 안(초록)·경계(주황)·밖(빨강). 오른쪽 위 복사·엑셀 버튼으로 바로 내보냅니다.',
+    },
+    {
+      group: '결과', pane: 'results', target: '#commonCard', title: 'Common 후보',
+      text: '점수순(권장 amplicon → Tm 차 → GC → LC)으로 정렬된 후보입니다. 행을 누르면 세트의 Common 이 바뀌고 amplicon 과 Tm 차가 다시 계산됩니다.',
+    },
+    {
+      group: '결과', pane: 'results', target: '#viewerCard', title: '서열 뷰어',
+      text: '템플릿 위에 ASP(청록)·Common(검정) 위치 막대, 변이 위치, 마스킹된 구간(반복·저복잡도·주변 변이)과 제외구역을 그립니다.',
+      before: () => ctx.openDetails('#viewerCard'),
+    },
+    {
+      group: '결과', pane: 'results', target: '#reportCard', title: '전체 후보 (Report)',
+      text: '모든 후보를 ID · Sequence · Length · Tm · GC · LC 표로 보고, 몇 개가 어떤 이유로 탈락했는지 통계를 확인합니다.',
+      before: () => ctx.openDetails('#reportCard'),
+    },
+    {
+      group: '내보내기', pane: 'export', target: '#exportRangeCard', title: '내보낼 범위',
+      text: '현재 마커만 또는 전체 마커, 세트 방향(현재 선택 / Forward / Reverse / 둘 다), 합성 규모를 고릅니다.',
+    },
+    {
+      group: '내보내기', pane: 'export', target: '#xlsxBtn', title: '엑셀 다운로드',
+      text: '주문용 시트(Primer Name, Sequence, Direction, Length, Purpose, Scale)와 설계근거 시트(Chr:bp 위치, Tm 조건, 변환 전략, 비고)로 저장됩니다. TSV 복사 버튼도 있습니다.',
+    },
+    {
+      group: '상단바', target: '#presetSeg', title: 'Tm 프리셋 토글',
+      text: '어느 화면에서나 바이오니어 / primerdigital 을 바꿀 수 있습니다. 바꾼 뒤에는 다시 설계하세요.',
+    },
+    {
+      group: '상단바', target: '#themeBtn', title: '테마',
+      text: '라이트 / 다크를 전환합니다. 기본은 시스템 설정을 따르며 선택은 기억됩니다.',
+    },
+    {
+      group: '끝', title: '준비 끝',
+      text: '언제든 상단 ? 버튼에서 튜토리얼을 다시 재생하거나 서면 매뉴얼을 볼 수 있습니다. 서면 매뉴얼의 각 항목에서 그 단계만 재생할 수도 있습니다.',
+    },
+  ];
+}
+
+
 /* ===== src/ui/app.js ===== */
 /**
  * app.js — KASP 디자이너 UI (단일 HTML 번들의 진입점)
  */
+
+
+
 
 
 
@@ -2623,6 +3455,24 @@ const ui = {
   marker: 0, dir: 'forward', commonPick: {},
   exportScope: 'current', exportDir: 'selected',
   stale: false,
+  analysis: null,
+  tour: null,
+};
+const STORE_WELCOME = 'kasp-welcome-seen';
+
+const EXAMPLE_PRIMERS = [
+  'Marker_SNP1_ASP_A\tGAAGGTGACCAAGTTCATGCTccggcatggctgacattgA',
+  'Marker_SNP1_ASP_G\tGAAGGTCGGAGTCAACGGATTccggcatggctgacattgG',
+  'Marker_SNP1_Common\ttctcgtgtgaacgcagcc',
+].join('\n');
+
+const PARAM_LABELS = {
+  preset: 'Tm 프리셋', tmMin: 'Tm 하한 (°C)', tmMax: 'Tm 상한 (°C)',
+  aspMinLen: 'ASP 최소 길이 (nt)', aspMaxLen: 'ASP 최대 길이 (nt)',
+  commonMinLen: 'Common 최소 길이 (nt)', commonMaxLen: 'Common 최대 길이 (nt)',
+  gcMin: 'GC 하한 (%)', gcMax: 'GC 상한 (%)',
+  ampliconMin: 'Amplicon 권장 최소 (bp)', ampliconMax: 'Amplicon 권장 최대 (bp)',
+  useTails: 'tail 부착', tails: 'Tail 서열', tmDiffMax: 'ASP–Common Tm 차 허용 (°C)', minLC: 'LC 하한 (%)',
 };
 
 /* ---------- 작은 도우미 ---------- */
@@ -2910,6 +3760,16 @@ function renderInputSummary() {
   const items = [...ui.parseErrors, ...warnings];
   errBox.hidden = !items.length;
   errBox.innerHTML = items.map((e) => `<li>${escapeHtml(e)}</li>`).join('');
+  refreshAnalyzeRecordOptions();
+}
+function refreshAnalyzeRecordOptions() {
+  const sel = qs('#analyzeRecord');
+  if (!sel) return;
+  const prev = sel.value;
+  const ok = ui.records.filter((r) => !r.error);
+  sel.innerHTML = '<option value="">템플릿 없이 분석</option>' + ok.map((r) => `<option value="${escapeHtml(r.name)}">${escapeHtml(r.name)} [${escapeHtml(r.alleles.map((a) => a.label).join('/'))}]</option>`).join('');
+  if (ok.some((r) => r.name === prev)) sel.value = prev;
+  else if (ok.length) sel.value = ok[0].name;
 }
 function renderActionSummary() {
   const el = qs('#actionSummary');
@@ -2944,7 +3804,7 @@ function bindInput() {
   const keys = Object.keys(EXAMPLES);
   menu.innerHTML = keys.map((k) => `<button type="button" data-example="${escapeHtml(k)}">${escapeHtml(k)}<small>${escapeHtml(EXAMPLES[k].desc || '')}</small></button>`).join('')
     + (keys.length > 1 ? `<button type="button" data-example="*">모든 예제 (일괄 설계)<small>${keys.length}개 레코드</small></button>` : '');
-  qs('#exampleBtn').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+  qs('#exampleBtn').addEventListener('click', (e) => { e.stopPropagation(); const wasHidden = menu.hidden; closeMenus(); menu.hidden = !wasHidden; });
   menu.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-example]');
     if (!b) return;
@@ -2955,8 +3815,6 @@ function bindInput() {
     menu.hidden = true;
     toast('예제를 불러왔습니다');
   });
-  document.addEventListener('click', () => { menu.hidden = true; });
-
   qs('#rsidBtn').addEventListener('click', lookupRsid);
   qs('#rsidInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupRsid(); } });
 }
@@ -2980,6 +3838,125 @@ async function lookupRsid() {
   }
 }
 
+/* ---------- 기존 프라이머 분석 ---------- */
+function bindAnalyze() {
+  qs('#analyzeBtn').addEventListener('click', runAnalyze);
+  qs('#primerInput').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runAnalyze(); } });
+  qs('#analyzeClearBtn').addEventListener('click', () => { qs('#primerInput').value = ''; ui.analysis = null; qs('#analyzeOut').hidden = true; });
+  qs('#analyzeExampleBtn').addEventListener('click', () => {
+    qs('#primerInput').value = EXAMPLE_PRIMERS;
+    if (!qs('#seqInput').value.trim() && EXAMPLES.snp_simple) setInputText(EXAMPLES.snp_simple.fasta);
+    refreshAnalyzeRecordOptions();
+    const sel = qs('#analyzeRecord');
+    if (Array.from(sel.options).some((o) => o.value === 'Marker_SNP1')) sel.value = 'Marker_SNP1';
+    runAnalyze();
+  });
+}
+function runAnalyze() {
+  const primers = parsePrimerList(qs('#primerInput').value);
+  if (!primers.length) { toast('분석할 프라이머 서열이 없습니다'); return; }
+  parseNow();
+  const name = qs('#analyzeRecord').value;
+  const record = ui.records.find((r) => r.name === name && !r.error) || null;
+  try {
+    ui.analysis = analyzePrimers(primers, { record, params: ui.params });
+    ui.analysis.recordName = record ? record.name : '';
+    renderAnalysis();
+    toast(`${primers.length}개 프라이머를 분석했습니다`);
+  } catch (e) {
+    console.error(e);
+    toast(`분석 중 오류: ${e.message}`);
+  }
+}
+function analysisSeqHtml(it) {
+  const tail = it.tail ? `<span class="tail" title="${escapeHtml(it.tail.name)}">${escapeHtml(it.tail.seq.toLowerCase())}</span>` : '';
+  const mm = new Set(it.loc ? it.loc.mismatchPositions : []);
+  let body = '';
+  for (let i = 0; i < it.body.length; i++) {
+    const ch = it.body[i].toLowerCase();
+    const last = i === it.body.length - 1 && it.loc && it.loc.threeEndAtVariant;
+    if (mm.has(i)) body += `<span class="mm" title="템플릿과 불일치">${ch}</span>`;
+    else if (last) body += `<span class="var">${ch.toUpperCase()}</span>`;
+    else body += ch;
+  }
+  return `<span class="seq">${tail}${body}</span>`;
+}
+function formatParamValue(key, v) {
+  if (key === 'preset') return v === 'custom' ? '사용자 정의' : (TM_PRESETS[v] || TM_PRESETS.bioneer).label;
+  if (key === 'useTails') return v ? '켬' : '끔';
+  if (key === 'tails') return (v || []).map((t) => `${t.name} ${t.seq.length} nt`).join(', ');
+  return String(v);
+}
+function renderAnalysis() {
+  const a = ui.analysis;
+  const out = qs('#analyzeOut');
+  if (!a) { out.hidden = true; return; }
+  out.hidden = false;
+  const p = ui.params;
+  const rows = a.items.map((it) => {
+    const pos = it.loc ? `${it.loc.strand === '+' ? '+' : '−'} ${it.loc.start}–${it.loc.end}${it.loc.alleleLabel && it.role === 'ASP' ? ` (${escapeHtml(it.loc.alleleLabel)})` : ''}${it.loc.mismatches ? ` · 불일치 ${it.loc.mismatches}` : ''}` : '—';
+    const amp = (it.amplicons || []).map((m) => `${m.size}`).join(' / ') || (it.role === 'Common' ? '' : '—');
+    return `<tr>
+      <td class="id">${escapeHtml(it.name)}</td>
+      <td data-label="역할">${escapeHtml(it.role)}</td>
+      <td class="muted" data-label="Tail">${it.tail ? escapeHtml(it.tail.name) : '—'}</td>
+      <td class="seq-cell">${analysisSeqHtml(it)}</td>
+      <td class="num" data-label="길이">${it.length}${it.tail ? ` <span class="muted small">(+${it.tail.seq.length})</span>` : ''}</td>
+      <td class="num" data-label="Tm ${escapeHtml(a.mainLabel)}"><span class="badge ${tmClass(it.tm, p)}">${fmt1(it.tm)}</span></td>
+      <td class="num muted" data-label="Tm ${escapeHtml(a.altLabel)}">${fmt1(it.tmAlt)}</td>
+      <td class="num" data-label="GC%">${fmt1(it.gc)}</td>
+      <td class="num" data-label="LC%">${it.lc}</td>
+      <td class="muted small" data-label="위치">${pos}</td>
+      <td class="num" data-label="Amplicon">${amp}</td>
+    </tr>`;
+  }).join('');
+  qs('#analyzeTable').innerHTML = `
+    <div class="card-head">
+      <div class="set-title"><h2>분석 결과</h2><span class="sub">${a.recordName ? `템플릿 ${escapeHtml(a.recordName)} · ` : '템플릿 없음 · '}ASP ${a.summary.counts.asp} · Common ${a.summary.counts.common}${a.summary.counts.unknown ? ` · 미확인 ${a.summary.counts.unknown}` : ''}</span></div>
+      <div class="card-actions"><button type="button" class="btn small" id="analyzeCopyBtn">${ICONS.copy}복사</button></div>
+    </div>
+    <div class="table-wrap"><table class="grid stackable">
+      <thead><tr><th>이름</th><th>역할</th><th>Tail</th><th>본체 (5′→3′)</th><th class="num">길이</th><th class="num">Tm ${escapeHtml(a.mainLabel)}</th><th class="num">Tm ${escapeHtml(a.altLabel)}</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th>위치</th><th class="num">Amplicon (bp)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="hint">Tm 은 tail 을 뗀 본체 기준. 위치는 정방향 1-based, + 는 정방향 가닥, − 는 역상보 가닥. <span class="seq"><span class="var">A</span></span> = 3′ 말단이 변이 위치, <span class="seq"><span class="mm">a</span></span> = 템플릿과 불일치.</p>`;
+  qs('#analyzeCopyBtn').addEventListener('click', () => copyText(analysisToTsv(a)));
+
+  const sug = a.summary.suggested;
+  const keys = Object.keys(sug);
+  const cmpRows = keys.map((k) => {
+    const cur = k === 'tails' ? p.tails : p[k];
+    const same = k === 'tails' ? formatParamValue(k, cur) === formatParamValue(k, sug[k]) : cur === sug[k];
+    return `<tr><td>${escapeHtml(PARAM_LABELS[k] || k)}</td><td class="num ${same ? 'same' : ''}">${escapeHtml(formatParamValue(k, cur))}</td><td class="num ${same ? 'same' : 'new'}">${escapeHtml(formatParamValue(k, sug[k]))}</td></tr>`;
+  }).join('');
+  const iconFor = (kind) => (kind === 'ok' ? ICONS.check : kind === 'warn' ? ICONS.alert : kind === 'info' ? ICONS.info : ICONS.sliders);
+  const canRun = !!a.recordName;
+  qs('#analyzeSummary').innerHTML = `
+    <div class="card-head"><h2>추정 설계 조건과 안내</h2></div>
+    <ul class="note-list">${a.summary.notes.map((n) => `<li class="${escapeHtml(n.kind)}">${iconFor(n.kind)}<span>${escapeHtml(n.text)}</span></li>`).join('')}</ul>
+    ${keys.length ? `<div class="table-wrap" style="margin-top:18px"><table class="grid cmp stackable"><thead><tr><th>항목</th><th class="num">현재 조건</th><th class="num">비슷하게 설계하려면</th></tr></thead><tbody>${cmpRows}</tbody></table></div>` : '<p class="hint">바꿀 조건이 없습니다. 현재 조건이 기존 프라이머와 잘 맞습니다.</p>'}
+    <div class="analyze-actions">
+      <button type="button" class="btn" id="applySugBtn" ${keys.length ? '' : 'disabled'}>${ICONS.check}이 조건을 설계 조건에 적용</button>
+      <button type="button" class="btn" id="applyRunBtn" ${canRun ? '' : 'disabled'} title="${canRun ? '' : '서열 입력 탭에 템플릿이 있어야 합니다'}">${ICONS.play}적용하고 바로 설계</button>
+    </div>
+    <p class="hint">적용하면 설계 조건·Tail 탭 값이 바뀝니다. 되돌리려면 설계 조건 탭의 "기본값 복원"을 누르세요.</p>`;
+  qs('#applySugBtn').addEventListener('click', () => applySuggested(sug, false));
+  qs('#applyRunBtn').addEventListener('click', () => applySuggested(sug, true));
+}
+function applySuggested(sug, runAfter) {
+  for (const [k, v] of Object.entries(sug)) {
+    if (k === 'preset') continue;
+    if (k === 'tails') { ui.params.tails = v.map((t) => ({ name: t.name, seq: t.seq })); continue; }
+    ui.params[k] = v;
+  }
+  if (sug.preset) setPreset(sug.preset);
+  if (sug.useTails && ui.mode === 'sizing') { ui.mode = 'kasp'; setSegment(qs('#modeSeg'), 'kasp'); renderModeCards(); }
+  syncParamsForm();
+  onParamsChanged();
+  if (runAfter) { toast('조건을 적용하고 설계합니다'); runDesign(); }
+  else { toast('설계 조건을 적용했습니다'); showPane('params'); }
+}
+
 /* ---------- 설계 ---------- */
 function effectiveParams() {
   const p = mergeParams(ui.params);
@@ -2991,40 +3968,133 @@ function effectiveParams() {
   return p;
 }
 function runDesign() {
-  parseNow();
-  renderInputSummary();
-  const valid = ui.records.filter((r) => !r.error);
-  if (!valid.length) {
-    toast(ui.parseErrors[0] || '설계할 서열이 없습니다');
-    showPane('input');
-    qs('#seqInput').focus();
-    return;
-  }
-  const btn = qs('#designBtn');
-  btn.disabled = true;
-  progress(true);
-  setTimeout(() => {
-    try {
-      ui.results = designAll(ui.records, effectiveParams());
-      ui.marker = Math.max(0, ui.results.findIndex((r) => !r.error));
-      ui.dir = 'forward';
-      ui.commonPick = {};
-      ui.stale = false;
-      renderResults();
-      showPane('results');
-      const badge = qs('#navResultBadge');
-      badge.textContent = String(valid.length);
-      badge.hidden = false;
-      toast(`${valid.length}개 마커 설계 완료`);
-    } catch (e) {
-      console.error(e);
-      toast(`설계 중 오류: ${e.message}`);
-    } finally {
-      progress(false);
-      btn.disabled = false;
-      renderActionSummary();
+  return new Promise((resolve) => {
+    parseNow();
+    renderInputSummary();
+    const valid = ui.records.filter((r) => !r.error);
+    if (!valid.length) {
+      toast(ui.parseErrors[0] || '설계할 서열이 없습니다');
+      showPane('input');
+      qs('#seqInput').focus();
+      resolve(false);
+      return;
     }
-  }, 30);
+    const btn = qs('#designBtn');
+    btn.disabled = true;
+    progress(true);
+    setTimeout(() => {
+      try {
+        ui.results = designAll(ui.records, effectiveParams());
+        ui.marker = Math.max(0, ui.results.findIndex((r) => !r.error));
+        ui.dir = 'forward';
+        ui.commonPick = {};
+        ui.stale = false;
+        renderResults();
+        showPane('results');
+        const badge = qs('#navResultBadge');
+        badge.textContent = String(valid.length);
+        badge.hidden = false;
+        toast(`${valid.length}개 마커 설계 완료`);
+      } catch (e) {
+        console.error(e);
+        toast(`설계 중 오류: ${e.message}`);
+      } finally {
+        progress(false);
+        btn.disabled = false;
+        renderActionSummary();
+        resolve(true);
+      }
+    }, 30);
+  });
+}
+
+/* ---------- 튜토리얼 · 서면 매뉴얼 · 환영 ---------- */
+function closeMenus() {
+  qsa('.menu-list').forEach((m) => { m.hidden = true; });
+}
+function openModal(id) { qs(id).classList.add('on'); }
+function closeModal(id) { qs(id).classList.remove('on'); }
+function markWelcomeSeen() {
+  try { localStorage.setItem(STORE_WELCOME, '1'); } catch { /* 무시 */ }
+}
+function startTour(at = 0) {
+  closeMenus();
+  closeModal('#manualModal');
+  markWelcomeSeen();
+  ui.tour.start(at);
+}
+function openManual() {
+  closeMenus();
+  markWelcomeSeen();
+  qs('#manualBody').innerHTML = renderManualHtml(ui.tour.steps);
+  openModal('#manualModal');
+}
+function buildTour() {
+  const ctx = {
+    ensureExample: () => {
+      if (!qs('#seqInput').value.trim() && EXAMPLES.snp_simple) setInputText(EXAMPLES.snp_simple.fasta);
+    },
+    ensureAnalysis: () => {
+      ctx.ensureExample();
+      if (ui.analysis) return;
+      if (!qs('#primerInput').value.trim()) qs('#primerInput').value = EXAMPLE_PRIMERS;
+      refreshAnalyzeRecordOptions();
+      const sel = qs('#analyzeRecord');
+      if (Array.from(sel.options).some((o) => o.value === 'Marker_SNP1')) sel.value = 'Marker_SNP1';
+      runAnalyze();
+    },
+    ensureDesigned: async () => {
+      ctx.ensureExample();
+      if (!ui.results.length) await runDesign();
+    },
+    openDetails: (sel) => { const d = qs(sel); if (d && 'open' in d) d.open = true; },
+  };
+  ui.tour = createTour({
+    steps: buildTourSteps(ctx),
+    onPane: showPane,
+    onDone: ({ skipped }) => { if (!skipped) toast('튜토리얼을 마쳤습니다'); },
+  });
+}
+function bindHelp() {
+  buildTour();
+  qs('#helpBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const list = qs('#helpList');
+    const wasHidden = list.hidden;
+    closeMenus();
+    list.hidden = !wasHidden;
+  });
+  qs('#helpList').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-help]');
+    if (!b) return;
+    if (b.dataset.help === 'tour') startTour(0);
+    else if (b.dataset.help === 'manual') openManual();
+  });
+  document.addEventListener('click', closeMenus);
+  qs('#guideTourBtn').addEventListener('click', () => startTour(0));
+  qs('#manualCloseBtn').addEventListener('click', () => closeModal('#manualModal'));
+  qs('#manualPlayBtn').addEventListener('click', () => startTour(0));
+  qs('#manualBody').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-play]');
+    if (!b) return;
+    startTour(Number(b.dataset.play));
+  });
+  qs('#manualModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal('#manualModal'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || (ui.tour && ui.tour.isActive())) return;
+    if (qs('#manualModal').classList.contains('on')) closeModal('#manualModal');
+  });
+}
+/**
+ * 첫 실행 때 한 번만 튜토리얼을 자동 재생한다. 시작과 동시에 "본 것"으로 기록하므로
+ * 건너뛰든 끝까지 보든 다시는 자동으로 뜨지 않는다 (저장소를 쓸 수 없는 환경에서는 자동 재생 안 함).
+ */
+function maybeAutoTour() {
+  let seen = '1';
+  try { seen = localStorage.getItem(STORE_WELCOME) || ''; } catch { seen = '1'; }
+  if (seen) return;
+  markWelcomeSeen();
+  setTimeout(() => { if (!ui.tour.isActive()) startTour(0); }, 600);
 }
 
 /* ---------- 결과 ---------- */
@@ -3095,24 +4165,24 @@ function renderSetCard(res, set, view) {
   for (const a of view.asps) {
     rows.push(`<tr>
       <td class="id">${escapeHtml(a.id)}</td>
-      <td>${seqHtml(a)}</td>
-      <td class="num">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
-      <td class="num"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
-      <td class="num">${fmt1(a.gc)}</td>
-      <td class="num">${a.lc}</td>
-      <td class="num muted">${a.tail ? escapeHtml(a.tail.name) : '—'}</td>
+      <td class="seq-cell">${seqHtml(a)}</td>
+      <td class="num" data-label="길이">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
+      <td class="num" data-label="Tm"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
+      <td class="num" data-label="GC%">${fmt1(a.gc)}</td>
+      <td class="num" data-label="LC%">${a.lc}</td>
+      <td class="num muted" data-label="Tail">${a.tail ? escapeHtml(a.tail.name) : '—'}</td>
     </tr>`);
   }
   const c = view.common;
   if (c) {
     rows.push(`<tr>
       <td class="id">${escapeHtml(c.id)}</td>
-      <td>${seqHtml(c)}</td>
-      <td class="num">${c.length}</td>
-      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
-      <td class="num">${fmt1(c.gc)}</td>
-      <td class="num">${c.lc}</td>
-      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${ampliconHtml(c, view)}</span></td>
+      <td class="seq-cell">${seqHtml(c)}</td>
+      <td class="num" data-label="길이">${c.length}</td>
+      <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num" data-label="GC%">${fmt1(c.gc)}</td>
+      <td class="num" data-label="LC%">${c.lc}</td>
+      <td class="num" data-label="Amplicon"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${ampliconHtml(c, view)}</span></td>
     </tr>`);
   } else {
     rows.push(`<tr><td colspan="7" class="muted">조건을 만족하는 Common 프라이머가 없습니다.</td></tr>`);
@@ -3126,7 +4196,7 @@ function renderSetCard(res, set, view) {
         <button type="button" class="btn small" id="setXlsxBtn">${ICONS.excel}엑셀</button>
       </div>
     </div>
-    <div class="table-wrap"><table class="grid">
+    <div class="table-wrap"><table class="grid stackable">
       <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C, tail 제외)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">${ui.mode === 'sizing' ? 'Filler / 산물 (bp)' : 'Tail / Amplicon (bp)'}</th></tr></thead>
       <tbody>${rows.join('')}</tbody>
     </table></div>
@@ -3146,20 +4216,20 @@ function renderCommonCard(res, set, view) {
   const p = res.params;
   const list = set.commons.slice(0, p.maxCommon);
   const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
-      <td class="num muted">${c.rank}</td>
+      <td class="num muted rank">${c.rank}</td>
       <td class="id">${escapeHtml(c.id)}</td>
-      <td>${seqHtml(c)}</td>
-      <td class="num">${c.length}</td>
-      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
-      <td class="num">${fmt1(c.gc)}</td>
-      <td class="num">${c.lc}</td>
-      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
-      <td class="num"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
+      <td class="seq-cell">${seqHtml(c)}</td>
+      <td class="num" data-label="길이">${c.length}</td>
+      <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num" data-label="GC%">${fmt1(c.gc)}</td>
+      <td class="num" data-label="LC%">${c.lc}</td>
+      <td class="num" data-label="Amplicon"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
+      <td class="num" data-label="ΔTm"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
       <td class="muted small note" title="${escapeHtml(c.warnings.join('; '))}">${escapeHtml(c.warnings.join('; '))}</td>
     </tr>`).join('');
   card.innerHTML = `
     <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2></div>
-    <div class="table-wrap"><table class="grid">
+    <div class="table-wrap"><table class="grid stackable">
       <thead><tr><th class="num">#</th><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">Amplicon (bp)</th><th class="num">ΔTm</th><th>비고</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="10" class="muted">후보 없음</td></tr>'}</tbody>
     </table></div>`;
@@ -3177,9 +4247,9 @@ function renderReport(res, set) {
   const rows = [];
   for (const a of set.asps) if (a) rows.push([a.id, seqHtml(a), a.fullLength, fmt1(a.tm), fmt1(a.gc), a.lc, a.warnings.join('; ')]);
   for (const c of set.commons.slice(0, p.maxReport)) rows.push([c.id, seqHtml(c), c.length, fmt1(c.tm), fmt1(c.gc), c.lc, `${c.ampliconLabel} / ${fmt1(c.ampliconTm)}${c.warnings.length ? ' ; ' + c.warnings.join('; ') : ''}`]);
-  box.innerHTML = `<div class="table-wrap"><table class="grid">
+  box.innerHTML = `<div class="table-wrap"><table class="grid stackable">
     <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th>비고</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr><td class="id">${escapeHtml(r[0])}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="num">${r[5]}</td><td class="muted small note" title="${escapeHtml(r[6])}">${escapeHtml(r[6])}</td></tr>`).join('')}</tbody>
+    <tbody>${rows.map((r) => `<tr><td class="id">${escapeHtml(r[0])}</td><td class="seq-cell">${r[1]}</td><td class="num" data-label="길이">${r[2]}</td><td class="num" data-label="Tm">${r[3]}</td><td class="num" data-label="GC%">${r[4]}</td><td class="num" data-label="LC%">${r[5]}</td><td class="muted small note" title="${escapeHtml(r[6])}">${escapeHtml(r[6])}</td></tr>`).join('')}</tbody>
   </table></div>
   <p class="hint">스캔 ${set.stats.scanned} 위치 · 탈락: Tm ${set.stats.rejected.tm}, 마스크 ${set.stats.rejected.mask}, 3′ 패턴 ${set.stats.rejected.pattern}, 반복 ${set.stats.rejected.repeat}, LC ${set.stats.rejected.lc}, 자기다이머 ${set.stats.rejected.selfDimer}, ASP 다이머 ${set.stats.rejected.crossDimer}, 겹침 ${set.stats.rejected.overlap}</p>`;
 }
@@ -3196,11 +4266,20 @@ function renderResults(resetScroll = true) {
   renderWarnBox(res, set, view);
   renderSetCard(res, set, view);
   renderCommonCard(res, set, view);
-  if (set) renderViewer(qs('#viewer'), res, view, {}); else qs('#viewer').innerHTML = '';
+  if (set) { renderViewer(qs('#viewer'), res, view, {}); lastViewerWidth = qs('#viewer').clientWidth; } else qs('#viewer').innerHTML = '';
   renderReport(res, set);
   if (resetScroll) window.scrollTo({ top: 0 });
 }
+function rerenderViewer() {
+  const viewer = qs('#viewer');
+  const res = currentResult();
+  const set = res && !res.error ? res[ui.dir] : null;
+  if (!set || !viewer) return;
+  renderViewer(viewer, res, viewOfSet(res, set, ui.marker, ui.dir), {});
+  lastViewerWidth = viewer.clientWidth;
+}
 function bindResults() {
+  qs('#viewerCard').addEventListener('toggle', () => { if (qs('#viewerCard').open && ui.results.length) rerenderViewer(); });
   qs('#markerTabs').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-marker]');
     if (!b) return;
@@ -3280,9 +4359,30 @@ function bindExport() {
   qs('#xlsxBtn').addEventListener('click', () => downloadXlsx());
 }
 
+/* ---------- 반응형 레이아웃 ---------- */
+let lastStack = null;
+let lastViewerWidth = 0;
+function updateLayoutMode() {
+  const content = qs('.content');
+  const width = content ? content.clientWidth : window.innerWidth;
+  const stack = width < 820;
+  if (stack !== lastStack) {
+    document.documentElement.classList.toggle('stack', stack);
+    lastStack = stack;
+  }
+  // 서열 뷰어는 폭에 맞춰 줄 길이를 다시 계산
+  const viewer = qs('#viewer');
+  if (ui.results.length && viewer && viewer.firstChild && !qs('#results').hidden && qs('#viewerCard').open) {
+    const w = viewer.clientWidth;
+    if (Math.abs(w - lastViewerWidth) > 24) rerenderViewer();
+  }
+}
+const onResize = debounce(updateLayoutMode, 120);
+
 /* ---------- 시작 ---------- */
 function injectIcons() {
   qsa('[data-icon]').forEach((el) => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+  qs('#helpBtn').innerHTML = ICONS.help;
 }
 function init() {
   injectIcons();
@@ -3298,14 +4398,20 @@ function init() {
   bindSegment(qs('#presetSeg2'), setPreset);
   bindTails();
   bindInput();
+  bindAnalyze();
   bindResults();
   bindExport();
-  qs('#designBtn').addEventListener('click', runDesign);
+  bindHelp();
+  qs('#designBtn').addEventListener('click', () => { runDesign(); });
   syncParamsForm();
 
   let saved = '';
   try { saved = localStorage.getItem(STORE_INPUT) || ''; } catch { saved = ''; }
   setInputText(saved);
+  updateLayoutMode();
+  window.addEventListener('resize', onResize);
+  if (window.matchMedia) window.matchMedia('(orientation: portrait)').addEventListener('change', onResize);
+  maybeAutoTour();
 }
 
 if (typeof document !== 'undefined') {

@@ -14,8 +14,26 @@ function vEsc(s) {
  * @param {object} view { asps, common, commons }  (app.js 의 viewOfSet)
  * @param {object} opts { rowWidth, altCount }
  */
+/** 컨테이너 폭에 맞는 한 줄 염기 수 (10 단위, 20~100) */
+export function fitRowWidth(container) {
+  try {
+    const probe = document.createElement('span');
+    probe.className = 'viewer';
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;';
+    probe.textContent = '0'.repeat(20);
+    container.appendChild(probe);
+    const chw = probe.getBoundingClientRect().width / 20;
+    probe.remove();
+    const avail = container.clientWidth - 64 - 12 - 4; // pos 열 + 간격
+    if (!chw || avail <= 0) return 60;
+    return Math.max(20, Math.min(100, Math.floor(avail / chw / 10) * 10));
+  } catch {
+    return 60;
+  }
+}
+
 export function renderViewer(container, result, view, opts = {}) {
-  const width = opts.rowWidth || 60;
+  const width = opts.rowWidth || fitRowWidth(container);
   const altCount = opts.altCount ?? 4;
   const fwd = result.forward;
   if (!fwd || !fwd.template) { container.innerHTML = '<p class="muted small">표시할 템플릿이 없습니다.</p>'; return; }
@@ -70,4 +88,5 @@ export function renderViewer(container, result, view, opts = {}) {
     rows += `<div class="vrow"><div class="pos">${pos}</div><div><div class="track">${bars}</div><div class="bases">${bases}</div></div></div>`;
   }
   container.innerHTML = `<div class="viewer">${legend}${rows}</div>`;
+  container.dataset.rowWidth = String(width);
 }
