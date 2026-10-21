@@ -34,7 +34,7 @@ test('워크북 데이터: 주문용/설계근거 2시트, 주문용 서열은 �
     assert.equal(row[1], row[1].toUpperCase());
     assert.equal(row[3], row[1].length);
   }
-  assert.equal(basis[0].length, 12);
+  assert.equal(basis[0].length, 14);
   assert.equal(EXCEL_STYLE.headerFill, '0C3026');
 });
 

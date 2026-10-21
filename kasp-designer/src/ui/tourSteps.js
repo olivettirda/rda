@@ -5,8 +5,12 @@
 export function buildTourSteps(ctx) {
   return [
     {
-      group: '시작', title: 'KASP 디자이너 둘러보기 (처음 한 번만 자동 재생)',
+      group: '시작', title: 'KASP 디자이너 둘러보기',
       text: '약 2분짜리 안내입니다. 지금 바쁘시면 "건너뛰기"나 Esc 로 바로 닫아도 되고, 이 안내는 다시 자동으로 뜨지 않습니다. 왼쪽 메뉴 순서대로 서열 입력 → 설계 조건 → Tail → 결과 → 내보내기 로 진행하며, "다음" 버튼이나 → 키로 넘기고 ← 키로 돌아갑니다. 언제든 상단의 ? 버튼에서 다시 재생하거나 서면 매뉴얼로 읽을 수 있습니다.',
+    },
+    {
+      group: '서열 입력', pane: 'input', target: '#cropCard', title: '작물 모드',
+      text: '벼(IRGSP-1.0) · 밀(IWGSC RefSeq v2.1) · 일반 중에서 고릅니다. 밀은 육배체라 A·B·D 상동유전체 서열을 함께 넣으면 프라이머가 목표 유전체에만 붙는지(특이 / 반특이 / 비특이) 검사해 Common 후보 순위에 반영합니다. 좌표 표기와 rsID 조회 종도 작물에 맞게 바뀝니다.',
     },
     {
       group: '서열 입력', pane: 'input', target: '#seqInput', title: '서열을 붙여넣습니다',

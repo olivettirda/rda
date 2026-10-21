@@ -8,6 +8,9 @@ import { toReportTsv, toSetsText, toSetTsv, buildWorkbookData, EXCEL_STYLE, fmt1
 import { buildXlsx } from '../core/xlsx.js';
 import { applyAlleleSizing } from '../core/sizing.js';
 import { parsePrimerList, analyzePrimers, analysisToTsv } from '../core/analyze.js';
+import { parseFastaPlain } from '../core/parse.js';
+import { CROPS, cropOf, referencesFor } from '../core/crop.js';
+import { SPECIFICITY_LABEL, describeSpecificity } from '../core/specificity.js';
 import { gcPercent } from '../core/seq.js';
 import { ICONS } from './icons.js';
 import { renderViewer } from './viewer.js';
@@ -30,8 +33,10 @@ const ui = {
   stale: false,
   analysis: null,
   tour: null,
+  crop: 'rice',
 };
 const STORE_WELCOME = 'kasp-welcome-seen';
+const STORE_HOMOEOLOG = 'kasp-homoeologs';
 
 const EXAMPLE_PRIMERS = [
   'Marker_SNP1_ASP_A\tGAAGGTGACCAAGTTCATGCTccggcatggctgacattgA',
@@ -93,7 +98,7 @@ function downloadBytes(bytes, filename, type) {
 }
 function saveSettings() {
   try {
-    localStorage.setItem(STORE_SETTINGS, JSON.stringify({ params: ui.params, mode: ui.mode, sizing: ui.sizing, exportScope: ui.exportScope, exportDir: ui.exportDir }));
+    localStorage.setItem(STORE_SETTINGS, JSON.stringify({ params: ui.params, mode: ui.mode, sizing: ui.sizing, exportScope: ui.exportScope, exportDir: ui.exportDir, crop: ui.crop }));
   } catch { /* 저장 불가 환경 */ }
 }
 function loadSettings() {
@@ -106,7 +111,96 @@ function loadSettings() {
     if (s.sizing) ui.sizing = { ...ui.sizing, ...s.sizing };
     if (s.exportScope) ui.exportScope = s.exportScope;
     if (s.exportDir) ui.exportDir = s.exportDir;
+    if (s.crop && CROPS[s.crop]) ui.crop = s.crop;
   } catch { /* 무시 */ }
+}
+
+/* ---------- 작물 모드 · 상동유전체 · 참고 문헌 ---------- */
+function homoeologsFromInput() {
+  const el = qs('#homoeologInput');
+  if (!el || !cropOf(ui.crop).homoeologs) return [];
+  return parseFastaPlain(el.value);
+}
+function renderHomoeologSummary() {
+  const el = qs('#homoeologSummary');
+  const list = homoeologsFromInput();
+  if (!qs('#homoeologInput').value.trim()) {
+    el.textContent = '목표 유전체가 아닌 상동 서열(예: A 유전체 마커라면 B·D)을 FASTA 로 넣으면, 설계된 ASP·Common 이 그 서열과 3′ 말단에서 다른지(특이 / 반특이 / 비특이) 검사해 Common 후보 순위와 경고에 반영합니다.';
+    return;
+  }
+  el.textContent = list.length
+    ? `${list.length}개 상동 서열 · ${list.map((h) => `${h.name} ${h.seq.length.toLocaleString()} nt`).join(' · ')}`
+    : '서열을 읽지 못했습니다. >이름 줄 다음에 염기 서열을 넣어 주세요.';
+}
+function renderCropInfo() {
+  const crop = cropOf(ui.crop);
+  setSegment(qs('#cropSeg'), crop.key);
+  qs('#cropPloidy').textContent = crop.ploidy ? `${crop.latin} · ${crop.ploidy}` : '';
+  qs('#cropNote').textContent = crop.note;
+  qs('#homoeologBox').hidden = !crop.homoeologs;
+  qs('#coordExample').textContent = crop.chrExample.split(' ')[0];
+  qs('#genomeLabel').textContent = crop.genome || '헤더 표기 그대로';
+  renderHomoeologSummary();
+}
+function renderRefs() {
+  const { general, crop, cropLabel } = referencesFor(ui.crop);
+  const item = (r) => `<li>${escapeHtml(r.cite)}${r.doi ? ` <a href="https://doi.org/${escapeHtml(r.doi)}" target="_blank" rel="noopener">doi:${escapeHtml(r.doi)}</a>` : ''}<br><span class="ref-why">— ${escapeHtml(r.why)}</span></li>`;
+  qs('#refsBody').innerHTML = `
+    ${crop.length ? `<div class="ref-group">${escapeHtml(cropLabel)} 관련</div><ol class="ref-list">${crop.map(item).join('')}</ol>` : ''}
+    <div class="ref-group">공통 (Tm · KASP 원리 · 지표)</div><ol class="ref-list">${general.map(item).join('')}</ol>`;
+  qs('#refsSub').textContent = crop.length ? `공통 ${general.length}편 + ${cropLabel} ${crop.length}편` : `공통 ${general.length}편`;
+}
+function setCrop(key) {
+  const prev = cropOf(ui.crop);
+  ui.crop = cropOf(key).key;
+  const crop = cropOf(ui.crop);
+  const sp = qs('#rsidSpecies');
+  if (sp && (!sp.value.trim() || sp.value.trim() === prev.ensembl) && crop.ensembl) sp.value = crop.ensembl;
+  renderCropInfo();
+  renderRefs();
+  renderActionSummary();
+  onParamsChanged();
+}
+function mutateSeq(seq, every, offset, map) {
+  let out = '';
+  for (let i = 0; i < seq.length; i++) out += ((i + offset) % every === 0) ? (map[seq[i]] || 'A') : seq[i];
+  return out;
+}
+function loadWheatExample() {
+  if (!EXAMPLES.snp_simple) return;
+  const { records } = parseInput(EXAMPLES.snp_simple.fasta);
+  const rec = records[0];
+  if (!rec || rec.error) return;
+  const T = (rec.s1 + rec.alleles[0].seq + rec.s3).toUpperCase();
+  const B = mutateSeq(T, 17, 3, { A: 'G', G: 'A', C: 'T', T: 'C' });
+  const D = mutateSeq(T, 23, 11, { A: 'C', C: 'A', G: 'T', T: 'G' });
+  const fasta = `>Wheat_demo 1A:12345678 합성예제(벼 서열 기반 가상 데이터)\n${rec.s1.toLowerCase()}[${rec.alleles.map((a) => a.seq).join('/')}]${rec.s3.toLowerCase()}`;
+  setInputText(fasta);
+  qs('#homoeologInput').value = `>B_genome 합성(17 nt 마다 치환)\n${B.toLowerCase()}\n>D_genome 합성(23 nt 마다 치환)\n${D.toLowerCase()}`;
+  try { localStorage.setItem(STORE_HOMOEOLOG, qs('#homoeologInput').value); } catch { /* 무시 */ }
+  renderHomoeologSummary();
+  onParamsChanged();
+  toast('밀 합성 예제를 불러왔습니다 (실제 밀 서열이 아닙니다)');
+}
+function bindCrop() {
+  bindSegment(qs('#cropSeg'), setCrop);
+  const ta = qs('#homoeologInput');
+  ta.addEventListener('input', debounce(() => {
+    renderHomoeologSummary();
+    try { localStorage.setItem(STORE_HOMOEOLOG, ta.value); } catch { /* 무시 */ }
+    onParamsChanged();
+  }, 150));
+  qs('#homoeologClearBtn').addEventListener('click', () => { ta.value = ''; renderHomoeologSummary(); try { localStorage.removeItem(STORE_HOMOEOLOG); } catch { /* 무시 */ } onParamsChanged(); });
+  qs('#homoeologExampleBtn').addEventListener('click', () => { if (ui.crop !== 'wheat') setCrop('wheat'); loadWheatExample(); });
+  try { ta.value = localStorage.getItem(STORE_HOMOEOLOG) || ''; } catch { /* 무시 */ }
+  renderCropInfo();
+  renderRefs();
+}
+function specBadge(pr) {
+  const s = pr && pr.specificity;
+  if (!s || s.class === 'unknown') return '';
+  const cls = s.class === 'specific' ? '' : s.class === 'semi' ? 'warn' : 'err';
+  return `<span class="badge spec ${cls}" title="${escapeHtml(describeSpecificity(s))}">${escapeHtml(SPECIFICITY_LABEL[s.class])}</span>`;
 }
 
 /* ---------- 테마 ---------- */
@@ -349,7 +443,8 @@ function renderActionSummary() {
   const ok = ui.records.filter((r) => !r.error).length;
   if (!qs('#seqInput').value.trim()) { el.textContent = '서열을 붙여넣으면 시작됩니다'; return; }
   const mode = ui.mode === 'sizing' ? 'Allele sizing' : 'KASP';
-  el.textContent = `${ok}개 서열 준비됨 · ${presetLabel()} · ${mode}${ui.stale ? ' · 조건이 바뀌었습니다, 다시 설계하세요' : ''}`;
+  const hom = homoeologsFromInput().length;
+  el.textContent = `${ok}개 서열 준비됨 · ${cropOf(ui.crop).label}${hom ? ` (상동 ${hom})` : ''} · ${presetLabel()} · ${mode}${ui.stale ? ' · 조건이 바뀌었습니다, 다시 설계하세요' : ''}`;
 }
 const onInputChanged = debounce(() => {
   parseNow();
@@ -538,6 +633,8 @@ function effectiveParams() {
   if (p.ampliconHardMax < p.ampliconMax) p.ampliconHardMax = p.ampliconMax;
   p.tails = p.tails.filter((t) => t.seq.length);
   if (ui.mode === 'sizing') { p.useTails = false; if (ui.sizing.secondMismatch) p.snpOffset = 1; }
+  p.cropMode = ui.crop;
+  p.homoeologs = homoeologsFromInput();
   return p;
 }
 function runDesign() {
@@ -733,11 +830,12 @@ function renderSetCard(res, set, view) {
   const p = res.params;
   const dirLabel = ui.dir === 'forward' ? 'Forward' : 'Reverse';
   if (!set) { card.innerHTML = `<div class="card-head"><h2>${escapeHtml(res.name)}</h2></div><p class="muted">${escapeHtml(res.error || '결과 없음')}</p>`; return; }
-  const condTxt = `${presetLabelFor(p)} · Tm ${p.tmMin}–${p.tmMax} °C`;
+  const cropTxt = cropOf(p.cropMode).key === 'generic' ? '' : `${cropOf(p.cropMode).label} · `;
+  const condTxt = `${cropTxt}${presetLabelFor(p)} · Tm ${p.tmMin}–${p.tmMax} °C${p.homoeologs && p.homoeologs.length ? ` · 상동 ${p.homoeologs.length}` : ''}`;
   const rows = [];
   for (const a of view.asps) {
     rows.push(`<tr>
-      <td class="id">${escapeHtml(a.id)}</td>
+      <td class="id">${escapeHtml(a.id)}${specBadge(a)}</td>
       <td class="seq-cell">${seqHtml(a)}</td>
       <td class="num" data-label="길이">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
       <td class="num" data-label="Tm"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
@@ -749,7 +847,7 @@ function renderSetCard(res, set, view) {
   const c = view.common;
   if (c) {
     rows.push(`<tr>
-      <td class="id">${escapeHtml(c.id)}</td>
+      <td class="id">${escapeHtml(c.id)}${specBadge(c)}</td>
       <td class="seq-cell">${seqHtml(c)}</td>
       <td class="num" data-label="길이">${c.length}</td>
       <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
@@ -790,7 +888,7 @@ function renderCommonCard(res, set, view) {
   const list = set.commons.slice(0, p.maxCommon);
   const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
       <td class="num muted rank">${c.rank}</td>
-      <td class="id">${escapeHtml(c.id)}</td>
+      <td class="id">${escapeHtml(c.id)}${specBadge(c)}</td>
       <td class="seq-cell">${seqHtml(c)}</td>
       <td class="num" data-label="길이">${c.length}</td>
       <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
@@ -971,6 +1069,7 @@ function init() {
   bindSegment(qs('#presetSeg2'), setPreset);
   bindTails();
   bindInput();
+  bindCrop();
   bindAnalyze();
   bindResults();
   bindExport();

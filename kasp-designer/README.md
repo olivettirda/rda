@@ -25,6 +25,18 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 
 헤더가 없으면 `Seq1`, `Seq2` …, `이름<공백>서열` 한 줄 형식도 됩니다. 여러 레코드를 한 번에 넣으면 일괄 설계되고 엑셀에도 함께 저장됩니다.
 
+### 작물 모드 (벼 · 밀 · 일반)
+
+서열 입력 탭 맨 위에서 고릅니다.
+
+| 모드 | 유전체 좌표 | rsID 종 | 특징 |
+|---|---|---|---|
+| **벼** (기본) | IRGSP-1.0, `Chr01:…` | `oryza_sativa` | 이배체. 기존 동작 그대로 |
+| **밀** | IWGSC RefSeq v2.1, `1A:…` / `chr1A:…` | `triticum_aestivum` | 육배체(AABBDD). **상동유전체(homoeolog) 서열**을 함께 넣으면 ASP·Common 을 B·D 등 다른 유전체 서열과 비교해 **염색체 특이 / 반특이 / 비특이**(PolyMarker 기준: 3′ 말단 불일치 / 내부 불일치 / 완전 일치)를 판정하고, Common 후보 점수에 벌점(비특이 +30, 반특이 +8)을 주어 특이 후보가 위로 오게 합니다. 엑셀 설계근거 시트에 "상동유전체 특이성" 열이 추가됩니다. 상동 서열이 없으면 경고만 하고 벼와 같은 방식으로 설계합니다. |
+| **일반** | 헤더 표기 그대로 | 직접 입력 | 다른 작물. 상동/중복 서열 검사 가능 |
+
+"밀 예제 (합성)" 버튼은 벼 예제 서열에 규칙적 치환을 넣어 만든 **가상 데이터**로, 기능 확인용입니다. 실제 밀 마커는 목표 유전체 서열(예: A)과 나머지 유전체(B, D)의 같은 구간을 IWGSC RefSeq 에서 가져와 넣으세요. 참고 문헌(설계 조건 탭 맨 아래 "참고 문헌")에 밀 KASP 설계 지침(Makhoul 2020), PolyMarker, IWGSC RefSeq, 밀 KASP 사례(Rasheed 2016, Grewal 2020)를 정리했습니다.
+
 ### 반응형 레이아웃
 
 - **≥ 1100px**: 왼쪽 사이드바(260px) + 표 형태의 결과.
@@ -76,14 +88,14 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 ## 4. 개발
 
 ```
-npm test        # node --test tests/*.test.js  (브라우저 없이 코어 검증, 61 tests)
+npm test        # node --test tests/*.test.js  (브라우저 없이 코어 검증, 66 tests)
 npm run build   # scripts/build.js → dist/kasp-designer.html (의존성 없음)
 npm run demo    # scripts/demo.js  → 예제 설계 결과를 콘솔 TSV 로
 node scripts/serve.js   # 개발용 정적 서버 http://localhost:4173
 ```
 
 ```
-src/core/   seq · tm · complexity · dimer · mask · parse · design · sizing · analyze · export · xlsx
+src/core/   seq · tm · complexity · dimer · mask · parse · design · sizing · analyze · specificity(상동유전체) · crop(작물 모드·문헌) · export · xlsx
 src/ui/     app.html · style.css · app.js · viewer.js · rsid.js · icons.js · tour.js(스포트라이트 엔진) · tourSteps.js(단계 내용)
 scripts/    build.js (ESM → 단일 클래식 스크립트 번들) · demo.js · serve.js
 tests/      node:test 단위·통합 테스트

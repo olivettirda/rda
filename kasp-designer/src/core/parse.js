@@ -12,7 +12,8 @@ import { normalizeBase, expandIupac, isAcgt, IUPAC_SETS } from './seq.js';
 
 /** 서열/마크업으로만 이루어진 토큰인지 (이름 토큰과 구분) */
 const SEQ_LIKE_TOKEN = /^[acgturyswkmbdhvn\[\]\/\-\.]+$/i;
-const CHR_POS_RE = /\b(chr\w*?)\s*[:：]\s*(\d[\d,]*)/i;
+/** Chr01:123 (벼), 1A:123 / chr1A:123 (밀), Un:123, 12:123 */
+const CHR_POS_RE = /(?:^|[\s,;|(])((?:chr\w*)|(?:[1-7][ABD])|(?:Un)|(?:\d{1,2}))\s*[:：]\s*(\d[\d,]*)/i;
 
 /** 염기 집합 → IUPAC 1문자 (예: {A,G} → R) */
 export function basesToIupac(bases) {
@@ -181,6 +182,32 @@ export function parseInput(text) {
   }
   if (!records.length) errors.push('서열이 없습니다.');
   return { records, errors };
+}
+
+/**
+ * 괄호 없는 단순 FASTA(여러 레코드) → [{name, seq}] (상동유전체 서열 입력용)
+ */
+export function parseFastaPlain(text) {
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let cur = null;
+  let auto = 0;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) continue;
+    if (t.startsWith('>')) { cur = { name: t.slice(1).trim().split(/\s+/)[0] || `H${++auto}`, seq: '' }; out.push(cur); continue; }
+    if (t.startsWith('#') || t.startsWith(';')) continue;
+    const tokens = t.split(/\s+/);
+    if (tokens.length >= 2 && !SEQ_LIKE_TOKEN.test(tokens[0])) { cur = { name: tokens[0], seq: '' }; out.push(cur); tokens.slice(1).forEach((x) => { cur.seq += x; }); continue; }
+    if (!cur) { cur = { name: `H${++auto}`, seq: '' }; out.push(cur); }
+    cur.seq += t;
+  }
+  for (const r of out) {
+    let s = '';
+    for (const ch of r.seq) { const b = normalizeBase(ch); if (b) s += b; }
+    r.seq = s;
+  }
+  return out.filter((r) => r.seq.length > 0);
 }
 
 /** 레코드 요약 (UI 표시용) */

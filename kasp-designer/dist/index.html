@@ -229,6 +229,17 @@ input[type="range"]:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft); }
 .cmp td.same { color: var(--text-2); }
 .analyze-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
 
+/* ===== 작물 모드 · 상동유전체 · 참고 문헌 ===== */
+.homoeolog-head { margin-top: 16px; }
+.homoeolog-head h2 { font-size: 15px; }
+.ref-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.ref-list li { margin-bottom: 8px; word-break: keep-all; }
+.ref-list .ref-why { color: var(--text-2); }
+.ref-list a { font-family: var(--mono); font-size: 12px; }
+.ref-group { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 14px 0 8px; }
+.ref-group:first-child { margin-top: 0; }
+.spec { margin-left: 8px; font-size: 11px; font-family: var(--font); }
+
 /* ===== Tail 행 ===== */
 .tail-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .tail-row { display: grid; grid-template-columns: 90px 1fr 64px; gap: 12px; align-items: center; }
@@ -521,6 +532,30 @@ html.stack .cmp td[data-label]::before { content: none; }
     <!-- 1. 서열 입력 -->
     <section class="pane on" data-pane="input">
       <h1 class="page-title">서열 입력</h1>
+      <div class="card" id="cropCard">
+        <div class="card-head"><h2>작물 모드</h2><span class="muted small" id="cropPloidy"></span></div>
+        <div class="segment segment-wide" id="cropSeg" role="group" aria-label="작물">
+          <button type="button" data-value="rice" class="on">벼 (Oryza sativa)</button>
+          <button type="button" data-value="wheat">밀 (Triticum aestivum)</button>
+          <button type="button" data-value="generic">일반</button>
+        </div>
+        <p class="hint" id="cropNote"></p>
+        <div id="homoeologBox" hidden>
+          <div class="card-head homoeolog-head">
+            <h2>상동유전체(homoeolog) 서열</h2>
+            <div class="card-actions">
+              <button type="button" class="link-btn" id="homoeologExampleBtn">밀 예제 (합성)</button>
+              <button type="button" class="link-btn" id="homoeologClearBtn">지우기</button>
+            </div>
+          </div>
+          <textarea id="homoeologInput" class="primer-input" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="&gt;B_genome
+acgt... (목표가 아닌 유전체의 같은 구간, 괄호 없이)
+&gt;D_genome
+acgt..."></textarea>
+          <p class="hint" id="homoeologSummary">목표 유전체가 아닌 상동 서열(예: A 유전체 마커라면 B·D)을 FASTA 로 넣으면, 설계된 ASP·Common 이 그 서열과 3′ 말단에서 다른지(특이 / 반특이 / 비특이) 검사해 Common 후보 순위와 경고에 반영합니다.</p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-head">
           <h2>FASTA + 괄호 변이 표기</h2>
@@ -542,7 +577,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
         <p class="hint">
           <code>[A/G]</code> SNP · <code>[A/C/G/T]</code> 다중대립 · <code>[R]</code> IUPAC · <code>[AG/]</code> InDel · <code>[GATATAC/CAGTCC]</code> MNV ·
           괄호 밖 <code>r</code>, <code>y</code> 등은 주변 SNP(프라이머 회피) · <code>/…/</code> 프라이머 배치 금지 구역 ·
-          헤더에 <code>Chr01:1234567</code> 을 쓰면 유전체 좌표(IRGSP-1.0)로 변환됩니다.
+          헤더에 <code id="coordExample">Chr01:1234567</code> 을 쓰면 유전체 좌표(<span id="genomeLabel">IRGSP-1.0</span>)로 변환됩니다.
         </p>
       </div>
 
@@ -555,7 +590,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
             <label class="field"><span>양쪽 flank 길이 (nt)</span><input type="number" id="rsidFlank" value="200" min="50" max="1000" step="10"></label>
             <div class="field field-btn"><button type="button" class="btn" id="rsidBtn">조회해서 추가</button></div>
           </div>
-          <p class="hint" id="rsidStatus">벼는 <code>oryza_sativa</code>. 외부 서버에 접속할 수 없으면 조용히 안내만 합니다.</p>
+          <p class="hint" id="rsidStatus">벼는 <code>oryza_sativa</code>, 밀은 <code>triticum_aestivum</code> (작물 모드에 따라 자동 입력). 외부 서버에 접속할 수 없으면 조용히 안내만 합니다.</p>
         </div>
       </details>
     </section>
@@ -653,6 +688,11 @@ Common	tctcgtgtgaacgcagcc"></textarea>
             <label class="switch-row"><span>Bisulfite 변환 (CpG 가 아닌 C → T)</span><span class="switch"><input type="checkbox" data-param-bool="bisulfite"><i></i></span></label>
           </div>
         </div>
+      </details>
+
+      <details class="card disclosure" id="refsCard">
+        <summary><span>참고 문헌</span><span class="sub" id="refsSub">공통 + 작물별</span></summary>
+        <div class="disclosure-body" id="refsBody"></div>
       </details>
     </section>
 
@@ -772,7 +812,7 @@ Common	tctcgtgtgaacgcagcc"></textarea>
 
 <script>
 window.KASP_EXAMPLES = {"snp_simple":{"desc":"단순 SNP, 양쪽 flank 200 nt","fasta":">Marker_SNP1\nagccgaactcctggctttgaatgtctgtttcactcggaacataactatggtcgtcgctcgtctgacggcgtagcggtcgcatggtgtaaatatactatggtctagtgcgtacagaggagtagtgagtaagccgataagacgcgctagaccttaattgctacgcctgtagttgaatgggtaagccggcatggctgacattg[A/G]caagtcctgtgcggtaccgcgtcaatgccggccatgtagtggctgcgttcacacgagacgcactgagaaactatattggccaattggcttgaaccaaggtaatagcggtcgcaactacagagtgatccaggtgctctgtaaatatgtcaaactgcagcttgcgccaccttgcccgtaaatccttagcctagggctaggac"},"snp_iupac":{"desc":"IUPAC 1문자 변이 + 주변 SNP(r) 포함","fasta":">Marker_IUPAC\nttccatttacgtgccttggttcgaggcaaccggtagctaaggttctccgtggagctgcttcgtggtctggccaattggccaattggagattaggctggctgttgaatggttgcctacacartcaatgaagttcgcgcctggttgcggactcacaatcatcaatgttgcggggggacagcccctatcatcctacctcgtga[S]gcgtcctttctggccaagatccataggtaggcgcgtcttattagaaatgcatgctggatttatggcagtcaacttaatagcggtcgaaatcgccacagcagctacctcgtacctggggcttcgctcctgttagccgaaattcggaaccattatgagcttgcccctgttgggccgaccgtcatgggggctaagctacaccc"},"indel":{"desc":"2 bp 결실","fasta":">Marker_InDel\ntatgctaaccgcagcagagtgatccagcttagtagtcctcagaacgtatgggtcgactcgggctgatgatcgttctgccagtacagcctgaccgcctgtagtacatttaaagaaaacagttgtcagtcaactggtctagtgatttgcgatgggctgaacgcgactttgaaagcatagcggtcgaagcctgagtaaatcgc[AG/]acataatcgagggcgaagcgcaccccctgaccacaattggagcggtcaccgcaggaaagacaactaagtccgcaggtccggcccatgtgaactactatctccatagcgggcggtccgcgcagctaccgtctggtagcttctgacggactacgtaatttacccatgtggcggaaacctagacaagcgccacagagtcgatt"},"mnv_multi":{"desc":"MNV + 3대립","fasta":">Marker_MNV\ncttaacatatgatcaaacgacgtacgttgtagacagacggattttgccgacgcattttcttaacaatttatctcacaacatctcggccaagatccagctgggtgccaggggtgaccacaattgccctcagccttcatgttgctagcgtttgtgtacagttgtcaggacaagtacagaggcttaattaggttcgagaccgg[GATATAC/CAGTCC]ttgatttggtagtgggccgaccatggtttcattgcttcggctgctgtaattcggctgttagtggggtgtctacgcgcttatgcgccatgcgataccctgctgtcttcgaaatcgagaccgggacacacctttactgccttcgagaaggagaagaggtgccccggcccatctgagggcaaaccagaaaatgttccgacggt\n\n>Marker_Tri\ntatcgcctacgctctggtggaccctggggggaaacaatcatcggaagcaaagtctattccgacgctgaatgtggcgtcatggctgtagtctatctacctgggttatgagcgggcctatcattctcgtgtttcgaaccggcttgaacaggatgccagcagactatctccaggtgctctgttgctcttggtttgaaacgaag[A/C/G]cacgccacgattcgaggaatcaaattaatgcgaggaagttccggagaagtacgtacgttggctacgcggtgcaaacgtatgaatttgcacggagaccaaagcaattgcgtaccgcttcgatcccgtcagttaaagtgatccagttcagtcgcaactaatcccgtccttcgtagctacacctggcaaagatcaaaattgcg"},"excluded_region":{"desc":"/.../ 제외구역 포함","fasta":">Marker_Excl\nggggttagctacgcctatgcccaatgttgccagaccttaatggggtttccggtgctgaatttgcatagactggggggttactcaatgccgggaacctcttacctcgtacgtgccttttttggttatgacggtcgcatttatggcagtcac/taacccagggttatccagttgtggccaatt/aggcaggacagcgttaactt[C/T]ggttagctacgcactcaggtgttggtggcgatcccttctccctaaatcactgtttgtcactcagagagagagagagaggtagacctgtcaccgtcagataaatttacggctctgaatagatagcggtaccctccagaccgcgggcggaatggcaaagggggcatcccactgactgttatgcccggaccggaaacgctctt"}};
-window.KASP_BUILD = {"version":"1.0.0","date":"2026-10-21"};
+window.KASP_BUILD = {"version":"1.1.0","date":"2026-10-21"};
 </script>
 <script>
 (function () {
@@ -967,7 +1007,8 @@ function baseMatchesIupac(base, patternChar) {
 
 /** 서열/마크업으로만 이루어진 토큰인지 (이름 토큰과 구분) */
 const SEQ_LIKE_TOKEN = /^[acgturyswkmbdhvn\[\]\/\-\.]+$/i;
-const CHR_POS_RE = /\b(chr\w*?)\s*[:：]\s*(\d[\d,]*)/i;
+/** Chr01:123 (벼), 1A:123 / chr1A:123 (밀), Un:123, 12:123 */
+const CHR_POS_RE = /(?:^|[\s,;|(])((?:chr\w*)|(?:[1-7][ABD])|(?:Un)|(?:\d{1,2}))\s*[:：]\s*(\d[\d,]*)/i;
 
 /** 염기 집합 → IUPAC 1문자 (예: {A,G} → R) */
 function basesToIupac(bases) {
@@ -1136,6 +1177,32 @@ function parseInput(text) {
   }
   if (!records.length) errors.push('서열이 없습니다.');
   return { records, errors };
+}
+
+/**
+ * 괄호 없는 단순 FASTA(여러 레코드) → [{name, seq}] (상동유전체 서열 입력용)
+ */
+function parseFastaPlain(text) {
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let cur = null;
+  let auto = 0;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) continue;
+    if (t.startsWith('>')) { cur = { name: t.slice(1).trim().split(/\s+/)[0] || `H${++auto}`, seq: '' }; out.push(cur); continue; }
+    if (t.startsWith('#') || t.startsWith(';')) continue;
+    const tokens = t.split(/\s+/);
+    if (tokens.length >= 2 && !SEQ_LIKE_TOKEN.test(tokens[0])) { cur = { name: tokens[0], seq: '' }; out.push(cur); tokens.slice(1).forEach((x) => { cur.seq += x; }); continue; }
+    if (!cur) { cur = { name: `H${++auto}`, seq: '' }; out.push(cur); }
+    cur.seq += t;
+  }
+  for (const r of out) {
+    let s = '';
+    for (const ch of r.seq) { const b = normalizeBase(ch); if (b) s += b; }
+    r.seq = s;
+  }
+  return out.filter((r) => r.seq.length > 0);
 }
 
 /** 레코드 요약 (UI 표시용) */
@@ -1666,6 +1733,168 @@ function describeMask(flags) {
 }
 
 
+/* ===== src/core/specificity.js ===== */
+/**
+ * specificity.js — 상동유전체(homoeolog) 특이성 검사 (다배체 작물용, 예: 밀 A/B/D)
+ *
+ * 원리 (Ramirez-Gonzalez et al. 2015 PolyMarker; Makhoul et al. 2020):
+ *  - 프라이머를 각 상동유전체 서열(양 가닥)에서 가장 잘 맞는 자리에 정렬해 불일치 위치를 센다
+ *  - 모든 상동유전체에 대해 3′ 말단 염기가 불일치 → 염색체 특이(specific)
+ *  - 모든 상동유전체에 대해 어디든 불일치가 있음 → 반특이(semi)
+ *  - 어느 상동유전체와 완전히 같음 → 비특이(nonspecific)
+ *  - 상동 서열에서 비슷한 구간을 찾지 못함(불일치가 maxMismatch 초과) → 사실상 특이로 본다
+ */
+
+
+const SPECIFICITY_LABEL = Object.freeze({
+  specific: '염색체 특이',
+  semi: '반특이',
+  nonspecific: '비특이',
+  unknown: '검사 안 함',
+});
+
+/**
+ * 프라이머(5′→3′)를 대상 서열에서 양 가닥으로 찾아 불일치가 가장 적은 자리를 돌려준다.
+ * @returns {{strand:string, start0:number, mismatches:number, positions:number[]}|null} positions 는 프라이머 5′ 기준 0-based
+ */
+function bestMatch(primer, target, maxMismatch = 8) {
+  const b = String(primer || '').toUpperCase();
+  const T = String(target || '').toUpperCase();
+  if (!b.length || T.length < b.length) return null;
+  let best = null;
+  for (const strand of ['+', '-']) {
+    const probe = strand === '+' ? b : revcomp(b);
+    for (let p = 0; p + probe.length <= T.length; p++) {
+      let mm = 0;
+      const pos = [];
+      for (let k = 0; k < probe.length; k++) {
+        if (T[p + k] !== probe[k]) { mm++; if (mm > maxMismatch) break; pos.push(k); }
+      }
+      if (mm > maxMismatch) continue;
+      if (!best || mm < best.mismatches) {
+        best = { strand, start0: p, mismatches: mm, positions: strand === '+' ? pos : pos.map((k) => probe.length - 1 - k).sort((x, y) => x - y) };
+        if (mm === 0) return best;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * @param {string} primer 본체 서열(tail 제외)
+ * @param {{name:string, seq:string}[]} homoeologs
+ * @returns {{ class:string, label:string, per:object[], minMismatch:number|null }}
+ */
+function classifyPrimerSpecificity(primer, homoeologs, { maxMismatch = 8, threeEndWindow = 5 } = {}) {
+  const L = String(primer || '').length;
+  const list = (homoeologs || []).filter((h) => h && h.seq && h.seq.length >= L);
+  if (!L || !list.length) return { class: 'unknown', label: SPECIFICITY_LABEL.unknown, per: [], minMismatch: null };
+  const per = list.map((h) => {
+    const m = bestMatch(primer, h.seq, maxMismatch);
+    return {
+      name: h.name,
+      found: !!m,
+      mismatches: m ? m.mismatches : null,
+      positions: m ? m.positions : [],
+      terminal: m ? m.positions.includes(L - 1) : true,
+      threeEnd: m ? m.positions.filter((p) => p >= L - threeEndWindow).length : threeEndWindow,
+    };
+  });
+  const found = per.filter((p) => p.found);
+  let cls;
+  if (!found.length) cls = 'specific';
+  else if (found.every((p) => p.terminal)) cls = 'specific';
+  else if (found.every((p) => p.mismatches >= 1)) cls = 'semi';
+  else cls = 'nonspecific';
+  return {
+    class: cls,
+    label: SPECIFICITY_LABEL[cls],
+    per,
+    minMismatch: found.length ? Math.min(...found.map((p) => p.mismatches)) : null,
+  };
+}
+
+/** Common 후보 점수에 더할 벌점 */
+function specificityPenalty(cls) {
+  if (cls === 'nonspecific') return 30;
+  if (cls === 'semi') return 8;
+  return 0;
+}
+
+/** 사람이 읽는 요약: "B: 3′ 말단 불일치 · D: 불일치 2(5′에서 7, 19번째)" */
+function describeSpecificity(spec) {
+  if (!spec || spec.class === 'unknown') return '';
+  return spec.per.map((p) => {
+    if (!p.found) return `${p.name}: 유사 구간 없음`;
+    if (p.mismatches === 0) return `${p.name}: 완전 일치`;
+    const where = p.terminal ? '3′ 말단 포함 ' : '';
+    return `${p.name}: 불일치 ${p.mismatches} (${where}5′에서 ${p.positions.map((x) => x + 1).join(', ')}번째)`;
+  }).join(' · ');
+}
+
+
+/* ===== src/core/crop.js ===== */
+/**
+ * crop.js — 작물 모드(벼 / 밀 / 일반) 메타데이터와 참고 문헌
+ */
+const CROPS = Object.freeze({
+  rice: Object.freeze({
+    key: 'rice', label: '벼', latin: 'Oryza sativa', ensembl: 'oryza_sativa',
+    genome: 'IRGSP-1.0', chrExample: 'Chr01:12345678', ploidy: '이배체 (2n = 24)',
+    note: '기본 모드. 좌표는 IRGSP-1.0 (Chr01–Chr12). rsID 조회는 Ensembl Plants oryza_sativa.',
+    homoeologs: false,
+  }),
+  wheat: Object.freeze({
+    key: 'wheat', label: '밀', latin: 'Triticum aestivum', ensembl: 'triticum_aestivum',
+    genome: 'IWGSC RefSeq v2.1', chrExample: '1A:12345678 (chr1A … 7D, Un)', ploidy: '육배체 (AABBDD, 2n = 42)',
+    note: '육배체라 A·B·D 상동유전체(homoeolog)가 거의 같은 서열을 갖습니다. 상동유전체 서열을 함께 넣으면 프라이머가 목표 유전체에만 붙는지(PolyMarker 식 특이 / 반특이 / 비특이) 검사해 Common 후보 순위와 경고에 반영합니다. 품종 간 SNP 를 ASP 3′ 말단에 두고, Common 은 상동유전체와 다른 염기(3′ 말단 쪽)에 두는 것이 권장 전략입니다 (Makhoul et al. 2020).',
+    homoeologs: true,
+  }),
+  generic: Object.freeze({
+    key: 'generic', label: '일반', latin: '', ensembl: '',
+    genome: '', chrExample: 'Chr1:12345', ploidy: '',
+    note: '작물 공통 설정. 유전체 좌표 표기는 헤더에 쓴 그대로 사용하고, 상동/중복 서열이 있으면 함께 넣어 특이성을 검사할 수 있습니다.',
+    homoeologs: true,
+  }),
+});
+
+function cropOf(key) {
+  return CROPS[key] || CROPS.rice;
+}
+
+/** 참고 문헌: 공통 + 작물별 */
+const REFERENCES = Object.freeze({
+  general: Object.freeze([
+    { cite: 'SantaLucia J (1998) A unified view of polymer, dumbbell, and oligonucleotide DNA nearest-neighbor thermodynamics. PNAS 95:1460–1465.', doi: '10.1073/pnas.95.4.1460', why: 'Tm 최근접이웃 ΔH/ΔS' },
+    { cite: 'Owczarzy R et al. (2004) Effects of sodium ions on DNA duplex oligomers: improved predictions of melting temperatures. Biochemistry 43:3537–3554.', doi: '10.1021/bi034621r', why: 'Na⁺ 염 보정' },
+    { cite: 'Owczarzy R et al. (2008) Predicting stability of DNA duplexes in solutions containing magnesium and monovalent cations. Biochemistry 47:5336–5353.', doi: '10.1021/bi702363u', why: 'Mg²⁺ 염 보정' },
+    { cite: 'Semagn K, Babu R, Hearne S, Olsen M (2014) Single nucleotide polymorphism genotyping using Kompetitive Allele Specific PCR (KASP): overview of the technology and its application in crop improvement. Mol Breeding 33:1–14.', doi: '10.1007/s11032-013-9917-x', why: 'KASP 원리와 작물 적용 개요' },
+    { cite: 'Kalendar R et al. (2022) Front Mol Biosci 9:773956.', doi: '10.3389/fmolb.2022.773956', why: 'ASQ/KASP 대립유전자 특이 프라이머 설계 원리' },
+    { cite: 'Kalendar R et al. (2017) FastPCR: An in silico tool for fast primer and probe design and advanced sequence analysis. Genomics 109:312–319.', doi: '10.1016/j.ygeno.2017.05.005', why: 'Linguistic complexity 지표' },
+    { cite: 'Kalendar R (2025) Mol Ther Nucleic Acids 36(4):102716.', doi: '10.1016/j.omtn.2025.102716', why: '프라이머 설계 플랫폼' },
+    { cite: 'LGC Biosearch Technologies. KASP genotyping chemistry — user guide and manual.', doi: '', why: 'FAM/HEX tail 서열, 반응 조건' },
+  ]),
+  rice: Object.freeze([
+    { cite: 'Kawahara Y et al. (2013) Improvement of the Oryza sativa Nipponbare reference genome using next generation sequence and optical map data. Rice 6:4.', doi: '10.1186/1939-8433-6-4', why: 'IRGSP-1.0 기준 유전체' },
+    { cite: 'Sakai H et al. (2013) Rice Annotation Project Database (RAP-DB): an integrative and interactive database for rice genomics. Plant Cell Physiol 54:e6.', doi: '10.1093/pcp/pcs183', why: 'RAP-DB 유전자 좌표' },
+  ]),
+  wheat: Object.freeze([
+    { cite: 'Makhoul M, Rambla C, Voss-Fels KP, Hickey LT, Snowdon RJ, Obermeier C (2020) Overcoming polyploidy pitfalls: a user guide for effective SNP conversion into KASP markers in wheat. Theor Appl Genet 133:2413–2430.', doi: '10.1007/s00122-020-03608-x', why: '밀(육배체) KASP 설계 실무 지침 — 상동유전체 특이 프라이머' },
+    { cite: 'Ramirez-Gonzalez RH, Uauy C, Caccamo M (2015) PolyMarker: a fast polyploid primer design pipeline. Bioinformatics 31:2038–2039.', doi: '10.1093/bioinformatics/btv069', why: '특이/반특이/비특이 프라이머 분류' },
+    { cite: 'International Wheat Genome Sequencing Consortium (2018) Shifting the limits in wheat research and breeding using a fully annotated reference genome. Science 361:eaar7191.', doi: '10.1126/science.aar7191', why: 'IWGSC RefSeq v1.0' },
+    { cite: 'Zhu T et al. (2021) Optical maps refine the bread wheat Triticum aestivum cv. Chinese Spring genome assembly. Plant J 107:303–314.', doi: '10.1111/tpj.15289', why: 'IWGSC RefSeq v2.1 좌표' },
+    { cite: 'Rasheed A et al. (2016) Development and validation of KASP assays for genes underpinning key economic traits in bread wheat. Theor Appl Genet 129:1843–1860.', doi: '10.1007/s00122-016-2743-x', why: '밀 기능유전자 KASP 마커 사례' },
+    { cite: 'Grewal S et al. (2020) Rapid identification of homozygosity and site of wild relative introgressions in wheat through chromosome-specific KASP genotyping assays. Plant Biotechnol J 18:743–755.', doi: '10.1111/pbi.13241', why: '염색체 특이 KASP 설계 사례' },
+  ]),
+  generic: Object.freeze([]),
+});
+
+function referencesFor(cropKey) {
+  const crop = cropOf(cropKey);
+  return { general: REFERENCES.general, crop: REFERENCES[crop.key] || [], cropLabel: crop.label };
+}
+
+
 /* ===== src/core/design.js ===== */
 /**
  * design.js — ASP + Common 프라이머 설계 파이프라인 (사양 §5, §6)
@@ -1678,6 +1907,8 @@ function describeMask(flags) {
  *
  * Tm 은 항상 tail 을 뗀 본체로 계산한다(사양 §3.4).
  */
+
+
 
 
 
@@ -1713,12 +1944,19 @@ const DEFAULT_PARAMS = Object.freeze({
   bisulfite: false,
   maxCommon: 12,
   maxReport: 60,
+  cropMode: 'rice',            // 'rice' | 'wheat' | 'generic'
+  homoeologs: Object.freeze([]), // [{name, seq}] 상동유전체 서열 (다배체 특이성 검사)
+  specificityMaxMismatch: 8,
 });
 
 function mergeParams(params = {}) {
   const p = { ...DEFAULT_PARAMS, ...params };
   p.custom = { ...DEFAULT_PARAMS.custom, ...(params.custom || {}) };
   p.tails = (params.tails || DEFAULT_TAILS).map((t) => ({ name: t.name, seq: String(t.seq || '').toUpperCase().replace(/[^ACGT]/g, '') }));
+  p.cropMode = cropOf(params.cropMode).key;
+  p.homoeologs = (params.homoeologs || [])
+    .map((h, i) => ({ name: String(h.name || `H${i + 1}`), seq: String(h.seq || '').toUpperCase().replace(/U/g, 'T').replace(/[^ACGTRYSWKMBDHVN]/g, '') }))
+    .filter((h) => h.seq.length >= 20);
   return p;
 }
 
@@ -1887,9 +2125,16 @@ function designStrand(oriented, p, cond) {
     const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold });
     if (self && self.isDimer) aspWarnings.push(`자기 다이머 (${self.matches} bp 상보${self.threePrimeA || self.threePrimeB ? ', 3′ 말단 관여' : ''})`);
 
+    let specificity = null;
+    if (p.homoeologs.length) {
+      specificity = classifyPrimerSpecificity(body, p.homoeologs, { maxMismatch: p.specificityMaxMismatch });
+      if (specificity.class === 'nonspecific') aspWarnings.push(`상동유전체와 본체가 같아 유전체 특이성이 없습니다 (${describeSpecificity(specificity)}). Common 을 특이 위치에 두세요.`);
+      else if (specificity.class === 'semi') aspWarnings.push(`상동유전체와 3′ 말단은 같고 내부만 다릅니다 — 반특이 (${describeSpecificity(specificity)}).`);
+    }
+
     const fwd = toForward(i, a, e);
     return {
-      kind: 'ASP', dir,
+      kind: 'ASP', dir, specificity,
       id: `${dir}_${fwd.start}-${fwd.end}_ASP_${al.label}`,
       alleleIndex: i, allele: al.seq, alleleLabel: al.label,
       tail: tail ? { ...tail } : null,
@@ -1989,17 +2234,25 @@ function designStrand(oriented, p, cond) {
     const tmDiff = live.length ? Math.max(...live.map((a) => Math.abs(a.tm - tm))) : 0;
     if (tmDiff > p.tmDiffMax) cWarnings.push(`ASP 와 Tm 차 ${tmDiff.toFixed(1)} °C > ${p.tmDiffMax} °C`);
 
+    let specificity = null;
+    if (p.homoeologs.length) {
+      specificity = classifyPrimerSpecificity(primer, p.homoeologs, { maxMismatch: p.specificityMaxMismatch });
+      if (specificity.class === 'nonspecific') cWarnings.push(`상동유전체와 동일 — 비특이 (${describeSpecificity(specificity)})`);
+      else if (specificity.class === 'semi') cWarnings.push(`반특이: 3′ 말단은 상동유전체와 같음 (${describeSpecificity(specificity)})`);
+    }
+
     let score = 0;
     if (ampState === 'err') score += 100;
     else if (ampState === 'warn') score += 10;
     if (tmDiff > p.tmDiffMax) score += 20;
     if (gc < p.gcMin || gc > p.gcMax) score += 5;
+    if (specificity) score += specificityPenalty(specificity.class);
     score -= lc / 100;
     score += maxSize / 10000;
 
     const fwd = toForward(0, S0 + pos, S0 + pos + L);
     const cand = {
-      kind: 'Common', dir: otherDir,
+      kind: 'Common', dir: otherDir, specificity,
       id: `${otherDir}_${fwd.start}-${fwd.end}`,
       seq: primer.toLowerCase(), seqUpper: primer, length: L,
       tm, gc, lc, pos,
@@ -2028,6 +2281,12 @@ function designStrand(oriented, p, cond) {
   }
   if (live.length && commons.length && commons[0].tmDiff > p.tmDiffMax) {
     warnings.push(`최상위 Common 과 ASP 의 Tm 차가 ${commons[0].tmDiff.toFixed(1)} °C 입니다.`);
+  }
+  if (cropOf(p.cropMode).homoeologs && !p.homoeologs.length && p.cropMode === 'wheat') {
+    warnings.push('밀 모드: 상동유전체(A/B/D 중 목표가 아닌 유전체) 서열이 없어 특이성 검사를 건너뛰었습니다. 서열 입력 탭에 넣으면 Common 후보 순위에 반영됩니다.');
+  }
+  if (p.homoeologs.length && commons.length && commons[0].specificity && commons[0].specificity.class === 'nonspecific') {
+    warnings.push('특이(3′ 말단이 상동유전체와 다른) Common 후보가 없습니다. 상동유전체와 다른 염기 근처로 flank 를 늘리거나 Reverse 세트를 확인하세요.');
   }
 
   return {
@@ -2077,6 +2336,8 @@ function isValidTailSeq(seq) {
  *
  * 엑셀 파일 자체는 xlsx.js 의 자체 작성기(의존성 없음)로 만든다.
  */
+
+
 
 
 
@@ -2163,12 +2424,15 @@ function conditionLabel(p) {
 function buildWorkbookData(results, o = {}) {
   const scale = o.scale || '25 nmol';
   const order = [['Primer Name', 'Sequence 5′→3′', 'Direction', 'Length', 'Purpose', 'Scale']];
-  const basis = [['Marker', 'Primer ID', '위치 (Chr:bp)', '템플릿 위치', 'Tm 조건', 'Tm (°C, tail 제외)', 'GC (%)', 'LC (%)', 'Fragment (bp)', 'Amplicon Tm', '변환 전략', '비고']];
+  const basis = [['Marker', 'Primer ID', '작물 / 유전체', '위치 (Chr:bp)', '템플릿 위치', 'Tm 조건', 'Tm (°C, tail 제외)', 'GC (%)', 'LC (%)', 'Fragment (bp)', 'Amplicon Tm', '상동유전체 특이성', '변환 전략', '비고']];
+  const specText = (pr) => (pr.specificity && pr.specificity.class !== 'unknown' ? `${SPECIFICITY_LABEL[pr.specificity.class]} — ${describeSpecificity(pr.specificity)}` : '');
   for (const res of results) {
     if (res.error) continue;
     const sel = (o.selections && o.selections[res.name]) || {};
     const which = sel.which || o.which || 'forward';
     const whichList = which === 'both' ? ['forward', 'reverse'] : [which];
+    const crop = cropOf(res.params.cropMode);
+    const cropText = crop.key === 'generic' ? '일반' : `${crop.label} (${crop.latin}) · ${crop.genome}`;
     for (const w of whichList) {
       const set = pickSet(res, w);
       if (!set) continue;
@@ -2181,12 +2445,12 @@ function buildWorkbookData(results, o = {}) {
         if (!asp) continue;
         const name = `${res.name}_${asp.id}`;
         order.push([name, asp.fullUpper, asp.dir === 'F' ? 'Forward' : 'Reverse', asp.fullLength, `ASP (${asp.alleleLabel}${asp.tail ? ', ' + asp.tail.name : ''})`, scale]);
-        basis.push([res.name, asp.id, genomicCoord(res, asp.start, asp.end), `${asp.start}-${asp.end}`, cond, f1(asp.tm), f1(asp.gc), asp.lc, '', '', strategy, asp.warnings.join('; ')]);
+        basis.push([res.name, asp.id, cropText, genomicCoord(res, asp.start, asp.end), `${asp.start}-${asp.end}`, cond, f1(asp.tm), f1(asp.gc), asp.lc, '', '', specText(asp), strategy, asp.warnings.join('; ')]);
       }
       if (common) {
         const name = `${res.name}_${common.id}`;
         order.push([name, common.seqUpper, common.dir === 'F' ? 'Forward' : 'Reverse', common.length, 'Common', scale]);
-        basis.push([res.name, common.id, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), strategy, common.warnings.join('; ')]);
+        basis.push([res.name, common.id, cropText, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), specText(common), strategy, common.warnings.join('; ')]);
       }
     }
   }
@@ -3333,8 +3597,12 @@ function renderManualHtml(steps) {
 function buildTourSteps(ctx) {
   return [
     {
-      group: '시작', title: 'KASP 디자이너 둘러보기 (처음 한 번만 자동 재생)',
+      group: '시작', title: 'KASP 디자이너 둘러보기',
       text: '약 2분짜리 안내입니다. 지금 바쁘시면 "건너뛰기"나 Esc 로 바로 닫아도 되고, 이 안내는 다시 자동으로 뜨지 않습니다. 왼쪽 메뉴 순서대로 서열 입력 → 설계 조건 → Tail → 결과 → 내보내기 로 진행하며, "다음" 버튼이나 → 키로 넘기고 ← 키로 돌아갑니다. 언제든 상단의 ? 버튼에서 다시 재생하거나 서면 매뉴얼로 읽을 수 있습니다.',
+    },
+    {
+      group: '서열 입력', pane: 'input', target: '#cropCard', title: '작물 모드',
+      text: '벼(IRGSP-1.0) · 밀(IWGSC RefSeq v2.1) · 일반 중에서 고릅니다. 밀은 육배체라 A·B·D 상동유전체 서열을 함께 넣으면 프라이머가 목표 유전체에만 붙는지(특이 / 반특이 / 비특이) 검사해 Common 후보 순위에 반영합니다. 좌표 표기와 rsID 조회 종도 작물에 맞게 바뀝니다.',
     },
     {
       group: '서열 입력', pane: 'input', target: '#seqInput', title: '서열을 붙여넣습니다',
@@ -3464,6 +3732,9 @@ function buildTourSteps(ctx) {
 
 
 
+
+
+
 const EXAMPLES = (typeof window !== 'undefined' && window.KASP_EXAMPLES) || {};
 const BUILD = (typeof window !== 'undefined' && window.KASP_BUILD) || { version: 'dev', date: '' };
 const STORE_INPUT = 'kasp-input';
@@ -3479,8 +3750,10 @@ const ui = {
   stale: false,
   analysis: null,
   tour: null,
+  crop: 'rice',
 };
 const STORE_WELCOME = 'kasp-welcome-seen';
+const STORE_HOMOEOLOG = 'kasp-homoeologs';
 
 const EXAMPLE_PRIMERS = [
   'Marker_SNP1_ASP_A\tGAAGGTGACCAAGTTCATGCTccggcatggctgacattgA',
@@ -3542,7 +3815,7 @@ function downloadBytes(bytes, filename, type) {
 }
 function saveSettings() {
   try {
-    localStorage.setItem(STORE_SETTINGS, JSON.stringify({ params: ui.params, mode: ui.mode, sizing: ui.sizing, exportScope: ui.exportScope, exportDir: ui.exportDir }));
+    localStorage.setItem(STORE_SETTINGS, JSON.stringify({ params: ui.params, mode: ui.mode, sizing: ui.sizing, exportScope: ui.exportScope, exportDir: ui.exportDir, crop: ui.crop }));
   } catch { /* 저장 불가 환경 */ }
 }
 function loadSettings() {
@@ -3555,7 +3828,96 @@ function loadSettings() {
     if (s.sizing) ui.sizing = { ...ui.sizing, ...s.sizing };
     if (s.exportScope) ui.exportScope = s.exportScope;
     if (s.exportDir) ui.exportDir = s.exportDir;
+    if (s.crop && CROPS[s.crop]) ui.crop = s.crop;
   } catch { /* 무시 */ }
+}
+
+/* ---------- 작물 모드 · 상동유전체 · 참고 문헌 ---------- */
+function homoeologsFromInput() {
+  const el = qs('#homoeologInput');
+  if (!el || !cropOf(ui.crop).homoeologs) return [];
+  return parseFastaPlain(el.value);
+}
+function renderHomoeologSummary() {
+  const el = qs('#homoeologSummary');
+  const list = homoeologsFromInput();
+  if (!qs('#homoeologInput').value.trim()) {
+    el.textContent = '목표 유전체가 아닌 상동 서열(예: A 유전체 마커라면 B·D)을 FASTA 로 넣으면, 설계된 ASP·Common 이 그 서열과 3′ 말단에서 다른지(특이 / 반특이 / 비특이) 검사해 Common 후보 순위와 경고에 반영합니다.';
+    return;
+  }
+  el.textContent = list.length
+    ? `${list.length}개 상동 서열 · ${list.map((h) => `${h.name} ${h.seq.length.toLocaleString()} nt`).join(' · ')}`
+    : '서열을 읽지 못했습니다. >이름 줄 다음에 염기 서열을 넣어 주세요.';
+}
+function renderCropInfo() {
+  const crop = cropOf(ui.crop);
+  setSegment(qs('#cropSeg'), crop.key);
+  qs('#cropPloidy').textContent = crop.ploidy ? `${crop.latin} · ${crop.ploidy}` : '';
+  qs('#cropNote').textContent = crop.note;
+  qs('#homoeologBox').hidden = !crop.homoeologs;
+  qs('#coordExample').textContent = crop.chrExample.split(' ')[0];
+  qs('#genomeLabel').textContent = crop.genome || '헤더 표기 그대로';
+  renderHomoeologSummary();
+}
+function renderRefs() {
+  const { general, crop, cropLabel } = referencesFor(ui.crop);
+  const item = (r) => `<li>${escapeHtml(r.cite)}${r.doi ? ` <a href="https://doi.org/${escapeHtml(r.doi)}" target="_blank" rel="noopener">doi:${escapeHtml(r.doi)}</a>` : ''}<br><span class="ref-why">— ${escapeHtml(r.why)}</span></li>`;
+  qs('#refsBody').innerHTML = `
+    ${crop.length ? `<div class="ref-group">${escapeHtml(cropLabel)} 관련</div><ol class="ref-list">${crop.map(item).join('')}</ol>` : ''}
+    <div class="ref-group">공통 (Tm · KASP 원리 · 지표)</div><ol class="ref-list">${general.map(item).join('')}</ol>`;
+  qs('#refsSub').textContent = crop.length ? `공통 ${general.length}편 + ${cropLabel} ${crop.length}편` : `공통 ${general.length}편`;
+}
+function setCrop(key) {
+  const prev = cropOf(ui.crop);
+  ui.crop = cropOf(key).key;
+  const crop = cropOf(ui.crop);
+  const sp = qs('#rsidSpecies');
+  if (sp && (!sp.value.trim() || sp.value.trim() === prev.ensembl) && crop.ensembl) sp.value = crop.ensembl;
+  renderCropInfo();
+  renderRefs();
+  renderActionSummary();
+  onParamsChanged();
+}
+function mutateSeq(seq, every, offset, map) {
+  let out = '';
+  for (let i = 0; i < seq.length; i++) out += ((i + offset) % every === 0) ? (map[seq[i]] || 'A') : seq[i];
+  return out;
+}
+function loadWheatExample() {
+  if (!EXAMPLES.snp_simple) return;
+  const { records } = parseInput(EXAMPLES.snp_simple.fasta);
+  const rec = records[0];
+  if (!rec || rec.error) return;
+  const T = (rec.s1 + rec.alleles[0].seq + rec.s3).toUpperCase();
+  const B = mutateSeq(T, 17, 3, { A: 'G', G: 'A', C: 'T', T: 'C' });
+  const D = mutateSeq(T, 23, 11, { A: 'C', C: 'A', G: 'T', T: 'G' });
+  const fasta = `>Wheat_demo 1A:12345678 합성예제(벼 서열 기반 가상 데이터)\n${rec.s1.toLowerCase()}[${rec.alleles.map((a) => a.seq).join('/')}]${rec.s3.toLowerCase()}`;
+  setInputText(fasta);
+  qs('#homoeologInput').value = `>B_genome 합성(17 nt 마다 치환)\n${B.toLowerCase()}\n>D_genome 합성(23 nt 마다 치환)\n${D.toLowerCase()}`;
+  try { localStorage.setItem(STORE_HOMOEOLOG, qs('#homoeologInput').value); } catch { /* 무시 */ }
+  renderHomoeologSummary();
+  onParamsChanged();
+  toast('밀 합성 예제를 불러왔습니다 (실제 밀 서열이 아닙니다)');
+}
+function bindCrop() {
+  bindSegment(qs('#cropSeg'), setCrop);
+  const ta = qs('#homoeologInput');
+  ta.addEventListener('input', debounce(() => {
+    renderHomoeologSummary();
+    try { localStorage.setItem(STORE_HOMOEOLOG, ta.value); } catch { /* 무시 */ }
+    onParamsChanged();
+  }, 150));
+  qs('#homoeologClearBtn').addEventListener('click', () => { ta.value = ''; renderHomoeologSummary(); try { localStorage.removeItem(STORE_HOMOEOLOG); } catch { /* 무시 */ } onParamsChanged(); });
+  qs('#homoeologExampleBtn').addEventListener('click', () => { if (ui.crop !== 'wheat') setCrop('wheat'); loadWheatExample(); });
+  try { ta.value = localStorage.getItem(STORE_HOMOEOLOG) || ''; } catch { /* 무시 */ }
+  renderCropInfo();
+  renderRefs();
+}
+function specBadge(pr) {
+  const s = pr && pr.specificity;
+  if (!s || s.class === 'unknown') return '';
+  const cls = s.class === 'specific' ? '' : s.class === 'semi' ? 'warn' : 'err';
+  return `<span class="badge spec ${cls}" title="${escapeHtml(describeSpecificity(s))}">${escapeHtml(SPECIFICITY_LABEL[s.class])}</span>`;
 }
 
 /* ---------- 테마 ---------- */
@@ -3798,7 +4160,8 @@ function renderActionSummary() {
   const ok = ui.records.filter((r) => !r.error).length;
   if (!qs('#seqInput').value.trim()) { el.textContent = '서열을 붙여넣으면 시작됩니다'; return; }
   const mode = ui.mode === 'sizing' ? 'Allele sizing' : 'KASP';
-  el.textContent = `${ok}개 서열 준비됨 · ${presetLabel()} · ${mode}${ui.stale ? ' · 조건이 바뀌었습니다, 다시 설계하세요' : ''}`;
+  const hom = homoeologsFromInput().length;
+  el.textContent = `${ok}개 서열 준비됨 · ${cropOf(ui.crop).label}${hom ? ` (상동 ${hom})` : ''} · ${presetLabel()} · ${mode}${ui.stale ? ' · 조건이 바뀌었습니다, 다시 설계하세요' : ''}`;
 }
 const onInputChanged = debounce(() => {
   parseNow();
@@ -3987,6 +4350,8 @@ function effectiveParams() {
   if (p.ampliconHardMax < p.ampliconMax) p.ampliconHardMax = p.ampliconMax;
   p.tails = p.tails.filter((t) => t.seq.length);
   if (ui.mode === 'sizing') { p.useTails = false; if (ui.sizing.secondMismatch) p.snpOffset = 1; }
+  p.cropMode = ui.crop;
+  p.homoeologs = homoeologsFromInput();
   return p;
 }
 function runDesign() {
@@ -4182,11 +4547,12 @@ function renderSetCard(res, set, view) {
   const p = res.params;
   const dirLabel = ui.dir === 'forward' ? 'Forward' : 'Reverse';
   if (!set) { card.innerHTML = `<div class="card-head"><h2>${escapeHtml(res.name)}</h2></div><p class="muted">${escapeHtml(res.error || '결과 없음')}</p>`; return; }
-  const condTxt = `${presetLabelFor(p)} · Tm ${p.tmMin}–${p.tmMax} °C`;
+  const cropTxt = cropOf(p.cropMode).key === 'generic' ? '' : `${cropOf(p.cropMode).label} · `;
+  const condTxt = `${cropTxt}${presetLabelFor(p)} · Tm ${p.tmMin}–${p.tmMax} °C${p.homoeologs && p.homoeologs.length ? ` · 상동 ${p.homoeologs.length}` : ''}`;
   const rows = [];
   for (const a of view.asps) {
     rows.push(`<tr>
-      <td class="id">${escapeHtml(a.id)}</td>
+      <td class="id">${escapeHtml(a.id)}${specBadge(a)}</td>
       <td class="seq-cell">${seqHtml(a)}</td>
       <td class="num" data-label="길이">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
       <td class="num" data-label="Tm"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
@@ -4198,7 +4564,7 @@ function renderSetCard(res, set, view) {
   const c = view.common;
   if (c) {
     rows.push(`<tr>
-      <td class="id">${escapeHtml(c.id)}</td>
+      <td class="id">${escapeHtml(c.id)}${specBadge(c)}</td>
       <td class="seq-cell">${seqHtml(c)}</td>
       <td class="num" data-label="길이">${c.length}</td>
       <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
@@ -4239,7 +4605,7 @@ function renderCommonCard(res, set, view) {
   const list = set.commons.slice(0, p.maxCommon);
   const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
       <td class="num muted rank">${c.rank}</td>
-      <td class="id">${escapeHtml(c.id)}</td>
+      <td class="id">${escapeHtml(c.id)}${specBadge(c)}</td>
       <td class="seq-cell">${seqHtml(c)}</td>
       <td class="num" data-label="길이">${c.length}</td>
       <td class="num" data-label="Tm"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
@@ -4420,6 +4786,7 @@ function init() {
   bindSegment(qs('#presetSeg2'), setPreset);
   bindTails();
   bindInput();
+  bindCrop();
   bindAnalyze();
   bindResults();
   bindExport();
