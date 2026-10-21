@@ -52,6 +52,30 @@
     <!-- 1. 서열 입력 -->
     <section class="pane on" data-pane="input">
       <h1 class="page-title">서열 입력</h1>
+      <div class="card" id="cropCard">
+        <div class="card-head"><h2>작물 모드</h2><span class="muted small" id="cropPloidy"></span></div>
+        <div class="segment segment-wide" id="cropSeg" role="group" aria-label="작물">
+          <button type="button" data-value="rice" class="on">벼 (Oryza sativa)</button>
+          <button type="button" data-value="wheat">밀 (Triticum aestivum)</button>
+          <button type="button" data-value="generic">일반</button>
+        </div>
+        <p class="hint" id="cropNote"></p>
+        <div id="homoeologBox" hidden>
+          <div class="card-head homoeolog-head">
+            <h2>상동유전체(homoeolog) 서열</h2>
+            <div class="card-actions">
+              <button type="button" class="link-btn" id="homoeologExampleBtn">밀 예제 (합성)</button>
+              <button type="button" class="link-btn" id="homoeologClearBtn">지우기</button>
+            </div>
+          </div>
+          <textarea id="homoeologInput" class="primer-input" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="&gt;B_genome
+acgt... (목표가 아닌 유전체의 같은 구간, 괄호 없이)
+&gt;D_genome
+acgt..."></textarea>
+          <p class="hint" id="homoeologSummary">목표 유전체가 아닌 상동 서열(예: A 유전체 마커라면 B·D)을 FASTA 로 넣으면, 설계된 ASP·Common 이 그 서열과 3′ 말단에서 다른지(특이 / 반특이 / 비특이) 검사해 Common 후보 순위와 경고에 반영합니다.</p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-head">
           <h2>FASTA + 괄호 변이 표기</h2>
@@ -73,7 +97,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
         <p class="hint">
           <code>[A/G]</code> SNP · <code>[A/C/G/T]</code> 다중대립 · <code>[R]</code> IUPAC · <code>[AG/]</code> InDel · <code>[GATATAC/CAGTCC]</code> MNV ·
           괄호 밖 <code>r</code>, <code>y</code> 등은 주변 SNP(프라이머 회피) · <code>/…/</code> 프라이머 배치 금지 구역 ·
-          헤더에 <code>Chr01:1234567</code> 을 쓰면 유전체 좌표(IRGSP-1.0)로 변환됩니다.
+          헤더에 <code id="coordExample">Chr01:1234567</code> 을 쓰면 유전체 좌표(<span id="genomeLabel">IRGSP-1.0</span>)로 변환됩니다.
         </p>
       </div>
 
@@ -86,7 +110,7 @@ acgt...flank...[A/G]...flank...acgt"></textarea>
             <label class="field"><span>양쪽 flank 길이 (nt)</span><input type="number" id="rsidFlank" value="200" min="50" max="1000" step="10"></label>
             <div class="field field-btn"><button type="button" class="btn" id="rsidBtn">조회해서 추가</button></div>
           </div>
-          <p class="hint" id="rsidStatus">벼는 <code>oryza_sativa</code>. 외부 서버에 접속할 수 없으면 조용히 안내만 합니다.</p>
+          <p class="hint" id="rsidStatus">벼는 <code>oryza_sativa</code>, 밀은 <code>triticum_aestivum</code> (작물 모드에 따라 자동 입력). 외부 서버에 접속할 수 없으면 조용히 안내만 합니다.</p>
         </div>
       </details>
     </section>
@@ -184,6 +208,11 @@ Common	tctcgtgtgaacgcagcc"></textarea>
             <label class="switch-row"><span>Bisulfite 변환 (CpG 가 아닌 C → T)</span><span class="switch"><input type="checkbox" data-param-bool="bisulfite"><i></i></span></label>
           </div>
         </div>
+      </details>
+
+      <details class="card disclosure" id="refsCard">
+        <summary><span>참고 문헌</span><span class="sub" id="refsSub">공통 + 작물별</span></summary>
+        <div class="disclosure-body" id="refsBody"></div>
       </details>
     </section>
 

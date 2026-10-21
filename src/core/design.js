@@ -14,6 +14,8 @@ import { meltingTemp, ampliconTm, makeConditions, TM_PRESETS } from './tm.js';
 import { linguisticComplexity, findSimpleRepeat } from './complexity.js';
 import { findDimer, findSelfDimer } from './dimer.js';
 import { buildMask, HARD_MASK, SOFT_MASK, maskFlagsIn, describeMask } from './mask.js';
+import { classifyPrimerSpecificity, specificityPenalty, describeSpecificity } from './specificity.js';
+import { cropOf } from './crop.js';
 
 export const DEFAULT_TAILS = Object.freeze([
   Object.freeze({ name: 'FAM', seq: 'GAAGGTGACCAAGTTCATGCT' }),
@@ -44,12 +46,19 @@ export const DEFAULT_PARAMS = Object.freeze({
   bisulfite: false,
   maxCommon: 12,
   maxReport: 60,
+  cropMode: 'rice',            // 'rice' | 'wheat' | 'generic'
+  homoeologs: Object.freeze([]), // [{name, seq}] 상동유전체 서열 (다배체 특이성 검사)
+  specificityMaxMismatch: 8,
 });
 
 export function mergeParams(params = {}) {
   const p = { ...DEFAULT_PARAMS, ...params };
   p.custom = { ...DEFAULT_PARAMS.custom, ...(params.custom || {}) };
   p.tails = (params.tails || DEFAULT_TAILS).map((t) => ({ name: t.name, seq: String(t.seq || '').toUpperCase().replace(/[^ACGT]/g, '') }));
+  p.cropMode = cropOf(params.cropMode).key;
+  p.homoeologs = (params.homoeologs || [])
+    .map((h, i) => ({ name: String(h.name || `H${i + 1}`), seq: String(h.seq || '').toUpperCase().replace(/U/g, 'T').replace(/[^ACGTRYSWKMBDHVN]/g, '') }))
+    .filter((h) => h.seq.length >= 20);
   return p;
 }
 
@@ -218,9 +227,16 @@ export function designStrand(oriented, p, cond) {
     const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold });
     if (self && self.isDimer) aspWarnings.push(`자기 다이머 (${self.matches} bp 상보${self.threePrimeA || self.threePrimeB ? ', 3′ 말단 관여' : ''})`);
 
+    let specificity = null;
+    if (p.homoeologs.length) {
+      specificity = classifyPrimerSpecificity(body, p.homoeologs, { maxMismatch: p.specificityMaxMismatch });
+      if (specificity.class === 'nonspecific') aspWarnings.push(`상동유전체와 본체가 같아 유전체 특이성이 없습니다 (${describeSpecificity(specificity)}). Common 을 특이 위치에 두세요.`);
+      else if (specificity.class === 'semi') aspWarnings.push(`상동유전체와 3′ 말단은 같고 내부만 다릅니다 — 반특이 (${describeSpecificity(specificity)}).`);
+    }
+
     const fwd = toForward(i, a, e);
     return {
-      kind: 'ASP', dir,
+      kind: 'ASP', dir, specificity,
       id: `${dir}_${fwd.start}-${fwd.end}_ASP_${al.label}`,
       alleleIndex: i, allele: al.seq, alleleLabel: al.label,
       tail: tail ? { ...tail } : null,
@@ -320,17 +336,25 @@ export function designStrand(oriented, p, cond) {
     const tmDiff = live.length ? Math.max(...live.map((a) => Math.abs(a.tm - tm))) : 0;
     if (tmDiff > p.tmDiffMax) cWarnings.push(`ASP 와 Tm 차 ${tmDiff.toFixed(1)} °C > ${p.tmDiffMax} °C`);
 
+    let specificity = null;
+    if (p.homoeologs.length) {
+      specificity = classifyPrimerSpecificity(primer, p.homoeologs, { maxMismatch: p.specificityMaxMismatch });
+      if (specificity.class === 'nonspecific') cWarnings.push(`상동유전체와 동일 — 비특이 (${describeSpecificity(specificity)})`);
+      else if (specificity.class === 'semi') cWarnings.push(`반특이: 3′ 말단은 상동유전체와 같음 (${describeSpecificity(specificity)})`);
+    }
+
     let score = 0;
     if (ampState === 'err') score += 100;
     else if (ampState === 'warn') score += 10;
     if (tmDiff > p.tmDiffMax) score += 20;
     if (gc < p.gcMin || gc > p.gcMax) score += 5;
+    if (specificity) score += specificityPenalty(specificity.class);
     score -= lc / 100;
     score += maxSize / 10000;
 
     const fwd = toForward(0, S0 + pos, S0 + pos + L);
     const cand = {
-      kind: 'Common', dir: otherDir,
+      kind: 'Common', dir: otherDir, specificity,
       id: `${otherDir}_${fwd.start}-${fwd.end}`,
       seq: primer.toLowerCase(), seqUpper: primer, length: L,
       tm, gc, lc, pos,
@@ -359,6 +383,12 @@ export function designStrand(oriented, p, cond) {
   }
   if (live.length && commons.length && commons[0].tmDiff > p.tmDiffMax) {
     warnings.push(`최상위 Common 과 ASP 의 Tm 차가 ${commons[0].tmDiff.toFixed(1)} °C 입니다.`);
+  }
+  if (cropOf(p.cropMode).homoeologs && !p.homoeologs.length && p.cropMode === 'wheat') {
+    warnings.push('밀 모드: 상동유전체(A/B/D 중 목표가 아닌 유전체) 서열이 없어 특이성 검사를 건너뛰었습니다. 서열 입력 탭에 넣으면 Common 후보 순위에 반영됩니다.');
+  }
+  if (p.homoeologs.length && commons.length && commons[0].specificity && commons[0].specificity.class === 'nonspecific') {
+    warnings.push('특이(3′ 말단이 상동유전체와 다른) Common 후보가 없습니다. 상동유전체와 다른 염기 근처로 flank 를 늘리거나 Reverse 세트를 확인하세요.');
   }
 
   return {

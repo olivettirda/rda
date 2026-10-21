@@ -5,6 +5,8 @@
  */
 import { TM_PRESETS } from './tm.js';
 import { genomicCoord } from './design.js';
+import { cropOf } from './crop.js';
+import { SPECIFICITY_LABEL, describeSpecificity } from './specificity.js';
 
 const f1 = (x) => (Number.isFinite(x) ? x.toFixed(1) : '');
 const f0 = (x) => (Number.isFinite(x) ? String(Math.round(x)) : '');
@@ -89,12 +91,15 @@ function conditionLabel(p) {
 export function buildWorkbookData(results, o = {}) {
   const scale = o.scale || '25 nmol';
   const order = [['Primer Name', 'Sequence 5′→3′', 'Direction', 'Length', 'Purpose', 'Scale']];
-  const basis = [['Marker', 'Primer ID', '위치 (Chr:bp)', '템플릿 위치', 'Tm 조건', 'Tm (°C, tail 제외)', 'GC (%)', 'LC (%)', 'Fragment (bp)', 'Amplicon Tm', '변환 전략', '비고']];
+  const basis = [['Marker', 'Primer ID', '작물 / 유전체', '위치 (Chr:bp)', '템플릿 위치', 'Tm 조건', 'Tm (°C, tail 제외)', 'GC (%)', 'LC (%)', 'Fragment (bp)', 'Amplicon Tm', '상동유전체 특이성', '변환 전략', '비고']];
+  const specText = (pr) => (pr.specificity && pr.specificity.class !== 'unknown' ? `${SPECIFICITY_LABEL[pr.specificity.class]} — ${describeSpecificity(pr.specificity)}` : '');
   for (const res of results) {
     if (res.error) continue;
     const sel = (o.selections && o.selections[res.name]) || {};
     const which = sel.which || o.which || 'forward';
     const whichList = which === 'both' ? ['forward', 'reverse'] : [which];
+    const crop = cropOf(res.params.cropMode);
+    const cropText = crop.key === 'generic' ? '일반' : `${crop.label} (${crop.latin}) · ${crop.genome}`;
     for (const w of whichList) {
       const set = pickSet(res, w);
       if (!set) continue;
@@ -107,12 +112,12 @@ export function buildWorkbookData(results, o = {}) {
         if (!asp) continue;
         const name = `${res.name}_${asp.id}`;
         order.push([name, asp.fullUpper, asp.dir === 'F' ? 'Forward' : 'Reverse', asp.fullLength, `ASP (${asp.alleleLabel}${asp.tail ? ', ' + asp.tail.name : ''})`, scale]);
-        basis.push([res.name, asp.id, genomicCoord(res, asp.start, asp.end), `${asp.start}-${asp.end}`, cond, f1(asp.tm), f1(asp.gc), asp.lc, '', '', strategy, asp.warnings.join('; ')]);
+        basis.push([res.name, asp.id, cropText, genomicCoord(res, asp.start, asp.end), `${asp.start}-${asp.end}`, cond, f1(asp.tm), f1(asp.gc), asp.lc, '', '', specText(asp), strategy, asp.warnings.join('; ')]);
       }
       if (common) {
         const name = `${res.name}_${common.id}`;
         order.push([name, common.seqUpper, common.dir === 'F' ? 'Forward' : 'Reverse', common.length, 'Common', scale]);
-        basis.push([res.name, common.id, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), strategy, common.warnings.join('; ')]);
+        basis.push([res.name, common.id, cropText, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), specText(common), strategy, common.warnings.join('; ')]);
       }
     }
   }
