@@ -103,6 +103,19 @@ backup/     원본 핸드오프 문서 스냅숏
 - **GitHub Actions (권장)**: 저장소 Settings → Pages → Build and deployment → Source 를 **GitHub Actions** 로 두면 `main` 에 push 할 때마다 `.github/workflows/pages.yml` 이 테스트·빌드 후 `dist/` 를 배포합니다. 주소는 `https://<계정>.github.io/<저장소>/` (= `dist/index.html`).
 - **브랜치 배포**: Source 를 `main` 브랜치 · `/ (root)` 로 두면 루트의 `index.html` 이 `dist/kasp-designer.html` 로 바로 이동시킵니다. `.nojekyll` 이 있어 파일이 그대로 제공됩니다.
 
+## 4-2. 현재 배포 주소와 업데이트 방법
+
+- 앱: **https://olivettirda.github.io/rda/kasp-designer/** (→ `dist/kasp-designer.html` 로 이동)
+- 이 프로젝트는 `olivettirda/rda` 저장소의 `kasp-designer/` 하위 폴더로 들어가 있습니다(`git subtree`, 이력 보존). rda 의 GitHub Pages 가 `main` 루트를 배포하므로 push 하면 1~2분 뒤 반영됩니다.
+- 업데이트: 이 폴더에서 수정 → `npm test` → `npm run build` → 커밋한 뒤, rda 복제본에서 아래를 실행합니다.
+
+```
+git subtree pull --prefix=kasp-designer "C:\Users\owner\Desktop\kasp-handoff" main -m "KASP 디자이너 업데이트"
+git push origin main
+```
+
+push 는 GitHub 로그인 창이 뜰 수 있으니 대화형 터미널에서 실행합니다.
+
 ## 5. 구현상 판단 (확인 요망)
 
 - **다이머 검사에 tail 포함**이 기본입니다 (실제 합성되는 올리고 기준). 고급 설정에서 끌 수 있습니다.
