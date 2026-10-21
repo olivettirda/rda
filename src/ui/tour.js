@@ -13,17 +13,29 @@ function tEsc(s) {
 export function createTour(options) {
   const { steps, onPane, onDone, storageKey = 'kasp-tour-seen' } = options;
   const reduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let root = null, spot = null, card = null;
+  let root = null, spot = null, card = null, bar = null;
   let idx = -1, active = false, currentEl = null, raf = 0, token = 0;
 
   function build() {
     root = document.createElement('div');
     root.className = 'tour-root';
-    root.innerHTML = '<div class="tour-backdrop"></div><div class="tour-spot"></div><div class="tour-card" role="dialog" aria-modal="true" aria-live="polite"></div>';
+    root.innerHTML = `
+      <div class="tour-backdrop"></div>
+      <div class="tour-spot"></div>
+      <div class="tour-card" role="dialog" aria-modal="true" aria-live="polite"></div>
+      <div class="tour-bar" role="toolbar" aria-label="튜토리얼 조작">
+        <button type="button" class="btn small" data-tour="close">건너뛰기</button>
+        <div class="tour-bar-mid"><span class="tour-count"></span><div class="tour-progress"><i></i></div></div>
+        <span class="tour-nav">
+          <button type="button" class="btn small" data-tour="prev">이전</button>
+          <button type="button" class="btn-primary small" data-tour="next">다음</button>
+        </span>
+      </div>`;
     document.body.appendChild(root);
     spot = root.querySelector('.tour-spot');
     card = root.querySelector('.tour-card');
-    card.addEventListener('click', (e) => {
+    bar = root.querySelector('.tour-bar');
+    root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-tour]');
       if (!b) return;
       const a = b.dataset.tour;
@@ -94,20 +106,16 @@ export function createTour(options) {
   function render(step, el) {
     const last = idx === steps.length - 1;
     card.innerHTML = `
-      <div class="tour-head"><span class="tour-count">${idx + 1} / ${steps.length}${step.group ? ' · ' + tEsc(step.group) : ''}</span><button type="button" class="tour-x" data-tour="close" aria-label="닫기">×</button></div>
+      <div class="tour-head"><span class="tour-group">${step.group ? tEsc(step.group) : ''}</span><button type="button" class="tour-x" data-tour="close" aria-label="닫기">×</button></div>
       <h3>${tEsc(step.title)}</h3>
-      <p>${step.html || tEsc(step.text)}</p>
-      <div class="tour-progress"><i style="width:${(((idx + 1) / steps.length) * 100).toFixed(1)}%"></i></div>
-      <div class="tour-foot">
-        <button type="button" class="btn small" data-tour="close">건너뛰기</button>
-        <span class="tour-nav">
-          <button type="button" class="btn small" data-tour="prev" ${idx === 0 ? 'disabled' : ''}>이전</button>
-          <button type="button" class="btn-primary small" data-tour="next">${last ? '완료' : '다음'}</button>
-        </span>
-      </div>`;
+      <p>${step.html || tEsc(step.text)}</p>`;
+    bar.querySelector('.tour-count').textContent = `${idx + 1} / ${steps.length}`;
+    bar.querySelector('.tour-progress i').style.width = `${(((idx + 1) / steps.length) * 100).toFixed(1)}%`;
+    bar.querySelector('[data-tour="prev"]').disabled = idx === 0;
+    const nextBtn = bar.querySelector('[data-tour="next"]');
+    nextBtn.textContent = last ? '완료' : '다음';
     root.classList.toggle('tour-center', !el);
-    const nextBtn = card.querySelector('[data-tour="next"]');
-    if (nextBtn) nextBtn.focus({ preventScroll: true });
+    nextBtn.focus({ preventScroll: true });
   }
 
   function isSmall() {
@@ -116,7 +124,9 @@ export function createTour(options) {
 
   function position() {
     if (!active || !card) return;
-    const vw = window.innerWidth, vh = window.innerHeight;
+    const vw = window.innerWidth;
+    // 아래 고정 조작 막대 영역은 카드 배치에서 제외
+    const vh = window.innerHeight - (bar ? bar.offsetHeight + 28 : 0);
     const cw = card.offsetWidth, ch = card.offsetHeight;
     if (!currentEl) {
       spot.style.opacity = '0';
