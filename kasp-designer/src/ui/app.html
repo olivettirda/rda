@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="KASP / AS-PCR 프라이머 설계 도구 (오프라인 단일 HTML)">
+<title>KASP 디자이너</title>
+<link rel="icon" href="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<script>try{var t=localStorage.getItem('kasp-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<style>
+/* @STYLE */
+</style>
+</head>
+<body>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-logo" src="https://raw.githubusercontent.com/olivettirda/rda/refs/heads/main/ssallogo.png" alt="" onerror="this.style.display='none'">
+    <span class="brand-title">KASP 디자이너</span>
+  </div>
+  <div class="topbar-right">
+    <div class="segment" id="presetSeg" role="group" aria-label="Tm 계산 조건">
+      <button type="button" data-value="bioneer" class="on">바이오니어</button>
+      <button type="button" data-value="primerdigital">primerdigital</button>
+    </div>
+    <button type="button" class="icon-btn" id="themeBtn" aria-label="테마 전환" title="테마 전환"></button>
+    <div class="menu" id="helpMenu">
+      <button type="button" class="icon-btn" id="helpBtn" aria-label="도움말" title="도움말"></button>
+      <div class="menu-list" id="helpList" hidden>
+        <button type="button" data-help="tour">튜토리얼 재생<small>화면을 따라가며 단계별 안내</small></button>
+        <button type="button" data-help="manual">서면 매뉴얼<small>같은 내용을 글로 읽기</small></button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar" aria-label="주 메뉴">
+    <button type="button" class="nav-item on" data-pane="input" title="서열 입력"><span class="nav-icon" data-icon="dna"></span><span class="nav-label" data-short="서열">서열 입력</span></button>
+    <button type="button" class="nav-item" data-pane="analyze" title="프라이머 분석"><span class="nav-icon" data-icon="search"></span><span class="nav-label" data-short="분석">프라이머 분석</span></button>
+    <button type="button" class="nav-item" data-pane="params" title="설계 조건"><span class="nav-icon" data-icon="sliders"></span><span class="nav-label" data-short="조건">설계 조건</span></button>
+    <button type="button" class="nav-item" data-pane="tails" title="Tail"><span class="nav-icon" data-icon="tag"></span><span class="nav-label" data-short="Tail">Tail</span></button>
+    <button type="button" class="nav-item" data-pane="results" title="결과"><span class="nav-icon" data-icon="table"></span><span class="nav-label" data-short="결과">결과</span><span class="nav-badge" id="navResultBadge" hidden></span></button>
+    <button type="button" class="nav-item" data-pane="export" title="내보내기"><span class="nav-icon" data-icon="download"></span><span class="nav-label" data-short="내보내기">내보내기</span></button>
+    <div class="sidebar-foot" id="sidebarFoot"></div>
+  </nav>
+
+  <main class="content">
+    <!-- 1. 서열 입력 -->
+    <section class="pane on" data-pane="input">
+      <h1 class="page-title">서열 입력</h1>
+      <div class="card">
+        <div class="card-head">
+          <h2>FASTA + 괄호 변이 표기</h2>
+          <div class="card-actions">
+            <div class="menu" id="exampleMenu">
+              <button type="button" class="link-btn" id="exampleBtn">예제 불러오기</button>
+              <div class="menu-list" id="exampleList" hidden></div>
+            </div>
+            <button type="button" class="link-btn" id="clearBtn">지우기</button>
+          </div>
+        </div>
+        <div class="seq-editor">
+          <pre class="seq-backdrop" id="seqBackdrop" aria-hidden="true"></pre>
+          <textarea id="seqInput" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="&gt;마커명 Chr01:12345678
+acgt...flank...[A/G]...flank...acgt"></textarea>
+        </div>
+        <div class="seq-summary" id="seqSummary">서열을 붙여넣으면 시작됩니다</div>
+        <ul class="error-list" id="seqErrors" hidden></ul>
+        <p class="hint">
+          <code>[A/G]</code> SNP · <code>[A/C/G/T]</code> 다중대립 · <code>[R]</code> IUPAC · <code>[AG/]</code> InDel · <code>[GATATAC/CAGTCC]</code> MNV ·
+          괄호 밖 <code>r</code>, <code>y</code> 등은 주변 SNP(프라이머 회피) · <code>/…/</code> 프라이머 배치 금지 구역 ·
+          헤더에 <code>Chr01:1234567</code> 을 쓰면 유전체 좌표(IRGSP-1.0)로 변환됩니다.
+        </p>
+      </div>
+
+      <details class="card disclosure" id="rsidCard">
+        <summary><span>rsID / 변이 ID 로 서열 가져오기</span><span class="sub">Ensembl Plants · 온라인 필요</span></summary>
+        <div class="disclosure-body">
+          <div class="form-grid">
+            <label class="field"><span>변이 ID</span><input type="text" id="rsidInput" placeholder="예: OsSNP_… 또는 rs…"></label>
+            <label class="field"><span>종 (Ensembl species)</span><input type="text" id="rsidSpecies" value="oryza_sativa"></label>
+            <label class="field"><span>양쪽 flank 길이 (nt)</span><input type="number" id="rsidFlank" value="200" min="50" max="1000" step="10"></label>
+            <div class="field field-btn"><button type="button" class="btn" id="rsidBtn">조회해서 추가</button></div>
+          </div>
+          <p class="hint" id="rsidStatus">벼는 <code>oryza_sativa</code>. 외부 서버에 접속할 수 없으면 조용히 안내만 합니다.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- 1b. 기존 프라이머 분석 + 초보자 가이드 -->
+    <section class="pane" data-pane="analyze">
+      <h1 class="page-title">기존 프라이머 분석</h1>
+      <div class="card" id="guideCard">
+        <div class="card-head"><h2>처음이신가요? 3단계</h2><button type="button" class="link-btn" id="guideTourBtn">튜토리얼 재생</button></div>
+        <ol class="steps">
+          <li><b>서열 입력</b> 탭에 마커 서열을 붙여넣습니다. 변이는 <code>[A/G]</code> 처럼 대괄호로 쓰고, 양쪽에 flank 를 100–200 nt 둡니다. 헤더에 <code>Chr01:1234567</code> 을 적으면 좌표가 유전체 bp 로 변환됩니다.</li>
+          <li><b>설계 조건</b>은 기본값(바이오니어 · Tm 57–62 °C · 18–25 nt · amplicon 50–150 bp)으로 시작하면 됩니다. 이미 쓰던 프라이머가 있다면 아래에 붙여넣고 <b>분석</b> → <b>이 조건 적용</b> 으로 같은 스타일의 조건을 만듭니다.</li>
+          <li><b>프라이머 설계</b>를 누르고 <b>결과</b> 탭에서 경고가 적은 세트(Forward / Reverse)를 고른 뒤, <b>내보내기</b> 탭에서 주문용 엑셀을 받습니다.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>기존 프라이머 붙여넣기</h2>
+          <div class="card-actions">
+            <button type="button" class="link-btn" id="analyzeExampleBtn">예제 프라이머</button>
+            <button type="button" class="link-btn" id="analyzeClearBtn">지우기</button>
+          </div>
+        </div>
+        <textarea id="primerInput" class="primer-input" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="이름  서열   (한 줄에 하나, tail 포함 그대로 · 탭/공백/쉼표 구분 · 숫자 열은 무시)
+ASP_A	GAAGGTGACCAAGTTCATGCTccggcatggctgacattgA
+ASP_G	GAAGGTCGGAGTCAACGGATTccggcatggctgacattgG
+Common	tctcgtgtgaacgcagcc"></textarea>
+        <div class="form-grid analyze-opts">
+          <label class="field"><span>템플릿 (서열 입력 탭의 마커 · 위치와 amplicon 계산용)</span><select id="analyzeRecord"><option value="">템플릿 없이 분석</option></select></label>
+          <div class="field field-btn"><button type="button" class="btn" id="analyzeBtn"><span data-icon="search"></span>분석</button></div>
+        </div>
+        <p class="hint">tail(FAM/HEX 또는 Tail 탭의 서열)을 자동으로 떼어 본체 Tm 을 두 프리셋으로 계산하고, 템플릿이 있으면 양 가닥에서 위치(불일치 2개까지)를 찾아 ASP/Common 역할, 3′ 말단이 변이에 있는지, 의도적 미스매치, amplicon 크기를 판정합니다.</p>
+      </div>
+
+      <div id="analyzeOut" hidden>
+        <div class="card" id="analyzeTable"></div>
+        <div class="card" id="analyzeSummary"></div>
+      </div>
+    </section>
+
+    <!-- 2. 설계 조건 -->
+    <section class="pane" data-pane="params">
+      <h1 class="page-title">설계 조건</h1>
+      <div class="card" id="basicParamsCard">
+        <div class="card-head"><h2>기본 조건</h2><button type="button" class="link-btn" id="resetParamsBtn">기본값 복원</button></div>
+        <div class="form-grid">
+          <div class="field num" data-param="tmMin"><span>Tm 하한 (°C, tail 제외)</span><div class="num-row"><input type="range" min="37" max="80" step="0.5"><input type="number" min="37" max="80" step="0.5"></div></div>
+          <div class="field num" data-param="tmMax"><span>Tm 상한 (°C)</span><div class="num-row"><input type="range" min="37" max="80" step="0.5"><input type="number" min="37" max="80" step="0.5"></div></div>
+          <div class="field num" data-param="aspMinLen"><span>ASP 최소 길이 (nt, tail 제외)</span><div class="num-row"><input type="range" min="12" max="60" step="1"><input type="number" min="12" max="60" step="1"></div></div>
+          <div class="field num" data-param="aspMaxLen"><span>ASP 최대 길이 (nt)</span><div class="num-row"><input type="range" min="12" max="60" step="1"><input type="number" min="12" max="60" step="1"></div></div>
+          <div class="field num" data-param="commonMinLen"><span>Common 최소 길이 (nt)</span><div class="num-row"><input type="range" min="12" max="100" step="1"><input type="number" min="12" max="100" step="1"></div></div>
+          <div class="field num" data-param="commonMaxLen"><span>Common 최대 길이 (nt)</span><div class="num-row"><input type="range" min="12" max="100" step="1"><input type="number" min="12" max="100" step="1"></div></div>
+          <div class="field num" data-param="ampliconMin"><span>Amplicon 권장 최소 (bp)</span><div class="num-row"><input type="range" min="30" max="500" step="5"><input type="number" min="30" max="500" step="5"></div></div>
+          <div class="field num" data-param="ampliconMax"><span>Amplicon 권장 최대 (bp)</span><div class="num-row"><input type="range" min="30" max="500" step="5"><input type="number" min="30" max="500" step="5"></div></div>
+          <div class="field num" data-param="gcMin"><span>GC 하한 (%)</span><div class="num-row"><input type="range" min="0" max="100" step="1"><input type="number" min="0" max="100" step="1"></div></div>
+          <div class="field num" data-param="gcMax"><span>GC 상한 (%)</span><div class="num-row"><input type="range" min="0" max="100" step="1"><input type="number" min="0" max="100" step="1"></div></div>
+          <div class="field num" data-param="tmDiffMax"><span>ASP–Common Tm 차 허용 (°C)</span><div class="num-row"><input type="range" min="0" max="10" step="0.5"><input type="number" min="0" max="10" step="0.5"></div></div>
+          <div class="field num" data-param="maxCommon"><span>표시할 Common 후보 수</span><div class="num-row"><input type="range" min="1" max="50" step="1"><input type="number" min="1" max="50" step="1"></div></div>
+        </div>
+      </div>
+
+      <div class="card" id="presetCard">
+        <div class="card-head"><h2>Tm 계산 조건</h2></div>
+        <div class="segment segment-wide" id="presetSeg2" role="group" aria-label="프리셋">
+          <button type="button" data-value="bioneer" class="on">바이오니어</button>
+          <button type="button" data-value="primerdigital">primerdigital</button>
+          <button type="button" data-value="custom">사용자 정의</button>
+        </div>
+        <p class="hint" id="presetDesc"></p>
+        <div class="form-grid" id="customCond" hidden>
+          <label class="field"><span>Na⁺ (mM)</span><input type="number" data-custom="na_mM" min="1" max="1000" step="1"></label>
+          <label class="field"><span>Mg²⁺ (mM)</span><input type="number" data-custom="mg_mM" min="0" max="50" step="0.1"></label>
+          <label class="field"><span>올리고 농도 (nM)</span><input type="number" data-custom="oligo_nM" min="1" max="5000" step="1"></label>
+          <label class="field"><span>Wallace rule 적용 길이 미만 (nt, 0 = 사용 안 함)</span><input type="number" data-custom="wallaceBelow" min="0" max="30" step="1"></label>
+        </div>
+      </div>
+
+      <details class="card disclosure" id="advancedCard">
+        <summary><span>고급 설정</span><span class="sub">3′ 패턴, LC, 다이머, 마스킹, bisulfite</span></summary>
+        <div class="disclosure-body">
+          <div class="form-grid">
+            <div class="field num" data-param="snpOffset"><span>SNP offset (3′ 말단에서 달라야 하는 염기 수)</span><div class="num-row"><input type="range" min="1" max="5" step="1"><input type="number" min="1" max="5" step="1"></div></div>
+            <label class="field"><span>Common 3′-end 패턴 (IUPAC, 공백으로 여러 개; n = 제약 없음)</span><input type="text" class="mono" data-param-text="endPattern" placeholder="n  또는  sws ssw sww"></label>
+            <div class="field num" data-param="minLC"><span>LC 하한 (%)</span><div class="num-row"><input type="range" min="10" max="90" step="1"><input type="number" min="10" max="90" step="1"></div></div>
+            <div class="field num" data-param="dimerThreshold"><span>다이머 임계 (상보 염기쌍 수)</span><div class="num-row"><input type="range" min="6" max="8" step="1"><input type="number" min="6" max="8" step="1"></div></div>
+            <div class="field num" data-param="ampliconHardMax"><span>Amplicon 최대 허용 (bp)</span><div class="num-row"><input type="range" min="100" max="1000" step="10"><input type="number" min="100" max="1000" step="10"></div></div>
+            <div class="field num" data-param="overlapTol"><span>Common 겹침 간격 (nt, 이 미만이면 LC 높은 쪽만)</span><div class="num-row"><input type="range" min="1" max="30" step="1"><input type="number" min="1" max="30" step="1"></div></div>
+          </div>
+          <div class="switch-list">
+            <label class="switch-row"><span>다이머 검사에 tail 포함 (합성되는 전체 올리고 기준)</span><span class="switch"><input type="checkbox" data-param-bool="dimerIncludeTail"><i></i></span></label>
+            <label class="switch-row"><span>분산 반복서열 마스킹 (15-mer, 2회 이상)</span><span class="switch"><input type="checkbox" data-param-bool="maskRepeats"><i></i></span></label>
+            <label class="switch-row"><span>저복잡도 구간 마스킹 (17 nt 창)</span><span class="switch"><input type="checkbox" data-param-bool="maskLowComplexity"><i></i></span></label>
+            <label class="switch-row"><span>겹치는 Common 후보 모두 유지</span><span class="switch"><input type="checkbox" data-param-bool="allowOverlap"><i></i></span></label>
+            <label class="switch-row"><span>Bisulfite 변환 (CpG 가 아닌 C → T)</span><span class="switch"><input type="checkbox" data-param-bool="bisulfite"><i></i></span></label>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- 3. Tail -->
+    <section class="pane" data-pane="tails">
+      <h1 class="page-title">Tail</h1>
+      <div class="card">
+        <div class="card-head"><h2>판독 방식</h2></div>
+        <div class="segment segment-wide" id="modeSeg" role="group" aria-label="판독 방식">
+          <button type="button" data-value="kasp" class="on">형광 (KASP, FAM/HEX tail)</button>
+          <button type="button" data-value="sizing">겔 (Allele sizing, filler)</button>
+        </div>
+        <p class="hint" id="modeDesc"></p>
+      </div>
+
+      <div class="card" id="tailCard">
+        <div class="card-head"><h2>Tail 서열 (5′ 부착)</h2><button type="button" class="link-btn" id="tailDefaultBtn">LGC 기본값</button></div>
+        <label class="switch-row"><span>ASP 5′ 에 tail 부착</span><span class="switch"><input type="checkbox" data-param-bool="useTails"><i></i></span></label>
+        <div class="tail-rows" id="tailRows"></div>
+        <p class="hint">Tm 은 항상 tail 을 제외한 본체 서열로 계산되며, 결과 표에는 tail 포함 전체 서열과 tail 제외 Tm 을 함께 표시합니다. 대립유전자가 tail 수보다 많으면 tail 없이 설계하고 경고합니다.</p>
+      </div>
+
+      <div class="card" id="sizingCard" hidden>
+        <div class="card-head"><h2>Allele sizing 조건</h2></div>
+        <div class="form-grid">
+          <label class="field"><span>밴드 간격 (bp)</span>
+            <select id="bandStep">
+              <option value="20">아가로스 — 20 bp</option>
+              <option value="5">PAGE — 5 bp</option>
+              <option value="2">모세관 전기영동 — 2 bp</option>
+            </select>
+          </label>
+          <label class="field"><span>프라이머 최대 길이 (nt)</span><input type="number" id="sizingMaxLen" value="45" min="20" max="80" step="1"></label>
+        </div>
+        <label class="switch-row"><span>3′ 2번째 염기에 의도적 미스매치 추가 (second deliberate mismatch)</span><span class="switch"><input type="checkbox" id="secondMismatch"><i></i></span></label>
+        <p class="hint">가장 짧은 산물을 기준으로 밴드 간격만큼 길어지도록 5′ 에 filler 를 붙입니다. filler 는 6개 후보 중 모든 프라이머와 다이머가 가장 적은 것을 고릅니다.</p>
+      </div>
+    </section>
+
+    <!-- 4. 결과 -->
+    <section class="pane" data-pane="results">
+      <h1 class="page-title">결과</h1>
+      <div class="empty" id="resultsEmpty">
+        <span class="empty-icon" data-icon="empty"></span>
+        <p>서열을 붙여넣고 <b>프라이머 설계</b>를 누르면 결과가 여기에 표시됩니다.</p>
+      </div>
+      <div id="results" hidden>
+        <div class="row-between">
+          <div class="pills" id="markerTabs"></div>
+          <div class="segment" id="dirSeg" role="group" aria-label="세트 방향">
+            <button type="button" data-value="forward" class="on">Forward</button>
+            <button type="button" data-value="reverse">Reverse</button>
+          </div>
+        </div>
+        <div class="card warn-card" id="warnBox" hidden></div>
+        <div class="card" id="setCard"></div>
+        <div class="card" id="commonCard"></div>
+        <details class="card disclosure" id="viewerCard">
+          <summary><span>서열 뷰어</span><span class="sub">프라이머 위치 · SNP · 마스킹</span></summary>
+          <div class="disclosure-body" id="viewer"></div>
+        </details>
+        <details class="card disclosure" id="reportCard">
+          <summary><span>전체 후보 (Report)</span><span class="sub">ID · Sequence · Length · Tm · GC · LC</span></summary>
+          <div class="disclosure-body" id="report"></div>
+        </details>
+      </div>
+    </section>
+
+    <!-- 5. 내보내기 -->
+    <section class="pane" data-pane="export">
+      <h1 class="page-title">내보내기</h1>
+      <div class="card" id="exportRangeCard">
+        <div class="card-head"><h2>범위</h2></div>
+        <div class="form-grid">
+          <div class="field"><span>마커</span>
+            <div class="segment segment-wide" id="exportScopeSeg"><button type="button" data-value="current" class="on">현재 마커</button><button type="button" data-value="all">전체 마커</button></div>
+          </div>
+          <div class="field"><span>세트 방향</span>
+            <div class="segment segment-wide" id="exportDirSeg"><button type="button" data-value="selected" class="on">현재 선택</button><button type="button" data-value="forward">Forward</button><button type="button" data-value="reverse">Reverse</button><button type="button" data-value="both">둘 다</button></div>
+          </div>
+          <label class="field"><span>합성 규모 (Scale)</span><input type="text" id="exportScale" value="25 nmol"></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>형식</h2></div>
+        <div class="btn-row">
+          <button type="button" class="btn" id="copySetBtn"><span data-icon="copy"></span>세트 TSV 복사</button>
+          <button type="button" class="btn" id="copySetsTextBtn"><span data-icon="copy"></span>KASP Assay Sets 텍스트 복사</button>
+          <button type="button" class="btn" id="copyReportBtn"><span data-icon="copy"></span>전체 후보(Report) TSV 복사</button>
+          <button type="button" class="btn" id="xlsxBtn"><span data-icon="excel"></span>엑셀(.xlsx) 다운로드</button>
+        </div>
+        <p class="hint">엑셀 파일은 <b>주문용</b>(Primer Name, Sequence 5′→3′, Direction, Length, Purpose, Scale)과 <b>설계근거</b>(위치 Chr:bp, Tm 조건, 변환 전략, 비고) 두 시트로 저장됩니다. 헤더 <span class="swatch"></span> #0c3026, KoPub Dotum, 틀 고정 A2, 자동 필터.</p>
+      </div>
+    </section>
+
+    <div class="actionbar">
+      <span class="action-summary" id="actionSummary">서열을 붙여넣으면 시작됩니다</span>
+      <button type="button" class="btn-primary" id="designBtn">프라이머 설계</button>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal" id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="manualTitle">서면 매뉴얼</h2>
+      <div class="card-actions">
+        <button type="button" class="btn small" id="manualPlayBtn">처음부터 재생</button>
+        <button type="button" class="icon-btn" id="manualCloseBtn" aria-label="닫기">×</button>
+      </div>
+    </div>
+    <div class="modal-body manual" id="manualBody"></div>
+  </div>
+</div>
+
+<script>
+/* @EXAMPLES */
+</script>
+<script>
+/* @SCRIPT */
+</script>
+</body>
+</html>

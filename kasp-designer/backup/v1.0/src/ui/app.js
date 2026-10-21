@@ -1,0 +1,716 @@
+/**
+ * app.js — KASP 디자이너 UI (단일 HTML 번들의 진입점)
+ */
+import { parseInput, summarizeRecords } from '../core/parse.js';
+import { designAll, DEFAULT_TAILS, mergeParams, genomicCoord } from '../core/design.js';
+import { TM_PRESETS } from '../core/tm.js';
+import { toReportTsv, toSetsText, toSetTsv, buildWorkbookData, EXCEL_STYLE, fmt1 } from '../core/export.js';
+import { buildXlsx } from '../core/xlsx.js';
+import { applyAlleleSizing } from '../core/sizing.js';
+import { gcPercent } from '../core/seq.js';
+import { ICONS } from './icons.js';
+import { renderViewer } from './viewer.js';
+import { fetchVariantFasta } from './rsid.js';
+
+const EXAMPLES = (typeof window !== 'undefined' && window.KASP_EXAMPLES) || {};
+const BUILD = (typeof window !== 'undefined' && window.KASP_BUILD) || { version: 'dev', date: '' };
+const STORE_INPUT = 'kasp-input';
+const STORE_SETTINGS = 'kasp-settings';
+
+const ui = {
+  params: mergeParams({}),
+  mode: 'kasp',
+  sizing: { bandStep: 20, secondMismatch: false, maxLen: 45 },
+  records: [], parseErrors: [], results: [],
+  marker: 0, dir: 'forward', commonPick: {},
+  exportScope: 'current', exportDir: 'selected',
+  stale: false,
+};
+
+/* ---------- 작은 도우미 ---------- */
+function qs(sel, root = document) { return root.querySelector(sel); }
+function qsa(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function clampNum(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+function presetLabel() { return ui.params.preset === 'custom' ? '사용자 정의' : (TM_PRESETS[ui.params.preset] || TM_PRESETS.bioneer).label; }
+
+let toastTimer = null;
+function toast(msg) {
+  const el = qs('#toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 2500);
+}
+function progress(on) {
+  const el = qs('#progress');
+  if (on) { el.classList.remove('done'); el.classList.add('on'); }
+  else { el.classList.add('done'); setTimeout(() => el.classList.remove('on', 'done'), 400); }
+}
+async function copyText(text, msg = '복사했습니다') {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = false; }
+  if (!ok) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    ta.remove();
+  }
+  toast(ok ? msg : '복사하지 못했습니다. 표를 드래그해 복사하세요.');
+}
+function downloadBytes(bytes, filename, type) {
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+function saveSettings() {
+  try {
+    localStorage.setItem(STORE_SETTINGS, JSON.stringify({ params: ui.params, mode: ui.mode, sizing: ui.sizing, exportScope: ui.exportScope, exportDir: ui.exportDir }));
+  } catch { /* 저장 불가 환경 */ }
+}
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORE_SETTINGS);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.params) ui.params = mergeParams(s.params);
+    if (s.mode === 'kasp' || s.mode === 'sizing') ui.mode = s.mode;
+    if (s.sizing) ui.sizing = { ...ui.sizing, ...s.sizing };
+    if (s.exportScope) ui.exportScope = s.exportScope;
+    if (s.exportDir) ui.exportDir = s.exportDir;
+  } catch { /* 무시 */ }
+}
+
+/* ---------- 테마 ---------- */
+function effectiveTheme() {
+  const t = document.documentElement.getAttribute('data-theme');
+  if (t === 'light' || t === 'dark') return t;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyThemeIcon() { qs('#themeBtn').innerHTML = effectiveTheme() === 'dark' ? ICONS.sun : ICONS.moon; }
+function toggleTheme() {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('kasp-theme', next); } catch { /* 무시 */ }
+  applyThemeIcon();
+}
+
+/* ---------- 세그먼트 ---------- */
+function setSegment(el, value) {
+  qsa('button', el).forEach((b) => b.classList.toggle('on', b.dataset.value === String(value)));
+}
+function bindSegment(el, onChange) {
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-value]');
+    if (!b || !el.contains(b)) return;
+    setSegment(el, b.dataset.value);
+    onChange(b.dataset.value);
+  });
+}
+
+/* ---------- 화면 전환 ---------- */
+function showPane(name) {
+  qsa('.pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === name));
+  qsa('.nav-item').forEach((b) => b.classList.toggle('on', b.dataset.pane === name));
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- 파라미터 폼 ---------- */
+function onParamsChanged() {
+  if (ui.results.length) ui.stale = true;
+  renderActionSummary();
+  saveSettings();
+}
+function bindParamInputs() {
+  qsa('.num[data-param]').forEach((wrap) => {
+    const key = wrap.dataset.param;
+    const [range, num] = qsa('input', wrap);
+    const commit = (raw) => {
+      let v = Number(raw);
+      if (!Number.isFinite(v)) return;
+      v = clampNum(v, Number(num.min), Number(num.max));
+      ui.params[key] = v; range.value = v; num.value = v;
+      onParamsChanged();
+    };
+    range.addEventListener('input', () => commit(range.value));
+    num.addEventListener('change', () => commit(num.value));
+  });
+  qsa('[data-param-text]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramText] = inp.value.trim() || 'n'; inp.value = ui.params[inp.dataset.paramText]; onParamsChanged(); }));
+  qsa('[data-param-bool]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramBool] = inp.checked; onParamsChanged(); }));
+  qsa('[data-custom]').forEach((inp) => inp.addEventListener('change', () => { ui.params.custom[inp.dataset.custom] = Number(inp.value) || 0; onParamsChanged(); renderPresetDesc(); }));
+  qs('#resetParamsBtn').addEventListener('click', () => {
+    const keepTails = ui.params.tails;
+    ui.params = mergeParams({ tails: keepTails });
+    syncParamsForm();
+    onParamsChanged();
+    toast('기본값으로 되돌렸습니다');
+  });
+}
+function renderPresetDesc() {
+  const p = ui.params;
+  const el = qs('#presetDesc');
+  if (p.preset === 'custom') {
+    el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''}`;
+  } else {
+    const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
+    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''} — SantaLucia 1998 + Owczarzy 염 보정`;
+  }
+  qs('#customCond').hidden = p.preset !== 'custom';
+}
+function setPreset(value) {
+  ui.params.preset = value;
+  setSegment(qs('#presetSeg'), value === 'custom' ? '' : value);
+  setSegment(qs('#presetSeg2'), value);
+  renderPresetDesc();
+  onParamsChanged();
+}
+function syncParamsForm() {
+  const p = ui.params;
+  qsa('.num[data-param]').forEach((wrap) => {
+    const v = p[wrap.dataset.param];
+    qsa('input', wrap).forEach((i) => { i.value = v; });
+  });
+  qsa('[data-param-text]').forEach((inp) => { inp.value = p[inp.dataset.paramText] ?? ''; });
+  qsa('[data-param-bool]').forEach((inp) => { inp.checked = !!p[inp.dataset.paramBool]; });
+  qsa('[data-custom]').forEach((inp) => { inp.value = p.custom[inp.dataset.custom]; });
+  setSegment(qs('#presetSeg'), p.preset === 'custom' ? '' : p.preset);
+  setSegment(qs('#presetSeg2'), p.preset);
+  renderPresetDesc();
+  renderTailRows();
+  setSegment(qs('#modeSeg'), ui.mode);
+  renderModeCards();
+  qs('#bandStep').value = String(ui.sizing.bandStep);
+  qs('#sizingMaxLen').value = ui.sizing.maxLen;
+  qs('#secondMismatch').checked = ui.sizing.secondMismatch;
+  setSegment(qs('#exportScopeSeg'), ui.exportScope);
+  setSegment(qs('#exportDirSeg'), ui.exportDir);
+}
+
+/* ---------- Tail / 모드 ---------- */
+function renderTailRows() {
+  const box = qs('#tailRows');
+  box.innerHTML = ui.params.tails.map((t, i) => `
+    <div class="tail-row">
+      <input type="text" value="${escapeHtml(t.name)}" aria-label="tail 이름" data-tail-name="${i}">
+      <input type="text" class="mono" value="${escapeHtml(t.seq)}" aria-label="tail 서열" data-tail-seq="${i}" spellcheck="false" autocapitalize="off">
+      <span class="len">${t.seq.length} nt</span>
+    </div>`).join('');
+}
+function bindTails() {
+  qs('#tailRows').addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.tailName !== undefined) {
+      ui.params.tails[Number(t.dataset.tailName)].name = t.value.trim() || `Tail${Number(t.dataset.tailName) + 1}`;
+      t.value = ui.params.tails[Number(t.dataset.tailName)].name;
+    } else if (t.dataset.tailSeq !== undefined) {
+      const i = Number(t.dataset.tailSeq);
+      const clean = t.value.toUpperCase().replace(/U/g, 'T').replace(/[^ACGT]/g, '');
+      ui.params.tails[i].seq = clean;
+      t.value = clean;
+      t.closest('.tail-row').querySelector('.len').textContent = `${clean.length} nt`;
+    }
+    onParamsChanged();
+  });
+  qs('#tailDefaultBtn').addEventListener('click', () => {
+    ui.params.tails = DEFAULT_TAILS.map((t) => ({ ...t }));
+    renderTailRows();
+    onParamsChanged();
+    toast('LGC 기본 tail 로 되돌렸습니다');
+  });
+  bindSegment(qs('#modeSeg'), (v) => { ui.mode = v; renderModeCards(); onParamsChanged(); });
+  qs('#bandStep').addEventListener('change', (e) => { ui.sizing.bandStep = Number(e.target.value) || 20; onSizingChanged(); });
+  qs('#sizingMaxLen').addEventListener('change', (e) => { ui.sizing.maxLen = clampNum(Number(e.target.value) || 45, 20, 80); e.target.value = ui.sizing.maxLen; onSizingChanged(); });
+  qs('#secondMismatch').addEventListener('change', (e) => { ui.sizing.secondMismatch = e.target.checked; onSizingChanged(); });
+}
+function onSizingChanged() {
+  saveSettings();
+  if (ui.results.length && ui.mode === 'sizing') renderResults();
+}
+function renderModeCards() {
+  const sizing = ui.mode === 'sizing';
+  qs('#tailCard').hidden = sizing;
+  qs('#sizingCard').hidden = !sizing;
+  qs('#modeDesc').textContent = sizing
+    ? '겔 판독: tail 대신 5′ filler 로 대립유전자별 산물 길이를 사다리로 만듭니다. Tm 은 filler 를 제외한 본체로 계산합니다.'
+    : '형광 판독: ASP 5′ 에 FAM/HEX 보편 tail 을 붙입니다 (LGC KASP 표준). Tm 은 tail 을 제외한 본체로 계산합니다.';
+}
+
+/* ---------- 서열 입력 ---------- */
+function highlightHtml(text) {
+  const lines = text.split('\n');
+  const out = [];
+  const IUPAC_EXTRA = /[RYSWKMBDHVN]/i;
+  for (const line of lines) {
+    if (line.startsWith('>')) { out.push(`<span class="hl-head">${escapeHtml(line)}</span>`); continue; }
+    let html = '';
+    let i = 0;
+    let excl = false;
+    while (i < line.length) {
+      const ch = line[i];
+      if (ch === '[') {
+        const close = line.indexOf(']', i + 1);
+        const end = close < 0 ? line.length : close + 1;
+        html += `<span class="hl-var">${escapeHtml(line.slice(i, end))}</span>`;
+        i = end;
+        continue;
+      }
+      if (ch === '/') {
+        excl = !excl;
+        html += `<span class="hl-excl">/</span>`;
+        i++;
+        continue;
+      }
+      const cls = [];
+      if (excl) cls.push('hl-excl');
+      if (IUPAC_EXTRA.test(ch)) cls.push('hl-iupac');
+      html += cls.length ? `<span class="${cls.join(' ')}">${escapeHtml(ch)}</span>` : escapeHtml(ch);
+      i++;
+    }
+    out.push(html);
+  }
+  return out.join('\n') + (text.endsWith('\n') ? ' ' : '');
+}
+function renderBackdrop() {
+  const ta = qs('#seqInput');
+  const bd = qs('#seqBackdrop');
+  bd.innerHTML = highlightHtml(ta.value);
+  bd.scrollTop = ta.scrollTop;
+}
+function parseNow() {
+  const text = qs('#seqInput').value;
+  if (!text.trim()) { ui.records = []; ui.parseErrors = []; return; }
+  const { records, errors } = parseInput(text);
+  ui.records = records;
+  ui.parseErrors = errors;
+}
+function renderInputSummary() {
+  const el = qs('#seqSummary');
+  const errBox = qs('#seqErrors');
+  const text = qs('#seqInput').value;
+  if (!text.trim()) {
+    el.textContent = '서열을 붙여넣으면 시작됩니다';
+    errBox.hidden = true;
+    return;
+  }
+  const s = summarizeRecords(ui.records);
+  const ok = ui.records.filter((r) => !r.error);
+  let gcTxt = '';
+  if (ok.length) {
+    const all = ok.map((r) => r.s1 + r.alleles[0].seq + r.s3).join('');
+    gcTxt = ` · GC ${gcPercent(all).toFixed(1)}%`;
+  }
+  const alleleTxt = ok.map((r) => `${r.name} [${r.alleles.map((a) => a.label).join('/')}]`).join(', ');
+  el.textContent = `${s.ok}개 서열 · ${s.nt.toLocaleString()} nt${gcTxt}${alleleTxt ? ' · ' + alleleTxt : ''}`;
+  const warnings = ok.flatMap((r) => (r.warnings || []).map((w) => `${r.name}: ${w}`));
+  const items = [...ui.parseErrors, ...warnings];
+  errBox.hidden = !items.length;
+  errBox.innerHTML = items.map((e) => `<li>${escapeHtml(e)}</li>`).join('');
+}
+function renderActionSummary() {
+  const el = qs('#actionSummary');
+  const ok = ui.records.filter((r) => !r.error).length;
+  if (!qs('#seqInput').value.trim()) { el.textContent = '서열을 붙여넣으면 시작됩니다'; return; }
+  const mode = ui.mode === 'sizing' ? 'Allele sizing' : 'KASP';
+  el.textContent = `${ok}개 서열 준비됨 · ${presetLabel()} · ${mode}${ui.stale ? ' · 조건이 바뀌었습니다, 다시 설계하세요' : ''}`;
+}
+const onInputChanged = debounce(() => {
+  parseNow();
+  renderInputSummary();
+  renderActionSummary();
+  try { localStorage.setItem(STORE_INPUT, qs('#seqInput').value); } catch { /* 무시 */ }
+}, 150);
+function setInputText(text) {
+  const ta = qs('#seqInput');
+  ta.value = text;
+  renderBackdrop();
+  parseNow();
+  renderInputSummary();
+  renderActionSummary();
+  try { localStorage.setItem(STORE_INPUT, text); } catch { /* 무시 */ }
+}
+function bindInput() {
+  const ta = qs('#seqInput');
+  ta.addEventListener('input', () => { renderBackdrop(); onInputChanged(); });
+  ta.addEventListener('scroll', () => { qs('#seqBackdrop').scrollTop = ta.scrollTop; });
+  ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runDesign(); } });
+  qs('#clearBtn').addEventListener('click', () => { setInputText(''); ta.focus(); });
+
+  const menu = qs('#exampleList');
+  const keys = Object.keys(EXAMPLES);
+  menu.innerHTML = keys.map((k) => `<button type="button" data-example="${escapeHtml(k)}">${escapeHtml(k)}<small>${escapeHtml(EXAMPLES[k].desc || '')}</small></button>`).join('')
+    + (keys.length > 1 ? `<button type="button" data-example="*">모든 예제 (일괄 설계)<small>${keys.length}개 레코드</small></button>` : '');
+  qs('#exampleBtn').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+  menu.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-example]');
+    if (!b) return;
+    const k = b.dataset.example;
+    const fasta = k === '*' ? keys.map((x) => EXAMPLES[x].fasta).join('\n\n') : EXAMPLES[k].fasta;
+    const cur = ta.value.trim();
+    setInputText(cur ? `${cur}\n\n${fasta}` : fasta);
+    menu.hidden = true;
+    toast('예제를 불러왔습니다');
+  });
+  document.addEventListener('click', () => { menu.hidden = true; });
+
+  qs('#rsidBtn').addEventListener('click', lookupRsid);
+  qs('#rsidInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupRsid(); } });
+}
+async function lookupRsid() {
+  const id = qs('#rsidInput').value.trim();
+  const status = qs('#rsidStatus');
+  if (!id) { status.textContent = '변이 ID 를 입력하세요.'; return; }
+  const btn = qs('#rsidBtn');
+  btn.disabled = true;
+  status.textContent = `${id} 조회 중…`;
+  try {
+    const { fasta, note } = await fetchVariantFasta(id, qs('#rsidSpecies').value, Number(qs('#rsidFlank').value));
+    const cur = qs('#seqInput').value.trim();
+    setInputText(cur ? `${cur}\n\n${fasta}` : fasta);
+    status.textContent = note;
+    toast('서열을 추가했습니다');
+  } catch (e) {
+    status.textContent = `조회하지 못했습니다 (${e && e.name === 'AbortError' ? '시간 초과' : (e && e.message) || '오류'}). 오프라인이거나 ID·종 이름이 맞지 않을 수 있습니다.`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---------- 설계 ---------- */
+function effectiveParams() {
+  const p = mergeParams(ui.params);
+  const swap = (a, b) => { if (p[a] > p[b]) { const t = p[a]; p[a] = p[b]; p[b] = t; } };
+  swap('tmMin', 'tmMax'); swap('aspMinLen', 'aspMaxLen'); swap('commonMinLen', 'commonMaxLen'); swap('gcMin', 'gcMax'); swap('ampliconMin', 'ampliconMax');
+  if (p.ampliconHardMax < p.ampliconMax) p.ampliconHardMax = p.ampliconMax;
+  p.tails = p.tails.filter((t) => t.seq.length);
+  if (ui.mode === 'sizing') { p.useTails = false; if (ui.sizing.secondMismatch) p.snpOffset = 1; }
+  return p;
+}
+function runDesign() {
+  parseNow();
+  renderInputSummary();
+  const valid = ui.records.filter((r) => !r.error);
+  if (!valid.length) {
+    toast(ui.parseErrors[0] || '설계할 서열이 없습니다');
+    showPane('input');
+    qs('#seqInput').focus();
+    return;
+  }
+  const btn = qs('#designBtn');
+  btn.disabled = true;
+  progress(true);
+  setTimeout(() => {
+    try {
+      ui.results = designAll(ui.records, effectiveParams());
+      ui.marker = Math.max(0, ui.results.findIndex((r) => !r.error));
+      ui.dir = 'forward';
+      ui.commonPick = {};
+      ui.stale = false;
+      renderResults();
+      showPane('results');
+      const badge = qs('#navResultBadge');
+      badge.textContent = String(valid.length);
+      badge.hidden = false;
+      toast(`${valid.length}개 마커 설계 완료`);
+    } catch (e) {
+      console.error(e);
+      toast(`설계 중 오류: ${e.message}`);
+    } finally {
+      progress(false);
+      btn.disabled = false;
+      renderActionSummary();
+    }
+  }, 30);
+}
+
+/* ---------- 결과 ---------- */
+function currentResult() { return ui.results[ui.marker] || null; }
+function pickIndex(mi, dir) { return ui.commonPick[`${mi}|${dir}`] ?? 0; }
+function viewOfSet(res, set, mi, dir) {
+  const ci = pickIndex(mi, dir);
+  const common = set.commons[ci] || null;
+  const base = set.asps.filter(Boolean);
+  if (ui.mode === 'sizing') {
+    const s = applyAlleleSizing(set, common, { bandStep: ui.sizing.bandStep, secondMismatch: ui.sizing.secondMismatch, maxLen: ui.sizing.maxLen, dimerThreshold: res.params.dimerThreshold, cond: res.conditions });
+    return { asps: s.asps, common, commons: set.commons, sizing: s, commonIndex: ci };
+  }
+  return { asps: base, common, commons: set.commons, sizing: null, commonIndex: ci };
+}
+function tmClass(tm, p) {
+  if (!Number.isFinite(tm)) return 'none';
+  if (tm >= p.tmMin && tm <= p.tmMax) return '';
+  if (tm >= p.tmMin - 1 && tm <= p.tmMax + 1) return 'warn';
+  return 'err';
+}
+function seqHtml(primer) {
+  if (primer.kind === 'Common') return `<span class="seq">${escapeHtml(primer.seq)}</span>`;
+  const tail = primer.tail ? `<span class="tail" title="${escapeHtml(primer.tail.name)}">${escapeHtml(primer.tail.seq)}</span>` : '';
+  let body = '';
+  const disp = primer.bodyDisplay;
+  for (let i = 0; i < disp.length; i++) {
+    const ch = disp[i];
+    const isVar = ch === ch.toUpperCase() && /[A-Z]/.test(ch);
+    const isMm = primer.mismatchPos === i;
+    if (isVar) body += `<span class="var">${ch}</span>`;
+    else if (isMm) body += `<span class="mm" title="의도적 미스매치">${ch}</span>`;
+    else body += ch;
+  }
+  return `<span class="seq">${tail}${body}</span>`;
+}
+function ampliconHtml(c, view) {
+  if (ui.mode === 'sizing' && view.sizing) {
+    return view.sizing.products.map((p) => `${escapeHtml(p.label)}:${p.size}`).join(' ');
+  }
+  return escapeHtml(c.ampliconLabel);
+}
+function renderMarkerTabs() {
+  const box = qs('#markerTabs');
+  box.innerHTML = ui.results.map((r, i) => `<button type="button" class="pill${i === ui.marker ? ' on' : ''}${r.error ? ' err' : ''}" data-marker="${i}" title="${escapeHtml(r.error || r.header || r.name)}">${escapeHtml(r.name)}</button>`).join('');
+}
+function renderWarnBox(res, set, view) {
+  const items = [];
+  if (res.error) items.push({ cls: 'err', text: res.error });
+  for (const w of res.warnings || []) items.push({ cls: '', text: w });
+  if (set) {
+    for (const w of set.warnings) items.push({ cls: w.includes('없습니다') ? 'err' : '', text: w });
+    for (const a of view.asps) for (const w of a.warnings) items.push({ cls: '', text: `ASP ${a.alleleLabel}: ${w}` });
+    if (view.common) for (const w of view.common.warnings) items.push({ cls: view.common.ampState === 'err' ? 'err' : '', text: `Common ${view.common.id}: ${w}` });
+    if (view.sizing) for (const w of view.sizing.warnings) items.push({ cls: '', text: `Allele sizing: ${w}` });
+  }
+  const box = qs('#warnBox');
+  box.hidden = !items.length;
+  box.innerHTML = `<ul>${items.map((it) => `<li class="${it.cls}">${ICONS.alert}<span>${escapeHtml(it.text)}</span></li>`).join('')}</ul>`;
+}
+function renderSetCard(res, set, view) {
+  const card = qs('#setCard');
+  const p = res.params;
+  const dirLabel = ui.dir === 'forward' ? 'Forward' : 'Reverse';
+  if (!set) { card.innerHTML = `<div class="card-head"><h2>${escapeHtml(res.name)}</h2></div><p class="muted">${escapeHtml(res.error || '결과 없음')}</p>`; return; }
+  const condTxt = `${presetLabelFor(p)} · Tm ${p.tmMin}–${p.tmMax} °C`;
+  const rows = [];
+  for (const a of view.asps) {
+    rows.push(`<tr>
+      <td class="id">${escapeHtml(a.id)}</td>
+      <td>${seqHtml(a)}</td>
+      <td class="num">${a.fullLength}${a.tail ? ` <span class="muted small">(${a.length}+${a.tail.seq.length})</span>` : ''}</td>
+      <td class="num"><span class="badge ${tmClass(a.tm, p)}">${fmt1(a.tm)}</span></td>
+      <td class="num">${fmt1(a.gc)}</td>
+      <td class="num">${a.lc}</td>
+      <td class="num muted">${a.tail ? escapeHtml(a.tail.name) : '—'}</td>
+    </tr>`);
+  }
+  const c = view.common;
+  if (c) {
+    rows.push(`<tr>
+      <td class="id">${escapeHtml(c.id)}</td>
+      <td>${seqHtml(c)}</td>
+      <td class="num">${c.length}</td>
+      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num">${fmt1(c.gc)}</td>
+      <td class="num">${c.lc}</td>
+      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${ampliconHtml(c, view)}</span></td>
+    </tr>`);
+  } else {
+    rows.push(`<tr><td colspan="7" class="muted">조건을 만족하는 Common 프라이머가 없습니다.</td></tr>`);
+  }
+  const tmDiffTxt = c ? `ASP–Common Tm 차 ${fmt1(c.tmDiff)} °C` : '';
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="set-title"><h2>${escapeHtml(res.name)} · ${dirLabel} 세트</h2><span class="sub">${escapeHtml(condTxt)}</span></div>
+      <div class="card-actions">
+        <button type="button" class="btn small" id="setCopyBtn">${ICONS.copy}복사</button>
+        <button type="button" class="btn small" id="setXlsxBtn">${ICONS.excel}엑셀</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C, tail 제외)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">${ui.mode === 'sizing' ? 'Filler / 산물 (bp)' : 'Tail / Amplicon (bp)'}</th></tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table></div>
+    <div class="set-foot">
+      <span><span class="seq"><span class="tail">tail</span>·본체·<span class="var">변이</span></span> · ${c ? `Amplicon Tm ${fmt1(c.ampliconTm)} °C · ` : ''}${tmDiffTxt}</span>
+      <span>${res.chrPos ? escapeHtml(`${res.chrPos.chr}:${res.chrPos.pos.toLocaleString()}`) + ' · ' : ''}${c ? escapeHtml(`Common ${genomicCoord(res, c.start, c.end) || `${c.start}-${c.end}`}`) : ''}</span>
+    </div>`;
+  qs('#setCopyBtn').addEventListener('click', () => copyText(toSetTsv(exportViewOf(res, ui.marker), ui.dir, view.commonIndex)));
+  qs('#setXlsxBtn').addEventListener('click', () => downloadXlsx('current', ui.dir));
+}
+function presetLabelFor(p) {
+  return p.preset === 'custom' ? '사용자 정의' : (TM_PRESETS[p.preset] || TM_PRESETS.bioneer).label;
+}
+function renderCommonCard(res, set, view) {
+  const card = qs('#commonCard');
+  if (!set) { card.innerHTML = ''; return; }
+  const p = res.params;
+  const list = set.commons.slice(0, p.maxCommon);
+  const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
+      <td class="num muted">${c.rank}</td>
+      <td class="id">${escapeHtml(c.id)}</td>
+      <td>${seqHtml(c)}</td>
+      <td class="num">${c.length}</td>
+      <td class="num"><span class="badge ${tmClass(c.tm, p)}">${fmt1(c.tm)}</span></td>
+      <td class="num">${fmt1(c.gc)}</td>
+      <td class="num">${c.lc}</td>
+      <td class="num"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
+      <td class="num"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
+      <td class="muted small note" title="${escapeHtml(c.warnings.join('; '))}">${escapeHtml(c.warnings.join('; '))}</td>
+    </tr>`).join('');
+  card.innerHTML = `
+    <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2></div>
+    <div class="table-wrap"><table class="grid">
+      <thead><tr><th class="num">#</th><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">Amplicon (bp)</th><th class="num">ΔTm</th><th>비고</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="10" class="muted">후보 없음</td></tr>'}</tbody>
+    </table></div>`;
+  card.addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-common]');
+    if (!tr) return;
+    ui.commonPick[`${ui.marker}|${ui.dir}`] = Number(tr.dataset.common);
+    renderResults(false);
+  });
+}
+function renderReport(res, set) {
+  const box = qs('#report');
+  if (!set) { box.innerHTML = ''; return; }
+  const p = res.params;
+  const rows = [];
+  for (const a of set.asps) if (a) rows.push([a.id, seqHtml(a), a.fullLength, fmt1(a.tm), fmt1(a.gc), a.lc, a.warnings.join('; ')]);
+  for (const c of set.commons.slice(0, p.maxReport)) rows.push([c.id, seqHtml(c), c.length, fmt1(c.tm), fmt1(c.gc), c.lc, `${c.ampliconLabel} / ${fmt1(c.ampliconTm)}${c.warnings.length ? ' ; ' + c.warnings.join('; ') : ''}`]);
+  box.innerHTML = `<div class="table-wrap"><table class="grid">
+    <thead><tr><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm (°C)</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th>비고</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr><td class="id">${escapeHtml(r[0])}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="num">${r[5]}</td><td class="muted small note" title="${escapeHtml(r[6])}">${escapeHtml(r[6])}</td></tr>`).join('')}</tbody>
+  </table></div>
+  <p class="hint">스캔 ${set.stats.scanned} 위치 · 탈락: Tm ${set.stats.rejected.tm}, 마스크 ${set.stats.rejected.mask}, 3′ 패턴 ${set.stats.rejected.pattern}, 반복 ${set.stats.rejected.repeat}, LC ${set.stats.rejected.lc}, 자기다이머 ${set.stats.rejected.selfDimer}, ASP 다이머 ${set.stats.rejected.crossDimer}, 겹침 ${set.stats.rejected.overlap}</p>`;
+}
+function renderResults(resetScroll = true) {
+  const has = ui.results.length > 0;
+  qs('#resultsEmpty').hidden = has;
+  qs('#results').hidden = !has;
+  if (!has) return;
+  const res = currentResult();
+  const set = res && !res.error ? res[ui.dir] : null;
+  const view = set ? viewOfSet(res, set, ui.marker, ui.dir) : null;
+  renderMarkerTabs();
+  setSegment(qs('#dirSeg'), ui.dir);
+  renderWarnBox(res, set, view);
+  renderSetCard(res, set, view);
+  renderCommonCard(res, set, view);
+  if (set) renderViewer(qs('#viewer'), res, view, {}); else qs('#viewer').innerHTML = '';
+  renderReport(res, set);
+  if (resetScroll) window.scrollTo({ top: 0 });
+}
+function bindResults() {
+  qs('#markerTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-marker]');
+    if (!b) return;
+    ui.marker = Number(b.dataset.marker);
+    renderResults();
+  });
+  bindSegment(qs('#dirSeg'), (v) => { ui.dir = v; renderResults(); });
+}
+
+/* ---------- 내보내기 ---------- */
+/** 결과를 내보내기용으로 변환: 선택한 Common, sizing filler 반영 */
+function exportViewOf(res, mi) {
+  if (res.error) return res;
+  const out = { ...res };
+  for (const dir of ['forward', 'reverse']) {
+    const set = res[dir];
+    if (!set) continue;
+    const view = viewOfSet(res, set, mi, dir);
+    out[dir] = { ...set, asps: view.asps };
+  }
+  return out;
+}
+function exportTargets(scopeOverride, dirOverride) {
+  const scope = scopeOverride || ui.exportScope;
+  const dirSel = dirOverride || ui.exportDir;
+  const indices = scope === 'current' ? [ui.marker] : ui.results.map((_, i) => i);
+  const results = [];
+  const selections = {};
+  for (const i of indices) {
+    const r = ui.results[i];
+    if (!r || r.error) continue;
+    results.push(exportViewOf(r, i));
+    selections[r.name] = { which: dirSel === 'selected' ? ui.dir : dirSel, commonIndex: { forward: pickIndex(i, 'forward'), reverse: pickIndex(i, 'reverse') } };
+  }
+  return { results, selections, which: dirSel === 'selected' ? ui.dir : dirSel, scope };
+}
+function stamp() { return new Date().toISOString().slice(0, 10).replace(/-/g, ''); }
+function safeName(s) { return String(s).replace(/[^\w가-힣.-]+/g, '_').slice(0, 40); }
+function downloadXlsx(scopeOverride, dirOverride) {
+  const { results, selections, scope } = exportTargets(scopeOverride, dirOverride);
+  if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+  const scale = qs('#exportScale').value.trim() || '25 nmol';
+  const { order, basis } = buildWorkbookData(results, { selections, scale });
+  const bytes = buildXlsx([
+    { name: '주문용', rows: order, monoCols: [1], colWidths: [34, 56, 11, 9, 20, 10] },
+    { name: '설계근거', rows: basis, colWidths: [18, 26, 24, 14, 44, 16, 9, 9, 22, 12, 24, 60] },
+  ], { fontName: EXCEL_STYLE.fontName, headerFill: EXCEL_STYLE.headerFill, headerFont: EXCEL_STYLE.headerFont });
+  const name = scope === 'current' ? safeName(results[0].name) : 'all';
+  downloadBytes(bytes, `KASP_${name}_${stamp()}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  toast('엑셀 파일을 저장했습니다');
+}
+function bindExport() {
+  bindSegment(qs('#exportScopeSeg'), (v) => { ui.exportScope = v; saveSettings(); });
+  bindSegment(qs('#exportDirSeg'), (v) => { ui.exportDir = v; saveSettings(); });
+  qs('#copySetBtn').addEventListener('click', () => {
+    const { results, which, selections } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    const dirs = which === 'both' ? ['forward', 'reverse'] : [which];
+    const chunks = [];
+    for (const r of results) for (const d of dirs) chunks.push(toSetTsv(r, d, selections[r.name].commonIndex[d]));
+    copyText(chunks.join('\n\n'));
+  });
+  qs('#copySetsTextBtn').addEventListener('click', () => {
+    const { results, which } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    const dirs = which === 'both' ? ['forward', 'reverse'] : [which];
+    const chunks = [];
+    for (const r of results) for (const d of dirs) chunks.push(toSetsText(r, d, 3));
+    copyText(chunks.join('\n\n'));
+  });
+  qs('#copyReportBtn').addEventListener('click', () => {
+    const { results, which } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    const dirs = which === 'both' ? ['forward', 'reverse'] : [which];
+    copyText(dirs.map((d) => toReportTsv(results, d)).join('\n\n'));
+  });
+  qs('#xlsxBtn').addEventListener('click', () => downloadXlsx());
+}
+
+/* ---------- 시작 ---------- */
+function injectIcons() {
+  qsa('[data-icon]').forEach((el) => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+}
+function init() {
+  injectIcons();
+  applyThemeIcon();
+  qs('#themeBtn').addEventListener('click', toggleTheme);
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyThemeIcon);
+  qsa('.nav-item').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.pane)));
+  qs('#sidebarFoot').textContent = `v${BUILD.version}${BUILD.date ? ' · ' + BUILD.date : ''} · 오프라인 동작`;
+
+  loadSettings();
+  bindParamInputs();
+  bindSegment(qs('#presetSeg'), setPreset);
+  bindSegment(qs('#presetSeg2'), setPreset);
+  bindTails();
+  bindInput();
+  bindResults();
+  bindExport();
+  qs('#designBtn').addEventListener('click', runDesign);
+  syncParamsForm();
+
+  let saved = '';
+  try { saved = localStorage.getItem(STORE_INPUT) || ''; } catch { saved = ''; }
+  setInputText(saved);
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+}
