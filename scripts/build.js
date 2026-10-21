@@ -95,8 +95,11 @@ export function main() {
   mkdirSync(path.dirname(OUT), { recursive: true });
   const html = buildHtml();
   writeFileSync(OUT, html, 'utf8');
+  // GitHub Pages 등 정적 호스팅용: 같은 내용을 index.html 로도, Jekyll 처리 방지 표식과 함께
+  writeFileSync(path.join(path.dirname(OUT), 'index.html'), html, 'utf8');
+  writeFileSync(path.join(path.dirname(OUT), '.nojekyll'), '', 'utf8');
   const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
-  console.log(`빌드 완료: ${path.relative(ROOT, OUT)} (${kb} KB)`);
+  console.log(`빌드 완료: ${path.relative(ROOT, OUT)} (+ index.html) (${kb} KB)`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -96,6 +96,13 @@ backup/     원본 핸드오프 문서 스냅숏
 
 스크린샷: `docs/screenshots/` (desktop-light · desktop-dark · mobile-light · mobile-dark, 그리고 `file://` 로 연 1280px 렌더).
 
+## 4-1. GitHub Pages 배포
+
+두 가지 방법 중 하나를 쓰면 됩니다 (둘 다 준비되어 있음).
+
+- **GitHub Actions (권장)**: 저장소 Settings → Pages → Build and deployment → Source 를 **GitHub Actions** 로 두면 `main` 에 push 할 때마다 `.github/workflows/pages.yml` 이 테스트·빌드 후 `dist/` 를 배포합니다. 주소는 `https://<계정>.github.io/<저장소>/` (= `dist/index.html`).
+- **브랜치 배포**: Source 를 `main` 브랜치 · `/ (root)` 로 두면 루트의 `index.html` 이 `dist/kasp-designer.html` 로 바로 이동시킵니다. `.nojekyll` 이 있어 파일이 그대로 제공됩니다.
+
 ## 5. 구현상 판단 (확인 요망)
 
 - **다이머 검사에 tail 포함**이 기본입니다 (실제 합성되는 올리고 기준). 고급 설정에서 끌 수 있습니다.
