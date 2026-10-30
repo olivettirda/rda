@@ -4,7 +4,7 @@
 import { parseInput, summarizeRecords } from '../core/parse.js';
 import { designAll, DEFAULT_TAILS, mergeParams, genomicCoord, PRESET_TM_WINDOW } from '../core/design.js';
 import { TM_PRESETS } from '../core/tm.js';
-import { toReportTsv, toSetsText, toSetTsv, buildWorkbookData, EXCEL_STYLE, fmt1 } from '../core/export.js';
+import { toReportTsv, toSetsText, toSetTsv, buildWorkbookData, EXCEL_STYLE, fmt1, buildBioneerOrderRows, toBioneerPasteTsv, bioneerOrderItems, BIONEER_SCALES, BIONEER_PURIFICATIONS, BIONEER_SHEET_NAME } from '../core/export.js';
 import { buildXlsx } from '../core/xlsx.js';
 import { applyAlleleSizing } from '../core/sizing.js';
 import { parsePrimerList, analyzePrimers, analysisToTsv } from '../core/analyze.js';
@@ -949,6 +949,7 @@ function renderResults(resetScroll = true) {
   renderCommonCard(res, set, view);
   if (set) { renderViewer(qs('#viewer'), res, view, {}); lastViewerWidth = qs('#viewer').clientWidth; } else qs('#viewer').innerHTML = '';
   renderReport(res, set);
+  renderBioneerPreview();
   if (resetScroll) window.scrollTo({ top: 0 });
 }
 function rerenderViewer() {
@@ -1020,9 +1021,56 @@ function downloadXlsx(scopeOverride, dirOverride) {
   downloadBytes(bytes, `KASP_${name}_${stamp()}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   toast('엑셀 파일을 저장했습니다');
 }
+function bioneerOptions() {
+  return {
+    scale: qs('#bnScale').value, purification: qs('#bnPur').value,
+    aspScale: qs('#bnAspScale').value, aspPurification: qs('#bnAspPur').value,
+    includeCommon: qs('#bnIncludeCommon').checked,
+  };
+}
+function renderBioneerPreview() {
+  const box = qs('#bnPreview');
+  if (!ui.results.length) { box.innerHTML = '<p class="muted small">설계 결과가 있으면 여기에 주문 행이 미리 표시됩니다.</p>'; return; }
+  const { results, selections } = exportTargets();
+  const items = bioneerOrderItems(results, { selections, ...bioneerOptions() });
+  box.innerHTML = `<table class="grid stackable"><thead><tr><th>Oligo NAME</th><th>Scale</th><th>Purification</th><th>SEQUENCE (5′→3′)</th></tr></thead><tbody>${items.map((it) => `<tr><td class="id">${escapeHtml(it.name)}</td><td data-label="Scale">${escapeHtml(it.scale)}</td><td data-label="Purif">${escapeHtml(it.purification)}</td><td class="seq-cell"><span class="seq">${escapeHtml(it.seq)}</span> <span class="muted small">${it.seq.length} nt · ${escapeHtml(it.purpose)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">행 없음</td></tr>'}</tbody></table>`;
+}
+function downloadBioneerXlsx() {
+  const { results, selections, scope } = exportTargets();
+  if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+  const { rows, items } = buildBioneerOrderRows(results, { selections, ...bioneerOptions() });
+  if (!items.length) { toast('주문할 프라이머가 없습니다'); return; }
+  const bytes = buildXlsx([{
+    name: BIONEER_SHEET_NAME, rows, plainHeader: true, noFilter: true, noFreeze: true,
+    colWidths: [34, 14, 14, 60, 4, 70],
+    validations: [
+      { sqref: `B2:B${Math.max(200, rows.length)}`, list: [...BIONEER_SCALES] },
+      { sqref: `C2:C${Math.max(200, rows.length)}`, list: [...BIONEER_PURIFICATIONS] },
+    ],
+  }], { fontName: '맑은 고딕', monoFont: 'Consolas' });
+  const name = scope === 'current' ? safeName(results[0].name) : 'all';
+  downloadBytes(bytes, `Upload_Bioneer_DNA_${name}_${stamp()}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  toast(`바이오니어 양식을 저장했습니다 (${items.length}행)`);
+}
+function bindBioneer() {
+  const fill = (sel, list, def) => { sel.innerHTML = list.map((v) => `<option value="${escapeHtml(v)}"${v === def ? ' selected' : ''}>${escapeHtml(v)}</option>`).join(''); };
+  fill(qs('#bnScale'), BIONEER_SCALES, '25 nmole');
+  fill(qs('#bnAspScale'), BIONEER_SCALES, '25 nmole');
+  fill(qs('#bnPur'), BIONEER_PURIFICATIONS, 'BioRP');
+  fill(qs('#bnAspPur'), BIONEER_PURIFICATIONS, 'BioRP');
+  ['#bnScale', '#bnAspScale', '#bnPur', '#bnAspPur', '#bnIncludeCommon'].forEach((s) => qs(s).addEventListener('change', renderBioneerPreview));
+  qs('#bnXlsxBtn').addEventListener('click', downloadBioneerXlsx);
+  qs('#bnTsvBtn').addEventListener('click', () => {
+    const { results, selections } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    copyText(toBioneerPasteTsv(results, { selections, ...bioneerOptions() }), '붙여넣기용 TSV 를 복사했습니다');
+  });
+  renderBioneerPreview();
+}
 function bindExport() {
-  bindSegment(qs('#exportScopeSeg'), (v) => { ui.exportScope = v; saveSettings(); });
-  bindSegment(qs('#exportDirSeg'), (v) => { ui.exportDir = v; saveSettings(); });
+  bindBioneer();
+  bindSegment(qs('#exportScopeSeg'), (v) => { ui.exportScope = v; saveSettings(); renderBioneerPreview(); });
+  bindSegment(qs('#exportDirSeg'), (v) => { ui.exportDir = v; saveSettings(); renderBioneerPreview(); });
   qs('#copySetBtn').addEventListener('click', () => {
     const { results, which, selections } = exportTargets();
     if (!results.length) { toast('내보낼 결과가 없습니다'); return; }

@@ -787,6 +787,23 @@ Common	tctcgtgtgaacgcagcc"></textarea>
         </div>
         <p class="hint">엑셀 파일은 <b>주문용</b>(Primer Name, Sequence 5′→3′, Direction, Length, Purpose, Scale)과 <b>설계근거</b>(위치 Chr:bp, Tm 조건, 변환 전략, 비고) 두 시트로 저장됩니다. 헤더 <span class="swatch"></span> #0c3026, KoPub Dotum, 틀 고정 A2, 자동 필터.</p>
       </div>
+
+      <div class="card" id="bioneerCard">
+        <div class="card-head"><h2>바이오니어 업로드 양식</h2><span class="muted small">Upload_Bioneer_DNA 레이아웃</span></div>
+        <div class="form-grid">
+          <label class="field"><span>ASP 합성 Scale</span><select id="bnAspScale"></select></label>
+          <label class="field"><span>ASP Purification</span><select id="bnAspPur"></select></label>
+          <label class="field"><span>Common 합성 Scale</span><select id="bnScale"></select></label>
+          <label class="field"><span>Common Purification</span><select id="bnPur"></select></label>
+        </div>
+        <label class="switch-row"><span>Common 프라이머 포함</span><span class="switch"><input type="checkbox" id="bnIncludeCommon" checked><i></i></span></label>
+        <div class="btn-row">
+          <button type="button" class="btn" id="bnXlsxBtn"><span data-icon="excel"></span>바이오니어 양식(.xlsx) 다운로드</button>
+          <button type="button" class="btn" id="bnTsvBtn"><span data-icon="copy"></span>붙여넣기용 TSV 복사</button>
+        </div>
+        <div class="table-wrap" id="bnPreview" style="margin-top:14px"></div>
+        <p class="hint">바이오니어 공식 양식과 같은 열(Oligo NAME · Scale · Purification · SEQUENCE 5′→3′)과 드롭다운으로 저장됩니다. 올리고 이름에서 <code>#</code> <code>|</code> 는 자동 제거되고 서열은 tail 포함 전체 염기만 대문자로 들어갑니다. 주문 페이지가 <b>.xls</b> 만 받으면 엑셀에서 열어 "다른 이름으로 저장 → Excel 97-2003 (*.xls)" 로 저장해 올리세요. 붙여넣기용 TSV 는 주문 페이지의 '복사 후 붙여넣기' 입력창(No · Name · 5′Mod · Sequence · 3′Mod · Internal · Scale · Purif)에 맞춘 형식입니다.</p>
+      </div>
     </section>
 
     <div class="actionbar">
@@ -813,7 +830,7 @@ Common	tctcgtgtgaacgcagcc"></textarea>
 
 <script>
 window.KASP_EXAMPLES = {"snp_simple":{"desc":"단순 SNP, 양쪽 flank 200 nt","fasta":">Marker_SNP1\nagccgaactcctggctttgaatgtctgtttcactcggaacataactatggtcgtcgctcgtctgacggcgtagcggtcgcatggtgtaaatatactatggtctagtgcgtacagaggagtagtgagtaagccgataagacgcgctagaccttaattgctacgcctgtagttgaatgggtaagccggcatggctgacattg[A/G]caagtcctgtgcggtaccgcgtcaatgccggccatgtagtggctgcgttcacacgagacgcactgagaaactatattggccaattggcttgaaccaaggtaatagcggtcgcaactacagagtgatccaggtgctctgtaaatatgtcaaactgcagcttgcgccaccttgcccgtaaatccttagcctagggctaggac"},"snp_iupac":{"desc":"IUPAC 1문자 변이 + 주변 SNP(r) 포함","fasta":">Marker_IUPAC\nttccatttacgtgccttggttcgaggcaaccggtagctaaggttctccgtggagctgcttcgtggtctggccaattggccaattggagattaggctggctgttgaatggttgcctacacartcaatgaagttcgcgcctggttgcggactcacaatcatcaatgttgcggggggacagcccctatcatcctacctcgtga[S]gcgtcctttctggccaagatccataggtaggcgcgtcttattagaaatgcatgctggatttatggcagtcaacttaatagcggtcgaaatcgccacagcagctacctcgtacctggggcttcgctcctgttagccgaaattcggaaccattatgagcttgcccctgttgggccgaccgtcatgggggctaagctacaccc"},"indel":{"desc":"2 bp 결실","fasta":">Marker_InDel\ntatgctaaccgcagcagagtgatccagcttagtagtcctcagaacgtatgggtcgactcgggctgatgatcgttctgccagtacagcctgaccgcctgtagtacatttaaagaaaacagttgtcagtcaactggtctagtgatttgcgatgggctgaacgcgactttgaaagcatagcggtcgaagcctgagtaaatcgc[AG/]acataatcgagggcgaagcgcaccccctgaccacaattggagcggtcaccgcaggaaagacaactaagtccgcaggtccggcccatgtgaactactatctccatagcgggcggtccgcgcagctaccgtctggtagcttctgacggactacgtaatttacccatgtggcggaaacctagacaagcgccacagagtcgatt"},"mnv_multi":{"desc":"MNV + 3대립","fasta":">Marker_MNV\ncttaacatatgatcaaacgacgtacgttgtagacagacggattttgccgacgcattttcttaacaatttatctcacaacatctcggccaagatccagctgggtgccaggggtgaccacaattgccctcagccttcatgttgctagcgtttgtgtacagttgtcaggacaagtacagaggcttaattaggttcgagaccgg[GATATAC/CAGTCC]ttgatttggtagtgggccgaccatggtttcattgcttcggctgctgtaattcggctgttagtggggtgtctacgcgcttatgcgccatgcgataccctgctgtcttcgaaatcgagaccgggacacacctttactgccttcgagaaggagaagaggtgccccggcccatctgagggcaaaccagaaaatgttccgacggt\n\n>Marker_Tri\ntatcgcctacgctctggtggaccctggggggaaacaatcatcggaagcaaagtctattccgacgctgaatgtggcgtcatggctgtagtctatctacctgggttatgagcgggcctatcattctcgtgtttcgaaccggcttgaacaggatgccagcagactatctccaggtgctctgttgctcttggtttgaaacgaag[A/C/G]cacgccacgattcgaggaatcaaattaatgcgaggaagttccggagaagtacgtacgttggctacgcggtgcaaacgtatgaatttgcacggagaccaaagcaattgcgtaccgcttcgatcccgtcagttaaagtgatccagttcagtcgcaactaatcccgtccttcgtagctacacctggcaaagatcaaaattgcg"},"excluded_region":{"desc":"/.../ 제외구역 포함","fasta":">Marker_Excl\nggggttagctacgcctatgcccaatgttgccagaccttaatggggtttccggtgctgaatttgcatagactggggggttactcaatgccgggaacctcttacctcgtacgtgccttttttggttatgacggtcgcatttatggcagtcac/taacccagggttatccagttgtggccaatt/aggcaggacagcgttaactt[C/T]ggttagctacgcactcaggtgttggtggcgatcccttctccctaaatcactgtttgtcactcagagagagagagagaggtagacctgtcaccgtcagataaatttacggctctgaatagatagcggtaccctccagaccgcgggcggaatggcaaagggggcatcccactgactgttatgcccggaccggaaacgctctt"}};
-window.KASP_BUILD = {"version":"1.1.1","date":"2026-10-30"};
+window.KASP_BUILD = {"version":"1.1.2","date":"2026-10-30"};
 </script>
 <script>
 (function () {
@@ -2485,6 +2502,98 @@ const EXCEL_STYLE = Object.freeze({
 function fmt1(x) { return f1(x); }
 function fmt0(x) { return f0(x); }
 
+/* ===================== 바이오니어 Oligo(Tube) 업로드 양식 ===================== */
+/**
+ * 바이오니어 공식 양식(Upload_Bioneer_DNA.xls, 2026-10 확인)과 같은 레이아웃
+ *  A: Oligo NAME · B: Scale(드롭다운) · C: Purification(드롭다운) · D: SEQUENCE (5' --> 3') · F: 작성방법 안내
+ *  이름에 '#', '|' 금지, 서열은 염기만(공백·특수문자 없이). Modification 은 [FAM]ACGT… 처럼 서열 안에 표기.
+ */
+const BIONEER_SHEET_NAME = '바이오니아 Oligo(Tube) 업로드 양식';
+const BIONEER_SCALES = Object.freeze(['25 nmole', '50 nmole', '200 nmole', '1000 nmole', '10000 nmole', '15000 nmole']);
+const BIONEER_PURIFICATIONS = Object.freeze(['BioRP', 'PAGE', 'HPLC']);
+const BIONEER_HEADER = Object.freeze(['Oligo NAME', 'Scale', 'Purification', "SEQUENCE (5' --> 3')", '', '작성방법']);
+const BIONEER_GUIDE = Object.freeze([
+  'A 열 : Oligo Name',
+  'B 열 : 합성 Scale을 선택하여 주세요',
+  'C 열 : Purification을 선택하여 주세요',
+  'D 열 : Sequence (입력시 다른문자 없이 염기서열만 공백없이 입력하십시요)',
+  '*. Modification 입력예시 : [FAM]ACGATCGACTACGACTACGGT[BHQ1]',
+  "*.주의사항 : 올리고 NAME에    # , |    는 사용하실수 없는 기호입니다.",
+  '',
+  '저장방법',
+  '파일 > 저장하기 *.xls',
+]);
+
+/** 바이오니어 규칙에 맞는 올리고 이름: '#', '|' 제거, 공백은 '_' */
+function bioneerName(name) {
+  return String(name ?? '').replace(/[#|]/g, '').replace(/\s+/g, '_').trim();
+}
+/** 서열: 염기(IUPAC 포함)만 대문자로 */
+function bioneerSequence(seq) {
+  return String(seq ?? '').toUpperCase().replace(/U/g, 'T').replace(/[^ACGTRYSWKMBDHVN]/g, '');
+}
+
+/**
+ * 주문 행 목록 [{name, scale, purification, seq, purpose}] — 결과·선택(Common 인덱스)·옵션으로 생성
+ * @param {object} o { selections, which, commonIndex, scale, purification, includeCommon, aspScale, aspPurification }
+ */
+function bioneerOrderItems(results, o = {}) {
+  const scale = BIONEER_SCALES.includes(o.scale) ? o.scale : BIONEER_SCALES[0];
+  const purification = BIONEER_PURIFICATIONS.includes(o.purification) ? o.purification : BIONEER_PURIFICATIONS[0];
+  const aspScale = BIONEER_SCALES.includes(o.aspScale) ? o.aspScale : scale;
+  const aspPur = BIONEER_PURIFICATIONS.includes(o.aspPurification) ? o.aspPurification : purification;
+  const includeCommon = o.includeCommon !== false;
+  const items = [];
+  const seen = new Set();
+  const push = (name, sc, pu, seq, purpose) => {
+    const n = bioneerName(name);
+    const s = bioneerSequence(seq);
+    if (!s || seen.has(n + '\t' + s)) return;
+    seen.add(n + '\t' + s);
+    items.push({ name: n, scale: sc, purification: pu, seq: s, purpose });
+  };
+  for (const res of results) {
+    if (res.error) continue;
+    const sel = (o.selections && o.selections[res.name]) || {};
+    const which = sel.which || o.which || 'forward';
+    const whichList = which === 'both' ? ['forward', 'reverse'] : [which];
+    for (const w of whichList) {
+      const set = pickSet(res, w);
+      if (!set) continue;
+      const ciRaw = sel.commonIndex ?? o.commonIndex ?? 0;
+      const ci = (ciRaw && typeof ciRaw === 'object') ? (ciRaw[w] ?? 0) : ciRaw;
+      for (const asp of set.asps) {
+        if (!asp) continue;
+        push(`${res.name}_${asp.id}`, aspScale, aspPur, asp.fullUpper, `ASP ${asp.alleleLabel}${asp.tail ? ' (' + asp.tail.name + ')' : ''}`);
+      }
+      const common = set.commons[ci];
+      if (includeCommon && common) push(`${res.name}_${common.id}`, scale, purification, common.seqUpper, 'Common');
+    }
+  }
+  return items;
+}
+
+/** 업로드 양식 시트(AOA): 헤더 + 주문 행, F 열에 작성방법 안내 */
+function buildBioneerOrderRows(results, o = {}) {
+  const items = bioneerOrderItems(results, o);
+  const rows = [Array.from(BIONEER_HEADER)];
+  const n = Math.max(items.length, BIONEER_GUIDE.length);
+  for (let i = 0; i < n; i++) {
+    const it = items[i];
+    const guide = BIONEER_GUIDE[i] ?? '';
+    rows.push(it ? [it.name, it.scale, it.purification, it.seq, '', guide] : ['', '', '', '', '', guide]);
+  }
+  return { rows, items };
+}
+
+/** 주문 페이지 '복사 후 붙여넣기' 입력용 TSV (No, Name, 5'Mod, Sequence, 3'Mod, Internal, Scale, Purif) */
+function toBioneerPasteTsv(results, o = {}) {
+  const items = bioneerOrderItems(results, o);
+  const lines = ["No\tName\t5'Mod\tSequence ( 5' -> 3' )\t3'Mod\tInternal\tScale\tPurif"];
+  items.forEach((it, i) => lines.push([i + 1, it.name, '', it.seq, '', '', it.scale, it.purification].join('\t')));
+  return lines.join('\n');
+}
+
 
 /* ===== src/core/xlsx.js ===== */
 /**
@@ -2591,7 +2700,7 @@ function sheetXml(rows, opts) {
     data += `<row r="${r + 1}">`;
     row.forEach((v, c) => {
       const ref = `${colLetter(c)}${r + 1}`;
-      const style = r === 0 ? ' s="1"' : (opts.monoCols && opts.monoCols.includes(c) ? ' s="2"' : ' s="3"');
+      const style = r === 0 ? (opts.plainHeader ? ' s="3"' : ' s="1"') : (opts.monoCols && opts.monoCols.includes(c) ? ' s="2"' : ' s="3"');
       if (v === null || v === undefined || v === '') return;
       if (typeof v === 'number' && Number.isFinite(v)) data += `<c r="${ref}"${style}><v>${v}</v></c>`;
       else data += `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(v)}</t></is></c>`;
@@ -2600,10 +2709,16 @@ function sheetXml(rows, opts) {
   });
   data += '</sheetData>';
   const ref = `A1:${colLetter(ncols - 1)}${nrows}`;
-  const views = '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
+  const views = opts.noFreeze
+    ? '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+    : '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
+  const filter = opts.noFilter ? '' : `<autoFilter ref="${ref}"/>`;
+  // 드롭다운(목록) 유효성 검사: validations = [{ sqref:'B2:B200', list:['a','b'] }]
+  const vals = (opts.validations || []).map((v) => `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${xmlEscape(v.sqref)}"><formula1>"${xmlEscape(v.list.join(','))}"</formula1></dataValidation>`);
+  const validations = vals.length ? `<dataValidations count="${vals.length}">${vals.join('')}</dataValidations>` : '';
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<dimension ref="${ref}"/>${views}<sheetFormatPr defaultRowHeight="16"/>${cols}${data}<autoFilter ref="${ref}"/><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
+<dimension ref="${ref}"/>${views}<sheetFormatPr defaultRowHeight="16"/>${cols}${data}${filter}${validations}<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
 }
 
 function stylesXml(style) {
@@ -2677,9 +2792,10 @@ ${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Co
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>KASP Designer</Application></Properties>`),
   });
   const definedNames = sheets.map((s, i) => {
+    if (s.noFilter) return '';
     const ncols = Math.max(1, ...s.rows.map((r) => r.length));
     const nrows = Math.max(1, s.rows.length);
-    return `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${sheetNames[i]}'!$A$1:$${colLetter(ncols - 1)}$${nrows}</definedName>`;
+    return `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${sheetNames[i]}'!$A$1:${colLetter(ncols - 1)}${nrows}</definedName>`;
   }).join('');
   files.push({
     name: 'xl/workbook.xml',
@@ -4684,6 +4800,7 @@ function renderResults(resetScroll = true) {
   renderCommonCard(res, set, view);
   if (set) { renderViewer(qs('#viewer'), res, view, {}); lastViewerWidth = qs('#viewer').clientWidth; } else qs('#viewer').innerHTML = '';
   renderReport(res, set);
+  renderBioneerPreview();
   if (resetScroll) window.scrollTo({ top: 0 });
 }
 function rerenderViewer() {
@@ -4755,9 +4872,56 @@ function downloadXlsx(scopeOverride, dirOverride) {
   downloadBytes(bytes, `KASP_${name}_${stamp()}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   toast('엑셀 파일을 저장했습니다');
 }
+function bioneerOptions() {
+  return {
+    scale: qs('#bnScale').value, purification: qs('#bnPur').value,
+    aspScale: qs('#bnAspScale').value, aspPurification: qs('#bnAspPur').value,
+    includeCommon: qs('#bnIncludeCommon').checked,
+  };
+}
+function renderBioneerPreview() {
+  const box = qs('#bnPreview');
+  if (!ui.results.length) { box.innerHTML = '<p class="muted small">설계 결과가 있으면 여기에 주문 행이 미리 표시됩니다.</p>'; return; }
+  const { results, selections } = exportTargets();
+  const items = bioneerOrderItems(results, { selections, ...bioneerOptions() });
+  box.innerHTML = `<table class="grid stackable"><thead><tr><th>Oligo NAME</th><th>Scale</th><th>Purification</th><th>SEQUENCE (5′→3′)</th></tr></thead><tbody>${items.map((it) => `<tr><td class="id">${escapeHtml(it.name)}</td><td data-label="Scale">${escapeHtml(it.scale)}</td><td data-label="Purif">${escapeHtml(it.purification)}</td><td class="seq-cell"><span class="seq">${escapeHtml(it.seq)}</span> <span class="muted small">${it.seq.length} nt · ${escapeHtml(it.purpose)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">행 없음</td></tr>'}</tbody></table>`;
+}
+function downloadBioneerXlsx() {
+  const { results, selections, scope } = exportTargets();
+  if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+  const { rows, items } = buildBioneerOrderRows(results, { selections, ...bioneerOptions() });
+  if (!items.length) { toast('주문할 프라이머가 없습니다'); return; }
+  const bytes = buildXlsx([{
+    name: BIONEER_SHEET_NAME, rows, plainHeader: true, noFilter: true, noFreeze: true,
+    colWidths: [34, 14, 14, 60, 4, 70],
+    validations: [
+      { sqref: `B2:B${Math.max(200, rows.length)}`, list: [...BIONEER_SCALES] },
+      { sqref: `C2:C${Math.max(200, rows.length)}`, list: [...BIONEER_PURIFICATIONS] },
+    ],
+  }], { fontName: '맑은 고딕', monoFont: 'Consolas' });
+  const name = scope === 'current' ? safeName(results[0].name) : 'all';
+  downloadBytes(bytes, `Upload_Bioneer_DNA_${name}_${stamp()}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  toast(`바이오니어 양식을 저장했습니다 (${items.length}행)`);
+}
+function bindBioneer() {
+  const fill = (sel, list, def) => { sel.innerHTML = list.map((v) => `<option value="${escapeHtml(v)}"${v === def ? ' selected' : ''}>${escapeHtml(v)}</option>`).join(''); };
+  fill(qs('#bnScale'), BIONEER_SCALES, '25 nmole');
+  fill(qs('#bnAspScale'), BIONEER_SCALES, '25 nmole');
+  fill(qs('#bnPur'), BIONEER_PURIFICATIONS, 'BioRP');
+  fill(qs('#bnAspPur'), BIONEER_PURIFICATIONS, 'BioRP');
+  ['#bnScale', '#bnAspScale', '#bnPur', '#bnAspPur', '#bnIncludeCommon'].forEach((s) => qs(s).addEventListener('change', renderBioneerPreview));
+  qs('#bnXlsxBtn').addEventListener('click', downloadBioneerXlsx);
+  qs('#bnTsvBtn').addEventListener('click', () => {
+    const { results, selections } = exportTargets();
+    if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
+    copyText(toBioneerPasteTsv(results, { selections, ...bioneerOptions() }), '붙여넣기용 TSV 를 복사했습니다');
+  });
+  renderBioneerPreview();
+}
 function bindExport() {
-  bindSegment(qs('#exportScopeSeg'), (v) => { ui.exportScope = v; saveSettings(); });
-  bindSegment(qs('#exportDirSeg'), (v) => { ui.exportDir = v; saveSettings(); });
+  bindBioneer();
+  bindSegment(qs('#exportScopeSeg'), (v) => { ui.exportScope = v; saveSettings(); renderBioneerPreview(); });
+  bindSegment(qs('#exportDirSeg'), (v) => { ui.exportDir = v; saveSettings(); renderBioneerPreview(); });
   qs('#copySetBtn').addEventListener('click', () => {
     const { results, which, selections } = exportTargets();
     if (!results.length) { toast('내보낼 결과가 없습니다'); return; }
