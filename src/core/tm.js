@@ -37,17 +37,19 @@ export const SYMMETRY_DS = -1.4;
 export const TM_PRESETS = Object.freeze({
   bioneer: Object.freeze({
     key: 'bioneer', label: '바이오니어',
-    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15,
+    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15, ctDivisor: 4,
   }),
   primerdigital: Object.freeze({
     key: 'primerdigital', label: 'primerdigital',
-    na_mM: 55, mg_mM: 1, oligo_nM: 200, wallaceBelow: 0,
+    // 사이트 실측(bsr1_snp913, 38개 프라이머)과 ±0.05 °C 일치하려면 엔트로피 항에 ln(Ct) 를 써야 한다 (Ct/4 가 아님)
+    na_mM: 55, mg_mM: 1, oligo_nM: 200, wallaceBelow: 0, ctDivisor: 1,
   }),
 });
 
 /**
  * 프리셋/사용자 입력(mM, nM)을 계산용 조건(M)으로 변환.
- * @returns {{na:number, mg:number, ct:number, wallaceBelow:number}}
+ * ctDivisor: 엔트로피 항 R·ln(Ct/ctDivisor). 4 = 비자기상보 표준 관례(SantaLucia), 1 = primerdigital 사이트 관례.
+ * @returns {{na:number, mg:number, ct:number, wallaceBelow:number, ctDivisor:number}}
  */
 export function makeConditions(input = TM_PRESETS.bioneer) {
   const na_mM = Number(input.na_mM ?? 50);
@@ -59,6 +61,7 @@ export function makeConditions(input = TM_PRESETS.bioneer) {
     mg: Math.max(0, mg_mM) / 1000,
     ct: Math.max(1e-12, oligo_nM) * 1e-9,
     wallaceBelow: Number.isFinite(wallaceBelow) ? wallaceBelow : 0,
+    ctDivisor: [1, 2, 4].includes(Number(input.ctDivisor)) ? Number(input.ctDivisor) : 4,
   };
 }
 
@@ -147,7 +150,7 @@ export function saltCorrectionTerm({ fGC, length, na, mg }) {
 }
 
 /**
- * 올리고 Tm (°C). 비자기상보 이중가닥 가정(Ct/4).
+ * 올리고 Tm (°C). 엔트로피 항은 R·ln(Ct/ctDivisor) (기본 Ct/4, primerdigital 프리셋은 Ct).
  * 길이 < wallaceBelow 이면 Wallace rule. 길이 < 2 이면 NaN.
  */
 export function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
@@ -157,8 +160,8 @@ export function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
   if (n < (cond.wallaceBelow || 0)) return wallaceTm(s);
 
   const { dH, dS } = nearestNeighborSums(s);
-  const ctQuarter = cond.ct / 4;
-  let invTm = (dS + GAS_CONSTANT * Math.log(ctQuarter)) / (dH * 1000);
+  const ctEff = cond.ct / (cond.ctDivisor || 4);
+  let invTm = (dS + GAS_CONSTANT * Math.log(ctEff)) / (dH * 1000);
   invTm += saltCorrectionTerm({ fGC: gcFraction(s), length: n, na: cond.na, mg: cond.mg });
   return 1 / invTm - 273.15;
 }

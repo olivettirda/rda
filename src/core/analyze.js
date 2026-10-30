@@ -248,7 +248,7 @@ export function analyzePrimers(primers, o = {}) {
     const { tail, body } = detectTail(pr.seq, params.tails);
     const loc = record ? locateOnTemplate(body, record, o.maxMismatch ?? 2) : null;
     const role = tail ? 'ASP' : (loc ? (loc.coversVariant ? 'ASP' : 'Common') : '미확인');
-    const self = findSelfDimer(pr.seq, { threshold: params.dimerThreshold });
+    const self = findSelfDimer(pr.seq, { threshold: params.dimerThreshold, mismatch: params.dimerAllowMismatch });
     return {
       name: pr.name, full: pr.seq, tail, body,
       length: body.length, fullLength: pr.seq.length,
@@ -263,7 +263,7 @@ export function analyzePrimers(primers, o = {}) {
   const pairs = [];
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
-      const r = findDimer(items[i].full, items[j].full, { threshold: params.dimerThreshold });
+      const r = findDimer(items[i].full, items[j].full, { threshold: params.dimerThreshold, mismatch: params.dimerAllowMismatch });
       if (r && r.isDimer) pairs.push({ a: i, b: j, matches: r.matches });
     }
   }

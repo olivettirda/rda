@@ -676,11 +676,12 @@ Common	tctcgtgtgaacgcagcc"></textarea>
             <div class="field num" data-param="snpOffset"><span>SNP offset (3′ 말단에서 달라야 하는 염기 수)</span><div class="num-row"><input type="range" min="1" max="5" step="1"><input type="number" min="1" max="5" step="1"></div></div>
             <label class="field"><span>Common 3′-end 패턴 (IUPAC, 공백으로 여러 개; n = 제약 없음)</span><input type="text" class="mono" data-param-text="endPattern" placeholder="n  또는  sws ssw sww"></label>
             <div class="field num" data-param="minLC"><span>LC 하한 (%)</span><div class="num-row"><input type="range" min="10" max="90" step="1"><input type="number" min="10" max="90" step="1"></div></div>
-            <div class="field num" data-param="dimerThreshold"><span>다이머 임계 (상보 염기쌍 수)</span><div class="num-row"><input type="range" min="6" max="8" step="1"><input type="number" min="6" max="8" step="1"></div></div>
+            <div class="field num" data-param="dimerThreshold"><span>다이머 임계 (정확 연속 상보 염기쌍 수, 이상이면 탈락)</span><div class="num-row"><input type="range" min="5" max="10" step="1"><input type="number" min="5" max="10" step="1"></div></div>
             <div class="field num" data-param="ampliconHardMax"><span>Amplicon 최대 허용 (bp)</span><div class="num-row"><input type="range" min="100" max="1000" step="10"><input type="number" min="100" max="1000" step="10"></div></div>
             <div class="field num" data-param="overlapTol"><span>Common 겹침 간격 (nt, 이 미만이면 LC 높은 쪽만)</span><div class="num-row"><input type="range" min="1" max="30" step="1"><input type="number" min="1" max="30" step="1"></div></div>
           </div>
           <div class="switch-list">
+            <label class="switch-row"><span>다이머 검사에 미스매치 1개 허용 (엄격 — 사이트보다 많이 탈락)</span><span class="switch"><input type="checkbox" data-param-bool="dimerAllowMismatch"><i></i></span></label>
             <label class="switch-row"><span>다이머 검사에 tail 포함 (합성되는 전체 올리고 기준)</span><span class="switch"><input type="checkbox" data-param-bool="dimerIncludeTail"><i></i></span></label>
             <label class="switch-row"><span>분산 반복서열 마스킹 (15-mer, 2회 이상)</span><span class="switch"><input type="checkbox" data-param-bool="maskRepeats"><i></i></span></label>
             <label class="switch-row"><span>저복잡도 구간 마스킹 (17 nt 창)</span><span class="switch"><input type="checkbox" data-param-bool="maskLowComplexity"><i></i></span></label>
@@ -812,7 +813,7 @@ Common	tctcgtgtgaacgcagcc"></textarea>
 
 <script>
 window.KASP_EXAMPLES = {"snp_simple":{"desc":"단순 SNP, 양쪽 flank 200 nt","fasta":">Marker_SNP1\nagccgaactcctggctttgaatgtctgtttcactcggaacataactatggtcgtcgctcgtctgacggcgtagcggtcgcatggtgtaaatatactatggtctagtgcgtacagaggagtagtgagtaagccgataagacgcgctagaccttaattgctacgcctgtagttgaatgggtaagccggcatggctgacattg[A/G]caagtcctgtgcggtaccgcgtcaatgccggccatgtagtggctgcgttcacacgagacgcactgagaaactatattggccaattggcttgaaccaaggtaatagcggtcgcaactacagagtgatccaggtgctctgtaaatatgtcaaactgcagcttgcgccaccttgcccgtaaatccttagcctagggctaggac"},"snp_iupac":{"desc":"IUPAC 1문자 변이 + 주변 SNP(r) 포함","fasta":">Marker_IUPAC\nttccatttacgtgccttggttcgaggcaaccggtagctaaggttctccgtggagctgcttcgtggtctggccaattggccaattggagattaggctggctgttgaatggttgcctacacartcaatgaagttcgcgcctggttgcggactcacaatcatcaatgttgcggggggacagcccctatcatcctacctcgtga[S]gcgtcctttctggccaagatccataggtaggcgcgtcttattagaaatgcatgctggatttatggcagtcaacttaatagcggtcgaaatcgccacagcagctacctcgtacctggggcttcgctcctgttagccgaaattcggaaccattatgagcttgcccctgttgggccgaccgtcatgggggctaagctacaccc"},"indel":{"desc":"2 bp 결실","fasta":">Marker_InDel\ntatgctaaccgcagcagagtgatccagcttagtagtcctcagaacgtatgggtcgactcgggctgatgatcgttctgccagtacagcctgaccgcctgtagtacatttaaagaaaacagttgtcagtcaactggtctagtgatttgcgatgggctgaacgcgactttgaaagcatagcggtcgaagcctgagtaaatcgc[AG/]acataatcgagggcgaagcgcaccccctgaccacaattggagcggtcaccgcaggaaagacaactaagtccgcaggtccggcccatgtgaactactatctccatagcgggcggtccgcgcagctaccgtctggtagcttctgacggactacgtaatttacccatgtggcggaaacctagacaagcgccacagagtcgatt"},"mnv_multi":{"desc":"MNV + 3대립","fasta":">Marker_MNV\ncttaacatatgatcaaacgacgtacgttgtagacagacggattttgccgacgcattttcttaacaatttatctcacaacatctcggccaagatccagctgggtgccaggggtgaccacaattgccctcagccttcatgttgctagcgtttgtgtacagttgtcaggacaagtacagaggcttaattaggttcgagaccgg[GATATAC/CAGTCC]ttgatttggtagtgggccgaccatggtttcattgcttcggctgctgtaattcggctgttagtggggtgtctacgcgcttatgcgccatgcgataccctgctgtcttcgaaatcgagaccgggacacacctttactgccttcgagaaggagaagaggtgccccggcccatctgagggcaaaccagaaaatgttccgacggt\n\n>Marker_Tri\ntatcgcctacgctctggtggaccctggggggaaacaatcatcggaagcaaagtctattccgacgctgaatgtggcgtcatggctgtagtctatctacctgggttatgagcgggcctatcattctcgtgtttcgaaccggcttgaacaggatgccagcagactatctccaggtgctctgttgctcttggtttgaaacgaag[A/C/G]cacgccacgattcgaggaatcaaattaatgcgaggaagttccggagaagtacgtacgttggctacgcggtgcaaacgtatgaatttgcacggagaccaaagcaattgcgtaccgcttcgatcccgtcagttaaagtgatccagttcagtcgcaactaatcccgtccttcgtagctacacctggcaaagatcaaaattgcg"},"excluded_region":{"desc":"/.../ 제외구역 포함","fasta":">Marker_Excl\nggggttagctacgcctatgcccaatgttgccagaccttaatggggtttccggtgctgaatttgcatagactggggggttactcaatgccgggaacctcttacctcgtacgtgccttttttggttatgacggtcgcatttatggcagtcac/taacccagggttatccagttgtggccaatt/aggcaggacagcgttaactt[C/T]ggttagctacgcactcaggtgttggtggcgatcccttctccctaaatcactgtttgtcactcagagagagagagagaggtagacctgtcaccgtcagataaatttacggctctgaatagatagcggtaccctccagaccgcgggcggaatggcaaagggggcatcccactgactgttatgcccggaccggaaacgctctt"}};
-window.KASP_BUILD = {"version":"1.1.0","date":"2026-10-21"};
+window.KASP_BUILD = {"version":"1.1.0","date":"2026-10-30"};
 </script>
 <script>
 (function () {
@@ -1253,17 +1254,19 @@ const SYMMETRY_DS = -1.4;
 const TM_PRESETS = Object.freeze({
   bioneer: Object.freeze({
     key: 'bioneer', label: '바이오니어',
-    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15,
+    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15, ctDivisor: 4,
   }),
   primerdigital: Object.freeze({
     key: 'primerdigital', label: 'primerdigital',
-    na_mM: 55, mg_mM: 1, oligo_nM: 200, wallaceBelow: 0,
+    // 사이트 실측(bsr1_snp913, 38개 프라이머)과 ±0.05 °C 일치하려면 엔트로피 항에 ln(Ct) 를 써야 한다 (Ct/4 가 아님)
+    na_mM: 55, mg_mM: 1, oligo_nM: 200, wallaceBelow: 0, ctDivisor: 1,
   }),
 });
 
 /**
  * 프리셋/사용자 입력(mM, nM)을 계산용 조건(M)으로 변환.
- * @returns {{na:number, mg:number, ct:number, wallaceBelow:number}}
+ * ctDivisor: 엔트로피 항 R·ln(Ct/ctDivisor). 4 = 비자기상보 표준 관례(SantaLucia), 1 = primerdigital 사이트 관례.
+ * @returns {{na:number, mg:number, ct:number, wallaceBelow:number, ctDivisor:number}}
  */
 function makeConditions(input = TM_PRESETS.bioneer) {
   const na_mM = Number(input.na_mM ?? 50);
@@ -1275,6 +1278,7 @@ function makeConditions(input = TM_PRESETS.bioneer) {
     mg: Math.max(0, mg_mM) / 1000,
     ct: Math.max(1e-12, oligo_nM) * 1e-9,
     wallaceBelow: Number.isFinite(wallaceBelow) ? wallaceBelow : 0,
+    ctDivisor: [1, 2, 4].includes(Number(input.ctDivisor)) ? Number(input.ctDivisor) : 4,
   };
 }
 
@@ -1363,7 +1367,7 @@ function saltCorrectionTerm({ fGC, length, na, mg }) {
 }
 
 /**
- * 올리고 Tm (°C). 비자기상보 이중가닥 가정(Ct/4).
+ * 올리고 Tm (°C). 엔트로피 항은 R·ln(Ct/ctDivisor) (기본 Ct/4, primerdigital 프리셋은 Ct).
  * 길이 < wallaceBelow 이면 Wallace rule. 길이 < 2 이면 NaN.
  */
 function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
@@ -1373,8 +1377,8 @@ function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
   if (n < (cond.wallaceBelow || 0)) return wallaceTm(s);
 
   const { dH, dS } = nearestNeighborSums(s);
-  const ctQuarter = cond.ct / 4;
-  let invTm = (dS + GAS_CONSTANT * Math.log(ctQuarter)) / (dH * 1000);
+  const ctEff = cond.ct / (cond.ctDivisor || 4);
+  let invTm = (dS + GAS_CONSTANT * Math.log(ctEff)) / (dH * 1000);
   invTm += saltCorrectionTerm({ fGC: gcFraction(s), length: n, na: cond.na, mg: cond.mg });
   return 1 / invTm - 273.15;
 }
@@ -1462,8 +1466,9 @@ function windowVocabulary(seq) {
  *
  * 사양 §4.3
  *  - 짧은 쪽 서열의 모든 5-mer 를 색인 → 긴 쪽의 역상보 가닥을 스캔해 시드 일치 탐색
- *  - 시드에서 양방향 확장, 미스매치 1개까지 허용, 상보 염기쌍 수를 센다
- *  - 상보쌍 수 ≥ threshold(기본 6) → 다이머 판정. 3′ 말단 관여 또는 ≥ 8 이면 가중치(정보용)
+ *  - 시드에서 양방향 확장해 상보 염기쌍 수를 센다. options.mismatch (기본 0) 가 1 이면 미스매치 1개를 건너뛰며 확장(엄격 모드)
+ *  - 상보쌍 수 ≥ threshold(기본 7) → 다이머 판정. 3′ 말단 관여 또는 ≥ 8 이면 가중치(정보용)
+ *  - 기본값 근거: primerdigital 사이트는 6 bp 회문·5+1 형태를 통과시키므로(bsr1_snp913 실측) 정확 연속 상보 기준이 사이트와 맞다
  */
 
 
@@ -1483,13 +1488,13 @@ function onlyAcgtUpper(seq) {
  * match[k] = true 이면 k번째 쌍이 상보.
  * 반환: { matches, start, end } (end 는 exclusive), 시드 길이 이상의 연속 일치가 없으면 null
  */
-function bestSegmentOnDiagonal(match, seedLen) {
+function bestSegmentOnDiagonal(match, seedLen, maxMismatch = 0) {
   const n = match.length;
   let best = null;
   let left = 0, mismatches = 0;
   for (let right = 0; right < n; right++) {
     if (!match[right]) mismatches++;
-    while (mismatches > 1) {
+    while (mismatches > maxMismatch) {
       if (!match[left]) mismatches--;
       left++;
     }
@@ -1515,8 +1520,9 @@ function bestSegmentOnDiagonal(match, seedLen) {
  *             aStart:number, aEnd:number, bStart:number, bEnd:number } | null}
  */
 function findDimer(seqA, seqB, options = {}) {
-  const threshold = options.threshold ?? 6;
+  const threshold = options.threshold ?? 7;
   const seedLen = options.seed ?? 5;
+  const maxMismatch = options.mismatch ? 1 : 0;
   const a = onlyAcgtUpper(seqA);
   const b = onlyAcgtUpper(seqB);
   if (a.length < seedLen || b.length < seedLen) return null;
@@ -1549,7 +1555,7 @@ function findDimer(seqA, seqB, options = {}) {
       const iEnd = Math.min(short.length, longRc.length - diag);
       const match = [];
       for (let k = iStart; k < iEnd; k++) match.push(short[k] !== '?' && short[k] === longRc[k + diag]);
-      const seg = bestSegmentOnDiagonal(match, seedLen);
+      const seg = bestSegmentOnDiagonal(match, seedLen, maxMismatch);
       if (!seg) continue;
       const sStart = iStart + seg.start, sEnd = iStart + seg.end;      // short 좌표
       const rStart = sStart + diag, rEnd = sEnd + diag;                 // longRc 좌표
@@ -1924,30 +1930,34 @@ const DEFAULT_TAILS = Object.freeze([
 const DEFAULT_PARAMS = Object.freeze({
   preset: 'bioneer',                       // 'bioneer' | 'primerdigital' | 'custom'
   custom: Object.freeze({ na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15 }),
-  aspMinLen: 18, aspMaxLen: 25,
-  commonMinLen: 18, commonMaxLen: 25,
-  tmMin: 57, tmMax: 62,
+  aspMinLen: 18, aspMaxLen: 28,       // primerdigital 사이트 기본(18–28)과 동일; AT-rich flank 에서 Tm 하한 도달용
+  commonMinLen: 18, commonMaxLen: 28,
+  tmMin: 57, tmMax: 62,                 // 바이오니어 기본. primerdigital 프리셋은 60–62 (PRESET_TM_WINDOW)
   tmDiffMax: 3,
   gcMin: 40, gcMax: 60,
   ampliconMin: 50, ampliconMax: 150, ampliconHardMax: 300,
   snpOffset: 1,
   endPattern: 'n',
   minLC: 70,
-  dimerThreshold: 6,
+  dimerThreshold: 7,                    // 정확 연속 상보 ≥ 7 bp 탈락, 6 bp 는 경고 (사이트 실측 기준)
+  dimerAllowMismatch: false,            // true 면 미스매치 1개를 건너뛰며 확장(엄격, 사양 §4.3 원문)
   dimerIncludeTail: true,
   maskRepeats: true,
   maskLowComplexity: true,
-  allowOverlap: false,
+  allowOverlap: true,                   // 사이트처럼 인접 후보도 모두 표시(점수순/위치순 정렬은 UI)
   overlapTol: 10,
   useTails: true,
   tails: DEFAULT_TAILS,
   bisulfite: false,
-  maxCommon: 12,
-  maxReport: 60,
+  maxCommon: 20,
+  maxReport: 80,
   cropMode: 'rice',            // 'rice' | 'wheat' | 'generic'
   homoeologs: Object.freeze([]), // [{name, seq}] 상동유전체 서열 (다배체 특이성 검사)
   specificityMaxMismatch: 8,
 });
+
+/** 프리셋별 기본 Tm 창 (°C). primerdigital 사이트 기본은 60–62 */
+const PRESET_TM_WINDOW = Object.freeze({ bioneer: Object.freeze([57, 62]), primerdigital: Object.freeze([60, 62]) });
 
 function mergeParams(params = {}) {
   const p = { ...DEFAULT_PARAMS, ...params };
@@ -2122,8 +2132,9 @@ function designStrand(oriented, p, cond) {
     const tail = tailsFor[i];
     const full = (tail ? tail.seq : '') + bodyDisplay;
     const oligoForDimer = p.dimerIncludeTail ? full : body;
-    const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold });
+    const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold, mismatch: p.dimerAllowMismatch });
     if (self && self.isDimer) aspWarnings.push(`자기 다이머 (${self.matches} bp 상보${self.threePrimeA || self.threePrimeB ? ', 3′ 말단 관여' : ''})`);
+    else if (self && self.matches >= p.dimerThreshold - 1) aspWarnings.push(`자기 상보 ${self.matches} bp (임계 ${p.dimerThreshold} 미만, 참고)`);
 
     let specificity = null;
     if (p.homoeologs.length) {
@@ -2135,7 +2146,8 @@ function designStrand(oriented, p, cond) {
     const fwd = toForward(i, a, e);
     return {
       kind: 'ASP', dir, specificity,
-      id: `${dir}_${fwd.start}-${fwd.end}_ASP_${al.label}`,
+      // ID 좌표는 5′→3′ 순서 (역가닥이면 큰 수가 먼저) — primerdigital 표기와 동일
+      id: dir === 'R' ? `R_${fwd.end}-${fwd.start}_ASP_${al.label}` : `F_${fwd.start}-${fwd.end}_ASP_${al.label}`,
       alleleIndex: i, allele: al.seq, alleleLabel: al.label,
       tail: tail ? { ...tail } : null,
       body, bodyDisplay, full, fullUpper: full.toUpperCase(),
@@ -2154,7 +2166,7 @@ function designStrand(oriented, p, cond) {
   const live = asps.filter(Boolean);
   for (let i = 0; i < live.length; i++) {
     for (let j = i + 1; j < live.length; j++) {
-      const r = findDimer(live[i].oligoForDimer, live[j].oligoForDimer, { threshold: p.dimerThreshold });
+      const r = findDimer(live[i].oligoForDimer, live[j].oligoForDimer, { threshold: p.dimerThreshold, mismatch: p.dimerAllowMismatch });
       if (r && r.isDimer) {
         live[i].crossDimer.push({ with: live[j].id, matches: r.matches });
         live[j].crossDimer.push({ with: live[i].id, matches: r.matches });
@@ -2201,17 +2213,21 @@ function designStrand(oriented, p, cond) {
     if (findSimpleRepeat(primer)) { stats.rejected.repeat++; continue; }
     const lc = linguisticComplexity(primer);
     if (lc < p.minLC) { stats.rejected.lc++; continue; }
-    const self = findSelfDimer(primer, { threshold: p.dimerThreshold });
+    const dimerOpt = { threshold: p.dimerThreshold, mismatch: p.dimerAllowMismatch };
+    const self = findSelfDimer(primer, dimerOpt);
     if (self && self.isDimer) { stats.rejected.selfDimer++; continue; }
-    let cross = false;
+    let cross = false, crossNear = 0;
     for (const asp of live) {
-      const r = findDimer(primer, asp.oligoForDimer, { threshold: p.dimerThreshold });
+      const r = findDimer(primer, asp.oligoForDimer, dimerOpt);
       if (r && r.isDimer) { cross = true; break; }
+      if (r && r.matches > crossNear) crossNear = r.matches;
     }
     if (cross) { stats.rejected.crossDimer++; continue; }
 
     const gc = gcPercent(primer);
     const cWarnings = [];
+    if (self && self.matches >= p.dimerThreshold - 1) cWarnings.push(`자기 상보 ${self.matches} bp (참고)`);
+    if (crossNear >= p.dimerThreshold - 1) cWarnings.push(`ASP 와 상보 ${crossNear} bp (참고)`);
     if (gc < p.gcMin || gc > p.gcMax) cWarnings.push(`GC ${gc.toFixed(1)}% 가 ${fmtRange(p.gcMin, p.gcMax, '%')} 범위 밖`);
 
     // amplicon (대립유전자별)
@@ -2223,7 +2239,7 @@ function designStrand(oriented, p, cond) {
       const tailLen = asp.tail ? asp.tail.seq.length : 0;
       const size = right - asp.start0 + tailLen;
       const seq = (asp.tail ? asp.tail.seq : '') + templates[i].T.slice(asp.start0, right);
-      return { label: al.label, size, tm: ampliconTm(seq, cond) };
+      return { label: al.label, size, sizeNoTail: size - tailLen, tm: ampliconTm(seq, cond) };
     }).filter(Boolean);
     const sizes = amplicons.map((a) => a.size);
     const minSize = Math.min(...sizes), maxSize = Math.max(...sizes);
@@ -2253,12 +2269,14 @@ function designStrand(oriented, p, cond) {
     const fwd = toForward(0, S0 + pos, S0 + pos + L);
     const cand = {
       kind: 'Common', dir: otherDir, specificity,
-      id: `${otherDir}_${fwd.start}-${fwd.end}`,
+      id: otherDir === 'R' ? `R_${fwd.end}-${fwd.start}` : `F_${fwd.start}-${fwd.end}`,
       seq: primer.toLowerCase(), seqUpper: primer, length: L,
       tm, gc, lc, pos,
       start0: S0 + pos, end0: S0 + pos + L,
       start: fwd.start, end: fwd.end,
       amplicons, ampliconLabel: amplicons.map((a) => `${a.label}:${a.size}`).join(' '),
+      ampliconLabelNoTail: amplicons.map((a) => `${a.label}:${a.sizeNoTail}`).join(' '),
+      tailLen: Math.max(0, ...live.map((a) => (a.tail ? a.tail.seq.length : 0))),
       ampliconTm: amplicons.length ? amplicons[0].tm : NaN,
       ampState, tmDiff, score, warnings: cWarnings,
     };
@@ -2450,7 +2468,7 @@ function buildWorkbookData(results, o = {}) {
       if (common) {
         const name = `${res.name}_${common.id}`;
         order.push([name, common.seqUpper, common.dir === 'F' ? 'Forward' : 'Reverse', common.length, 'Common', scale]);
-        basis.push([res.name, common.id, cropText, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), specText(common), strategy, common.warnings.join('; ')]);
+        basis.push([res.name, common.id, cropText, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel + (common.tailLen ? ` (tail 제외 ${common.ampliconLabelNoTail})` : ''), f1(common.ampliconTm), specText(common), strategy, common.warnings.join('; ')]);
       }
     }
   }
@@ -2761,9 +2779,9 @@ function generateFillers(count = 6, len = 60, seed = 20251021) {
     const gc = Array.from(s).filter((b) => b === 'G' || b === 'C').length / len;
     if (gc < 0.45 || gc > 0.55) continue;
     if (hasRun(s, 4) || findSimpleRepeat(s)) continue;
-    const self = findSelfDimer(s, { threshold: 6 });
+    const self = findSelfDimer(s, { threshold: 7 });
     if (self && self.isDimer) continue;
-    if (out.some((o) => { const r = findDimer(o, s, { threshold: 6 }); return r && r.isDimer; })) continue;
+    if (out.some((o) => { const r = findDimer(o, s, { threshold: 7 }); return r && r.isDimer; })) continue;
     out.push(s);
   }
   return out;
@@ -2794,7 +2812,7 @@ function dimerScore(oligo, others, threshold) {
 function applyAlleleSizing(set, common, o = {}) {
   const bandStep = o.bandStep ?? 20;
   const maxLen = o.maxLen ?? 45;
-  const threshold = o.dimerThreshold ?? 6;
+  const threshold = o.dimerThreshold ?? 7;
   const warnings = [];
   const base = (set.asps || []).filter(Boolean).map((a) => ({ ...a, warnings: [...a.warnings] }));
   if (!base.length) return { asps: [], products: [], filler: null, warnings: ['ASP 가 없습니다.'] };
@@ -3132,7 +3150,7 @@ function analyzePrimers(primers, o = {}) {
     const { tail, body } = detectTail(pr.seq, params.tails);
     const loc = record ? locateOnTemplate(body, record, o.maxMismatch ?? 2) : null;
     const role = tail ? 'ASP' : (loc ? (loc.coversVariant ? 'ASP' : 'Common') : '미확인');
-    const self = findSelfDimer(pr.seq, { threshold: params.dimerThreshold });
+    const self = findSelfDimer(pr.seq, { threshold: params.dimerThreshold, mismatch: params.dimerAllowMismatch });
     return {
       name: pr.name, full: pr.seq, tail, body,
       length: body.length, fullLength: pr.seq.length,
@@ -3147,7 +3165,7 @@ function analyzePrimers(primers, o = {}) {
   const pairs = [];
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
-      const r = findDimer(items[i].full, items[j].full, { threshold: params.dimerThreshold });
+      const r = findDimer(items[i].full, items[j].full, { threshold: params.dimerThreshold, mismatch: params.dimerAllowMismatch });
       if (r && r.isDimer) pairs.push({ a: i, b: j, matches: r.matches });
     }
   }
@@ -3751,6 +3769,7 @@ const ui = {
   analysis: null,
   tour: null,
   crop: 'rice',
+  commonSort: 'score',
 };
 const STORE_WELCOME = 'kasp-welcome-seen';
 const STORE_HOMOEOLOG = 'kasp-homoeologs';
@@ -3992,12 +4011,22 @@ function renderPresetDesc() {
     el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''}`;
   } else {
     const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
-    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''} — SantaLucia 1998 + Owczarzy 염 보정`;
+    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''}${t.ctDivisor === 1 ? ' · ln(Ct) 관례(사이트 실측과 ±0.05 °C 일치) · 기본 Tm 창 60–62' : ' · ln(Ct/4) 관례 · 기본 Tm 창 57–62'} — SantaLucia 1998 + Owczarzy 염 보정`;
   }
   qs('#customCond').hidden = p.preset !== 'custom';
 }
 function setPreset(value) {
+  const prevWin = PRESET_TM_WINDOW[ui.params.preset];
+  const nextWin = PRESET_TM_WINDOW[value];
   ui.params.preset = value;
+  // 이전 프리셋의 기본 Tm 창을 그대로 쓰고 있었다면 새 프리셋의 기본 창으로 바꾼다 (사용자 지정값은 유지)
+  if (prevWin && nextWin && ui.params.tmMin === prevWin[0] && ui.params.tmMax === prevWin[1] && (prevWin[0] !== nextWin[0] || prevWin[1] !== nextWin[1])) {
+    ui.params.tmMin = nextWin[0];
+    ui.params.tmMax = nextWin[1];
+    qsa('.num[data-param="tmMin"] input').forEach((i) => { i.value = nextWin[0]; });
+    qsa('.num[data-param="tmMax"] input').forEach((i) => { i.value = nextWin[1]; });
+    toast(`${presetLabelFor(ui.params)} 기본 Tm 창 ${nextWin[0]}–${nextWin[1]} °C 를 적용했습니다`);
+  }
   setSegment(qs('#presetSeg'), value === 'custom' ? '' : value);
   setSegment(qs('#presetSeg2'), value);
   renderPresetDesc();
@@ -4522,7 +4551,7 @@ function ampliconHtml(c, view) {
   if (ui.mode === 'sizing' && view.sizing) {
     return view.sizing.products.map((p) => `${escapeHtml(p.label)}:${p.size}`).join(' ');
   }
-  return escapeHtml(c.ampliconLabel);
+  return escapeHtml(c.ampliconLabel) + (c.tailLen ? ` <span class="muted small" title="tail 을 뺀 템플릿 구간 길이">(tail 제외 ${escapeHtml(c.ampliconLabelNoTail)})</span>` : '');
 }
 function renderMarkerTabs() {
   const box = qs('#markerTabs');
@@ -4602,8 +4631,12 @@ function renderCommonCard(res, set, view) {
   const card = qs('#commonCard');
   if (!set) { card.innerHTML = ''; return; }
   const p = res.params;
-  const list = set.commons.slice(0, p.maxCommon);
-  const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
+  const snpPos = res.record.s1.length + 1;
+  const ordered = ui.commonSort === 'pos'
+    ? set.commons.slice().sort((a, b) => Math.min(Math.abs(a.start - snpPos), Math.abs(a.end - snpPos)) - Math.min(Math.abs(b.start - snpPos), Math.abs(b.end - snpPos)) || a.start - b.start)
+    : set.commons;
+  const list = ordered.slice(0, p.maxCommon);
+  const rows = list.map((c) => { const i = set.commons.indexOf(c); return `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
       <td class="num muted rank">${c.rank}</td>
       <td class="id">${escapeHtml(c.id)}${specBadge(c)}</td>
       <td class="seq-cell">${seqHtml(c)}</td>
@@ -4614,19 +4647,14 @@ function renderCommonCard(res, set, view) {
       <td class="num" data-label="Amplicon"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
       <td class="num" data-label="ΔTm"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
       <td class="muted small note" title="${escapeHtml(c.warnings.join('; '))}">${escapeHtml(c.warnings.join('; '))}</td>
-    </tr>`).join('');
+    </tr>`; }).join('');
   card.innerHTML = `
-    <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2></div>
+    <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2>
+      <div class="segment" role="group" aria-label="정렬"><button type="button" data-sort="score" class="${ui.commonSort === 'score' ? 'on' : ''}">점수순</button><button type="button" data-sort="pos" class="${ui.commonSort === 'pos' ? 'on' : ''}">위치순 (변이에 가까운 순)</button></div></div>
     <div class="table-wrap"><table class="grid stackable">
       <thead><tr><th class="num">#</th><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">Amplicon (bp)</th><th class="num">ΔTm</th><th>비고</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="10" class="muted">후보 없음</td></tr>'}</tbody>
     </table></div>`;
-  card.addEventListener('click', (e) => {
-    const tr = e.target.closest('tr[data-common]');
-    if (!tr) return;
-    ui.commonPick[`${ui.marker}|${ui.dir}`] = Number(tr.dataset.common);
-    renderResults(false);
-  });
 }
 function renderReport(res, set) {
   const box = qs('#report');
@@ -4667,6 +4695,14 @@ function rerenderViewer() {
   lastViewerWidth = viewer.clientWidth;
 }
 function bindResults() {
+  qs('#commonCard').addEventListener('click', (e) => {
+    const sortBtn = e.target.closest('button[data-sort]');
+    if (sortBtn) { ui.commonSort = sortBtn.dataset.sort; renderResults(false); return; }
+    const tr = e.target.closest('tr[data-common]');
+    if (!tr) return;
+    ui.commonPick[`${ui.marker}|${ui.dir}`] = Number(tr.dataset.common);
+    renderResults(false);
+  });
   qs('#viewerCard').addEventListener('toggle', () => { if (qs('#viewerCard').open && ui.results.length) rerenderViewer(); });
   qs('#markerTabs').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-marker]');

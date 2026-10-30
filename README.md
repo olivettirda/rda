@@ -66,23 +66,23 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 
 | 항목 | 기본 | 비고 |
 |---|---|---|
-| Tm 프리셋 | **바이오니어** (Na⁺ 50 mM, Mg²⁺ 0, 올리고 250 nM, 15 nt 미만 Wallace rule) | 상단바에서 primerdigital(55 mM / 1 mM / 200 nM, 약 +5 °C)로 토글, 사용자 정의 가능 |
-| ASP / Common 길이 | 18–25 nt (tail 제외) | |
-| Tm | 57–62 °C, ASP–Common 차 ≤ 3 °C | **항상 tail 을 뗀 본체로 계산** |
+| Tm 프리셋 | **바이오니어** (Na⁺ 50 mM, Mg²⁺ 0, 올리고 250 nM, 15 nt 미만 Wallace rule, ln(Ct/4)) | 상단바에서 primerdigital(55 mM / 1 mM / 200 nM, **ln(Ct) 관례** — 사이트 실측 38개와 ±0.05 °C 일치)로 토글, 사용자 정의 가능 |
+| ASP / Common 길이 | 18–28 nt (tail 제외) | primerdigital 사이트 기본과 동일. Tm 하한에 드는 가장 짧은 길이를 고르므로 보통 18–25 에서 끝남 |
+| Tm | 바이오니어 57–62 °C, primerdigital 60–62 °C (프리셋을 바꾸면 기본 창이 따라 바뀜), ASP–Common 차 ≤ 3 °C | **항상 tail 을 뗀 본체로 계산** |
 | GC | 40–60 % | 벗어나면 경고 |
 | Amplicon | 50–150 bp 권장, 300 bp 최대 (tail 포함) | 벗어나면 경고 색 |
 | Tail | FAM `GAAGGTGACCAAGTTCATGCT` → 1번 대립유전자, HEX `GAAGGTCGGAGTCAACGGATT` → 2번 | 편집 가능, 3대립 이상이면 tail 없이 경고 |
-| 고급 | snpOffset 1, 3′ 패턴 `n`, LC ≥ 70 %, 다이머 임계 6, 반복·저복잡도 마스킹 ON, 다이머 검사에 tail 포함 ON, bisulfite OFF | |
+| 고급 | snpOffset 1, 3′ 패턴 `n`, LC ≥ 70 %, 다이머 임계 7 bp(정확 연속 상보, 6 bp 는 경고), 미스매치 허용 OFF, 반복·저복잡도 마스킹 ON, 다이머 검사에 tail 포함 ON, bisulfite OFF | 다이머 기준은 사이트 실측(6 bp 회문·5+1 통과)에 맞춤 |
 
 **판독 방식** 탭에서 겔(Allele sizing)을 고르면 tail 대신 5′ filler 로 대립유전자별 산물 길이를 사다리(아가로스 20 / PAGE 5 / CE 2 bp)로 만듭니다.
 
 ## 3. 원리 요약
 
-- **Tm**: SantaLucia (1998) 통합 최근접이웃 ΔH/ΔS + 개시 항 + 자기상보 보정, `1/Tm = (ΔS + R·ln(Ct/4))/ΔH`. 염 보정은 Mg²⁺ 가 없거나 √[Mg]/[Na] < 0.22 이면 Owczarzy 2004(1가 양이온), 그 외 Owczarzy 2008(Mg²⁺, R < 6 이면 Na 경쟁 계수). 15 nt 미만(바이오니어)은 Wallace rule `2(A+T)+4(G+C)`. 기준값은 `node reference/tm.js` 와 ±0.05 °C 이내.
+- **Tm**: SantaLucia (1998) 통합 최근접이웃 ΔH/ΔS + 개시 항 + 자기상보 보정, `1/Tm = (ΔS + R·ln(Ct/d))/ΔH` (d = 4 표준 관례, primerdigital 프리셋은 d = 1 — 사이트 출력 38개 프라이머로 역산해 확인). 염 보정은 Mg²⁺ 가 없거나 √[Mg]/[Na] < 0.22 이면 Owczarzy 2004(1가 양이온), 그 외 Owczarzy 2008(Mg²⁺, R < 6 이면 Na 경쟁 계수). 15 nt 미만(바이오니어)은 Wallace rule `2(A+T)+4(G+C)`. 기준값은 `node reference/tm.js` 와 ±0.05 °C 이내.
 - **마스킹**: 서열과 역상보 가닥에서 2회 이상 나오는 15-mer, 17 nt 창에서 2-mer+3-mer 어휘 < 14 가 21 nt 이상 이어지는 저복잡도 블록, 주변 IUPAC, 제외구역.
 - **ASP**: 대립유전자별 `allele + s3` 를 열 단위로 비교해 차이가 최대인 열을 3′ 말단으로 잡고, 길이를 늘리며 Tm 하한에 드는 가장 짧은 길이를 채택. 변이 구간 대문자, flank 소문자, 5′ 에 tail.
 - **Common**: 반대 가닥의 s3 구간을 끝에서 변이 쪽으로 스캔. 마스크 → 3′ 패턴 → Tm → 단순반복(GGGG, CCCCC, AAAAA, TTTTT, GCGCGC, CGCGCG, ATATAT, TATATA) → LC → 자기 다이머 → ASP 와 cross-dimer 순으로 걸러내고, 겹치는 후보는 LC 높은 쪽만 남김. amplicon 권장 범위·Tm 차·GC·LC 로 점수화해 정렬.
-- **다이머**: 짧은 쪽 5-mer 색인 → 긴 쪽 역상보 스캔, 시드에서 양방향 확장(미스매치 1개 허용), 상보쌍 ≥ 6 이면 다이머. 3′ 말단 관여·≥ 8 은 가중치.
+- **다이머**: 짧은 쪽 5-mer 색인 → 긴 쪽 역상보 스캔, 시드에서 양방향 확장해 정확 연속 상보쌍을 센다. ≥ 7 이면 다이머(탈락), 6 은 경고. 고급 설정에서 미스매치 1개 허용(엄격)을 켤 수 있다. 3′ 말단 관여·≥ 8 은 가중치.
 - **LC%**: `floor(100 · (1-mer+2-mer+3-mer 종류 수) / (4 + min(N−1,16) + min(N−2,64)))`.
 
 ## 4. 개발
@@ -129,6 +129,9 @@ git push origin main
 push 는 GitHub 로그인 창이 뜰 수 있으니 대화형 터미널에서 실행합니다.
 
 ## 5. 구현상 판단 (확인 요망)
+
+- **primerdigital 보정(2026-10-30)**: 사이트의 bsr1_snp913 결과(38개 프라이머)와 비교하니 GC%·LC% 는 완전히 같고 Tm 만 일정하게 1.4–2.3 °C 낮았습니다. 엔트로피 항을 ln(Ct/4) 대신 ln(Ct) 로 두면 전부 ±0.05 °C 안에 들어와 그렇게 맞췄습니다. 바이오니어 프리셋은 실측값이 없어 ln(Ct/4) 관례를 유지했습니다 — 바이오니어 계산기 값이 있으면 같은 방법으로 맞출 수 있습니다.
+- 프라이머 ID 의 좌표는 5′→3′ 순서(역가닥은 `R_243-217` 처럼 큰 수가 먼저)로 사이트와 같게 표기합니다. Common 후보는 기본적으로 인접 후보까지 모두 보여 주고(겹침 허용), 표에서 점수순/위치순을 고를 수 있습니다. amplicon 은 tail 포함 길이와 함께 tail 제외 길이도 표시합니다(사이트는 tail 없이 설계하면 tail 제외 길이만 보여 줌).
 
 - **다이머 검사에 tail 포함**이 기본입니다 (실제 합성되는 올리고 기준). 고급 설정에서 끌 수 있습니다.
 - ASP 간 cross-dimer 는 사양대로 **경고만** 하고 LC 값은 실제 값을 유지합니다 (primerdigital 은 LC=0 으로 표시).

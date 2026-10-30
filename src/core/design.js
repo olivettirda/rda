@@ -26,30 +26,34 @@ export const DEFAULT_TAILS = Object.freeze([
 export const DEFAULT_PARAMS = Object.freeze({
   preset: 'bioneer',                       // 'bioneer' | 'primerdigital' | 'custom'
   custom: Object.freeze({ na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15 }),
-  aspMinLen: 18, aspMaxLen: 25,
-  commonMinLen: 18, commonMaxLen: 25,
-  tmMin: 57, tmMax: 62,
+  aspMinLen: 18, aspMaxLen: 28,       // primerdigital 사이트 기본(18–28)과 동일; AT-rich flank 에서 Tm 하한 도달용
+  commonMinLen: 18, commonMaxLen: 28,
+  tmMin: 57, tmMax: 62,                 // 바이오니어 기본. primerdigital 프리셋은 60–62 (PRESET_TM_WINDOW)
   tmDiffMax: 3,
   gcMin: 40, gcMax: 60,
   ampliconMin: 50, ampliconMax: 150, ampliconHardMax: 300,
   snpOffset: 1,
   endPattern: 'n',
   minLC: 70,
-  dimerThreshold: 6,
+  dimerThreshold: 7,                    // 정확 연속 상보 ≥ 7 bp 탈락, 6 bp 는 경고 (사이트 실측 기준)
+  dimerAllowMismatch: false,            // true 면 미스매치 1개를 건너뛰며 확장(엄격, 사양 §4.3 원문)
   dimerIncludeTail: true,
   maskRepeats: true,
   maskLowComplexity: true,
-  allowOverlap: false,
+  allowOverlap: true,                   // 사이트처럼 인접 후보도 모두 표시(점수순/위치순 정렬은 UI)
   overlapTol: 10,
   useTails: true,
   tails: DEFAULT_TAILS,
   bisulfite: false,
-  maxCommon: 12,
-  maxReport: 60,
+  maxCommon: 20,
+  maxReport: 80,
   cropMode: 'rice',            // 'rice' | 'wheat' | 'generic'
   homoeologs: Object.freeze([]), // [{name, seq}] 상동유전체 서열 (다배체 특이성 검사)
   specificityMaxMismatch: 8,
 });
+
+/** 프리셋별 기본 Tm 창 (°C). primerdigital 사이트 기본은 60–62 */
+export const PRESET_TM_WINDOW = Object.freeze({ bioneer: Object.freeze([57, 62]), primerdigital: Object.freeze([60, 62]) });
 
 export function mergeParams(params = {}) {
   const p = { ...DEFAULT_PARAMS, ...params };
@@ -224,8 +228,9 @@ export function designStrand(oriented, p, cond) {
     const tail = tailsFor[i];
     const full = (tail ? tail.seq : '') + bodyDisplay;
     const oligoForDimer = p.dimerIncludeTail ? full : body;
-    const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold });
+    const self = findSelfDimer(oligoForDimer, { threshold: p.dimerThreshold, mismatch: p.dimerAllowMismatch });
     if (self && self.isDimer) aspWarnings.push(`자기 다이머 (${self.matches} bp 상보${self.threePrimeA || self.threePrimeB ? ', 3′ 말단 관여' : ''})`);
+    else if (self && self.matches >= p.dimerThreshold - 1) aspWarnings.push(`자기 상보 ${self.matches} bp (임계 ${p.dimerThreshold} 미만, 참고)`);
 
     let specificity = null;
     if (p.homoeologs.length) {
@@ -237,7 +242,8 @@ export function designStrand(oriented, p, cond) {
     const fwd = toForward(i, a, e);
     return {
       kind: 'ASP', dir, specificity,
-      id: `${dir}_${fwd.start}-${fwd.end}_ASP_${al.label}`,
+      // ID 좌표는 5′→3′ 순서 (역가닥이면 큰 수가 먼저) — primerdigital 표기와 동일
+      id: dir === 'R' ? `R_${fwd.end}-${fwd.start}_ASP_${al.label}` : `F_${fwd.start}-${fwd.end}_ASP_${al.label}`,
       alleleIndex: i, allele: al.seq, alleleLabel: al.label,
       tail: tail ? { ...tail } : null,
       body, bodyDisplay, full, fullUpper: full.toUpperCase(),
@@ -256,7 +262,7 @@ export function designStrand(oriented, p, cond) {
   const live = asps.filter(Boolean);
   for (let i = 0; i < live.length; i++) {
     for (let j = i + 1; j < live.length; j++) {
-      const r = findDimer(live[i].oligoForDimer, live[j].oligoForDimer, { threshold: p.dimerThreshold });
+      const r = findDimer(live[i].oligoForDimer, live[j].oligoForDimer, { threshold: p.dimerThreshold, mismatch: p.dimerAllowMismatch });
       if (r && r.isDimer) {
         live[i].crossDimer.push({ with: live[j].id, matches: r.matches });
         live[j].crossDimer.push({ with: live[i].id, matches: r.matches });
@@ -303,17 +309,21 @@ export function designStrand(oriented, p, cond) {
     if (findSimpleRepeat(primer)) { stats.rejected.repeat++; continue; }
     const lc = linguisticComplexity(primer);
     if (lc < p.minLC) { stats.rejected.lc++; continue; }
-    const self = findSelfDimer(primer, { threshold: p.dimerThreshold });
+    const dimerOpt = { threshold: p.dimerThreshold, mismatch: p.dimerAllowMismatch };
+    const self = findSelfDimer(primer, dimerOpt);
     if (self && self.isDimer) { stats.rejected.selfDimer++; continue; }
-    let cross = false;
+    let cross = false, crossNear = 0;
     for (const asp of live) {
-      const r = findDimer(primer, asp.oligoForDimer, { threshold: p.dimerThreshold });
+      const r = findDimer(primer, asp.oligoForDimer, dimerOpt);
       if (r && r.isDimer) { cross = true; break; }
+      if (r && r.matches > crossNear) crossNear = r.matches;
     }
     if (cross) { stats.rejected.crossDimer++; continue; }
 
     const gc = gcPercent(primer);
     const cWarnings = [];
+    if (self && self.matches >= p.dimerThreshold - 1) cWarnings.push(`자기 상보 ${self.matches} bp (참고)`);
+    if (crossNear >= p.dimerThreshold - 1) cWarnings.push(`ASP 와 상보 ${crossNear} bp (참고)`);
     if (gc < p.gcMin || gc > p.gcMax) cWarnings.push(`GC ${gc.toFixed(1)}% 가 ${fmtRange(p.gcMin, p.gcMax, '%')} 범위 밖`);
 
     // amplicon (대립유전자별)
@@ -325,7 +335,7 @@ export function designStrand(oriented, p, cond) {
       const tailLen = asp.tail ? asp.tail.seq.length : 0;
       const size = right - asp.start0 + tailLen;
       const seq = (asp.tail ? asp.tail.seq : '') + templates[i].T.slice(asp.start0, right);
-      return { label: al.label, size, tm: ampliconTm(seq, cond) };
+      return { label: al.label, size, sizeNoTail: size - tailLen, tm: ampliconTm(seq, cond) };
     }).filter(Boolean);
     const sizes = amplicons.map((a) => a.size);
     const minSize = Math.min(...sizes), maxSize = Math.max(...sizes);
@@ -355,12 +365,14 @@ export function designStrand(oriented, p, cond) {
     const fwd = toForward(0, S0 + pos, S0 + pos + L);
     const cand = {
       kind: 'Common', dir: otherDir, specificity,
-      id: `${otherDir}_${fwd.start}-${fwd.end}`,
+      id: otherDir === 'R' ? `R_${fwd.end}-${fwd.start}` : `F_${fwd.start}-${fwd.end}`,
       seq: primer.toLowerCase(), seqUpper: primer, length: L,
       tm, gc, lc, pos,
       start0: S0 + pos, end0: S0 + pos + L,
       start: fwd.start, end: fwd.end,
       amplicons, ampliconLabel: amplicons.map((a) => `${a.label}:${a.size}`).join(' '),
+      ampliconLabelNoTail: amplicons.map((a) => `${a.label}:${a.sizeNoTail}`).join(' '),
+      tailLen: Math.max(0, ...live.map((a) => (a.tail ? a.tail.seq.length : 0))),
       ampliconTm: amplicons.length ? amplicons[0].tm : NaN,
       ampState, tmDiff, score, warnings: cWarnings,
     };
