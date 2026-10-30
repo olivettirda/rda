@@ -155,7 +155,7 @@ test('primerdigital 프리셋은 같은 서열에서 Tm 이 더 높게 계산', 
   const body = b.forward.asps[0].body;
   const tmB = meltingTemp(body, makeConditions(TM_PRESETS.bioneer));
   const tmP = meltingTemp(body, makeConditions(TM_PRESETS.primerdigital));
-  assert.ok(tmP > tmB + 3);
+  assert.ok(tmP > tmB, `${tmP} vs ${tmB}`);
   assert.ok(pd.forward.asps[0].length <= b.forward.asps[0].length);
 });
 

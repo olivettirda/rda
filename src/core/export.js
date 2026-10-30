@@ -143,6 +143,22 @@ export function fmt0(x) { return f0(x); }
 export const BIONEER_SHEET_NAME = '바이오니아 Oligo(Tube) 업로드 양식';
 export const BIONEER_SCALES = Object.freeze(['25 nmole', '50 nmole', '200 nmole', '1000 nmole', '10000 nmole', '15000 nmole']);
 export const BIONEER_PURIFICATIONS = Object.freeze(['BioRP', 'PAGE', 'HPLC']);
+/** 합성 scale 별 주문 가능 길이(mer) — 바이오니어 표준 올리고 가격표(2026-10 확인) */
+export const BIONEER_SCALE_RANGES = Object.freeze({
+  '25 nmole': Object.freeze([15, 34]),
+  '50 nmole': Object.freeze([10, 75]),
+  '200 nmole': Object.freeze([5, 110]),
+  '1000 nmole': Object.freeze([5, 130]),
+  '10000 nmole': Object.freeze([5, 50]),
+  '15000 nmole': Object.freeze([5, 50]),
+});
+/** 길이에 맞는 scale: 원하는 scale 이 길이를 허용하면 그대로, 아니면 허용하는 가장 작은 scale(25→50→200→1000) */
+export function bioneerScaleFor(length, preferred) {
+  const ok = (sc) => { const r = BIONEER_SCALE_RANGES[sc]; return r && length >= r[0] && length <= r[1]; };
+  if (ok(preferred)) return { scale: preferred, adjusted: false };
+  for (const sc of ['25 nmole', '50 nmole', '200 nmole', '1000 nmole']) if (ok(sc)) return { scale: sc, adjusted: sc !== preferred, from: preferred };
+  return { scale: preferred, adjusted: false, unsupported: true };
+}
 export const BIONEER_HEADER = Object.freeze(['Oligo NAME', 'Scale', 'Purification', "SEQUENCE (5' --> 3')", '', '작성방법']);
 const BIONEER_GUIDE = Object.freeze([
   'A 열 : Oligo Name',
@@ -182,7 +198,9 @@ export function bioneerOrderItems(results, o = {}) {
     const s = bioneerSequence(seq);
     if (!s || seen.has(n + '\t' + s)) return;
     seen.add(n + '\t' + s);
-    items.push({ name: n, scale: sc, purification: pu, seq: s, purpose });
+    const fit = o.autoScale === false ? { scale: sc, adjusted: false } : bioneerScaleFor(s.length, sc);
+    const note = fit.unsupported ? `${s.length} nt 는 표준 올리고 범위 밖` : fit.adjusted ? `${s.length} nt 는 ${fit.from} 불가 → ${fit.scale}` : '';
+    items.push({ name: n, scale: fit.scale, purification: pu, seq: s, purpose, length: s.length, adjusted: !!fit.adjusted, note });
   };
   for (const res of results) {
     if (res.error) continue;

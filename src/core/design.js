@@ -25,7 +25,7 @@ export const DEFAULT_TAILS = Object.freeze([
 /** 기본 파라미터 (사양 §9 + 사용자 표준) */
 export const DEFAULT_PARAMS = Object.freeze({
   preset: 'bioneer',                       // 'bioneer' | 'primerdigital' | 'custom'
-  custom: Object.freeze({ na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15 }),
+  custom: Object.freeze({ na_mM: 50, mg_mM: 1.5, dntp_mM: 1.0, oligo_nM: 50, wallaceBelow: 15, saltMethod: 'santalucia', ctDivisor: 4 }),
   aspMinLen: 18, aspMaxLen: 28,       // primerdigital 사이트 기본(18–28)과 동일; AT-rich flank 에서 Tm 하한 도달용
   commonMinLen: 18, commonMaxLen: 28,
   tmMin: 57, tmMax: 62,                 // 바이오니어 기본. primerdigital 프리셋은 60–62 (PRESET_TM_WINDOW)

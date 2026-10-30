@@ -39,7 +39,7 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 
 ### 바이오니어 업로드 양식
 
-내보내기 탭의 **바이오니어 업로드 양식** 카드에서 Scale(25–15000 nmole)·Purification(BioRP/PAGE/HPLC)을 ASP·Common 별로 고르고 `.xlsx` 를 받으면, 바이오니어 공식 양식 `Upload_Bioneer_DNA.xls` 와 같은 시트명·열(Oligo NAME · Scale · Purification · SEQUENCE 5′→3′)·드롭다운으로 저장됩니다. 이름의 `#` `|` 는 제거되고 서열은 tail 포함 전체 염기만 대문자로 들어갑니다. 주문 페이지가 `.xls` 만 받으면 엑셀에서 "Excel 97-2003 (*.xls)" 로 다시 저장해 올리세요. '복사 후 붙여넣기' 입력창용 TSV 도 복사할 수 있습니다.
+내보내기 탭의 **바이오니어 업로드 양식** 카드에서 Scale(25–15000 nmole)·Purification(BioRP/PAGE/HPLC)을 ASP·Common 별로 고르고 `.xlsx` 를 받으면, 바이오니어 공식 양식 `Upload_Bioneer_DNA.xls` 와 같은 시트명·열(Oligo NAME · Scale · Purification · SEQUENCE 5′→3′)·드롭다운으로 저장됩니다. 이름의 `#` `|` 는 제거되고 서열은 tail 포함 전체 염기만 대문자로 들어갑니다. 바이오니어 표준 올리고는 scale 별 길이 제한(25 nmole 15–34 mer, 50 nmole 10–75, 200 nmole 5–110, 1000 nmole 5–130)이 있어 tail 포함 ASP(≥ 40 nt)는 25 nmole 로 올리면 사이트에서 None 으로 바뀝니다 — 앱이 허용되는 가장 작은 scale 로 자동 조정하고 표시합니다. 주문 페이지가 `.xls` 만 받으면 엑셀에서 "Excel 97-2003 (*.xls)" 로 다시 저장해 올리세요. '복사 후 붙여넣기' 입력창용 TSV 도 복사할 수 있습니다.
 
 ### 반응형 레이아웃
 
@@ -70,7 +70,7 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 
 | 항목 | 기본 | 비고 |
 |---|---|---|
-| Tm 프리셋 | **바이오니어** (Na⁺ 50 mM, Mg²⁺ 0, 올리고 250 nM, 15 nt 미만 Wallace rule, ln(Ct/4)) | 상단바에서 primerdigital(55 mM / 1 mM / 200 nM, **ln(Ct) 관례** — 사이트 실측 38개와 ±0.05 °C 일치)로 토글, 사용자 정의 가능 |
+| Tm 프리셋 | **바이오니어** = 바이오니어 Tm 계산기·주문 페이지 ※Tm 과 동일 (Na⁺ 50 mM, Mg²⁺ 1.5 mM, dNTP 1.0 mM, 올리고 50 nM, SantaLucia 1998 염 보정 + Mg→Na 환산, 15 nt 미만 Wallace rule; 실측 16개 서열 일치) | 상단바에서 primerdigital(55 mM / 1 mM / 200 nM, Owczarzy 보정, **ln(Ct) 관례** — 사이트 실측 38개와 ±0.05 °C 일치)로 토글, 사용자 정의(염 보정 방식·dNTP·농도 관례 선택) 가능 |
 | ASP / Common 길이 | 18–28 nt (tail 제외) | primerdigital 사이트 기본과 동일. Tm 하한에 드는 가장 짧은 길이를 고르므로 보통 18–25 에서 끝남 |
 | Tm | 바이오니어 57–62 °C, primerdigital 60–62 °C (프리셋을 바꾸면 기본 창이 따라 바뀜), ASP–Common 차 ≤ 3 °C | **항상 tail 을 뗀 본체로 계산** |
 | GC | 40–60 % | 벗어나면 경고 |
@@ -134,7 +134,8 @@ push 는 GitHub 로그인 창이 뜰 수 있으니 대화형 터미널에서 실
 
 ## 5. 구현상 판단 (확인 요망)
 
-- **primerdigital 보정(2026-10-30)**: 사이트의 bsr1_snp913 결과(38개 프라이머)와 비교하니 GC%·LC% 는 완전히 같고 Tm 만 일정하게 1.4–2.3 °C 낮았습니다. 엔트로피 항을 ln(Ct/4) 대신 ln(Ct) 로 두면 전부 ±0.05 °C 안에 들어와 그렇게 맞췄습니다. 바이오니어 프리셋은 실측값이 없어 ln(Ct/4) 관례를 유지했습니다 — 바이오니어 계산기 값이 있으면 같은 방법으로 맞출 수 있습니다.
+- **primerdigital 보정(2026-10-30)**: 사이트의 bsr1_snp913 결과(38개 프라이머)와 비교하니 GC%·LC% 는 완전히 같고 Tm 만 일정하게 1.4–2.3 °C 낮았습니다. 엔트로피 항을 ln(Ct/4) 대신 ln(Ct) 로 두면 전부 ±0.05 °C 안에 들어와 그렇게 맞췄습니다.
+- **바이오니어 보정(2026-10-30)**: 바이오니어 주문 페이지의 ※Tm 은 [TM Calculator](https://zendto.bioneer.co.kr/calculateTm.html)와 같은 계산입니다 — SantaLucia 1998 NN + SantaLucia 염 보정(ΔS += 0.368·(N−1)·ln[K]), K = Na⁺ + 120·√(Mg²⁺ − dNTP) (von Ahsen 2001), 기본값 Na 50 mM · Mg 1.5 mM · dNTP 1.0 mM · 올리고 50 nM, 15 nt 미만 Wallace. 이 방식을 문헌 수식대로 구현해 계산기 실측 16개 서열(+ 다른 조건 10개)과 소수 1자리까지 일치시켰습니다(`reference/bioneer_tm_calculator.json`). 핸드오프에 적힌 "50 mM Na, 250 nM, Mg 없음" 조건은 계산기 기본값과 달라 더 이상 쓰지 않습니다(옛 조건은 사용자 정의에서 Owczarzy + 250 nM 로 재현 가능).
 - 프라이머 ID 의 좌표는 5′→3′ 순서(역가닥은 `R_243-217` 처럼 큰 수가 먼저)로 사이트와 같게 표기합니다. Common 후보는 기본적으로 인접 후보까지 모두 보여 주고(겹침 허용), 표에서 점수순/위치순을 고를 수 있습니다. amplicon 은 tail 포함 길이와 함께 tail 제외 길이도 표시합니다(사이트는 tail 없이 설계하면 tail 제외 길이만 보여 줌).
 
 - **다이머 검사에 tail 포함**이 기본입니다 (실제 합성되는 올리고 기준). 고급 설정에서 끌 수 있습니다.

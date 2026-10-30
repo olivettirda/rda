@@ -75,7 +75,7 @@ test('analyzePrimers: 설계 세트를 되먹이면 역할·amplicon·Tm 이 복
   assert.ok(Math.abs(out.items[0].tm - set.asps[0].tm) < 1e-9);
   assert.ok(Math.abs(out.items[2].tm - common.tm) < 1e-9);
   assert.equal(out.items[0].amplicons[0].size, common.amplicons[0].size);
-  assert.ok(out.items[0].tmAlt > out.items[0].tm + 3); // primerdigital 비교값
+  assert.ok(out.items[0].tmAlt > out.items[0].tm); // primerdigital 비교값은 바이오니어보다 높다
   const s = out.summary.suggested;
   for (const i of out.items) assert.ok(i.tm >= s.tmMin && i.tm <= s.tmMax, `${i.name} ${i.tm} in ${s.tmMin}-${s.tmMax}`);
   assert.ok(s.aspMinLen <= set.asps[0].length && s.aspMaxLen >= set.asps[1].length);
