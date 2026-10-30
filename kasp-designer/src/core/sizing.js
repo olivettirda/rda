@@ -41,9 +41,9 @@ export function generateFillers(count = 6, len = 60, seed = 20251021) {
     const gc = Array.from(s).filter((b) => b === 'G' || b === 'C').length / len;
     if (gc < 0.45 || gc > 0.55) continue;
     if (hasRun(s, 4) || findSimpleRepeat(s)) continue;
-    const self = findSelfDimer(s, { threshold: 6 });
+    const self = findSelfDimer(s, { threshold: 7 });
     if (self && self.isDimer) continue;
-    if (out.some((o) => { const r = findDimer(o, s, { threshold: 6 }); return r && r.isDimer; })) continue;
+    if (out.some((o) => { const r = findDimer(o, s, { threshold: 7 }); return r && r.isDimer; })) continue;
     out.push(s);
   }
   return out;
@@ -74,7 +74,7 @@ function dimerScore(oligo, others, threshold) {
 export function applyAlleleSizing(set, common, o = {}) {
   const bandStep = o.bandStep ?? 20;
   const maxLen = o.maxLen ?? 45;
-  const threshold = o.dimerThreshold ?? 6;
+  const threshold = o.dimerThreshold ?? 7;
   const warnings = [];
   const base = (set.asps || []).filter(Boolean).map((a) => ({ ...a, warnings: [...a.warnings] }));
   if (!base.length) return { asps: [], products: [], filler: null, warnings: ['ASP 가 없습니다.'] };

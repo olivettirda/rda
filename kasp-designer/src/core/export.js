@@ -117,7 +117,7 @@ export function buildWorkbookData(results, o = {}) {
       if (common) {
         const name = `${res.name}_${common.id}`;
         order.push([name, common.seqUpper, common.dir === 'F' ? 'Forward' : 'Reverse', common.length, 'Common', scale]);
-        basis.push([res.name, common.id, cropText, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel, f1(common.ampliconTm), specText(common), strategy, common.warnings.join('; ')]);
+        basis.push([res.name, common.id, cropText, genomicCoord(res, common.start, common.end), `${common.start}-${common.end}`, cond, f1(common.tm), f1(common.gc), common.lc, common.ampliconLabel + (common.tailLen ? ` (tail 제외 ${common.ampliconLabelNoTail})` : ''), f1(common.ampliconTm), specText(common), strategy, common.warnings.join('; ')]);
       }
     }
   }

@@ -71,7 +71,7 @@ test('단순 SNP: ASP 2개 + Common ≥1, 3′ 말단 = 변이, Tm 범위, ampli
     for (const c of set.commons) {
       assert.ok(c.tm >= rules.common_tm_range[0] && c.tm <= rules.common_tm_range[1], `Tm ${c.tm}`);
       assert.ok(c.lc >= rules.lc_min);
-      assert.ok(c.length >= 18 && c.length <= 25);
+      assert.ok(c.length >= DEFAULT_PARAMS.commonMinLen && c.length <= DEFAULT_PARAMS.commonMaxLen);
       // Common 서열은 s3 역상보의 부분 서열
       assert.ok(revcomp(set.template.s3).includes(c.seqUpper));
     }
@@ -144,7 +144,8 @@ test('파라미터: tail 미사용, Common 개수 제한, 3′ 패턴, 겹침 �
   const pat = designMarker(r, { endPattern: 'sws ssw' });
   for (const c of pat.forward.commons) assert.ok(/[GC][AT][GC]$|[GC][GC][AT]$/.test(c.seqUpper), c.seqUpper);
   const overlap = designMarker(r, { allowOverlap: true });
-  assert.ok(overlap.forward.commons.length >= noTail.forward.commons.length);
+  const collapsed = designMarker(r, { allowOverlap: false });
+  assert.ok(overlap.forward.commons.length >= collapsed.forward.commons.length);
 });
 
 test('primerdigital 프리셋은 같은 서열에서 Tm 이 더 높게 계산', () => {

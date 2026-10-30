@@ -26,7 +26,7 @@ test('무관한 서열은 음성', () => {
 test('3′ 말단 관여를 보고', () => {
   const p1 = 'TTTTTTTTTTTTTTGCATCG';           // 3' 끝이 GCATCG
   const p2 = 'CGATGCCCCCCCCCCCCCCC';           // 5' 끝이 CGATGC = revcomp(GCATCG)
-  const r = findDimer(p1, p2);
+  const r = findDimer(p1, p2, { threshold: 6 });
   assert.ok(r && r.isDimer, JSON.stringify(r));
   assert.equal(r.threePrimeA, true);
   assert.equal(r.threePrimeB, false);
@@ -37,10 +37,14 @@ test('미스매치 1개 허용: 5+1 로 6 상보쌍', () => {
   const seg2 = revcomp('GCATCTA'); // 6번째 염기만 불일치
   const p1 = FT + seg1 + FT;
   const p2 = FC + seg2 + FC;
-  const r = findDimer(p1, p2, { threshold: 6 });
+  const r = findDimer(p1, p2, { threshold: 6, mismatch: 1 });
   assert.ok(r, 'no alignment');
   assert.equal(r.matches, 6, JSON.stringify(r));
   assert.equal(r.isDimer, true);
+  // 기본(정확 연속)에서는 5 bp 만 세어 음성
+  const exact = findDimer(p1, p2, { threshold: 6 });
+  assert.equal(exact.matches, 5);
+  assert.equal(exact.isDimer, false);
 });
 
 test('임계 7 이면 6 상보쌍은 음성', () => {
@@ -52,7 +56,7 @@ test('임계 7 이면 6 상보쌍은 음성', () => {
 });
 
 test('자기 다이머: 회문 서열은 양성', () => {
-  const r = findSelfDimer('TTTTTTGGATCCTTTTTT');
+  const r = findSelfDimer('TTTTTTGGATCCTTTTTT', { threshold: 6 });
   assert.ok(r && r.isDimer);
   const txt = formatDimer('TTTTTTGGATCCTTTTTT', 'TTTTTTGGATCCTTTTTT', r);
   assert.ok(txt.includes('|'));

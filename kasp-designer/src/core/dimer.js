@@ -3,8 +3,9 @@
  *
  * 사양 §4.3
  *  - 짧은 쪽 서열의 모든 5-mer 를 색인 → 긴 쪽의 역상보 가닥을 스캔해 시드 일치 탐색
- *  - 시드에서 양방향 확장, 미스매치 1개까지 허용, 상보 염기쌍 수를 센다
- *  - 상보쌍 수 ≥ threshold(기본 6) → 다이머 판정. 3′ 말단 관여 또는 ≥ 8 이면 가중치(정보용)
+ *  - 시드에서 양방향 확장해 상보 염기쌍 수를 센다. options.mismatch (기본 0) 가 1 이면 미스매치 1개를 건너뛰며 확장(엄격 모드)
+ *  - 상보쌍 수 ≥ threshold(기본 7) → 다이머 판정. 3′ 말단 관여 또는 ≥ 8 이면 가중치(정보용)
+ *  - 기본값 근거: primerdigital 사이트는 6 bp 회문·5+1 형태를 통과시키므로(bsr1_snp913 실측) 정확 연속 상보 기준이 사이트와 맞다
  */
 import { revcomp } from './seq.js';
 
@@ -24,13 +25,13 @@ function onlyAcgtUpper(seq) {
  * match[k] = true 이면 k번째 쌍이 상보.
  * 반환: { matches, start, end } (end 는 exclusive), 시드 길이 이상의 연속 일치가 없으면 null
  */
-function bestSegmentOnDiagonal(match, seedLen) {
+function bestSegmentOnDiagonal(match, seedLen, maxMismatch = 0) {
   const n = match.length;
   let best = null;
   let left = 0, mismatches = 0;
   for (let right = 0; right < n; right++) {
     if (!match[right]) mismatches++;
-    while (mismatches > 1) {
+    while (mismatches > maxMismatch) {
       if (!match[left]) mismatches--;
       left++;
     }
@@ -56,8 +57,9 @@ function bestSegmentOnDiagonal(match, seedLen) {
  *             aStart:number, aEnd:number, bStart:number, bEnd:number } | null}
  */
 export function findDimer(seqA, seqB, options = {}) {
-  const threshold = options.threshold ?? 6;
+  const threshold = options.threshold ?? 7;
   const seedLen = options.seed ?? 5;
+  const maxMismatch = options.mismatch ? 1 : 0;
   const a = onlyAcgtUpper(seqA);
   const b = onlyAcgtUpper(seqB);
   if (a.length < seedLen || b.length < seedLen) return null;
@@ -90,7 +92,7 @@ export function findDimer(seqA, seqB, options = {}) {
       const iEnd = Math.min(short.length, longRc.length - diag);
       const match = [];
       for (let k = iStart; k < iEnd; k++) match.push(short[k] !== '?' && short[k] === longRc[k + diag]);
-      const seg = bestSegmentOnDiagonal(match, seedLen);
+      const seg = bestSegmentOnDiagonal(match, seedLen, maxMismatch);
       if (!seg) continue;
       const sStart = iStart + seg.start, sEnd = iStart + seg.end;      // short 좌표
       const rStart = sStart + diag, rEnd = sEnd + diag;                 // longRc 좌표

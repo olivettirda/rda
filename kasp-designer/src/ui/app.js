@@ -2,7 +2,7 @@
  * app.js — KASP 디자이너 UI (단일 HTML 번들의 진입점)
  */
 import { parseInput, summarizeRecords } from '../core/parse.js';
-import { designAll, DEFAULT_TAILS, mergeParams, genomicCoord } from '../core/design.js';
+import { designAll, DEFAULT_TAILS, mergeParams, genomicCoord, PRESET_TM_WINDOW } from '../core/design.js';
 import { TM_PRESETS } from '../core/tm.js';
 import { toReportTsv, toSetsText, toSetTsv, buildWorkbookData, EXCEL_STYLE, fmt1 } from '../core/export.js';
 import { buildXlsx } from '../core/xlsx.js';
@@ -34,6 +34,7 @@ const ui = {
   analysis: null,
   tour: null,
   crop: 'rice',
+  commonSort: 'score',
 };
 const STORE_WELCOME = 'kasp-welcome-seen';
 const STORE_HOMOEOLOG = 'kasp-homoeologs';
@@ -275,12 +276,22 @@ function renderPresetDesc() {
     el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''}`;
   } else {
     const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
-    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''} — SantaLucia 1998 + Owczarzy 염 보정`;
+    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''}${t.ctDivisor === 1 ? ' · ln(Ct) 관례(사이트 실측과 ±0.05 °C 일치) · 기본 Tm 창 60–62' : ' · ln(Ct/4) 관례 · 기본 Tm 창 57–62'} — SantaLucia 1998 + Owczarzy 염 보정`;
   }
   qs('#customCond').hidden = p.preset !== 'custom';
 }
 function setPreset(value) {
+  const prevWin = PRESET_TM_WINDOW[ui.params.preset];
+  const nextWin = PRESET_TM_WINDOW[value];
   ui.params.preset = value;
+  // 이전 프리셋의 기본 Tm 창을 그대로 쓰고 있었다면 새 프리셋의 기본 창으로 바꾼다 (사용자 지정값은 유지)
+  if (prevWin && nextWin && ui.params.tmMin === prevWin[0] && ui.params.tmMax === prevWin[1] && (prevWin[0] !== nextWin[0] || prevWin[1] !== nextWin[1])) {
+    ui.params.tmMin = nextWin[0];
+    ui.params.tmMax = nextWin[1];
+    qsa('.num[data-param="tmMin"] input').forEach((i) => { i.value = nextWin[0]; });
+    qsa('.num[data-param="tmMax"] input').forEach((i) => { i.value = nextWin[1]; });
+    toast(`${presetLabelFor(ui.params)} 기본 Tm 창 ${nextWin[0]}–${nextWin[1]} °C 를 적용했습니다`);
+  }
   setSegment(qs('#presetSeg'), value === 'custom' ? '' : value);
   setSegment(qs('#presetSeg2'), value);
   renderPresetDesc();
@@ -805,7 +816,7 @@ function ampliconHtml(c, view) {
   if (ui.mode === 'sizing' && view.sizing) {
     return view.sizing.products.map((p) => `${escapeHtml(p.label)}:${p.size}`).join(' ');
   }
-  return escapeHtml(c.ampliconLabel);
+  return escapeHtml(c.ampliconLabel) + (c.tailLen ? ` <span class="muted small" title="tail 을 뺀 템플릿 구간 길이">(tail 제외 ${escapeHtml(c.ampliconLabelNoTail)})</span>` : '');
 }
 function renderMarkerTabs() {
   const box = qs('#markerTabs');
@@ -885,8 +896,12 @@ function renderCommonCard(res, set, view) {
   const card = qs('#commonCard');
   if (!set) { card.innerHTML = ''; return; }
   const p = res.params;
-  const list = set.commons.slice(0, p.maxCommon);
-  const rows = list.map((c, i) => `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
+  const snpPos = res.record.s1.length + 1;
+  const ordered = ui.commonSort === 'pos'
+    ? set.commons.slice().sort((a, b) => Math.min(Math.abs(a.start - snpPos), Math.abs(a.end - snpPos)) - Math.min(Math.abs(b.start - snpPos), Math.abs(b.end - snpPos)) || a.start - b.start)
+    : set.commons;
+  const list = ordered.slice(0, p.maxCommon);
+  const rows = list.map((c) => { const i = set.commons.indexOf(c); return `<tr class="clickable${i === view.commonIndex ? ' pick' : ''}" data-common="${i}">
       <td class="num muted rank">${c.rank}</td>
       <td class="id">${escapeHtml(c.id)}${specBadge(c)}</td>
       <td class="seq-cell">${seqHtml(c)}</td>
@@ -897,19 +912,14 @@ function renderCommonCard(res, set, view) {
       <td class="num" data-label="Amplicon"><span class="badge ${c.ampState === 'ok' ? '' : c.ampState}">${escapeHtml(c.ampliconLabel)}</span></td>
       <td class="num" data-label="ΔTm"><span class="badge ${c.tmDiff > p.tmDiffMax ? 'warn' : ''}">${fmt1(c.tmDiff)}</span></td>
       <td class="muted small note" title="${escapeHtml(c.warnings.join('; '))}">${escapeHtml(c.warnings.join('; '))}</td>
-    </tr>`).join('');
+    </tr>`; }).join('');
   card.innerHTML = `
-    <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2></div>
+    <div class="card-head"><h2>Common 후보 <span class="muted small">${set.commons.length}개 중 ${list.length}개 · 행을 누르면 세트에 반영</span></h2>
+      <div class="segment" role="group" aria-label="정렬"><button type="button" data-sort="score" class="${ui.commonSort === 'score' ? 'on' : ''}">점수순</button><button type="button" data-sort="pos" class="${ui.commonSort === 'pos' ? 'on' : ''}">위치순 (변이에 가까운 순)</button></div></div>
     <div class="table-wrap"><table class="grid stackable">
       <thead><tr><th class="num">#</th><th>ID</th><th>Sequence (5′→3′)</th><th class="num">Length</th><th class="num">Tm</th><th class="num">GC (%)</th><th class="num">LC (%)</th><th class="num">Amplicon (bp)</th><th class="num">ΔTm</th><th>비고</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="10" class="muted">후보 없음</td></tr>'}</tbody>
     </table></div>`;
-  card.addEventListener('click', (e) => {
-    const tr = e.target.closest('tr[data-common]');
-    if (!tr) return;
-    ui.commonPick[`${ui.marker}|${ui.dir}`] = Number(tr.dataset.common);
-    renderResults(false);
-  });
 }
 function renderReport(res, set) {
   const box = qs('#report');
@@ -950,6 +960,14 @@ function rerenderViewer() {
   lastViewerWidth = viewer.clientWidth;
 }
 function bindResults() {
+  qs('#commonCard').addEventListener('click', (e) => {
+    const sortBtn = e.target.closest('button[data-sort]');
+    if (sortBtn) { ui.commonSort = sortBtn.dataset.sort; renderResults(false); return; }
+    const tr = e.target.closest('tr[data-common]');
+    if (!tr) return;
+    ui.commonPick[`${ui.marker}|${ui.dir}`] = Number(tr.dataset.common);
+    renderResults(false);
+  });
   qs('#viewerCard').addEventListener('toggle', () => { if (qs('#viewerCard').open && ui.results.length) rerenderViewer(); });
   qs('#markerTabs').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-marker]');
