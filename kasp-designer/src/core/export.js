@@ -133,3 +133,95 @@ export const EXCEL_STYLE = Object.freeze({
 
 export function fmt1(x) { return f1(x); }
 export function fmt0(x) { return f0(x); }
+
+/* ===================== 바이오니어 Oligo(Tube) 업로드 양식 ===================== */
+/**
+ * 바이오니어 공식 양식(Upload_Bioneer_DNA.xls, 2026-10 확인)과 같은 레이아웃
+ *  A: Oligo NAME · B: Scale(드롭다운) · C: Purification(드롭다운) · D: SEQUENCE (5' --> 3') · F: 작성방법 안내
+ *  이름에 '#', '|' 금지, 서열은 염기만(공백·특수문자 없이). Modification 은 [FAM]ACGT… 처럼 서열 안에 표기.
+ */
+export const BIONEER_SHEET_NAME = '바이오니아 Oligo(Tube) 업로드 양식';
+export const BIONEER_SCALES = Object.freeze(['25 nmole', '50 nmole', '200 nmole', '1000 nmole', '10000 nmole', '15000 nmole']);
+export const BIONEER_PURIFICATIONS = Object.freeze(['BioRP', 'PAGE', 'HPLC']);
+export const BIONEER_HEADER = Object.freeze(['Oligo NAME', 'Scale', 'Purification', "SEQUENCE (5' --> 3')", '', '작성방법']);
+const BIONEER_GUIDE = Object.freeze([
+  'A 열 : Oligo Name',
+  'B 열 : 합성 Scale을 선택하여 주세요',
+  'C 열 : Purification을 선택하여 주세요',
+  'D 열 : Sequence (입력시 다른문자 없이 염기서열만 공백없이 입력하십시요)',
+  '*. Modification 입력예시 : [FAM]ACGATCGACTACGACTACGGT[BHQ1]',
+  "*.주의사항 : 올리고 NAME에    # , |    는 사용하실수 없는 기호입니다.",
+  '',
+  '저장방법',
+  '파일 > 저장하기 *.xls',
+]);
+
+/** 바이오니어 규칙에 맞는 올리고 이름: '#', '|' 제거, 공백은 '_' */
+export function bioneerName(name) {
+  return String(name ?? '').replace(/[#|]/g, '').replace(/\s+/g, '_').trim();
+}
+/** 서열: 염기(IUPAC 포함)만 대문자로 */
+export function bioneerSequence(seq) {
+  return String(seq ?? '').toUpperCase().replace(/U/g, 'T').replace(/[^ACGTRYSWKMBDHVN]/g, '');
+}
+
+/**
+ * 주문 행 목록 [{name, scale, purification, seq, purpose}] — 결과·선택(Common 인덱스)·옵션으로 생성
+ * @param {object} o { selections, which, commonIndex, scale, purification, includeCommon, aspScale, aspPurification }
+ */
+export function bioneerOrderItems(results, o = {}) {
+  const scale = BIONEER_SCALES.includes(o.scale) ? o.scale : BIONEER_SCALES[0];
+  const purification = BIONEER_PURIFICATIONS.includes(o.purification) ? o.purification : BIONEER_PURIFICATIONS[0];
+  const aspScale = BIONEER_SCALES.includes(o.aspScale) ? o.aspScale : scale;
+  const aspPur = BIONEER_PURIFICATIONS.includes(o.aspPurification) ? o.aspPurification : purification;
+  const includeCommon = o.includeCommon !== false;
+  const items = [];
+  const seen = new Set();
+  const push = (name, sc, pu, seq, purpose) => {
+    const n = bioneerName(name);
+    const s = bioneerSequence(seq);
+    if (!s || seen.has(n + '\t' + s)) return;
+    seen.add(n + '\t' + s);
+    items.push({ name: n, scale: sc, purification: pu, seq: s, purpose });
+  };
+  for (const res of results) {
+    if (res.error) continue;
+    const sel = (o.selections && o.selections[res.name]) || {};
+    const which = sel.which || o.which || 'forward';
+    const whichList = which === 'both' ? ['forward', 'reverse'] : [which];
+    for (const w of whichList) {
+      const set = pickSet(res, w);
+      if (!set) continue;
+      const ciRaw = sel.commonIndex ?? o.commonIndex ?? 0;
+      const ci = (ciRaw && typeof ciRaw === 'object') ? (ciRaw[w] ?? 0) : ciRaw;
+      for (const asp of set.asps) {
+        if (!asp) continue;
+        push(`${res.name}_${asp.id}`, aspScale, aspPur, asp.fullUpper, `ASP ${asp.alleleLabel}${asp.tail ? ' (' + asp.tail.name + ')' : ''}`);
+      }
+      const common = set.commons[ci];
+      if (includeCommon && common) push(`${res.name}_${common.id}`, scale, purification, common.seqUpper, 'Common');
+    }
+  }
+  return items;
+}
+
+/** 업로드 양식 시트(AOA): 헤더 + 주문 행, F 열에 작성방법 안내 */
+export function buildBioneerOrderRows(results, o = {}) {
+  const items = bioneerOrderItems(results, o);
+  const rows = [Array.from(BIONEER_HEADER)];
+  const n = Math.max(items.length, BIONEER_GUIDE.length);
+  for (let i = 0; i < n; i++) {
+    const it = items[i];
+    const guide = BIONEER_GUIDE[i] ?? '';
+    rows.push(it ? [it.name, it.scale, it.purification, it.seq, '', guide] : ['', '', '', '', '', guide]);
+  }
+  return { rows, items };
+}
+
+/** 주문 페이지 '복사 후 붙여넣기' 입력용 TSV (No, Name, 5'Mod, Sequence, 3'Mod, Internal, Scale, Purif) */
+export function toBioneerPasteTsv(results, o = {}) {
+  const items = bioneerOrderItems(results, o);
+  const lines = ["No\tName\t5'Mod\tSequence ( 5' -> 3' )\t3'Mod\tInternal\tScale\tPurif"];
+  items.forEach((it, i) => lines.push([i + 1, it.name, '', it.seq, '', '', it.scale, it.purification].join('\t')));
+  return lines.join('\n');
+}

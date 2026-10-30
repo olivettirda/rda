@@ -102,7 +102,7 @@ function sheetXml(rows, opts) {
     data += `<row r="${r + 1}">`;
     row.forEach((v, c) => {
       const ref = `${colLetter(c)}${r + 1}`;
-      const style = r === 0 ? ' s="1"' : (opts.monoCols && opts.monoCols.includes(c) ? ' s="2"' : ' s="3"');
+      const style = r === 0 ? (opts.plainHeader ? ' s="3"' : ' s="1"') : (opts.monoCols && opts.monoCols.includes(c) ? ' s="2"' : ' s="3"');
       if (v === null || v === undefined || v === '') return;
       if (typeof v === 'number' && Number.isFinite(v)) data += `<c r="${ref}"${style}><v>${v}</v></c>`;
       else data += `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(v)}</t></is></c>`;
@@ -111,10 +111,16 @@ function sheetXml(rows, opts) {
   });
   data += '</sheetData>';
   const ref = `A1:${colLetter(ncols - 1)}${nrows}`;
-  const views = '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
+  const views = opts.noFreeze
+    ? '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+    : '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
+  const filter = opts.noFilter ? '' : `<autoFilter ref="${ref}"/>`;
+  // 드롭다운(목록) 유효성 검사: validations = [{ sqref:'B2:B200', list:['a','b'] }]
+  const vals = (opts.validations || []).map((v) => `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${xmlEscape(v.sqref)}"><formula1>"${xmlEscape(v.list.join(','))}"</formula1></dataValidation>`);
+  const validations = vals.length ? `<dataValidations count="${vals.length}">${vals.join('')}</dataValidations>` : '';
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<dimension ref="${ref}"/>${views}<sheetFormatPr defaultRowHeight="16"/>${cols}${data}<autoFilter ref="${ref}"/><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
+<dimension ref="${ref}"/>${views}<sheetFormatPr defaultRowHeight="16"/>${cols}${data}${filter}${validations}<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
 }
 
 function stylesXml(style) {
@@ -188,9 +194,10 @@ ${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Co
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>KASP Designer</Application></Properties>`),
   });
   const definedNames = sheets.map((s, i) => {
+    if (s.noFilter) return '';
     const ncols = Math.max(1, ...s.rows.map((r) => r.length));
     const nrows = Math.max(1, s.rows.length);
-    return `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${sheetNames[i]}'!$A$1:$${colLetter(ncols - 1)}$${nrows}</definedName>`;
+    return `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${sheetNames[i]}'!$A$1:${colLetter(ncols - 1)}${nrows}</definedName>`;
   }).join('');
   files.push({
     name: 'xl/workbook.xml',

@@ -37,6 +37,10 @@ primerdigital.com KASP 도구와 **같은 원리**(SantaLucia 1998 + Owczarzy �
 
 "밀 예제 (합성)" 버튼은 벼 예제 서열에 규칙적 치환을 넣어 만든 **가상 데이터**로, 기능 확인용입니다. 실제 밀 마커는 목표 유전체 서열(예: A)과 나머지 유전체(B, D)의 같은 구간을 IWGSC RefSeq 에서 가져와 넣으세요. 참고 문헌(설계 조건 탭 맨 아래 "참고 문헌")에 밀 KASP 설계 지침(Makhoul 2020), PolyMarker, IWGSC RefSeq, 밀 KASP 사례(Rasheed 2016, Grewal 2020)를 정리했습니다.
 
+### 바이오니어 업로드 양식
+
+내보내기 탭의 **바이오니어 업로드 양식** 카드에서 Scale(25–15000 nmole)·Purification(BioRP/PAGE/HPLC)을 ASP·Common 별로 고르고 `.xlsx` 를 받으면, 바이오니어 공식 양식 `Upload_Bioneer_DNA.xls` 와 같은 시트명·열(Oligo NAME · Scale · Purification · SEQUENCE 5′→3′)·드롭다운으로 저장됩니다. 이름의 `#` `|` 는 제거되고 서열은 tail 포함 전체 염기만 대문자로 들어갑니다. 주문 페이지가 `.xls` 만 받으면 엑셀에서 "Excel 97-2003 (*.xls)" 로 다시 저장해 올리세요. '복사 후 붙여넣기' 입력창용 TSV 도 복사할 수 있습니다.
+
 ### 반응형 레이아웃
 
 - **≥ 1100px**: 왼쪽 사이드바(260px) + 표 형태의 결과.
