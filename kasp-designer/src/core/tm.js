@@ -37,7 +37,9 @@ export const SYMMETRY_DS = -1.4;
 export const TM_PRESETS = Object.freeze({
   bioneer: Object.freeze({
     key: 'bioneer', label: '바이오니어',
-    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15, ctDivisor: 4,
+    // 바이오니어 Tm 계산기(zendto.bioneer.co.kr/calculateTm.html, 주문 페이지의 ※Tm 과 동일, 2026-10 실측 16개 서열 일치)
+    // 방식: SantaLucia 1998 NN + SantaLucia 염 보정 ΔS += 0.368·(N−1)·ln[K], K = Na + 120·√(Mg − dNTP) (von Ahsen 2001)
+    na_mM: 50, mg_mM: 1.5, dntp_mM: 1.0, oligo_nM: 50, wallaceBelow: 15, ctDivisor: 4, saltMethod: 'santalucia',
   }),
   primerdigital: Object.freeze({
     key: 'primerdigital', label: 'primerdigital',
@@ -49,7 +51,8 @@ export const TM_PRESETS = Object.freeze({
 /**
  * 프리셋/사용자 입력(mM, nM)을 계산용 조건(M)으로 변환.
  * ctDivisor: 엔트로피 항 R·ln(Ct/ctDivisor). 4 = 비자기상보 표준 관례(SantaLucia), 1 = primerdigital 사이트 관례.
- * @returns {{na:number, mg:number, ct:number, wallaceBelow:number, ctDivisor:number}}
+ * saltMethod: 'owczarzy'(기본, Owczarzy 2004/2008 1/Tm 보정) | 'santalucia'(ΔS 보정 + Mg→1가 양이온 환산, 바이오니어/Primer3 방식)
+ * @returns {{na:number, mg:number, dntp:number, ct:number, wallaceBelow:number, ctDivisor:number, saltMethod:string}}
  */
 export function makeConditions(input = TM_PRESETS.bioneer) {
   const na_mM = Number(input.na_mM ?? 50);
@@ -62,6 +65,8 @@ export function makeConditions(input = TM_PRESETS.bioneer) {
     ct: Math.max(1e-12, oligo_nM) * 1e-9,
     wallaceBelow: Number.isFinite(wallaceBelow) ? wallaceBelow : 0,
     ctDivisor: [1, 2, 4].includes(Number(input.ctDivisor)) ? Number(input.ctDivisor) : 4,
+    dntp: Math.max(0, Number(input.dntp_mM ?? 0)) / 1000,
+    saltMethod: input.saltMethod === 'santalucia' ? 'santalucia' : 'owczarzy',
   };
 }
 
@@ -160,10 +165,31 @@ export function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
   if (n < (cond.wallaceBelow || 0)) return wallaceTm(s);
 
   const { dH, dS } = nearestNeighborSums(s);
+  if (cond.saltMethod === 'santalucia') return meltingTempSantaLuciaSalt(s, dH, dS, cond);
   const ctEff = cond.ct / (cond.ctDivisor || 4);
   let invTm = (dS + GAS_CONSTANT * Math.log(ctEff)) / (dH * 1000);
   invTm += saltCorrectionTerm({ fGC: gcFraction(s), length: n, na: cond.na, mg: cond.mg });
   return 1 / invTm - 273.15;
+}
+
+/**
+ * SantaLucia 1998 염 보정 방식 (Primer3 oligotm · 바이오니어 계산기와 같은 계산)
+ *  - 1가 양이온 등가 농도 K(mM) = [Na⁺] + 120·√([Mg²⁺] − [dNTP])  (von Ahsen et al. 2001 Clin Chem 47:1956)
+ *    Mg 가 없으면 dNTP 무시, Mg < dNTP 면 자유 Mg = 0
+ *  - ΔS' = ΔS + 0.368·(N−1)·ln(K/1000)   (SantaLucia 1998 식 (5))
+ *  - Tm = ΔH / (ΔS' + R·ln(Ct/4)) − 273.15, 자기상보 서열은 ln(Ct). R = 1.987 cal/(mol·K)
+ */
+export function meltingTempSantaLuciaSalt(s, dH, dS, cond) {
+  const n = s.length;
+  let mgM = cond.mg || 0;
+  let dntpM = cond.dntp || 0;
+  if (mgM <= 0) dntpM = 0;
+  if (mgM < dntpM) mgM = dntpM;
+  const kmM = cond.na * 1000 + 120 * Math.sqrt(Math.max(0, mgM - dntpM) * 1000);
+  if (kmM <= 0) return NaN;
+  const dSsalt = dS + 0.368 * (n - 1) * Math.log(kmM / 1000);
+  const divisor = isPalindromic(s) ? 1 : (cond.ctDivisor || 4);
+  return (dH * 1000) / (dSsalt + 1.987 * Math.log(cond.ct / divisor)) - 273.15;
 }
 
 /**

@@ -261,6 +261,7 @@ function bindParamInputs() {
   qsa('[data-param-text]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramText] = inp.value.trim() || 'n'; inp.value = ui.params[inp.dataset.paramText]; onParamsChanged(); }));
   qsa('[data-param-bool]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramBool] = inp.checked; onParamsChanged(); }));
   qsa('[data-custom]').forEach((inp) => inp.addEventListener('change', () => { ui.params.custom[inp.dataset.custom] = Number(inp.value) || 0; onParamsChanged(); renderPresetDesc(); }));
+  qsa('[data-custom-select]').forEach((sel) => sel.addEventListener('change', () => { const k = sel.dataset.customSelect; ui.params.custom[k] = k === 'ctDivisor' ? Number(sel.value) : sel.value; onParamsChanged(); renderPresetDesc(); }));
   qs('#resetParamsBtn').addEventListener('click', () => {
     const keepTails = ui.params.tails;
     ui.params = mergeParams({ tails: keepTails });
@@ -273,10 +274,12 @@ function renderPresetDesc() {
   const p = ui.params;
   const el = qs('#presetDesc');
   if (p.preset === 'custom') {
-    el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''}`;
+    el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · dNTP ${p.custom.dntp_mM ?? 0} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''} · ${p.custom.saltMethod === 'owczarzy' ? 'Owczarzy 보정' : 'SantaLucia 염 보정'} · ${Number(p.custom.ctDivisor) === 1 ? 'ln(Ct)' : 'ln(Ct/4)'}`;
   } else {
     const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
-    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''}${t.ctDivisor === 1 ? ' · ln(Ct) 관례(사이트 실측과 ±0.05 °C 일치) · 기본 Tm 창 60–62' : ' · ln(Ct/4) 관례 · 기본 Tm 창 57–62'} — SantaLucia 1998 + Owczarzy 염 보정`;
+    el.textContent = t.saltMethod === 'santalucia'
+      ? `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · dNTP ${t.dntp_mM} mM · 올리고 ${t.oligo_nM} nM · ${t.wallaceBelow} nt 미만 Wallace rule · SantaLucia 1998 염 보정(Mg→Na 환산) — 바이오니어 Tm 계산기·주문 페이지 ※Tm 과 동일(실측 16개 일치) · 기본 Tm 창 57–62`
+      : `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.ctDivisor === 1 ? ' · ln(Ct) 관례(사이트 실측 38개와 ±0.05 °C 일치) · 기본 Tm 창 60–62' : ' · ln(Ct/4) 관례'} — SantaLucia 1998 + Owczarzy 염 보정`;
   }
   qs('#customCond').hidden = p.preset !== 'custom';
 }
@@ -305,7 +308,8 @@ function syncParamsForm() {
   });
   qsa('[data-param-text]').forEach((inp) => { inp.value = p[inp.dataset.paramText] ?? ''; });
   qsa('[data-param-bool]').forEach((inp) => { inp.checked = !!p[inp.dataset.paramBool]; });
-  qsa('[data-custom]').forEach((inp) => { inp.value = p.custom[inp.dataset.custom]; });
+  qsa('[data-custom]').forEach((inp) => { inp.value = p.custom[inp.dataset.custom] ?? 0; });
+  qsa('[data-custom-select]').forEach((sel) => { sel.value = String(p.custom[sel.dataset.customSelect] ?? (sel.dataset.customSelect === 'ctDivisor' ? 4 : 'santalucia')); });
   setSegment(qs('#presetSeg'), p.preset === 'custom' ? '' : p.preset);
   setSegment(qs('#presetSeg2'), p.preset);
   renderPresetDesc();
@@ -1033,7 +1037,7 @@ function renderBioneerPreview() {
   if (!ui.results.length) { box.innerHTML = '<p class="muted small">설계 결과가 있으면 여기에 주문 행이 미리 표시됩니다.</p>'; return; }
   const { results, selections } = exportTargets();
   const items = bioneerOrderItems(results, { selections, ...bioneerOptions() });
-  box.innerHTML = `<table class="grid stackable"><thead><tr><th>Oligo NAME</th><th>Scale</th><th>Purification</th><th>SEQUENCE (5′→3′)</th></tr></thead><tbody>${items.map((it) => `<tr><td class="id">${escapeHtml(it.name)}</td><td data-label="Scale">${escapeHtml(it.scale)}</td><td data-label="Purif">${escapeHtml(it.purification)}</td><td class="seq-cell"><span class="seq">${escapeHtml(it.seq)}</span> <span class="muted small">${it.seq.length} nt · ${escapeHtml(it.purpose)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">행 없음</td></tr>'}</tbody></table>`;
+  box.innerHTML = `<table class="grid stackable"><thead><tr><th>Oligo NAME</th><th>Scale</th><th>Purification</th><th>SEQUENCE (5′→3′)</th></tr></thead><tbody>${items.map((it) => `<tr><td class="id">${escapeHtml(it.name)}</td><td data-label="Scale">${escapeHtml(it.scale)}${it.adjusted ? ` <span class="badge warn" title="${escapeHtml(it.note)}">자동 조정</span>` : ''}</td><td data-label="Purif">${escapeHtml(it.purification)}</td><td class="seq-cell"><span class="seq">${escapeHtml(it.seq)}</span> <span class="muted small">${it.seq.length} nt · ${escapeHtml(it.purpose)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">행 없음</td></tr>'}</tbody></table>${items.some((it) => it.adjusted) ? '<p class="hint">바이오니어 표준 올리고는 scale 별 길이 제한이 있습니다(25 nmole 15–34 mer · 50 nmole 10–75 · 200 nmole 5–110 · 1000 nmole 5–130). tail 을 붙인 ASP(40 nt 이상)는 25 nmole 로 주문할 수 없어 허용되는 가장 작은 scale 로 자동 조정했습니다.</p>' : ''}`;
 }
 function downloadBioneerXlsx() {
   const { results, selections, scope } = exportTargets();

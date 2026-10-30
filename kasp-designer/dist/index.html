@@ -665,7 +665,10 @@ Common	tctcgtgtgaacgcagcc"></textarea>
           <label class="field"><span>Na⁺ (mM)</span><input type="number" data-custom="na_mM" min="1" max="1000" step="1"></label>
           <label class="field"><span>Mg²⁺ (mM)</span><input type="number" data-custom="mg_mM" min="0" max="50" step="0.1"></label>
           <label class="field"><span>올리고 농도 (nM)</span><input type="number" data-custom="oligo_nM" min="1" max="5000" step="1"></label>
+          <label class="field"><span>dNTP (mM) — SantaLucia 염 보정에서 Mg²⁺ 에서 뺌</span><input type="number" data-custom="dntp_mM" min="0" max="10" step="0.1"></label>
           <label class="field"><span>Wallace rule 적용 길이 미만 (nt, 0 = 사용 안 함)</span><input type="number" data-custom="wallaceBelow" min="0" max="30" step="1"></label>
+          <label class="field"><span>염 보정 방식</span><select data-custom-select="saltMethod"><option value="santalucia">SantaLucia 1998 ΔS 보정 + Mg→Na 환산 (바이오니어 · Primer3)</option><option value="owczarzy">Owczarzy 2004/2008 1/Tm 보정 (primerdigital)</option></select></label>
+          <label class="field"><span>농도 항 관례</span><select data-custom-select="ctDivisor"><option value="4">ln(Ct/4) — 표준(비자기상보)</option><option value="1">ln(Ct) — primerdigital 사이트</option></select></label>
         </div>
       </div>
 
@@ -791,7 +794,7 @@ Common	tctcgtgtgaacgcagcc"></textarea>
       <div class="card" id="bioneerCard">
         <div class="card-head"><h2>바이오니어 업로드 양식</h2><span class="muted small">Upload_Bioneer_DNA 레이아웃</span></div>
         <div class="form-grid">
-          <label class="field"><span>ASP 합성 Scale</span><select id="bnAspScale"></select></label>
+          <label class="field"><span>ASP 합성 Scale (길이에 안 맞으면 자동 상향)</span><select id="bnAspScale"></select></label>
           <label class="field"><span>ASP Purification</span><select id="bnAspPur"></select></label>
           <label class="field"><span>Common 합성 Scale</span><select id="bnScale"></select></label>
           <label class="field"><span>Common Purification</span><select id="bnPur"></select></label>
@@ -830,7 +833,7 @@ Common	tctcgtgtgaacgcagcc"></textarea>
 
 <script>
 window.KASP_EXAMPLES = {"snp_simple":{"desc":"단순 SNP, 양쪽 flank 200 nt","fasta":">Marker_SNP1\nagccgaactcctggctttgaatgtctgtttcactcggaacataactatggtcgtcgctcgtctgacggcgtagcggtcgcatggtgtaaatatactatggtctagtgcgtacagaggagtagtgagtaagccgataagacgcgctagaccttaattgctacgcctgtagttgaatgggtaagccggcatggctgacattg[A/G]caagtcctgtgcggtaccgcgtcaatgccggccatgtagtggctgcgttcacacgagacgcactgagaaactatattggccaattggcttgaaccaaggtaatagcggtcgcaactacagagtgatccaggtgctctgtaaatatgtcaaactgcagcttgcgccaccttgcccgtaaatccttagcctagggctaggac"},"snp_iupac":{"desc":"IUPAC 1문자 변이 + 주변 SNP(r) 포함","fasta":">Marker_IUPAC\nttccatttacgtgccttggttcgaggcaaccggtagctaaggttctccgtggagctgcttcgtggtctggccaattggccaattggagattaggctggctgttgaatggttgcctacacartcaatgaagttcgcgcctggttgcggactcacaatcatcaatgttgcggggggacagcccctatcatcctacctcgtga[S]gcgtcctttctggccaagatccataggtaggcgcgtcttattagaaatgcatgctggatttatggcagtcaacttaatagcggtcgaaatcgccacagcagctacctcgtacctggggcttcgctcctgttagccgaaattcggaaccattatgagcttgcccctgttgggccgaccgtcatgggggctaagctacaccc"},"indel":{"desc":"2 bp 결실","fasta":">Marker_InDel\ntatgctaaccgcagcagagtgatccagcttagtagtcctcagaacgtatgggtcgactcgggctgatgatcgttctgccagtacagcctgaccgcctgtagtacatttaaagaaaacagttgtcagtcaactggtctagtgatttgcgatgggctgaacgcgactttgaaagcatagcggtcgaagcctgagtaaatcgc[AG/]acataatcgagggcgaagcgcaccccctgaccacaattggagcggtcaccgcaggaaagacaactaagtccgcaggtccggcccatgtgaactactatctccatagcgggcggtccgcgcagctaccgtctggtagcttctgacggactacgtaatttacccatgtggcggaaacctagacaagcgccacagagtcgatt"},"mnv_multi":{"desc":"MNV + 3대립","fasta":">Marker_MNV\ncttaacatatgatcaaacgacgtacgttgtagacagacggattttgccgacgcattttcttaacaatttatctcacaacatctcggccaagatccagctgggtgccaggggtgaccacaattgccctcagccttcatgttgctagcgtttgtgtacagttgtcaggacaagtacagaggcttaattaggttcgagaccgg[GATATAC/CAGTCC]ttgatttggtagtgggccgaccatggtttcattgcttcggctgctgtaattcggctgttagtggggtgtctacgcgcttatgcgccatgcgataccctgctgtcttcgaaatcgagaccgggacacacctttactgccttcgagaaggagaagaggtgccccggcccatctgagggcaaaccagaaaatgttccgacggt\n\n>Marker_Tri\ntatcgcctacgctctggtggaccctggggggaaacaatcatcggaagcaaagtctattccgacgctgaatgtggcgtcatggctgtagtctatctacctgggttatgagcgggcctatcattctcgtgtttcgaaccggcttgaacaggatgccagcagactatctccaggtgctctgttgctcttggtttgaaacgaag[A/C/G]cacgccacgattcgaggaatcaaattaatgcgaggaagttccggagaagtacgtacgttggctacgcggtgcaaacgtatgaatttgcacggagaccaaagcaattgcgtaccgcttcgatcccgtcagttaaagtgatccagttcagtcgcaactaatcccgtccttcgtagctacacctggcaaagatcaaaattgcg"},"excluded_region":{"desc":"/.../ 제외구역 포함","fasta":">Marker_Excl\nggggttagctacgcctatgcccaatgttgccagaccttaatggggtttccggtgctgaatttgcatagactggggggttactcaatgccgggaacctcttacctcgtacgtgccttttttggttatgacggtcgcatttatggcagtcac/taacccagggttatccagttgtggccaatt/aggcaggacagcgttaactt[C/T]ggttagctacgcactcaggtgttggtggcgatcccttctccctaaatcactgtttgtcactcagagagagagagagaggtagacctgtcaccgtcagataaatttacggctctgaatagatagcggtaccctccagaccgcgggcggaatggcaaagggggcatcccactgactgttatgcccggaccggaaacgctctt"}};
-window.KASP_BUILD = {"version":"1.1.2","date":"2026-10-30"};
+window.KASP_BUILD = {"version":"1.1.3","date":"2026-10-30"};
 </script>
 <script>
 (function () {
@@ -1271,7 +1274,9 @@ const SYMMETRY_DS = -1.4;
 const TM_PRESETS = Object.freeze({
   bioneer: Object.freeze({
     key: 'bioneer', label: '바이오니어',
-    na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15, ctDivisor: 4,
+    // 바이오니어 Tm 계산기(zendto.bioneer.co.kr/calculateTm.html, 주문 페이지의 ※Tm 과 동일, 2026-10 실측 16개 서열 일치)
+    // 방식: SantaLucia 1998 NN + SantaLucia 염 보정 ΔS += 0.368·(N−1)·ln[K], K = Na + 120·√(Mg − dNTP) (von Ahsen 2001)
+    na_mM: 50, mg_mM: 1.5, dntp_mM: 1.0, oligo_nM: 50, wallaceBelow: 15, ctDivisor: 4, saltMethod: 'santalucia',
   }),
   primerdigital: Object.freeze({
     key: 'primerdigital', label: 'primerdigital',
@@ -1283,7 +1288,8 @@ const TM_PRESETS = Object.freeze({
 /**
  * 프리셋/사용자 입력(mM, nM)을 계산용 조건(M)으로 변환.
  * ctDivisor: 엔트로피 항 R·ln(Ct/ctDivisor). 4 = 비자기상보 표준 관례(SantaLucia), 1 = primerdigital 사이트 관례.
- * @returns {{na:number, mg:number, ct:number, wallaceBelow:number, ctDivisor:number}}
+ * saltMethod: 'owczarzy'(기본, Owczarzy 2004/2008 1/Tm 보정) | 'santalucia'(ΔS 보정 + Mg→1가 양이온 환산, 바이오니어/Primer3 방식)
+ * @returns {{na:number, mg:number, dntp:number, ct:number, wallaceBelow:number, ctDivisor:number, saltMethod:string}}
  */
 function makeConditions(input = TM_PRESETS.bioneer) {
   const na_mM = Number(input.na_mM ?? 50);
@@ -1296,6 +1302,8 @@ function makeConditions(input = TM_PRESETS.bioneer) {
     ct: Math.max(1e-12, oligo_nM) * 1e-9,
     wallaceBelow: Number.isFinite(wallaceBelow) ? wallaceBelow : 0,
     ctDivisor: [1, 2, 4].includes(Number(input.ctDivisor)) ? Number(input.ctDivisor) : 4,
+    dntp: Math.max(0, Number(input.dntp_mM ?? 0)) / 1000,
+    saltMethod: input.saltMethod === 'santalucia' ? 'santalucia' : 'owczarzy',
   };
 }
 
@@ -1394,10 +1402,31 @@ function meltingTemp(seq, cond = DEFAULT_CONDITIONS) {
   if (n < (cond.wallaceBelow || 0)) return wallaceTm(s);
 
   const { dH, dS } = nearestNeighborSums(s);
+  if (cond.saltMethod === 'santalucia') return meltingTempSantaLuciaSalt(s, dH, dS, cond);
   const ctEff = cond.ct / (cond.ctDivisor || 4);
   let invTm = (dS + GAS_CONSTANT * Math.log(ctEff)) / (dH * 1000);
   invTm += saltCorrectionTerm({ fGC: gcFraction(s), length: n, na: cond.na, mg: cond.mg });
   return 1 / invTm - 273.15;
+}
+
+/**
+ * SantaLucia 1998 염 보정 방식 (Primer3 oligotm · 바이오니어 계산기와 같은 계산)
+ *  - 1가 양이온 등가 농도 K(mM) = [Na⁺] + 120·√([Mg²⁺] − [dNTP])  (von Ahsen et al. 2001 Clin Chem 47:1956)
+ *    Mg 가 없으면 dNTP 무시, Mg < dNTP 면 자유 Mg = 0
+ *  - ΔS' = ΔS + 0.368·(N−1)·ln(K/1000)   (SantaLucia 1998 식 (5))
+ *  - Tm = ΔH / (ΔS' + R·ln(Ct/4)) − 273.15, 자기상보 서열은 ln(Ct). R = 1.987 cal/(mol·K)
+ */
+function meltingTempSantaLuciaSalt(s, dH, dS, cond) {
+  const n = s.length;
+  let mgM = cond.mg || 0;
+  let dntpM = cond.dntp || 0;
+  if (mgM <= 0) dntpM = 0;
+  if (mgM < dntpM) mgM = dntpM;
+  const kmM = cond.na * 1000 + 120 * Math.sqrt(Math.max(0, mgM - dntpM) * 1000);
+  if (kmM <= 0) return NaN;
+  const dSsalt = dS + 0.368 * (n - 1) * Math.log(kmM / 1000);
+  const divisor = isPalindromic(s) ? 1 : (cond.ctDivisor || 4);
+  return (dH * 1000) / (dSsalt + 1.987 * Math.log(cond.ct / divisor)) - 273.15;
 }
 
 /**
@@ -1946,7 +1975,7 @@ const DEFAULT_TAILS = Object.freeze([
 /** 기본 파라미터 (사양 §9 + 사용자 표준) */
 const DEFAULT_PARAMS = Object.freeze({
   preset: 'bioneer',                       // 'bioneer' | 'primerdigital' | 'custom'
-  custom: Object.freeze({ na_mM: 50, mg_mM: 0, oligo_nM: 250, wallaceBelow: 15 }),
+  custom: Object.freeze({ na_mM: 50, mg_mM: 1.5, dntp_mM: 1.0, oligo_nM: 50, wallaceBelow: 15, saltMethod: 'santalucia', ctDivisor: 4 }),
   aspMinLen: 18, aspMaxLen: 28,       // primerdigital 사이트 기본(18–28)과 동일; AT-rich flank 에서 Tm 하한 도달용
   commonMinLen: 18, commonMaxLen: 28,
   tmMin: 57, tmMax: 62,                 // 바이오니어 기본. primerdigital 프리셋은 60–62 (PRESET_TM_WINDOW)
@@ -2511,6 +2540,22 @@ function fmt0(x) { return f0(x); }
 const BIONEER_SHEET_NAME = '바이오니아 Oligo(Tube) 업로드 양식';
 const BIONEER_SCALES = Object.freeze(['25 nmole', '50 nmole', '200 nmole', '1000 nmole', '10000 nmole', '15000 nmole']);
 const BIONEER_PURIFICATIONS = Object.freeze(['BioRP', 'PAGE', 'HPLC']);
+/** 합성 scale 별 주문 가능 길이(mer) — 바이오니어 표준 올리고 가격표(2026-10 확인) */
+const BIONEER_SCALE_RANGES = Object.freeze({
+  '25 nmole': Object.freeze([15, 34]),
+  '50 nmole': Object.freeze([10, 75]),
+  '200 nmole': Object.freeze([5, 110]),
+  '1000 nmole': Object.freeze([5, 130]),
+  '10000 nmole': Object.freeze([5, 50]),
+  '15000 nmole': Object.freeze([5, 50]),
+});
+/** 길이에 맞는 scale: 원하는 scale 이 길이를 허용하면 그대로, 아니면 허용하는 가장 작은 scale(25→50→200→1000) */
+function bioneerScaleFor(length, preferred) {
+  const ok = (sc) => { const r = BIONEER_SCALE_RANGES[sc]; return r && length >= r[0] && length <= r[1]; };
+  if (ok(preferred)) return { scale: preferred, adjusted: false };
+  for (const sc of ['25 nmole', '50 nmole', '200 nmole', '1000 nmole']) if (ok(sc)) return { scale: sc, adjusted: sc !== preferred, from: preferred };
+  return { scale: preferred, adjusted: false, unsupported: true };
+}
 const BIONEER_HEADER = Object.freeze(['Oligo NAME', 'Scale', 'Purification', "SEQUENCE (5' --> 3')", '', '작성방법']);
 const BIONEER_GUIDE = Object.freeze([
   'A 열 : Oligo Name',
@@ -2550,7 +2595,9 @@ function bioneerOrderItems(results, o = {}) {
     const s = bioneerSequence(seq);
     if (!s || seen.has(n + '\t' + s)) return;
     seen.add(n + '\t' + s);
-    items.push({ name: n, scale: sc, purification: pu, seq: s, purpose });
+    const fit = o.autoScale === false ? { scale: sc, adjusted: false } : bioneerScaleFor(s.length, sc);
+    const note = fit.unsupported ? `${s.length} nt 는 표준 올리고 범위 밖` : fit.adjusted ? `${s.length} nt 는 ${fit.from} 불가 → ${fit.scale}` : '';
+    items.push({ name: n, scale: fit.scale, purification: pu, seq: s, purpose, length: s.length, adjusted: !!fit.adjusted, note });
   };
   for (const res of results) {
     if (res.error) continue;
@@ -4112,6 +4159,7 @@ function bindParamInputs() {
   qsa('[data-param-text]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramText] = inp.value.trim() || 'n'; inp.value = ui.params[inp.dataset.paramText]; onParamsChanged(); }));
   qsa('[data-param-bool]').forEach((inp) => inp.addEventListener('change', () => { ui.params[inp.dataset.paramBool] = inp.checked; onParamsChanged(); }));
   qsa('[data-custom]').forEach((inp) => inp.addEventListener('change', () => { ui.params.custom[inp.dataset.custom] = Number(inp.value) || 0; onParamsChanged(); renderPresetDesc(); }));
+  qsa('[data-custom-select]').forEach((sel) => sel.addEventListener('change', () => { const k = sel.dataset.customSelect; ui.params.custom[k] = k === 'ctDivisor' ? Number(sel.value) : sel.value; onParamsChanged(); renderPresetDesc(); }));
   qs('#resetParamsBtn').addEventListener('click', () => {
     const keepTails = ui.params.tails;
     ui.params = mergeParams({ tails: keepTails });
@@ -4124,10 +4172,12 @@ function renderPresetDesc() {
   const p = ui.params;
   const el = qs('#presetDesc');
   if (p.preset === 'custom') {
-    el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''}`;
+    el.textContent = `Na⁺ ${p.custom.na_mM} mM · Mg²⁺ ${p.custom.mg_mM} mM · dNTP ${p.custom.dntp_mM ?? 0} mM · 올리고 ${p.custom.oligo_nM} nM${p.custom.wallaceBelow ? ` · ${p.custom.wallaceBelow} nt 미만 Wallace rule` : ''} · ${p.custom.saltMethod === 'owczarzy' ? 'Owczarzy 보정' : 'SantaLucia 염 보정'} · ${Number(p.custom.ctDivisor) === 1 ? 'ln(Ct)' : 'ln(Ct/4)'}`;
   } else {
     const t = TM_PRESETS[p.preset] || TM_PRESETS.bioneer;
-    el.textContent = `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.wallaceBelow ? ` · ${t.wallaceBelow} nt 미만 Wallace rule` : ''}${t.ctDivisor === 1 ? ' · ln(Ct) 관례(사이트 실측과 ±0.05 °C 일치) · 기본 Tm 창 60–62' : ' · ln(Ct/4) 관례 · 기본 Tm 창 57–62'} — SantaLucia 1998 + Owczarzy 염 보정`;
+    el.textContent = t.saltMethod === 'santalucia'
+      ? `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · dNTP ${t.dntp_mM} mM · 올리고 ${t.oligo_nM} nM · ${t.wallaceBelow} nt 미만 Wallace rule · SantaLucia 1998 염 보정(Mg→Na 환산) — 바이오니어 Tm 계산기·주문 페이지 ※Tm 과 동일(실측 16개 일치) · 기본 Tm 창 57–62`
+      : `${t.label}: Na⁺ ${t.na_mM} mM · Mg²⁺ ${t.mg_mM} mM · 올리고 ${t.oligo_nM} nM${t.ctDivisor === 1 ? ' · ln(Ct) 관례(사이트 실측 38개와 ±0.05 °C 일치) · 기본 Tm 창 60–62' : ' · ln(Ct/4) 관례'} — SantaLucia 1998 + Owczarzy 염 보정`;
   }
   qs('#customCond').hidden = p.preset !== 'custom';
 }
@@ -4156,7 +4206,8 @@ function syncParamsForm() {
   });
   qsa('[data-param-text]').forEach((inp) => { inp.value = p[inp.dataset.paramText] ?? ''; });
   qsa('[data-param-bool]').forEach((inp) => { inp.checked = !!p[inp.dataset.paramBool]; });
-  qsa('[data-custom]').forEach((inp) => { inp.value = p.custom[inp.dataset.custom]; });
+  qsa('[data-custom]').forEach((inp) => { inp.value = p.custom[inp.dataset.custom] ?? 0; });
+  qsa('[data-custom-select]').forEach((sel) => { sel.value = String(p.custom[sel.dataset.customSelect] ?? (sel.dataset.customSelect === 'ctDivisor' ? 4 : 'santalucia')); });
   setSegment(qs('#presetSeg'), p.preset === 'custom' ? '' : p.preset);
   setSegment(qs('#presetSeg2'), p.preset);
   renderPresetDesc();
@@ -4884,7 +4935,7 @@ function renderBioneerPreview() {
   if (!ui.results.length) { box.innerHTML = '<p class="muted small">설계 결과가 있으면 여기에 주문 행이 미리 표시됩니다.</p>'; return; }
   const { results, selections } = exportTargets();
   const items = bioneerOrderItems(results, { selections, ...bioneerOptions() });
-  box.innerHTML = `<table class="grid stackable"><thead><tr><th>Oligo NAME</th><th>Scale</th><th>Purification</th><th>SEQUENCE (5′→3′)</th></tr></thead><tbody>${items.map((it) => `<tr><td class="id">${escapeHtml(it.name)}</td><td data-label="Scale">${escapeHtml(it.scale)}</td><td data-label="Purif">${escapeHtml(it.purification)}</td><td class="seq-cell"><span class="seq">${escapeHtml(it.seq)}</span> <span class="muted small">${it.seq.length} nt · ${escapeHtml(it.purpose)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">행 없음</td></tr>'}</tbody></table>`;
+  box.innerHTML = `<table class="grid stackable"><thead><tr><th>Oligo NAME</th><th>Scale</th><th>Purification</th><th>SEQUENCE (5′→3′)</th></tr></thead><tbody>${items.map((it) => `<tr><td class="id">${escapeHtml(it.name)}</td><td data-label="Scale">${escapeHtml(it.scale)}${it.adjusted ? ` <span class="badge warn" title="${escapeHtml(it.note)}">자동 조정</span>` : ''}</td><td data-label="Purif">${escapeHtml(it.purification)}</td><td class="seq-cell"><span class="seq">${escapeHtml(it.seq)}</span> <span class="muted small">${it.seq.length} nt · ${escapeHtml(it.purpose)}</span></td></tr>`).join('') || '<tr><td colspan="4" class="muted">행 없음</td></tr>'}</tbody></table>${items.some((it) => it.adjusted) ? '<p class="hint">바이오니어 표준 올리고는 scale 별 길이 제한이 있습니다(25 nmole 15–34 mer · 50 nmole 10–75 · 200 nmole 5–110 · 1000 nmole 5–130). tail 을 붙인 ASP(40 nt 이상)는 25 nmole 로 주문할 수 없어 허용되는 가장 작은 scale 로 자동 조정했습니다.</p>' : ''}`;
 }
 function downloadBioneerXlsx() {
   const { results, selections, scope } = exportTargets();
