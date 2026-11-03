@@ -844,86 +844,24 @@
         function downloadListTemplate() {
             const wb = XLSX.utils.book_new();
             
-            // 헤더와 빈 데이터 (10개 행)
+            // 헤더와 빈 입력 행 (셀 서식 없음 — 열 너비만 지정)
             const templateData = [
-                ['품종명', '반복수', '', '📌 입력 방법'],
-                ['', '', '', '• 품종명: 조사할 품종 이름을 입력하세요 (예: 남평, 새일미)'],
-                ['', '', '', '• 반복수: 각 품종을 몇 번 반복할지 숫자를 입력하세요 (예: 3)'],
+                ['품종명', '반복수', '', '입력 방법'],
+                ['', '', '', '품종명: 조사할 품종 이름을 입력하세요 (예: 남평, 새일미)'],
+                ['', '', '', '반복수: 각 품종을 몇 번 반복할지 숫자를 입력하세요 (예: 3)'],
                 ['', '', '', ''],
-                ['', '', '', '💡 예시'],
+                ['', '', '', '예시'],
                 ['', '', '', '품종명: 남평 / 반복수: 3'],
-                ['', '', '', '  → 결과: 남평-1, 남평-2, 남평-3'],
-                ['', '', '', ''],
-                ['', '', '', ''],
-                ['', '', '', '']
+                ['', '', '', '→ 결과: 남평-1, 남평-2, 남평-3']
             ];
             
             const ws = XLSX.utils.aoa_to_sheet(templateData);
-            
-            // 열 너비 설정
             ws['!cols'] = [
                 { wch: 18 },  // 품종명
-                { wch: 18 },  // 반복수
+                { wch: 10 },  // 반복수
                 { wch: 2 },   // 빈 칸
                 { wch: 50 }   // 설명
             ];
-            
-            // 모든 셀에 스타일 적용
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            
-            for (let R = range.s.r; R <= range.e.r; R++) {
-                for (let C = range.s.c; C <= range.e.c; C++) {
-                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                    
-                    if (!ws[cellAddress]) {
-                        ws[cellAddress] = { t: 's', v: '' };
-                    }
-                    
-                    // 헤더 행 (첫 번째 행)
-                    if (R === 0 && (C === 0 || C === 1)) {
-                        ws[cellAddress].s = {
-                            fill: { patternType: "solid", fgColor: { rgb: "D0D0D0" } },
-                            font: { bold: true, sz: 11 },
-                            alignment: { horizontal: "center", vertical: "center" },
-                            border: {
-                                top: { style: "medium", color: { rgb: "000000" } },
-                                bottom: { style: "medium", color: { rgb: "000000" } },
-                                left: { style: "medium", color: { rgb: "000000" } },
-                                right: { style: "medium", color: { rgb: "000000" } }
-                            }
-                        };
-                    }
-                    // 입력 영역 (A2:B11)
-                    else if (R >= 1 && R <= 10 && (C === 0 || C === 1)) {
-                        const isLastRow = R === 10;
-                        ws[cellAddress].s = {
-                            alignment: { horizontal: "left", vertical: "center" },
-                            border: {
-                                top: { style: "thin", color: { rgb: "000000" } },
-                                bottom: { style: isLastRow ? "medium" : "thin", color: { rgb: "000000" } },
-                                left: { style: "medium", color: { rgb: "000000" } },
-                                right: { style: "medium", color: { rgb: "000000" } }
-                            }
-                        };
-                    }
-                    // 설명 헤더 (D1)
-                    else if (R === 0 && C === 3) {
-                        ws[cellAddress].s = {
-                            fill: { patternType: "solid", fgColor: { rgb: "FFF4CC" } },
-                            font: { bold: true, sz: 11 },
-                            alignment: { horizontal: "left", vertical: "center" }
-                        };
-                    }
-                    // 설명 영역 (D2:D10)
-                    else if (R >= 1 && R <= 9 && C === 3) {
-                        ws[cellAddress].s = {
-                            fill: { patternType: "solid", fgColor: { rgb: "FFFEF5" } },
-                            font: { sz: 10 },
-                            alignment: { horizontal: "left", vertical: "center", wrapText: true }
-                        };
-                    }
-                }
-            }
             
             XLSX.utils.book_append_sheet(wb, ws, '품종입력');
             XLSX.writeFile(wb, '품종목록_입력양식.xlsx');
@@ -1108,48 +1046,9 @@
 
             const wb = XLSX.utils.book_new();
             
-            // 데이터 생성 with separators
-            const wsData = [['품종명-번호']];
-            
-            let currentVariety = '';
-            let previousVariety = '';
-            
-            generatedList.forEach((item) => {
-                currentVariety = item.split('-')[0];
-                
-                // 품종이 바뀔 때 구분선 마커 추가
-                if (currentVariety !== previousVariety && previousVariety !== '') {
-                    wsData.push({ separator: true });
-                }
-                
-                wsData.push([item]);
-                previousVariety = currentVariety;
-            });
-            
-            // separator 제거하고 실제 데이터만 추출
-            const excelData = wsData.filter(row => !row.separator);
+            // 헤더 + 품종명-번호 목록 (셀 서식 없음)
+            const excelData = [['품종명-번호'], ...generatedList.map(item => [item])];
             const ws = XLSX.utils.aoa_to_sheet(excelData);
-            
-            // 품종 구분선 추가 (굵은 테두리)
-            let currentRow = 1; // 헤더 다음부터
-            previousVariety = '';
-            
-            generatedList.forEach((item) => {
-                currentVariety = item.split('-')[0];
-                
-                if (currentVariety !== previousVariety && previousVariety !== '') {
-                    // 이전 품종의 마지막 행 아래에 굵은 테두리
-                    const cellRef = XLSX.utils.encode_cell({ r: currentRow - 1, c: 0 });
-                    if (!ws[cellRef].s) ws[cellRef].s = {};
-                    ws[cellRef].s.border = {
-                        bottom: { style: 'thick', color: { rgb: '667eea' } }
-                    };
-                }
-                
-                currentRow++;
-                previousVariety = currentVariety;
-            });
-            
             ws['!cols'] = [{ wch: 20 }];
             
             XLSX.utils.book_append_sheet(wb, ws, '품종목록');
@@ -1188,85 +1087,23 @@
         function downloadSurveyTemplate() {
             const wb = XLSX.utils.book_new();
             
-            // 헤더와 빈 데이터 (10개 행)
+            // 헤더와 빈 입력 행 (셀 서식 없음 — 열 너비만 지정)
             const templateData = [
-                ['품종명', '', '📌 입력 방법'],
-                ['', '', '• 품종명: 생육조사를 할 품종 이름을 입력하세요'],
-                ['', '', '  (예: 남평, 새일미, 삼광)'],
+                ['품종명', '', '입력 방법'],
+                ['', '', '품종명: 생육조사를 할 품종 이름을 입력하세요'],
+                ['', '', '(예: 남평, 새일미, 삼광)'],
                 ['', '', ''],
-                ['', '', '💡 생성될 양식'],
+                ['', '', '생성될 양식'],
                 ['', '', '입력한 품종별로 반복번호와 조사항목이'],
-                ['', '', '자동으로 배치된 표가 생성됩니다'],
-                ['', '', ''],
-                ['', '', ''],
-                ['', '', '']
+                ['', '', '자동으로 배치된 표가 생성됩니다']
             ];
             
             const ws = XLSX.utils.aoa_to_sheet(templateData);
-            
-            // 열 너비 설정
             ws['!cols'] = [
                 { wch: 18 },  // 품종명
                 { wch: 2 },   // 빈 칸
                 { wch: 45 }   // 설명
             ];
-            
-            // 모든 셀에 스타일 적용
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            
-            for (let R = range.s.r; R <= range.e.r; R++) {
-                for (let C = range.s.c; C <= range.e.c; C++) {
-                    const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                    
-                    if (!ws[cellAddress]) {
-                        ws[cellAddress] = { t: 's', v: '' };
-                    }
-                    
-                    // 헤더 행 (첫 번째 행, A1)
-                    if (R === 0 && C === 0) {
-                        ws[cellAddress].s = {
-                            fill: { patternType: "solid", fgColor: { rgb: "D0D0D0" } },
-                            font: { bold: true, sz: 11 },
-                            alignment: { horizontal: "center", vertical: "center" },
-                            border: {
-                                top: { style: "medium", color: { rgb: "000000" } },
-                                bottom: { style: "medium", color: { rgb: "000000" } },
-                                left: { style: "medium", color: { rgb: "000000" } },
-                                right: { style: "medium", color: { rgb: "000000" } }
-                            }
-                        };
-                    }
-                    // 입력 영역 (A2:A11)
-                    else if (R >= 1 && R <= 10 && C === 0) {
-                        const isLastRow = R === 10;
-                        ws[cellAddress].s = {
-                            alignment: { horizontal: "left", vertical: "center" },
-                            border: {
-                                top: { style: "thin", color: { rgb: "000000" } },
-                                bottom: { style: isLastRow ? "medium" : "thin", color: { rgb: "000000" } },
-                                left: { style: "medium", color: { rgb: "000000" } },
-                                right: { style: "medium", color: { rgb: "000000" } }
-                            }
-                        };
-                    }
-                    // 설명 헤더 (C1)
-                    else if (R === 0 && C === 2) {
-                        ws[cellAddress].s = {
-                            fill: { patternType: "solid", fgColor: { rgb: "FFF4CC" } },
-                            font: { bold: true, sz: 11 },
-                            alignment: { horizontal: "left", vertical: "center" }
-                        };
-                    }
-                    // 설명 영역 (C2:C10)
-                    else if (R >= 1 && R <= 9 && C === 2) {
-                        ws[cellAddress].s = {
-                            fill: { patternType: "solid", fgColor: { rgb: "FFFEF5" } },
-                            font: { sz: 10 },
-                            alignment: { horizontal: "left", vertical: "center", wrapText: true }
-                        };
-                    }
-                }
-            }
             
             XLSX.utils.book_append_sheet(wb, ws, '품종입력');
             XLSX.writeFile(wb, '생육조사_품종입력양식.xlsx');
@@ -1538,7 +1375,7 @@
                         
                         if (isConversionResult && inputColIdx >= 0) {
                             const inputColLetter = getExcelColumnLetter(2 + inputColIdx + 1);
-                            const currentRow = tableData.length + 1;
+                            const currentRow = tableData.filter(r => !r.separator).length + 1; // 구분선 행은 엑셀에 안 나가므로 제외
                             const origItem = originalItems.find(oi => 
                                 conversionSettings[oi]?.enabled && item === oi
                             );
@@ -1639,19 +1476,10 @@
             const wb = XLSX.utils.book_new();
             
             // separator 행 제거하고 실제 데이터만 추출
-            const excelData = tableData.filter(row => !row.separator).map(row => 
-                row.map(cell => {
-                    if (typeof cell === 'object' && cell.formula) {
-                        return cell;
-                    }
-                    return cell;
-                })
-            );
-            
-            const ws = XLSX.utils.aoa_to_sheet(excelData);
-            
-            // 수식 처리
             const dataOnlyRows = tableData.filter(row => !row.separator);
+            const ws = XLSX.utils.aoa_to_sheet(dataOnlyRows);
+            
+            // 환산 열 수식 처리
             dataOnlyRows.forEach((row, rowIdx) => {
                 row.forEach((cell, colIdx) => {
                     if (typeof cell === 'object' && cell.formula) {
@@ -1664,35 +1492,13 @@
                 });
             });
             
-            // 품종 구분선 추가 (굵은 테두리)
-            let currentRow = 1; // 헤더 다음부터
-            const repeatCount = parseInt(document.getElementById('repeatCount').value);
-            
-            varieties.forEach((variety, varietyIdx) => {
-                currentRow += repeatCount;
-                
-                // 마지막 품종이 아닌 경우에만 구분선
-                if (varietyIdx < varieties.length - 1) {
-                    // 해당 행의 아래쪽에 굵은 테두리 추가
-                    for (let col = 0; col < excelData[0].length; col++) {
-                        const cellRef = XLSX.utils.encode_cell({ r: currentRow - 1, c: col });
-                        if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-                        if (!ws[cellRef].s) ws[cellRef].s = {};
-                        ws[cellRef].s.border = {
-                            bottom: { style: 'thick', color: { rgb: '667eea' } }
-                        };
-                    }
-                }
-            });
-            
-            // 열 너비 설정
-            const colWidths = excelData[0].map((header) => {
+            // 열 너비만 지정 (색상·테두리·굵게 등 셀 서식 없음)
+            ws['!cols'] = dataOnlyRows[0].map((header) => {
                 if (typeof header === 'string' && header.includes('입력')) {
                     return { wch: 12 };
                 }
                 return { wch: 15 };
             });
-            ws['!cols'] = colWidths;
             
             XLSX.utils.book_append_sheet(wb, ws, '생육조사');
             XLSX.writeFile(wb, '생육조사양식_' + getDateString() + '.xlsx');
