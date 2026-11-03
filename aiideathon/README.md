@@ -21,3 +21,7 @@
 - [#245 BDSS 모듈 분리 → 인라인 통합](https://github.com/olivettirda/rda/pull/245)
 - [#280 PR 머지 규칙 분기](https://github.com/olivettirda/rda/pull/280)
 
+## 시연 영상
+
+- 영상 페이지(모바일 재생 가능): https://olivettirda.github.io/rda/aiideathon/demo.html
+- 클립: [농업 조사 통합 도구 53초](assets/demo-survey.mp4) · [백그라운드 셀렉션 31초](assets/demo-bgselection.mp4) · [디지털육종 시뮬레이터 4분 44초](assets/demo-breeding.mp4)
